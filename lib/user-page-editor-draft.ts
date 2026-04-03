@@ -9,6 +9,7 @@ import type { LocalEditsPatch } from "./stores/user-page-editor";
 import { parseLocalEditsPatch } from "./user-page-settings-io";
 
 const DRAFT_STORAGE_VERSION = 1 as const;
+const DRAFT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 
 type DraftRecordV1 = {
   version: typeof DRAFT_STORAGE_VERSION;
@@ -23,6 +24,15 @@ function draftStorageKey(userId: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isExpiredDraft(savedAt: number): boolean {
+  return Date.now() - savedAt > DRAFT_MAX_AGE_MS;
+}
+
+function clearInvalidDraftRecord(userId: string): null {
+  clearUserPageDraft(userId);
+  return null;
 }
 
 export function writeUserPageDraft(
@@ -57,18 +67,21 @@ export function readUserPageDraft(userId: string): DraftRecordV1 | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) return null;
-    if (parsed.version !== DRAFT_STORAGE_VERSION) return null;
-    if (parsed.userId !== userId) return null;
+    if (!isRecord(parsed)) return clearInvalidDraftRecord(userId);
+    if (parsed.version !== DRAFT_STORAGE_VERSION) {
+      return clearInvalidDraftRecord(userId);
+    }
+    if (parsed.userId !== userId) return clearInvalidDraftRecord(userId);
     if (
       typeof parsed.savedAt !== "number" ||
       !Number.isFinite(parsed.savedAt)
     ) {
-      return null;
+      return clearInvalidDraftRecord(userId);
     }
+    if (isExpiredDraft(parsed.savedAt)) return clearInvalidDraftRecord(userId);
 
     const patch = parseLocalEditsPatch(parsed.patch);
-    if (!patch) return null;
+    if (!patch) return clearInvalidDraftRecord(userId);
 
     return {
       version: DRAFT_STORAGE_VERSION,
@@ -77,7 +90,7 @@ export function readUserPageDraft(userId: string): DraftRecordV1 | null {
       patch,
     };
   } catch {
-    return null;
+    return clearInvalidDraftRecord(userId);
   }
 }
 

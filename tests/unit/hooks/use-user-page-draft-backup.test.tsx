@@ -20,26 +20,20 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
-const draftHelpers = {
-  clearUserPageDraft: mock(),
-  writeUserPageDraft: mock(),
-};
 const editorStore = createMockUserPageEditorStore();
 
 mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
-mock.module("@/lib/user-page-editor-draft", () => draftHelpers);
 
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
+const { readUserPageDraft } = await import("@/lib/user-page-editor-draft");
 const { useUserPageDraftBackup } =
   await import("@/hooks/useUserPageDraftBackup");
 
 beforeEach(() => {
   vi.useFakeTimers();
   resetHappyDom();
-  draftHelpers.clearUserPageDraft.mockReset();
-  draftHelpers.writeUserPageDraft.mockReset();
   editorStore.reset({
     isDirty: false,
     userId: "42",
@@ -89,23 +83,19 @@ describe("useUserPageDraftBackup", () => {
       });
     });
 
-    expect(draftHelpers.writeUserPageDraft).not.toHaveBeenCalled();
+    expect(readUserPageDraft("42")).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(749);
     });
 
-    expect(draftHelpers.writeUserPageDraft).not.toHaveBeenCalled();
+    expect(readUserPageDraft("42")).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(draftHelpers.writeUserPageDraft).toHaveBeenCalledTimes(1);
-    expect(draftHelpers.writeUserPageDraft).toHaveBeenCalledWith(
-      "42",
-      secondPatch,
-    );
+    expect(readUserPageDraft("42")?.patch).toEqual(secondPatch);
   });
 
   it("clears drafts when the editor becomes clean and suppresses stale writes", () => {
@@ -134,14 +124,13 @@ describe("useUserPageDraftBackup", () => {
       });
     });
 
-    expect(draftHelpers.clearUserPageDraft).toHaveBeenCalledTimes(1);
-    expect(draftHelpers.clearUserPageDraft).toHaveBeenCalledWith("42");
+    expect(readUserPageDraft("42")).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(750);
     });
 
-    expect(draftHelpers.writeUserPageDraft).not.toHaveBeenCalled();
+    expect(readUserPageDraft("42")).toBeNull();
   });
 
   it("cancels an in-flight draft timer when the hook unmounts", () => {
@@ -170,6 +159,31 @@ describe("useUserPageDraftBackup", () => {
       vi.advanceTimersByTime(750);
     });
 
-    expect(draftHelpers.writeUserPageDraft).not.toHaveBeenCalled();
+    expect(readUserPageDraft("42")).toBeNull();
+  });
+
+  it("flushes the latest dirty draft immediately on pagehide", () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    renderHook(() => useUserPageDraftBackup({ debounceMs: 750 }));
+
+    act(() => {
+      editorStore.setState({
+        isDirty: true,
+        localEditsPatch: patch,
+      });
+    });
+
+    act(() => {
+      globalThis.window.dispatchEvent(new globalThis.window.Event("pagehide"));
+    });
+
+    expect(readUserPageDraft("42")?.patch).toEqual(patch);
   });
 });

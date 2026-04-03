@@ -27,12 +27,14 @@ describe("user-page-editor-draft", () => {
   });
 
   it("normalizes stored drafts and drops malformed sections before restore", () => {
+    const savedAt = Date.now() - 1000;
+
     globalThis.window.localStorage.setItem(
       DRAFT_STORAGE_KEY,
       JSON.stringify({
         version: 1,
         userId: "42",
-        savedAt: 1_700_000_000_000,
+        savedAt,
         patch: {
           globalSnapshot: {
             colors: ["#111111", "#222222", "#333333", "#444444"],
@@ -74,7 +76,7 @@ describe("user-page-editor-draft", () => {
     expect(readUserPageDraft("42")).toEqual({
       version: 1,
       userId: "42",
-      savedAt: 1_700_000_000_000,
+      savedAt,
       patch: {
         globalSnapshot: {
           colorPreset: "custom",
@@ -126,6 +128,37 @@ describe("user-page-editor-draft", () => {
 
     writeUserPageDraft("42", invalidPatch);
 
+    expect(
+      globalThis.window.localStorage.getItem(DRAFT_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("drops expired drafts instead of reusing them forever", () => {
+    const savedAt = Date.now() - 1000 * 60 * 60 * 24 * 8;
+
+    globalThis.window.localStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        userId: "42",
+        savedAt,
+        patch: {
+          cardConfigs: {
+            animeStats: {
+              cardId: "animeStats",
+              enabled: false,
+              variant: "default",
+              colorOverride: {
+                useCustomSettings: false,
+              },
+              advancedSettings: {},
+            },
+          },
+        },
+      }),
+    );
+
+    expect(readUserPageDraft("42")).toBeNull();
     expect(
       globalThis.window.localStorage.getItem(DRAFT_STORAGE_KEY),
     ).toBeNull();

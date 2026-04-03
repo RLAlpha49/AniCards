@@ -26,6 +26,7 @@ interface UserProfilePageProps {
     q?: string;
     visibility?: string;
     group?: string;
+    customFilter?: string;
   }>;
 }
 
@@ -44,6 +45,7 @@ export async function generateMetadata({
       q: resolvedSearchParams.q,
       visibility: resolvedSearchParams.visibility,
       group: resolvedSearchParams.group,
+      customFilter: resolvedSearchParams.customFilter,
       routeType: "profile",
     }),
   );
@@ -67,6 +69,7 @@ export default async function UserProfilePage({
     q: resolvedSearchParams.q,
     visibility: resolvedSearchParams.visibility,
     group: resolvedSearchParams.group,
+    customFilter: resolvedSearchParams.customFilter,
     routeType: "profile",
   });
 

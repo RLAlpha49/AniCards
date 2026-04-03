@@ -29,6 +29,7 @@ export function buildLegacyUserRedirectUrl(params: {
   q?: string;
   visibility?: string;
   group?: string;
+  customFilter?: string;
 }): string {
   const nextSearchParams = new URLSearchParams();
 
@@ -42,6 +43,10 @@ export function buildLegacyUserRedirectUrl(params: {
 
   if (params.group?.trim() && params.group !== "All") {
     nextSearchParams.set("group", params.group.trim());
+  }
+
+  if (params.customFilter?.trim() && params.customFilter !== "all") {
+    nextSearchParams.set("customFilter", params.customFilter.trim());
   }
 
   const pathname = getUserProfilePath(params.username);
@@ -65,6 +70,7 @@ export async function generateMetadata({
     q?: string;
     visibility?: string;
     group?: string;
+    customFilter?: string;
   }>;
 }): Promise<Metadata> {
   const params = await searchParams;
@@ -76,6 +82,7 @@ export async function generateMetadata({
       q: params.q,
       visibility: params.visibility,
       group: params.group,
+      customFilter: params.customFilter,
       routeType: "lookup",
     }),
   );
@@ -94,6 +101,7 @@ export default async function UserPage({
     q?: string;
     visibility?: string;
     group?: string;
+    customFilter?: string;
   }>;
 }>) {
   if (SHOW_LOADING_PREVIEW) {
@@ -110,6 +118,7 @@ export default async function UserPage({
         q: params.q,
         visibility: params.visibility,
         group: params.group,
+        customFilter: params.customFilter,
       }),
     );
   }
@@ -120,6 +129,7 @@ export default async function UserPage({
     q: params.q,
     visibility: params.visibility,
     group: params.group,
+    customFilter: params.customFilter,
     routeType: "lookup",
   });
 

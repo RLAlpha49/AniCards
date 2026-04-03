@@ -86,6 +86,7 @@ describe("User route metadata and redirect helpers", () => {
         q: " seasonal favorites ",
         visibility: "all",
         group: "All",
+        customFilter: "all",
       }),
     ).toBe("/user/Alpha49?q=seasonal+favorites");
 
@@ -94,8 +95,11 @@ describe("User route metadata and redirect helpers", () => {
         username: "Alpha49",
         visibility: "private",
         group: "Top 10",
+        customFilter: "customized",
       }),
-    ).toBe("/user/Alpha49?visibility=private&group=Top+10");
+    ).toBe(
+      "/user/Alpha49?visibility=private&group=Top+10&customFilter=customized",
+    );
   });
 
   it("marks lookup metadata as noindex without inventing a canonical path for userId lookups", async () => {

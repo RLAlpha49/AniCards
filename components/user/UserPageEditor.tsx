@@ -40,8 +40,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
-import type { ReactElement } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { shallow as shallowEqual } from "zustand/shallow";
@@ -116,6 +116,7 @@ import { ReorderModeHint } from "./editor/ReorderModeHint";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
 import {
   CustomFilter,
+  parseCustomFilterParam,
   prefetchCardFilteringFuzzySearch,
   useCardFiltering,
 } from "./hooks/useCardFiltering";
@@ -351,32 +352,37 @@ function parseVisibilityParam(v: string | null): VisibilityFilter {
   return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
 }
 
-type SearchParamsLike = { get: (key: string) => string | null };
+export type SearchParamsLike = { get: (key: string) => string | null };
 
-function syncFiltersFromSearchParams(opts: {
+export function syncFiltersFromSearchParams(opts: {
   searchParams: SearchParamsLike;
   query: string;
   visibility: VisibilityFilter;
   selectedGroup: string;
+  customFilter: CustomFilter;
   setQuery: (v: string) => void;
   setVisibility: (v: VisibilityFilter) => void;
   setSelectedGroup: (v: string) => void;
+  setCustomFilter: (v: CustomFilter) => void;
 }) {
   const q = opts.searchParams.get("q") ?? "";
   const v = parseVisibilityParam(opts.searchParams.get("visibility"));
   const g = opts.searchParams.get("group") ?? "All";
+  const c = parseCustomFilterParam(opts.searchParams.get("customFilter"));
 
   if (q !== opts.query) opts.setQuery(q);
   if (v !== opts.visibility) opts.setVisibility(v);
   if (g !== opts.selectedGroup) opts.setSelectedGroup(g);
+  if (c !== opts.customFilter) opts.setCustomFilter(c);
 }
 
-function buildEditorUrl(opts: {
+export function buildEditorUrl(opts: {
   pathname: string;
   currentSearch: string;
   query: string;
   visibility: VisibilityFilter;
   selectedGroup: string;
+  customFilter: CustomFilter;
 }) {
   const params = new URLSearchParams(opts.currentSearch);
 
@@ -395,8 +401,50 @@ function buildEditorUrl(opts: {
     params.delete("group");
   }
 
+  if (opts.customFilter && opts.customFilter !== "all") {
+    params.set("customFilter", opts.customFilter);
+  } else {
+    params.delete("customFilter");
+  }
+
   const search = params.toString();
   return search ? `${opts.pathname}?${search}` : opts.pathname;
+}
+
+export function useDebouncedEditorUrlSync(opts: {
+  pathname: string;
+  currentSearch: string;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  customFilter: CustomFilter;
+  replace: (url: string) => void;
+  debounceMs?: number;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const url = buildEditorUrl({
+        pathname: opts.pathname,
+        currentSearch: opts.currentSearch,
+        query: opts.query,
+        visibility: opts.visibility,
+        selectedGroup: opts.selectedGroup,
+        customFilter: opts.customFilter,
+      });
+      opts.replace(url);
+    }, opts.debounceMs ?? 300);
+
+    return () => clearTimeout(timer);
+  }, [
+    opts.currentSearch,
+    opts.customFilter,
+    opts.debounceMs,
+    opts.pathname,
+    opts.query,
+    opts.replace,
+    opts.selectedGroup,
+    opts.visibility,
+  ]);
 }
 
 function useUserPageEditorCommandPalette(opts: {
@@ -992,6 +1040,337 @@ function useStableCardCustomizedById(): Record<string, boolean> {
   );
 }
 
+function recoverUserPageDraft(params: {
+  userId: string;
+  isLoading: boolean;
+  isDirty: boolean;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+  setDraftRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageDraft>>
+  >;
+  setIsDraftNoticeDismissed: React.Dispatch<React.SetStateAction<boolean>>;
+  autoRecoveredDraftKeyRef: { current: string | null };
+}): void {
+  if (!params.userId || params.isLoading) {
+    return;
+  }
+
+  const next = readUserPageDraft(params.userId);
+  if (!next) {
+    params.setDraftRecord(null);
+    params.setIsDraftNoticeDismissed(false);
+    params.autoRecoveredDraftKeyRef.current = null;
+    return;
+  }
+
+  params.setDraftRecord(next);
+
+  if (params.isDirty) {
+    return;
+  }
+
+  const draftKey = `${next.userId}:${next.savedAt}`;
+  if (params.autoRecoveredDraftKeyRef.current === draftKey) {
+    return;
+  }
+
+  params.autoRecoveredDraftKeyRef.current = draftKey;
+  params.applyLocalEditsPatch(next.patch);
+
+  if (!useUserPageEditor.getState().isDirty) {
+    clearUserPageDraft(params.userId);
+    params.setDraftRecord(null);
+    params.autoRecoveredDraftKeyRef.current = null;
+    return;
+  }
+
+  params.setIsDraftNoticeDismissed(true);
+  toast.success("Recovered unsaved draft", {
+    description:
+      "Your latest local edits were restored automatically so you can continue where you left off.",
+  });
+}
+
+function useContinuityFirstDraftRecovery(params: {
+  userId: string | null;
+  isLoading: boolean;
+  isDirty: boolean;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+}) {
+  const [draftRecord, setDraftRecord] =
+    useState<ReturnType<typeof readUserPageDraft>>(null);
+  const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
+  const autoRecoveredDraftKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!params.userId) {
+      setDraftRecord(null);
+      setIsDraftNoticeDismissed(false);
+      autoRecoveredDraftKeyRef.current = null;
+      return;
+    }
+
+    recoverUserPageDraft({
+      userId: params.userId,
+      isLoading: params.isLoading,
+      isDirty: params.isDirty,
+      applyLocalEditsPatch: params.applyLocalEditsPatch,
+      setDraftRecord,
+      setIsDraftNoticeDismissed,
+      autoRecoveredDraftKeyRef,
+    });
+  }, [
+    params.applyLocalEditsPatch,
+    params.isDirty,
+    params.isLoading,
+    params.userId,
+  ]);
+
+  const handleRestoreDraft = useCallback(() => {
+    if (!draftRecord) return;
+    params.applyLocalEditsPatch(draftRecord.patch);
+    setDraftRecord(null);
+    toast.success("Draft restored");
+  }, [params.applyLocalEditsPatch, draftRecord]);
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!params.userId) return;
+    clearUserPageDraft(params.userId);
+    setDraftRecord(null);
+    toast.success("Draft discarded");
+  }, [params.userId]);
+
+  return {
+    draftRecord,
+    setDraftRecord,
+    isDraftNoticeDismissed,
+    setIsDraftNoticeDismissed,
+    handleRestoreDraft,
+    handleDiscardDraft,
+  };
+}
+
+function useEditorPersistenceActions(params: {
+  userId: string | null;
+  reload: () => Promise<void>;
+  saveNow: () => Promise<void>;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+  clearSaveConflict: () => void;
+  discardChanges: () => void;
+  setDraftRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageDraft>>
+  >;
+  setIsDiscardDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const handleResolveConflictKeepEdits = useCallback(async () => {
+    if (!params.userId) return;
+
+    const patch = buildLocalEditsPatch(useUserPageEditor.getState());
+
+    try {
+      await params.reload();
+      params.clearSaveConflict();
+
+      if (patch) {
+        params.applyLocalEditsPatch(patch);
+        await params.saveNow();
+      }
+    } catch (err) {
+      console.error("Failed to resolve conflict:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [params]);
+
+  const handleResolveConflictDiscardEdits = useCallback(async () => {
+    try {
+      await params.reload();
+      params.clearSaveConflict();
+    } catch (err) {
+      console.error("Failed to reload latest changes:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [params]);
+
+  const handleDiscardChanges = useCallback(() => {
+    try {
+      params.discardChanges();
+      params.clearSaveConflict();
+      if (params.userId) clearUserPageDraft(params.userId);
+      params.setDraftRecord(null);
+      params.setIsDiscardDialogOpen(false);
+      toast.success("Changes discarded");
+    } catch (err) {
+      console.error("Failed to discard changes:", err);
+      toast.error("Failed to discard changes");
+    }
+  }, [params]);
+
+  return {
+    handleResolveConflictKeepEdits,
+    handleResolveConflictDiscardEdits,
+    handleDiscardChanges,
+  };
+}
+
+function useReorderModeAvailability(opts: {
+  canEnterReorderMode: boolean;
+  isReorderMode: boolean;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  useEffect(() => {
+    if (opts.isReorderMode && !opts.canEnterReorderMode) {
+      opts.setIsReorderMode(false);
+    }
+  }, [opts.canEnterReorderMode, opts.isReorderMode, opts.setIsReorderMode]);
+}
+
+type RenderableCardType = (typeof statCardTypes)[number];
+
+const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
+  props: Readonly<{
+    activeFilterCount: number;
+    clearAllFilters: () => void;
+    expandedGroups: Record<string, boolean>;
+    filteredGroupTotals: Record<string, { total: number; enabled: number }>;
+    filteredGroups: Record<string, RenderableCardType[]>;
+    groupIcon: (groupName: string) => ReactNode;
+    groupTotals: Record<string, { total: number; enabled: number }>;
+    handleExpandedChange: (groupName: string, next: boolean) => void;
+    isCardEnabled: (cardId: string) => boolean;
+    isReorderMode: boolean;
+    layoutVersion: number;
+    renderCardTile: (
+      cardType: RenderableCardType,
+      index: number,
+      ctx?: {
+        dragHandleProps?: CardTileDragHandleProps;
+        isDragging?: boolean;
+      },
+    ) => ReactNode;
+    reorderCardsInScope: (opts: {
+      activeId: string;
+      overId: string;
+      scopeIds?: readonly string[];
+    }) => void;
+    setQuery: (value: string) => void;
+    setVisibility: (value: VisibilityFilter) => void;
+    visibleGroupNames: readonly string[];
+  }>,
+) {
+  if (props.visibleGroupNames.length === 0) {
+    return (
+      <div className="
+        relative border-2 border-gold/20 bg-gold/3 p-10 text-center shadow-xl backdrop-blur-sm
+        dark:border-gold/15 dark:bg-gold/3
+      ">
+        <div className="
+          pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+        " />
+        <div className="
+          pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2 border-gold
+        " />
+        <p className="font-display text-base tracking-widest text-foreground uppercase">
+          No cards match your filters
+        </p>
+        <p className="mt-2 font-body-serif text-sm text-muted-foreground">
+          Try clearing the search box or switching visibility.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => props.setQuery("")}
+          >
+            Clear search
+          </Button>
+
+          {props.activeFilterCount > 1 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={props.clearAllFilters}
+            >
+              Clear all filters
+            </Button>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => props.setVisibility("all")}
+          >
+            Show all
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6" data-tour="card-groups">
+      {Object.entries(props.filteredGroups).map(
+        ([groupName, filteredCards], index) => {
+          const stats = props.filteredGroupTotals[groupName] ??
+            props.groupTotals[groupName] ?? {
+              total: filteredCards.length,
+              enabled: filteredCards.filter((cardType) =>
+                props.isCardEnabled(cardType.id),
+              ).length,
+            };
+
+          return (
+            <motion.div
+              key={groupName}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(index * 0.04, 0.25) }}
+            >
+              <CardCategorySection
+                title={groupName}
+                icon={props.groupIcon(groupName)}
+                cardCount={stats.total}
+                enabledCount={stats.enabled}
+                expanded={props.expandedGroups[groupName] ?? true}
+                onExpandedChange={(next) =>
+                  props.handleExpandedChange(groupName, next)
+                }
+                defaultExpanded={index === 0}
+                cards={filteredCards}
+                renderCard={props.renderCardTile}
+                getCardKey={(cardType) => cardType.id}
+                scrollMarginKey={props.layoutVersion}
+                reorderable={props.isReorderMode}
+                onReorder={({ activeId, overId, scopeIds }) => {
+                  props.reorderCardsInScope({ activeId, overId, scopeIds });
+                }}
+              />
+            </motion.div>
+          );
+        },
+      )}
+    </div>
+  );
+});
+
+EditorCardGroupsPanel.displayName = "EditorCardGroupsPanel";
+
+function SelectedBulkActionsToolbarGate() {
+  const selectedCount = useUserPageEditor(
+    (state) => state.selectedCardIds.size,
+  );
+  return selectedCount > 0 ? <LazyBulkActionsToolbar /> : null;
+}
+
 export function UserPageEditor({
   routeUsername,
 }: Readonly<{
@@ -1008,7 +1387,6 @@ export function UserPageEditor({
     isDirty,
     isSaving,
     saveError,
-    selectedCount,
     lastSavedAt,
     cardOrder,
     enableAllCards,
@@ -1034,7 +1412,6 @@ export function UserPageEditor({
       isDirty: s.isDirty,
       isSaving: s.isSaving,
       saveError: s.saveError,
-      selectedCount: s.selectedCardIds.size,
       lastSavedAt: s.lastSavedAt,
       cardOrder: s.cardOrder,
       enableAllCards: s.enableAllCards,
@@ -1064,21 +1441,21 @@ export function UserPageEditor({
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
 
-  const [draftRecord, setDraftRecord] =
-    useState<ReturnType<typeof readUserPageDraft>>(null);
-  const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
-
   const initialQuery = searchParams.get("q") ?? "";
   const initialVisibility = parseVisibilityParam(
     searchParams.get("visibility"),
   );
   const initialGroup = searchParams.get("group") ?? "All";
+  const initialCustomFilter = parseCustomFilterParam(
+    searchParams.get("customFilter"),
+  );
 
   const [query, setQuery] = useState(initialQuery);
   const [visibility, setVisibility] =
     useState<VisibilityFilter>(initialVisibility);
   const [selectedGroup, setSelectedGroup] = useState<string>(initialGroup);
-  const [customFilter, setCustomFilter] = useState<CustomFilter>("all");
+  const [customFilter, setCustomFilter] =
+    useState<CustomFilter>(initialCustomFilter);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
@@ -1093,15 +1470,20 @@ export function UserPageEditor({
       customFilter === "all",
     [query, visibility, customFilter],
   );
+  useReorderModeAvailability({
+    canEnterReorderMode,
+    isReorderMode,
+    setIsReorderMode,
+  });
 
-  useEffect(() => {
-    if (isReorderMode && !canEnterReorderMode) {
-      setIsReorderMode(false);
-    }
-  }, [canEnterReorderMode, isReorderMode]);
-
-  const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning, startSetup } =
-    useNewUserSetup();
+  const {
+    isNewUser,
+    setIsNewUser,
+    cardsWarning,
+    setCardsWarning,
+    startSetup,
+    hasPendingSetup,
+  } = useNewUserSetup();
 
   const prefetchHelpDialog = useCallback(() => {
     void loadUserHelpDialog();
@@ -1118,9 +1500,7 @@ export function UserPageEditor({
   }, []);
 
   const handleHelpDialogOpenChange = useCallback((open: boolean) => {
-    if (open) {
-      setHasRequestedHelpDialog(true);
-    }
+    setHasRequestedHelpDialog((prev) => prev || open);
     setIsHelpDialogOpen(open);
   }, []);
 
@@ -1158,6 +1538,7 @@ export function UserPageEditor({
   const { loadingPhase, reload, canRetryLoadInPlace } = useUserDataLoader({
     routeUsername,
     startSetup,
+    shouldResumeSetup: hasPendingSetup,
   });
 
   const {
@@ -1233,11 +1614,13 @@ export function UserPageEditor({
       query,
       visibility,
       selectedGroup,
+      customFilter,
       setQuery,
       setVisibility,
       setSelectedGroup,
+      setCustomFilter,
     });
-  }, [searchParams]);
+  }, [customFilter, query, searchParams, selectedGroup, visibility]);
 
   useUserPageEditorKeyboardShortcuts({
     canEnterReorderMode,
@@ -1254,14 +1637,19 @@ export function UserPageEditor({
     groupFilterTriggerId,
   });
 
-  useEffect(() => {
-    if (!userId || isLoading) return;
-    if (isDirty) return;
-
-    const next = readUserPageDraft(userId);
-    setDraftRecord(next);
-    setIsDraftNoticeDismissed(false);
-  }, [userId, isLoading, isDirty]);
+  const {
+    draftRecord,
+    setDraftRecord,
+    isDraftNoticeDismissed,
+    setIsDraftNoticeDismissed,
+    handleRestoreDraft,
+    handleDiscardDraft,
+  } = useContinuityFirstDraftRecovery({
+    userId,
+    isLoading,
+    isDirty,
+    applyLocalEditsPatch,
+  });
 
   useEffect(() => {
     if (isLoading || !userId) return;
@@ -1373,85 +1761,33 @@ export function UserPageEditor({
       openHelpDialog,
     });
 
-  const handleResolveConflictKeepEdits = useCallback(async () => {
-    if (!userId) return;
-
-    const patch = buildLocalEditsPatch(useUserPageEditor.getState());
-
-    try {
-      await reload();
-      clearSaveConflict();
-
-      if (patch) {
-        applyLocalEditsPatch(patch);
-        await saveNow();
-      }
-    } catch (err) {
-      console.error("Failed to resolve conflict:", err);
-      toast.error("Failed to reload latest changes", {
-        description: "Please check your connection and try again.",
-      });
-    }
-  }, [applyLocalEditsPatch, clearSaveConflict, reload, saveNow, userId]);
-
-  const handleResolveConflictDiscardEdits = useCallback(async () => {
-    try {
-      await reload();
-      clearSaveConflict();
-    } catch (err) {
-      console.error("Failed to reload latest changes:", err);
-      toast.error("Failed to reload latest changes", {
-        description: "Please check your connection and try again.",
-      });
-    }
-  }, [clearSaveConflict, reload]);
-
-  const handleRestoreDraft = useCallback(() => {
-    if (!draftRecord) return;
-    applyLocalEditsPatch(draftRecord.patch);
-    setDraftRecord(null);
-    toast.success("Draft restored");
-  }, [applyLocalEditsPatch, draftRecord]);
-
-  const handleDiscardDraft = useCallback(() => {
-    if (!userId) return;
-    clearUserPageDraft(userId);
-    setDraftRecord(null);
-    toast.success("Draft discarded");
-  }, [userId]);
-
-  const handleDiscardChanges = useCallback(() => {
-    try {
-      discardChanges();
-      clearSaveConflict();
-      if (userId) clearUserPageDraft(userId);
-      setDraftRecord(null);
-      setIsDiscardDialogOpen(false);
-      toast.success("Changes discarded");
-    } catch (err) {
-      console.error("Failed to discard changes:", err);
-      toast.error("Failed to discard changes");
-    }
-  }, [discardChanges, clearSaveConflict, userId]);
+  const {
+    handleResolveConflictKeepEdits,
+    handleResolveConflictDiscardEdits,
+    handleDiscardChanges,
+  } = useEditorPersistenceActions({
+    userId,
+    reload,
+    saveNow,
+    applyLocalEditsPatch,
+    clearSaveConflict,
+    discardChanges,
+    setDraftRecord,
+    setIsDiscardDialogOpen,
+  });
 
   const router = useRouter();
   const pathname = usePathname();
 
-  // Persist filter state to the URL for shareable views (debounced to avoid spam)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const url = buildEditorUrl({
-        pathname,
-        currentSearch: globalThis.location.search,
-        query,
-        visibility,
-        selectedGroup,
-      });
-      router.replace(url);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [query, visibility, selectedGroup, router, pathname]);
+  useDebouncedEditorUrlSync({
+    pathname,
+    currentSearch: globalThis.location.search,
+    query,
+    visibility,
+    selectedGroup,
+    customFilter,
+    replace: router.replace,
+  });
 
   const clearAllFilters = useCallback(() => {
     setQuery("");
@@ -1482,12 +1818,6 @@ export function UserPageEditor({
     },
     [setGroupExpanded],
   );
-
-  type RenderableCardType = {
-    id: string;
-    label: string;
-    variations: ReadonlyArray<{ id: string; label: string }>;
-  };
 
   const renderCardTile = useCallback(
     (
@@ -2616,102 +2946,29 @@ export function UserPageEditor({
               <ReorderModeHint isVisible={isReorderMode} />
             </motion.div>
 
-            {visibleGroupNames.length === 0 ? (
-              <div className="
-                relative border-2 border-gold/20 bg-gold/3 p-10 text-center shadow-xl
-                backdrop-blur-sm
-                dark:border-gold/15 dark:bg-gold/3
-              ">
-                <div className="
-                  pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
-                " />
-                <div className="
-                  pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2
-                  border-gold
-                " />
-                <p className="font-display text-base tracking-widest text-foreground uppercase">
-                  No cards match your filters
-                </p>
-                <p className="mt-2 font-body-serif text-sm text-muted-foreground">
-                  Try clearing the search box or switching visibility.
-                </p>
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setQuery("")}
-                  >
-                    Clear search
-                  </Button>
-
-                  {activeFilterCount > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={clearAllFilters}
-                    >
-                      Clear all filters
-                    </Button>
-                  )}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setVisibility("all")}
-                  >
-                    Show all
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6" data-tour="card-groups">
-                {Object.entries(filteredGroups).map(
-                  ([groupName, filteredCards], index) => {
-                    const stats = filteredGroupTotals[groupName] ??
-                      groupTotals[groupName] ?? {
-                        total: filteredCards.length,
-                        enabled: filteredCards.filter((c) =>
-                          isCardEnabled(c.id),
-                        ).length,
-                      };
-
-                    return (
-                      <motion.div
-                        key={groupName}
-                        initial={{ opacity: 0, y: 14 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(index * 0.04, 0.25) }}
-                      >
-                        <CardCategorySection
-                          title={groupName}
-                          icon={groupIcon(groupName)}
-                          cardCount={stats.total}
-                          enabledCount={stats.enabled}
-                          expanded={expandedGroups[groupName] ?? true}
-                          onExpandedChange={(next) =>
-                            handleExpandedChange(groupName, next)
-                          }
-                          defaultExpanded={index === 0}
-                          cards={filteredCards}
-                          renderCard={renderCardTile}
-                          getCardKey={(c) => c.id}
-                          scrollMarginKey={layoutVersion}
-                          reorderable={isReorderMode}
-                          onReorder={({ activeId, overId, scopeIds }) => {
-                            reorderCardsInScope({ activeId, overId, scopeIds });
-                          }}
-                        />
-                      </motion.div>
-                    );
-                  },
-                )}
-              </div>
-            )}
+            <EditorCardGroupsPanel
+              activeFilterCount={activeFilterCount}
+              clearAllFilters={clearAllFilters}
+              expandedGroups={expandedGroups}
+              filteredGroupTotals={filteredGroupTotals}
+              filteredGroups={filteredGroups}
+              groupIcon={groupIcon}
+              groupTotals={groupTotals}
+              handleExpandedChange={handleExpandedChange}
+              isCardEnabled={isCardEnabled}
+              isReorderMode={isReorderMode}
+              layoutVersion={layoutVersion}
+              renderCardTile={renderCardTile}
+              reorderCardsInScope={reorderCardsInScope}
+              setQuery={setQuery}
+              setVisibility={setVisibility}
+              visibleGroupNames={visibleGroupNames}
+            />
           </main>
         </div>
       </div>
 
-      {selectedCount > 0 ? <LazyBulkActionsToolbar /> : null}
+      <SelectedBulkActionsToolbarGate />
     </div>
   );
 }

@@ -374,4 +374,79 @@ test.describe("User page editor - save UX", () => {
       ).toBeDisabled();
     });
   });
+
+  test("load restores a fresh local draft automatically and re-saves it", async ({
+    page,
+  }) => {
+    const savePayloads: Array<Record<string, unknown>> = [];
+
+    await page.addInitScript((userId: string) => {
+      const key = `anicards:user-page-editor:draft:v1:${userId}`;
+      globalThis.localStorage.setItem(
+        key,
+        JSON.stringify({
+          version: 1,
+          userId,
+          savedAt: Date.now(),
+          patch: {
+            cardConfigs: {
+              animeStats: {
+                cardId: "animeStats",
+                enabled: false,
+                variant: "default",
+                colorOverride: {
+                  useCustomSettings: false,
+                },
+                advancedSettings: {},
+              },
+            },
+          },
+        }),
+      );
+    }, String(mockCardsRecord.userId));
+
+    await test.step("Mock user, cards, preview, and save endpoints", async () => {
+      await mockSuccessfulApiRoutes(page, {
+        storeCards: async (route) => {
+          const postData = route.request().postData();
+          savePayloads.push(postData ? JSON.parse(postData) : {});
+
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              userId: mockCardsRecord.userId,
+              updatedAt: "2025-01-02T00:00:00.000Z",
+            }),
+          });
+        },
+      });
+    });
+
+    await test.step("Load the user editor with a recoverable local draft", async () => {
+      await gotoReady(page, "/user/TestUser");
+      await expect(
+        page.getByRole("heading", { name: "Your Cards" }),
+      ).toBeVisible();
+      await waitForUserEditorHydrated(page);
+    });
+
+    await test.step("The draft should auto-apply and save without user intervention", async () => {
+      await expect.poll(() => savePayloads.length, { timeout: 6000 }).toBe(1);
+
+      const payload = savePayloads[0] ?? {};
+      expect(payload.ifMatchUpdatedAt).toBe(mockCardsRecord.updatedAt);
+
+      const cards = payload.cards as Array<Record<string, unknown>>;
+      expect(Array.isArray(cards)).toBe(true);
+      expect(cards).toHaveLength(1);
+      expectSavedTogglePayload(cards[0]);
+
+      await expect(page.getByText(/draft found:/i)).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /save changes/i }),
+      ).toBeDisabled();
+    });
+  });
 });

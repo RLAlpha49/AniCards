@@ -4,7 +4,7 @@
 // user, seed starter cards, then load the editor from the data that actually
 // lives in storage.
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
@@ -14,6 +14,7 @@ import {
   requestClientJson,
   throwIfClientRequestAborted,
 } from "@/lib/api/client-fetch";
+import { parseStrictPositiveInteger } from "@/lib/api/primitives";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
@@ -36,12 +37,10 @@ export type NewUserSetupResult =
       userId: number;
       username: string | null;
       avatarUrl: string | null;
-      stats: AniListStatsResponse;
       initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
       cardsUpdatedAt: string | null;
-      cardsPersisted: boolean;
     }
-  | { error: string };
+  | { error: string; retryable: boolean };
 
 const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
 const NEW_USER_SETUP_REQUEST_TIMEOUT_MS = 20_000;
@@ -58,8 +57,58 @@ export type StartNewUserSetup = (
   setLoadingPhase?: (phase: LoadingPhase) => void,
   requestOptions?: StartNewUserSetupRequestOptions,
 ) => Promise<
-  { success: true; userId: number; username: string | null } | { error: string }
+  | { success: true; userId: number; username: string | null }
+  | { error: string; retryable: boolean }
 >;
+
+export type HasPendingNewUserSetup = (
+  userIdParam: string | null,
+  usernameParam: string | null,
+) => boolean;
+
+type PendingNewUserSetupState = {
+  userId: number;
+  username: string | null;
+  avatarUrl: string | null;
+  stats: AniListStatsResponse;
+};
+
+function createNewUserSetupError(
+  message: string,
+  retryable = getErrorDetails(message).retryable,
+): Extract<NewUserSetupResult, { error: string }> {
+  return { error: message, retryable };
+}
+
+function getAvatarUrlFromStats(stats: AniListStatsResponse): string | null {
+  const userStats = stats.User;
+  const avatar = userStats?.avatar as Record<string, string> | undefined;
+  return avatar?.medium || avatar?.large || null;
+}
+
+function matchesPendingSetup(
+  pendingSetup: PendingNewUserSetupState | null,
+  userIdParam: string | null,
+  usernameParam: string | null,
+): boolean {
+  if (!pendingSetup) {
+    return false;
+  }
+
+  const normalizedUserId = parseStrictPositiveInteger(userIdParam);
+  if (normalizedUserId !== null) {
+    return normalizedUserId === pendingSetup.userId;
+  }
+
+  const normalizedUsername = usernameParam?.trim().toLowerCase();
+  const pendingUsername = pendingSetup.username?.trim().toLowerCase();
+
+  return Boolean(
+    normalizedUsername &&
+    pendingUsername &&
+    normalizedUsername === pendingUsername,
+  );
+}
 
 function isSupersededNewUserSetupRequest(
   error: unknown,
@@ -291,6 +340,13 @@ async function saveInitialCards(
 export function useNewUserSetup() {
   const [isNewUser, setIsNewUser] = useState(false);
   const [cardsWarning, setCardsWarning] = useState<string | null>(null);
+  const pendingSetupRef = useRef<PendingNewUserSetupState | null>(null);
+
+  const hasPendingSetup = useCallback<HasPendingNewUserSetup>(
+    (userIdParam, usernameParam) =>
+      matchesPendingSetup(pendingSetupRef.current, userIdParam, usernameParam),
+    [],
+  );
 
   const setupNewUserNetwork = useCallback(
     async (
@@ -301,6 +357,53 @@ export function useNewUserSetup() {
     ): Promise<NewUserSetupResult> => {
       assertSetupRequestIsCurrent(requestOptions);
       setLoadingPhase?.("setting_up");
+
+      const pendingSetup = matchesPendingSetup(
+        pendingSetupRef.current,
+        userIdParam,
+        usernameParam,
+      )
+        ? pendingSetupRef.current
+        : null;
+
+      if (pendingSetup) {
+        setLoadingPhase?.("saving");
+
+        const saveCardsResult = await saveInitialCards(
+          pendingSetup.userId,
+          pendingSetup.stats,
+          requestOptions,
+        );
+
+        assertSetupRequestIsCurrent(requestOptions);
+
+        if ("error" in saveCardsResult) {
+          const errorDetails = getErrorDetails(
+            saveCardsResult.error ?? "Unknown error",
+          );
+          void trackUserActionError(
+            "new_user_setup_save_cards",
+            new Error(saveCardsResult.error ?? "Unknown error"),
+            errorDetails.category,
+          );
+
+          return createNewUserSetupError(
+            "We created your profile, but couldn't save your starter cards yet. Try again to finish setup.",
+            true,
+          );
+        }
+
+        pendingSetupRef.current = null;
+
+        return {
+          success: true,
+          userId: pendingSetup.userId,
+          username: pendingSetup.username,
+          avatarUrl: pendingSetup.avatarUrl,
+          initialCards: saveCardsResult.initialCards,
+          cardsUpdatedAt: saveCardsResult.updatedAt,
+        };
+      }
 
       let resolvedUserId: number | null = null;
       let resolvedUsername: string | null = usernameParam;
@@ -324,14 +427,19 @@ export function useNewUserSetup() {
             new Error(anilistIdResult.error),
             errorDetails.category,
           );
-          return { error: anilistIdResult.error };
+          return createNewUserSetupError(
+            anilistIdResult.error,
+            errorDetails.retryable,
+          );
         }
 
         resolvedUserId = anilistIdResult.userId;
       }
 
       if (!resolvedUserId) {
-        return { error: "Could not determine user ID. Please try again." };
+        return createNewUserSetupError(
+          "Could not determine user ID. Please try again.",
+        );
       }
 
       assertSetupRequestIsCurrent(requestOptions);
@@ -350,7 +458,10 @@ export function useNewUserSetup() {
           new Error(statsResult.error),
           errorDetails.category,
         );
-        return { error: statsResult.error };
+        return createNewUserSetupError(
+          statsResult.error,
+          errorDetails.retryable,
+        );
       }
 
       const stats = statsResult.stats;
@@ -358,6 +469,7 @@ export function useNewUserSetup() {
         | string
         | undefined;
       if (!resolvedUsername && statsUsername) resolvedUsername = statsUsername;
+      const resolvedAvatarUrl = getAvatarUrlFromStats(statsResult.stats);
 
       assertSetupRequestIsCurrent(requestOptions);
       setLoadingPhase?.("saving");
@@ -377,8 +489,15 @@ export function useNewUserSetup() {
           new Error(saveUserResult.error),
           errorDetails.category,
         );
-        return { error: saveUserResult.error };
+        return createNewUserSetupError(saveUserResult.error, true);
       }
+
+      pendingSetupRef.current = {
+        userId: resolvedUserId,
+        username: resolvedUsername,
+        avatarUrl: resolvedAvatarUrl,
+        stats: statsResult.stats,
+      };
 
       const saveCardsResult = await saveInitialCards(
         resolvedUserId,
@@ -388,9 +507,7 @@ export function useNewUserSetup() {
 
       assertSetupRequestIsCurrent(requestOptions);
 
-      const fallbackInitialCards = buildNewUserStarterCardsSnapshot();
       if ("error" in saveCardsResult) {
-        // Non-fatal: user account is created; cards will use defaults and can be re-saved later
         const errorDetails = getErrorDetails(
           saveCardsResult.error ?? "Unknown error",
         );
@@ -400,35 +517,21 @@ export function useNewUserSetup() {
           errorDetails.category,
         );
 
-        const userStats = statsResult.stats.User;
-        const avatar = userStats?.avatar as Record<string, string> | undefined;
-        const resolvedAvatarUrl = avatar?.medium || avatar?.large || null;
-
-        return {
-          success: true,
-          userId: resolvedUserId,
-          username: resolvedUsername,
-          avatarUrl: resolvedAvatarUrl,
-          stats: statsResult.stats,
-          initialCards: fallbackInitialCards,
-          cardsUpdatedAt: null,
-          cardsPersisted: false,
-        };
+        return createNewUserSetupError(
+          "We created your profile, but couldn't save your starter cards yet. Try again to finish setup.",
+          true,
+        );
       }
 
-      const userStats = statsResult.stats.User;
-      const avatar = userStats?.avatar as Record<string, string> | undefined;
-      const resolvedAvatarUrl = avatar?.medium || avatar?.large || null;
+      pendingSetupRef.current = null;
 
       return {
         success: true,
         userId: resolvedUserId,
         username: resolvedUsername,
         avatarUrl: resolvedAvatarUrl,
-        stats: statsResult.stats,
         initialCards: saveCardsResult.initialCards,
         cardsUpdatedAt: saveCardsResult.updatedAt,
-        cardsPersisted: true,
       };
     },
     [],
@@ -442,7 +545,6 @@ export function useNewUserSetup() {
         avatarUrl: string | null;
         initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
         updatedAt: string | null;
-        cardsPersisted: boolean;
       },
       requestOptions?: StartNewUserSetupRequestOptions,
     ) => {
@@ -462,14 +564,7 @@ export function useNewUserSetup() {
 
       assertSetupRequestIsCurrent(requestOptions);
 
-      if (params.cardsPersisted) {
-        setCardsWarning(null);
-        return;
-      }
-
-      setCardsWarning(
-        "We couldn't persist your starter cards yet, so you're editing a local starter setup for now. Saving once will store it.",
-      );
+      setCardsWarning(null);
     },
     [],
   );
@@ -497,21 +592,14 @@ export function useNewUserSetup() {
 
         if ("error" in setupResult) {
           setIsNewUser(false);
-          return { error: setupResult.error } as const;
+          return {
+            error: setupResult.error,
+            retryable: setupResult.retryable,
+          } as const;
         }
 
         setLoadingPhase?.("loading_cards");
         assertSetupRequestIsCurrent(requestOptions);
-
-        // Expose the resolved identity first so the page shell can render the
-        // correct user context while card hydration finishes in the next step.
-        useUserPageEditor
-          .getState()
-          .setUserData(
-            setupResult.userId.toString(),
-            setupResult.username,
-            setupResult.avatarUrl,
-          );
 
         hydrateNewUserCards(
           {
@@ -520,7 +608,6 @@ export function useNewUserSetup() {
             avatarUrl: setupResult.avatarUrl,
             initialCards: setupResult.initialCards,
             updatedAt: setupResult.cardsUpdatedAt,
-            cardsPersisted: setupResult.cardsPersisted,
           },
           requestOptions,
         );
@@ -555,7 +642,10 @@ export function useNewUserSetup() {
         );
 
         console.error("Unhandled error during new user setup:", err);
-        return { error: message } as const;
+        return {
+          error: message,
+          retryable: details.retryable,
+        } as const;
       }
     },
     [setupNewUserNetwork, hydrateNewUserCards],
@@ -567,5 +657,6 @@ export function useNewUserSetup() {
     cardsWarning,
     setCardsWarning,
     startSetup,
+    hasPendingSetup,
   } as const;
 }

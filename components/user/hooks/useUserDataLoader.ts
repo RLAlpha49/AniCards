@@ -13,6 +13,7 @@ import {
   isClientTimeoutError,
   requestClientJson,
 } from "@/lib/api/client-fetch";
+import { normalizePositiveIntegerString } from "@/lib/api/primitives";
 import { isValidUsername } from "@/lib/api-utils";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails, getSafeErrorSummary } from "@/lib/error-messages";
@@ -29,7 +30,10 @@ import {
   type StructuredResponseError,
 } from "@/lib/utils";
 
-import type { StartNewUserSetup } from "./useNewUserSetup";
+import type {
+  HasPendingNewUserSetup,
+  StartNewUserSetup,
+} from "./useNewUserSetup";
 
 const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
 const USER_ROUTE_REQUEST_TIMEOUT_MS = 15_000;
@@ -65,6 +69,37 @@ type ActiveLoadContext = {
   failLoad: (message: string, retryable: boolean) => void;
 };
 
+type UserCardsLoadOutcome =
+  | { ok: true; result: Awaited<ReturnType<typeof fetchUserCards>> }
+  | { ok: false; error: unknown };
+
+function shouldSkipRequestedUserLoad(options: {
+  activeLoadRequest: UserLoadRequest | null;
+  clearAlreadyLoadedState: () => void;
+  force?: boolean;
+  lastLoadedUserId: string | null;
+  requestedId: string;
+}): boolean {
+  if (options.force) {
+    return false;
+  }
+
+  if (options.activeLoadRequest?.requestedId === options.requestedId) {
+    return true;
+  }
+
+  if (options.lastLoadedUserId !== options.requestedId) {
+    return false;
+  }
+
+  options.clearAlreadyLoadedState();
+  return true;
+}
+
+function normalizeRequestedUserId(userIdParam: string | null): string | null {
+  return normalizePositiveIntegerString(userIdParam);
+}
+
 function resolveRequestedUserSelection(
   searchParams: SearchParamsReader,
   routeUsername?: string,
@@ -73,12 +108,8 @@ function resolveRequestedUserSelection(
   const rawUsernameParam =
     searchParams.get("username") ?? routeUsername ?? null;
 
-  let userIdParam = rawUserIdParam?.trim() ?? null;
+  const userIdParam = normalizeRequestedUserId(rawUserIdParam);
   let usernameParam = rawUsernameParam?.trim() ?? null;
-
-  if (!/^\d+$/.test(userIdParam ?? "")) {
-    userIdParam = null;
-  }
 
   if (usernameParam === null || !isValidUsername(usernameParam)) {
     usernameParam = null;
@@ -297,9 +328,23 @@ function isSupersededUserLoadRequest(
   return !isCurrentRequest();
 }
 
+function startUserCardsLoad(
+  userId: string,
+  signal: AbortSignal,
+): Promise<UserCardsLoadOutcome> {
+  return fetchUserCards(userId, {
+    signal,
+    timeoutMs: USER_ROUTE_REQUEST_TIMEOUT_MS,
+  }).then(
+    (result) => ({ ok: true, result }),
+    (error) => ({ ok: false, error }),
+  );
+}
+
 export function useUserDataLoader(options: {
   routeUsername?: string;
   startSetup: StartNewUserSetup;
+  shouldResumeSetup?: HasPendingNewUserSetup;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -386,82 +431,6 @@ export function useUserDataLoader(options: {
     [pathname, router, searchParams],
   );
 
-  const handleCardsForExistingUser = useCallback(
-    async (
-      userIdStr: string,
-      uname: string | null,
-      aUrl: string | null,
-      signal: AbortSignal,
-      isCurrentRequest: () => boolean,
-    ) => {
-      const store = useUserPageEditor.getState();
-      const cardsResult = await fetchUserCards(userIdStr, {
-        signal,
-        timeoutMs: USER_ROUTE_REQUEST_TIMEOUT_MS,
-      });
-
-      if (!isCurrentRequest()) {
-        return;
-      }
-
-      if ("error" in cardsResult) {
-        if (cardsResult.notFound) {
-          store.initializeFromServerData(
-            userIdStr,
-            uname,
-            aUrl,
-            [],
-            undefined,
-            ALL_CARD_IDS,
-          );
-          setLoadingPhase("complete");
-          return;
-        }
-
-        const error = cardsResult.error;
-        void trackUserActionError(
-          "user_page_load_fetch_cards",
-          new Error(error.message),
-          error.category,
-          {
-            statusCode: error.status,
-            requestId: error.requestId,
-            retryable: error.retryable,
-            recoverySuggestions: error.recoverySuggestions,
-            metadata: buildStructuredErrorTrackingMetadata(error),
-          },
-        );
-        setLoadingPhase("complete");
-        store.setLoading(false);
-        store.setLoadError(
-          "Failed to load saved cards due to a server error. Default cards are shown for now.",
-        );
-        store.initializeFromServerData(
-          userIdStr,
-          uname,
-          aUrl,
-          [],
-          undefined,
-          ALL_CARD_IDS,
-        );
-        return;
-      }
-
-      store.initializeFromServerData(
-        userIdStr,
-        uname,
-        aUrl,
-        cardsResult.cards,
-        cardsResult.globalSettings,
-        ALL_CARD_IDS,
-        cardsResult.updatedAt ?? null,
-      );
-      store.setLoading(false);
-      setLoadingPhase("complete");
-    },
-    [],
-  );
-
   const handleMissingUserLoad = useCallback(
     async (request: ActiveLoadContext) => {
       setLoadingPhase("setting_up");
@@ -482,13 +451,9 @@ export function useUserDataLoader(options: {
       }
 
       if ("error" in setupResult) {
-        const errorDetails = getErrorDetails(
-          setupResult.error ?? "Unknown error",
-        );
-
         request.failLoad(
           getSafeErrorSummary(setupResult.error ?? "Unknown error"),
-          errorDetails.retryable,
+          setupResult.retryable,
         );
         return;
       }
@@ -513,26 +478,74 @@ export function useUserDataLoader(options: {
     async (
       userResult: Extract<UserDataResult, { userId: string }>,
       request: ActiveLoadContext,
+      prefetchedCardsLoad?: Promise<UserCardsLoadOutcome> | null,
     ) => {
       const store = useUserPageEditor.getState();
-
-      store.setUserData(
-        userResult.userId,
-        userResult.username,
-        userResult.avatarUrl,
-      );
       setLoadingPhase("loading_cards");
 
-      await handleCardsForExistingUser(
-        userResult.userId,
-        userResult.username,
-        userResult.avatarUrl,
-        request.controller.signal,
-        request.isCurrentRequest,
-      );
+      const cardsLoadOutcome = await (prefetchedCardsLoad ??
+        startUserCardsLoad(userResult.userId, request.controller.signal));
 
       if (!request.isCurrentRequest()) {
         return;
+      }
+
+      if (!cardsLoadOutcome.ok) {
+        throw cardsLoadOutcome.error;
+      }
+
+      const cardsResult = cardsLoadOutcome.result;
+
+      if ("error" in cardsResult) {
+        if (cardsResult.notFound) {
+          store.initializeFromServerData(
+            userResult.userId,
+            userResult.username,
+            userResult.avatarUrl,
+            [],
+            undefined,
+            ALL_CARD_IDS,
+          );
+        } else {
+          const error = cardsResult.error;
+          void trackUserActionError(
+            "user_page_load_fetch_cards",
+            new Error(error.message),
+            error.category,
+            {
+              statusCode: error.status,
+              requestId: error.requestId,
+              retryable: error.retryable,
+              recoverySuggestions: error.recoverySuggestions,
+              metadata: buildStructuredErrorTrackingMetadata(error),
+            },
+          );
+
+          store.initializeFromServerData(
+            userResult.userId,
+            userResult.username,
+            userResult.avatarUrl,
+            [],
+            undefined,
+            ALL_CARD_IDS,
+          );
+
+          request.failLoad(
+            "Failed to load saved cards due to a server error. Default cards are shown for now.",
+            error.retryable,
+          );
+          return;
+        }
+      } else {
+        store.initializeFromServerData(
+          userResult.userId,
+          userResult.username,
+          userResult.avatarUrl,
+          cardsResult.cards,
+          cardsResult.globalSettings,
+          ALL_CARD_IDS,
+          cardsResult.updatedAt ?? null,
+        );
       }
 
       navigateToCanonicalUserRoute(
@@ -548,7 +561,7 @@ export function useUserDataLoader(options: {
       setLoadingPhase("complete");
       request.finishRequest();
     },
-    [handleCardsForExistingUser, navigateToCanonicalUserRoute],
+    [navigateToCanonicalUserRoute],
   );
 
   const load = useCallback(
@@ -559,18 +572,19 @@ export function useUserDataLoader(options: {
       );
       const store = useUserPageEditor.getState();
 
-      if (!loadOptions?.force) {
-        if (
-          activeLoadRequestRef.current?.requestedId === selection.requestedId
-        ) {
-          return;
-        }
-
-        if (lastLoadedUserRef.current === selection.requestedId) {
-          store.setLoading(false);
-          setCanRetryLoadInPlace(false);
-          return;
-        }
+      if (
+        shouldSkipRequestedUserLoad({
+          activeLoadRequest: activeLoadRequestRef.current,
+          clearAlreadyLoadedState: () => {
+            store.setLoading(false);
+            setCanRetryLoadInPlace(false);
+          },
+          force: loadOptions?.force,
+          lastLoadedUserId: lastLoadedUserRef.current,
+          requestedId: selection.requestedId,
+        })
+      ) {
+        return;
       }
 
       const { controller, requestId } = beginLoadRequest(selection.requestedId);
@@ -612,7 +626,22 @@ export function useUserDataLoader(options: {
         }
 
         store.setLoading(true);
+
+        if (
+          options.shouldResumeSetup?.(
+            selection.userIdParam,
+            selection.usernameParam,
+          )
+        ) {
+          await handleMissingUserLoad(request);
+          return;
+        }
+
         setLoadingPhase("checking");
+
+        const prefetchedCardsLoad = selection.userIdParam
+          ? startUserCardsLoad(selection.userIdParam, controller.signal)
+          : null;
 
         const userResult = await fetchUserData(
           selection.userIdParam,
@@ -651,7 +680,7 @@ export function useUserDataLoader(options: {
           return;
         }
 
-        await handleExistingUserLoad(userResult, request);
+        await handleExistingUserLoad(userResult, request, prefetchedCardsLoad);
       } catch (err) {
         if (
           isSupersededUserLoadRequest(
@@ -679,10 +708,10 @@ export function useUserDataLoader(options: {
       beginLoadRequest,
       clearActiveLoadRequest,
       handleExistingUserLoad,
-      handleCardsForExistingUser,
       handleMissingUserLoad,
       navigateToCanonicalUserRoute,
       options.routeUsername,
+      options.shouldResumeSetup,
       searchParams,
     ],
   );

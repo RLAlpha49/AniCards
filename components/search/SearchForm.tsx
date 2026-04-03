@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
+import { normalizePositiveIntegerString } from "@/lib/api/primitives";
 import { getUserProfilePath } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,10 @@ function scheduleAfterPaint(callback: () => void) {
 
   // Fallback for environments without requestAnimationFrame (e.g., some tests).
   setTimeout(callback, 0);
+}
+
+function normalizeAniListUserId(value: string): string | null {
+  return normalizePositiveIntegerString(value);
 }
 
 /**
@@ -102,7 +107,20 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
         return;
       }
 
+      const normalizedUserId = isUserIdMode
+        ? normalizeAniListUserId(trimmedValue)
+        : null;
+
+      if (isUserIdMode && !normalizedUserId) {
+        setError("AniList user IDs must be a whole number greater than 0.");
+        safeTrack(() => trackFormSubmission("user_search", false));
+        return;
+      }
+
+      const nextSearchValue = normalizedUserId ?? trimmedValue;
+
       setError("");
+      setSearchValue(nextSearchValue);
       setLoading(true);
       onLoadingChange?.(true);
 
@@ -111,8 +129,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
       const nextUrl =
         searchMethod === "username"
-          ? getUserProfilePath(trimmedValue)
-          : `/user?${new URLSearchParams({ userId: trimmedValue }).toString()}`;
+          ? getUserProfilePath(nextSearchValue)
+          : `/user?${new URLSearchParams({ userId: nextSearchValue }).toString()}`;
 
       scheduleAfterPaint(() => {
         try {
@@ -128,7 +146,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
         }
       });
     },
-    [searchMethod, onLoadingChange, router],
+    [isUserIdMode, onLoadingChange, router, searchMethod],
   );
 
   /**

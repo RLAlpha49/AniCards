@@ -183,11 +183,10 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   const hasCards = Boolean(cards && cards.length > 0 && renderCard);
   const shouldVirtualize = useMemo(() => {
     if (!hasCards) return false;
-    if (reorderable) return false;
     if (typeof virtualize === "boolean") return virtualize;
     // Heuristic: once a category has enough items, virtualization pays off.
     return (cards?.length ?? 0) >= VIRTUALIZATION_THRESHOLD;
-  }, [cards?.length, hasCards, reorderable, virtualize]);
+  }, [cards?.length, hasCards, virtualize]);
 
   const sortableIds = useMemo(
     () => (cards ? cards.map((c) => c.id) : []),
@@ -213,6 +212,13 @@ function CardCategorySectionInner<TCard extends { id: string }>({
     },
     [onReorder, reorderable, sortableIds],
   );
+  const renderSortableCard = useCallback(
+    (card: TCard, index: number) => (
+      <SortableCardItem card={card} index={index} renderCard={renderCard!} />
+    ),
+    [renderCard],
+  );
+
   const grid = useMemo(() => {
     if (hasCards && cards && renderCard) {
       if (reorderable) {
@@ -223,16 +229,25 @@ function CardCategorySectionInner<TCard extends { id: string }>({
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {cards.map((card, index) => (
-                  <SortableCardItem
-                    key={card.id}
-                    card={card}
-                    index={index}
-                    renderCard={renderCard}
-                  />
-                ))}
-              </div>
+              {shouldVirtualize ? (
+                <VirtualizedCardGrid
+                  items={cards}
+                  renderItem={renderSortableCard}
+                  getItemKey={getCardKey}
+                  scrollMarginKey={scrollMarginKey}
+                />
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {cards.map((card, index) => (
+                    <SortableCardItem
+                      key={card.id}
+                      card={card}
+                      index={index}
+                      renderCard={renderCard}
+                    />
+                  ))}
+                </div>
+              )}
             </SortableContext>
           </DndContext>
         );
@@ -270,6 +285,7 @@ function CardCategorySectionInner<TCard extends { id: string }>({
     getCardKey,
     hasCards,
     handleDragEnd,
+    renderSortableCard,
     reorderable,
     renderCard,
     scrollMarginKey,

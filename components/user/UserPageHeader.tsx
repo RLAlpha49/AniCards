@@ -11,7 +11,7 @@ import {
   Save,
   User as UserIcon,
 } from "lucide-react";
-import { useEffect, useReducer, useState } from "react";
+import { memo, useEffect, useReducer, useState } from "react";
 
 import { baseVariants } from "@/components/PageShell";
 import { cn } from "@/lib/utils";
@@ -252,21 +252,11 @@ function Avatar({
   );
 }
 
-/**
- * Header section for the user page with user info, stats.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
-export function UserPageHeader({
-  username,
-  userId,
-  avatarUrl,
+const SaveStatusBadge = memo(function SaveStatusBadge({
   saveState,
-}: Readonly<UserPageHeaderProps>) {
-  const anilistUrl = getAnilistUrl(username, userId);
-
+}: Readonly<{ saveState?: SaveState }>) {
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+
   useEffect(() => {
     if (!saveState) return;
 
@@ -285,16 +275,54 @@ export function UserPageHeader({
     const id = setInterval(forceUpdate, 1000);
     return () => clearInterval(id);
   }, [
-    saveState?.lastSavedAt,
-    saveState?.isSaving,
-    saveState?.isDirty,
-    saveState?.saveError,
-    saveState?.isAutoSaveQueued,
     saveState?.autoSaveDueAt,
     saveState?.hasConflict,
+    saveState?.isAutoSaveQueued,
+    saveState?.isDirty,
+    saveState?.isSaving,
+    saveState?.lastSavedAt,
+    saveState?.saveError,
   ]);
 
-  const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined;
+  const saveInfo = getSaveStateInfo(saveState);
+
+  return (
+    <motion.div variants={itemVariants} className="shrink-0">
+      <output
+        aria-live="polite"
+        aria-atomic="true"
+        title={saveInfo.title}
+        className={cn(
+          "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all",
+          saveInfo.className,
+        )}
+      >
+        {saveInfo.spinner ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <saveInfo.Icon className="size-4" />
+        )}
+        <span>{saveInfo.text}</span>
+      </output>
+    </motion.div>
+  );
+});
+
+SaveStatusBadge.displayName = "SaveStatusBadge";
+
+/**
+ * Header section for the user page with user info, stats.
+ * @param props - Component props.
+ * @returns JSX element.
+ * @source
+ */
+export function UserPageHeader({
+  username,
+  userId,
+  avatarUrl,
+  saveState,
+}: Readonly<UserPageHeaderProps>) {
+  const anilistUrl = getAnilistUrl(username, userId);
 
   return (
     <motion.header
@@ -403,26 +431,7 @@ export function UserPageHeader({
                 </motion.p>
               </div>
 
-              {saveInfo && (
-                <motion.div variants={itemVariants} className="shrink-0">
-                  <output
-                    aria-live="polite"
-                    aria-atomic="true"
-                    title={saveInfo.title}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all",
-                      saveInfo.className,
-                    )}
-                  >
-                    {saveInfo.spinner ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <saveInfo.Icon className="size-4" />
-                    )}
-                    <span>{saveInfo.text}</span>
-                  </output>
-                </motion.div>
-              )}
+              <SaveStatusBadge saveState={saveState} />
             </div>
           </div>
         </div>

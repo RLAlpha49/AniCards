@@ -37,28 +37,51 @@ export function useUserPageDraftBackup(
     if (!enabled) return;
     if (!userId) return;
 
-    const scheduleWrite = () => {
+    const clearTimer = () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
+    };
+
+    const flushDraftWrite = () => {
+      clearTimer();
+
+      const snapshot = useUserPageEditor.getState();
+      if (snapshot.userId !== userId) return;
+      if (!snapshot.isDirty) return;
+
+      const patch = buildLocalEditsPatch(snapshot);
+      if (!patch) return;
+
+      writeUserPageDraft(userId, patch);
+    };
+
+    const scheduleWrite = () => {
+      clearTimer();
 
       timerRef.current = setTimeout(() => {
-        const snapshot = useUserPageEditor.getState();
-        if (snapshot.userId !== userId) return;
-        if (!snapshot.isDirty) return;
-
-        const patch = buildLocalEditsPatch(snapshot);
-        if (!patch) return;
-
-        writeUserPageDraft(userId, patch);
+        flushDraftWrite();
       }, debounceMs);
+    };
+
+    const handlePageHide = () => {
+      flushDraftWrite();
+    };
+
+    const handleVisibilityChange = () => {
+      if (globalThis.document.visibilityState !== "hidden") {
+        return;
+      }
+
+      flushDraftWrite();
     };
 
     const unsubscribe = useUserPageEditor.subscribe((next, prev) => {
       if (next.userId !== userId) return;
 
       if (prev.isDirty && !next.isDirty) {
+        clearTimer();
         clearUserPageDraft(userId);
         return;
       }
@@ -68,12 +91,22 @@ export function useUserPageDraftBackup(
       }
     });
 
+    globalThis.window.addEventListener("pagehide", handlePageHide);
+    globalThis.document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+
     return () => {
       unsubscribe();
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
+
+      globalThis.window.removeEventListener("pagehide", handlePageHide);
+      globalThis.document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+
+      clearTimer();
     };
   }, [enabled, debounceMs, userId]);
 }

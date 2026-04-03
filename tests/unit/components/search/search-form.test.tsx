@@ -353,6 +353,49 @@ describe("SearchForm", () => {
     );
   });
 
+  it("keeps malformed AniList IDs in the search UI instead of routing away", async () => {
+    const onLoadingChange = mock((loading: boolean) => loading);
+
+    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+    const user = userEvent.setup({ document: globalThis.document });
+
+    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    await user.type(view.getByLabelText("AniList User ID"), "54two24");
+    submitSearchForm();
+
+    const errorMessage = await view.findByText(
+      "AniList user IDs must be a whole number greater than 0.",
+    );
+
+    expect(errorMessage.textContent).toBe(
+      "AniList user IDs must be a whole number greater than 0.",
+    );
+    expect(routerPush.mock.calls).toHaveLength(0);
+    expect(onLoadingChange.mock.calls).toHaveLength(0);
+    expect(gtagMock).toHaveBeenCalledTimes(1);
+    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_error");
+  });
+
+  it("normalizes numeric AniList IDs before navigating to the user lookup route", async () => {
+    const onLoadingChange = mock((loading: boolean) => loading);
+
+    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+    const user = userEvent.setup({ document: globalThis.document });
+
+    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    await user.type(view.getByLabelText("AniList User ID"), " 000542244 ");
+    submitSearchForm();
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toEqual([["/user?userId=542244"]]);
+    });
+
+    expect(onLoadingChange.mock.calls).toEqual([[true]]);
+    expect(gtagMock).toHaveBeenCalledTimes(2);
+    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_success");
+    expect(gtagMock.mock.calls[1]?.[1]).toBe("navigation");
+  });
+
   it("routes successful username lookups after paint and keeps the loading state visible", async () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 

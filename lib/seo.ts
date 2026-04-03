@@ -370,18 +370,21 @@ function buildUserLookupPath({
   q,
   visibility,
   group,
+  customFilter,
 }: {
   username?: SearchParamValue;
   userId?: SearchParamValue;
   q?: SearchParamValue;
   visibility?: SearchParamValue;
   group?: SearchParamValue;
+  customFilter?: SearchParamValue;
 }): string {
   const normalizedUsername = getSearchParamValue(username);
   const normalizedUserId = getSearchParamValue(userId);
   const normalizedQuery = getSearchParamValue(q);
   const normalizedVisibility = getSearchParamValue(visibility);
   const normalizedGroup = getSearchParamValue(group);
+  const normalizedCustomFilter = getSearchParamValue(customFilter);
   const searchParams = new URLSearchParams();
 
   if (normalizedUserId) {
@@ -402,6 +405,10 @@ function buildUserLookupPath({
 
   if (normalizedGroup && normalizedGroup !== "All") {
     searchParams.set("group", normalizedGroup);
+  }
+
+  if (normalizedCustomFilter && normalizedCustomFilter !== "all") {
+    searchParams.set("customFilter", normalizedCustomFilter);
   }
 
   const search = searchParams.toString();
@@ -442,19 +449,23 @@ function hasUserPageStatefulParams({
   q,
   visibility,
   group,
+  customFilter,
 }: {
   q?: SearchParamValue;
   visibility?: SearchParamValue;
   group?: SearchParamValue;
+  customFilter?: SearchParamValue;
 }): boolean {
   const normalizedQuery = getSearchParamValue(q);
   const normalizedVisibility = getSearchParamValue(visibility);
   const normalizedGroup = getSearchParamValue(group);
+  const normalizedCustomFilter = getSearchParamValue(customFilter);
 
   return Boolean(
     normalizedQuery ||
     (normalizedVisibility && normalizedVisibility !== "all") ||
-    (normalizedGroup && normalizedGroup !== "All"),
+    (normalizedGroup && normalizedGroup !== "All") ||
+    (normalizedCustomFilter && normalizedCustomFilter !== "all"),
   );
 }
 
@@ -467,6 +478,7 @@ export function getUserPageSEOConfig({
   q,
   visibility,
   group,
+  customFilter,
   routeType = "lookup",
 }: {
   username?: SearchParamValue;
@@ -474,6 +486,7 @@ export function getUserPageSEOConfig({
   q?: SearchParamValue;
   visibility?: SearchParamValue;
   group?: SearchParamValue;
+  customFilter?: SearchParamValue;
   routeType?: "lookup" | "profile";
 }): SEOConfig {
   const normalizedUsername = getSearchParamValue(username);
@@ -484,7 +497,7 @@ export function getUserPageSEOConfig({
   });
   const shouldNoIndex =
     routeType === "lookup" ||
-    hasUserPageStatefulParams({ q, visibility, group });
+    hasUserPageStatefulParams({ q, visibility, group, customFilter });
   const robots = shouldNoIndex ? NOINDEX_ROBOTS : undefined;
 
   if (routeType === "lookup" && normalizedUserId) {
@@ -504,6 +517,7 @@ export function getUserPageSEOConfig({
         q,
         visibility,
         group,
+        customFilter,
       }),
       robots,
       previewImage: profilePreviewImage,
@@ -524,6 +538,18 @@ export function getUserPageSEOConfig({
         "stat cards",
       ],
       canonical: getUserProfilePath(normalizedUsername),
+      ...(routeType === "lookup"
+        ? {
+            openGraphUrl: buildUserLookupPath({
+              username: normalizedUsername,
+              userId: normalizedUserId,
+              q,
+              visibility,
+              group,
+              customFilter,
+            }),
+          }
+        : {}),
       robots,
       previewImage: profilePreviewImage,
     });
@@ -546,6 +572,7 @@ export function getUserPageSEOConfig({
         q,
         visibility,
         group,
+        customFilter,
       }),
       robots,
       previewImage: profilePreviewImage,

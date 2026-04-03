@@ -85,6 +85,23 @@ describe("SEO metadata helpers", () => {
     expect(twitter?.images).toEqual([previewImage]);
   });
 
+  it("marks custom-filtered user views as noindex and preserves the filter in lookup URLs", () => {
+    const metadata = generateMetadata(
+      getUserPageSEOConfig({
+        routeType: "lookup",
+        username: "Alpha49",
+        customFilter: "customized",
+      }),
+    );
+    const openGraph = getOpenGraphMetadata(metadata);
+    const robots = getRobotsMetadata(metadata);
+
+    expect(robots?.index).toBe(false);
+    expect(openGraph?.url).toBe(
+      resolveSiteUrl("/user?username=Alpha49&customFilter=customized"),
+    );
+  });
+
   it("falls back openGraph.url to the site root when no canonical or explicit OG URL is provided", () => {
     const metadata = generateMetadata({
       title: "Custom SEO Test",

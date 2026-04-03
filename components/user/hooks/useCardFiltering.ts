@@ -18,7 +18,9 @@ type ParsedCardSearchQuery = {
   custom: boolean | null;
 };
 
-function tokenizeQuery(input: string): string[] {
+export type { ParsedCardSearchQuery };
+
+export function tokenizeQuery(input: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let inQuotes = false;
@@ -65,7 +67,7 @@ function parseBooleanTokenValue(value: string): boolean | null {
   return null;
 }
 
-function parseCardSearchQuery(raw: string): ParsedCardSearchQuery {
+export function parseCardSearchQuery(raw: string): ParsedCardSearchQuery {
   const tokens = tokenizeQuery(raw);
 
   const freeTextParts: string[] = [];
@@ -135,6 +137,7 @@ function groupCardsByCategory() {
 }
 
 const CARD_GROUPS = groupCardsByCategory();
+const DEFAULT_CARD_ORDER = statCardTypes.map((t) => t.id);
 const ALL_GROUP_NAMES = Object.keys(CARD_GROUPS);
 const CARD_SEARCH_TEXT_BY_ID = new Map<string, string>(
   statCardTypes.map((t) => {
@@ -195,6 +198,20 @@ export function prefetchCardFilteringFuzzySearch(): void {
 
 export type CustomFilter = "all" | "customized" | "uncustomized";
 
+const VALID_CUSTOM_FILTERS = new Set<CustomFilter>([
+  "all",
+  "customized",
+  "uncustomized",
+]);
+
+export function parseCustomFilterParam(
+  value: string | null | undefined,
+): CustomFilter {
+  return value && VALID_CUSTOM_FILTERS.has(value as CustomFilter)
+    ? (value as CustomFilter)
+    : "all";
+}
+
 function filterCardsInGroup(
   cards: ReadonlyArray<(typeof statCardTypes)[0]>,
   matchesVisibility: (cardId: string) => boolean,
@@ -249,7 +266,7 @@ export function useCardFiltering({
     const order =
       Array.isArray(cardOrder) && cardOrder.length > 0
         ? cardOrder
-        : statCardTypes.map((t) => t.id);
+        : DEFAULT_CARD_ORDER;
     for (let i = 0; i < order.length; i++) {
       map.set(order[i], i);
     }

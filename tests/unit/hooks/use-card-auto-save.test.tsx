@@ -64,6 +64,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   globalThis.fetch = originalFetch;
+  (globalThis.navigator as { sendBeacon?: unknown }).sendBeacon = undefined;
 });
 
 afterAll(() => {
@@ -446,5 +447,64 @@ describe("useCardAutoSave", () => {
     expect(capturedSignal?.aborted).toBe(true);
     expect(editorStore.getState().isSaving).toBe(false);
     expect(editorStore.mocks.markSaved).not.toHaveBeenCalled();
+  });
+
+  it("flushes a queued autosave with sendBeacon on pagehide", async () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    editorStore.reset({
+      cardOrder: ["animeStats"],
+      isDirty: true,
+      localEditsPatch: patch,
+      userId: "42",
+    });
+
+    const sendBeacon = mock(() => true);
+    Object.defineProperty(globalThis.navigator, "sendBeacon", {
+      configurable: true,
+      value: sendBeacon,
+    });
+
+    const { result } = renderHook(() => useCardAutoSave({ debounceMs: 500 }));
+
+    await act(async () => {
+      globalThis.window.dispatchEvent(new globalThis.window.Event("pagehide"));
+      await flushMicrotasks();
+    });
+
+    expect(sendBeacon).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toBe(originalFetch);
+    expect(result.current.isAutoSaveQueued).toBe(false);
+
+    const beaconCall = sendBeacon.mock.calls[0];
+    if (!beaconCall) {
+      throw new Error("Expected pagehide autosave to queue a beacon request.");
+    }
+
+    const [url, body] = beaconCall as unknown as [string, Blob];
+    expect(url).toBe("/api/store-cards");
+
+    const payload = JSON.parse(await body.text()) as {
+      cards: Array<Record<string, unknown>>;
+      ifMatchUpdatedAt?: string;
+      userId: string;
+    };
+
+    expect(payload.userId).toBe("42");
+    expect(payload.ifMatchUpdatedAt).toBe("2026-03-29T00:00:00.000Z");
+    expect(payload.cards).toEqual([
+      {
+        cardName: "animeStats",
+        disabled: true,
+        useCustomSettings: false,
+        variation: "default",
+      },
+    ]);
   });
 });

@@ -2540,7 +2540,15 @@ export const selectIsCardModified = (
   const baseline = state.baselineCardConfigs[cardId];
   if (!current || !baseline) return false;
 
-  if (!areCardConfigsEqual(current, baseline)) return true;
+  if (state.dirtyCardIds?.[cardId]) return true;
+
+  if (
+    typeof state.dirtyCardIds !== "object" ||
+    state.dirtyCardIds === null ||
+    !("isGlobalDirty" in state)
+  ) {
+    if (!areCardConfigsEqual(current, baseline)) return true;
+  }
 
   const baselineGlobal = state.baselineGlobalSnapshot;
   if (!baselineGlobal) return false;

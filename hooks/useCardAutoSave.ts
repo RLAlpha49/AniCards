@@ -306,6 +306,42 @@ function buildSaveCardsRequestBody(
   };
 }
 
+function queueExitSaveBeacon(payload: {
+  userId: string;
+  cards: ServerCardData[];
+  globalSettings?: Partial<GlobalSettingsPayload>;
+  cardOrder?: string[];
+  ifMatchUpdatedAt?: string;
+}): boolean {
+  const sendBeacon = globalThis.navigator?.sendBeacon;
+  if (typeof sendBeacon !== "function") {
+    return false;
+  }
+
+  const body = JSON.stringify(
+    buildSaveCardsRequestBody(payload.userId, payload.cards, {
+      globalSettings: payload.globalSettings,
+      cardOrder: payload.cardOrder,
+      ifMatchUpdatedAt: payload.ifMatchUpdatedAt,
+    }),
+  );
+
+  const beaconBody =
+    typeof Blob === "function"
+      ? new Blob([body], { type: "application/json;charset=UTF-8" })
+      : body;
+
+  try {
+    return sendBeacon.call(
+      globalThis.navigator,
+      "/api/store-cards",
+      beaconBody,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function parseSaveCardsResponse(
   response: Response,
   payload: unknown,
@@ -996,6 +1032,36 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       }
     };
   }, [shouldQueueAutoSave, debounceMs, performSave]);
+
+  useEffect(() => {
+    if (!shouldQueueAutoSave) {
+      return;
+    }
+
+    const handlePageHide = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      setAutoSaveDueAt(null);
+
+      const payload = buildSavePayloadFromStoreState(
+        useUserPageEditor.getState(),
+      );
+      if (!payload) {
+        return;
+      }
+
+      queueExitSaveBeacon(payload);
+    };
+
+    globalThis.window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      globalThis.window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [shouldQueueAutoSave]);
 
   return {
     /** Trigger an immediate save, bypassing debounce */
