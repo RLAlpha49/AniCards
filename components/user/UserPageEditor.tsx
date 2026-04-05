@@ -1778,10 +1778,11 @@ export function UserPageEditor({
 
   const router = useRouter();
   const pathname = usePathname();
+  const currentSearch = searchParams.toString();
 
   useDebouncedEditorUrlSync({
     pathname,
-    currentSearch: globalThis.location.search,
+    currentSearch,
     query,
     visibility,
     selectedGroup,
