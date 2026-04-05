@@ -37,6 +37,8 @@ import {
 } from "@/lib/server/user-data";
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
+const STORE_USERS_JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+
 function scheduleStoreUsersMetric(
   endpoint: string,
   endpointKey: string,
@@ -248,6 +250,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       {
         endpointName: endpoint,
         endpointKey,
+        maxBytes: STORE_USERS_JSON_BODY_LIMIT_BYTES,
       },
     );
     if (!bodyResult.success) return bodyResult.errorResponse;

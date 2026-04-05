@@ -366,14 +366,16 @@ describe("Store Users API", () => {
       expect(data.status).toBe(400);
     });
 
-    it("should reject request bodies larger than 512 KB", async () => {
+    it("should reject request bodies larger than the route limit", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const oversizedPayloadBytes = 2 * 1024 * 1024 + 1;
 
       const req = createTestRequest(
         {
           userId: 1,
           username: "user1",
-          stats: { blob: "x".repeat(513 * 1024) },
+          stats: { blob: "x".repeat(oversizedPayloadBytes) },
         },
         "http://localhost",
       );

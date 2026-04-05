@@ -70,7 +70,6 @@ type PendingNewUserSetupState = {
   userId: number;
   username: string | null;
   avatarUrl: string | null;
-  stats: AniListStatsResponse;
 };
 
 function createNewUserSetupError(
@@ -284,7 +283,6 @@ async function saveUserToDatabase(
 
 async function saveInitialCards(
   userId: number,
-  stats: unknown,
   requestOptions?: StartNewUserSetupRequestOptions,
 ) {
   try {
@@ -298,7 +296,6 @@ async function saveInitialCards(
         body: JSON.stringify({
           userId,
           cards: initialCards,
-          statsData: stats,
           globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
         }),
         signal: requestOptions?.signal,
@@ -371,7 +368,6 @@ export function useNewUserSetup() {
 
         const saveCardsResult = await saveInitialCards(
           pendingSetup.userId,
-          pendingSetup.stats,
           requestOptions,
         );
 
@@ -496,12 +492,10 @@ export function useNewUserSetup() {
         userId: resolvedUserId,
         username: resolvedUsername,
         avatarUrl: resolvedAvatarUrl,
-        stats: statsResult.stats,
       };
 
       const saveCardsResult = await saveInitialCards(
         resolvedUserId,
-        statsResult.stats,
         requestOptions,
       );
 
