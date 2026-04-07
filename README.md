@@ -2,7 +2,7 @@
 # AniCards
 
 <p align="center">
-  <img src="./public/pwa/icon-any.svg" alt="AniCards app icon" width="256" height="256" />
+  <img src="./public/icon.svg" alt="AniCards icon" width="256" height="256" />
 </p>
 
 Turn your AniList history into embeddable SVG cards. Paste an image link anywhere and your anime and manga stats show up.

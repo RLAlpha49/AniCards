@@ -53,7 +53,7 @@ Performance isn't just a buzzword—it's the difference between a product people
 
 - **Reduce HTTP Requests:** Combine files, use image sprites, and inline critical CSS.
 - **HTTP/2 and HTTP/3:** Enable these protocols for multiplexing and lower latency.
-- **Client-Side Caching:** Use Service Workers, IndexedDB, and localStorage for offline and repeat visits.
+- **Client-Side Caching:** Use HTTP caching, IndexedDB, and localStorage to reduce repeat-visit latency.
 - **CDNs:** Serve static assets from a CDN close to your users. Use multiple CDNs for redundancy.
 - **Defer/Async Scripts:** Use `defer` or `async` for non-critical JS to avoid blocking rendering.
 - **Preload and Prefetch:** Use `<link rel="preload">` and `<link rel="prefetch">` for critical resources.

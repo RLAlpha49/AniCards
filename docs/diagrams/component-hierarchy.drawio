@@ -54,12 +54,6 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="pwa" value="PwaRegistration (Client)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
-                    <mxGeometry x="200" y="370" width="180" height="35" as="geometry"/>
-                </mxCell>
-                <mxCell id="e-providers-pwa" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="providers" target="pwa" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
                 <mxCell id="structured-data" value="StructuredDataScript (Server)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
                     <mxGeometry x="420" y="370" width="210" height="35" as="geometry"/>
                 </mxCell>
@@ -130,7 +124,7 @@
                 <mxCell id="user-page" value="/user routes&#xa;PageShell wraps&#xa;UserPageEditor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="route-children" vertex="1">
                     <mxGeometry x="230" y="35" width="160" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="other-pages" value="Other pages&#xa;/contact, /examples,&#xa;/privacy, /projects,&#xa;/search, /offline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="route-children" vertex="1">
+                <mxCell id="other-pages" value="Other pages&#xa;/contact, /examples,&#xa;/privacy, /projects,&#xa;/search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="route-children" vertex="1">
                     <mxGeometry x="410" y="35" width="160" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="error-pages" value="Error pages&#xa;error.tsx&#xa;global-error.tsx&#xa;not-found.tsx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="route-children" vertex="1">
