@@ -3,7 +3,7 @@
 import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import type { ErrorInfo, ReactNode } from "react";
-import { Component } from "react";
+import { Component, useEffect, useId, useRef } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { getErrorDetails, type RecoverySuggestion } from "@/lib/error-messages";
@@ -128,9 +128,16 @@ export function ErrorFallbackPanel(
 ) {
   const model = buildErrorFallbackModel(props.error ?? null);
   const incidentReference = props.incidentReference?.trim();
+  const fallbackPanelId = useId();
+  const messageId = useId();
+  const panelRef = useRef<HTMLElement>(null);
   const devDetailsVisible =
     process.env.NODE_ENV !== "production" &&
     Boolean(props.error?.message || props.digest);
+
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
 
   return (
     <div className="
@@ -138,11 +145,22 @@ export function ErrorFallbackPanel(
       via-white to-amber-100/30 px-4 py-12
       dark:from-[#0C0A10] dark:via-[#110E18] dark:to-[#0C0A10]
     ">
-      <div className="
-        w-full max-w-2xl space-y-10 border border-red-200 bg-white/80 p-8 shadow-2xl
-        backdrop-blur-xl
-        dark:border-red-900/60 dark:bg-background/80
-      ">
+      <section
+        ref={panelRef}
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        aria-labelledby={fallbackPanelId}
+        aria-describedby={messageId}
+        tabIndex={-1}
+        className="
+          w-full max-w-2xl space-y-10 border border-red-200 bg-white/80 p-8 shadow-2xl
+          backdrop-blur-xl
+          focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 focus:ring-offset-background
+          focus:outline-none
+          dark:border-red-900/60 dark:bg-background/80
+        "
+      >
         <div className="flex items-center gap-3">
           <span className="
             rounded-full bg-red-100 p-2 text-red-600
@@ -157,14 +175,17 @@ export function ErrorFallbackPanel(
             ">
               Error
             </p>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1
+              id={fallbackPanelId}
+              className="text-3xl font-bold text-foreground"
+            >
               {model.heading}
             </h1>
           </div>
         </div>
 
         <div className="space-y-5">
-          <p className="text-base/relaxed text-foreground/70">
+          <p id={messageId} className="text-base/relaxed text-foreground/70">
             {model.message}
           </p>
 
@@ -261,7 +282,7 @@ export function ErrorFallbackPanel(
             </Link>
           </Button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
