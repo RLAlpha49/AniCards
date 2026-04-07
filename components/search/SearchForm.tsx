@@ -385,7 +385,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 size-5 animate-spin" />
-                  Pulling up their page...
+                  Pulling up the page...
                 </>
               ) : (
                 <>
@@ -400,7 +400,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
         <p className="mt-6 text-center font-body-serif text-xs/relaxed text-foreground/30">
           Works with any public AniList profile — just type a username or paste
-          their numeric ID.
+          the numeric ID.
         </p>
       </motion.div>
     </div>
