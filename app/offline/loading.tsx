@@ -1,11 +1,24 @@
 export default function Loading() {
   return (
-    <main className="
-      mx-auto flex min-h-[70vh] w-full max-w-5xl items-center px-6 py-16
-      sm:px-10
-      lg:px-12
-    ">
-      <output aria-live="polite" aria-busy="true" className="block w-full">
+    <section
+      aria-busy="true"
+      aria-labelledby="offline-loading-status"
+      className="
+        mx-auto flex min-h-[70vh] w-full max-w-5xl items-center px-6 py-16
+        sm:px-10
+        lg:px-12
+      "
+    >
+      <p
+        id="offline-loading-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        Loading offline page
+      </p>
+      <div className="w-full">
         <section className="
           imperial-card w-full space-y-8 bg-background/95 shadow-2xl shadow-black/10
           backdrop-blur-sm
@@ -87,7 +100,7 @@ export default function Loading() {
             <div className="skel-bone-rect h-11 w-44" aria-hidden="true" />
           </div>
         </section>
-      </output>
-    </main>
+      </div>
+    </section>
   );
 }

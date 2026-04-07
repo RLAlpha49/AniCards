@@ -19,12 +19,20 @@ function DiamondDivider({ className }: Readonly<{ className?: string }>) {
 
 export default function Loading() {
   return (
-    <output
-      aria-live="polite"
+    <section
       aria-busy="true"
-      aria-label="Loading home page"
-      className="relative block min-h-screen overflow-hidden"
+      aria-labelledby="home-loading-status"
+      className="relative min-h-screen overflow-hidden"
     >
+      <p
+        id="home-loading-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        Loading home page
+      </p>
       <MarketingBackdrop lightOpacity={0.35} darkOpacity={0.22} />
 
       {/* Hero Section */}
@@ -226,6 +234,6 @@ export default function Loading() {
         <div className="skel-bone h-3.5 w-44" />
         <div className="skel-bone-rect mt-2 h-12 w-40" />
       </section>
-    </output>
+    </section>
   );
 }
