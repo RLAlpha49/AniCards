@@ -163,6 +163,7 @@ function installDomGlobals() {
     TypeError,
   });
   const descriptors = new Map<string, PropertyDescriptor | undefined>();
+  const animationFrameHandles = new Set<ReturnType<typeof setTimeout>>();
 
   const assignGlobal = (key: string, value: unknown) => {
     descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -207,19 +208,37 @@ function installDomGlobals() {
   assignGlobal("SVGElement", window.SVGElement);
   assignGlobal("Text", window.Text);
   assignGlobal("getComputedStyle", window.getComputedStyle.bind(window));
-  assignGlobal("requestAnimationFrame", ((callback: FrameRequestCallback) =>
-    setTimeout(
-      () => callback(Date.now()),
-      0,
-    )) as unknown as typeof requestAnimationFrame);
+  assignGlobal("requestAnimationFrame", ((callback: FrameRequestCallback) => {
+    const handle = setTimeout(() => {
+      animationFrameHandles.delete(handle);
+      callback(Date.now());
+    }, 0);
+
+    animationFrameHandles.add(handle);
+    return handle;
+  }) as unknown as typeof requestAnimationFrame);
   assignGlobal("cancelAnimationFrame", ((
     handle: ReturnType<typeof setTimeout>,
-  ) => clearTimeout(handle)) as unknown as typeof cancelAnimationFrame);
+  ) => {
+    animationFrameHandles.delete(handle);
+    clearTimeout(handle);
+  }) as unknown as typeof cancelAnimationFrame);
   assignGlobal("ResizeObserver", ResizeObserverStub);
   assignGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
   return () => {
     cleanup();
+
+    for (const handle of animationFrameHandles) {
+      clearTimeout(handle);
+    }
+    animationFrameHandles.clear();
+
+    window.document.body.innerHTML = "";
+
+    if (typeof window.close === "function") {
+      window.close();
+    }
 
     for (const [key, descriptor] of descriptors) {
       if (descriptor) {
@@ -227,12 +246,6 @@ function installDomGlobals() {
       } else {
         Reflect.deleteProperty(globalThis, key);
       }
-    }
-
-    window.document.body.innerHTML = "";
-
-    if (typeof window.close === "function") {
-      window.close();
     }
   };
 }
@@ -426,7 +439,7 @@ describe("SearchForm", () => {
       send_to: "G-TEST123",
     });
     expect(
-      view.getByRole("button", { name: /pulling up their page/i }),
+      view.getByRole("button", { name: /pulling up the page/i }),
     ).toBeTruthy();
   });
 
