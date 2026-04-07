@@ -4,6 +4,7 @@ import { sharedRedisMockGet, sharedRedisMockSet } from "@/tests/unit/__setup__";
 
 const {
   clearImageDataUrlCaches,
+  embedFavoritesGridImages,
   fetchImageAsDataUrl,
   getImageDataUrlMemoryCacheSizeBytes,
   IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES,
@@ -224,5 +225,103 @@ describe("image-utils shared asset cache", () => {
     expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sharedRedisMockSet).not.toHaveBeenCalled();
+  });
+
+  it("rejects redirects and keeps manual redirect handling enabled", async () => {
+    const imageUrl = "https://s4.anilist.co/file/anilistcdn/staff/redirect.jpg";
+
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+
+    const fetchMock = mock().mockResolvedValue({
+      ok: false,
+      status: 302,
+      type: "basic",
+      url: "https://example.com/redirected.png",
+      headers: {
+        get: () => null,
+      },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchImageAsDataUrl(imageUrl);
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      imageUrl,
+      expect.objectContaining({ redirect: "manual" }),
+    );
+    expect(sharedRedisMockSet).not.toHaveBeenCalled();
+  });
+
+  it("only embeds the requested non-mixed favorites variant", async () => {
+    const favourites = {
+      anime: {
+        nodes: [
+          {
+            id: 1,
+            title: { romaji: "Anime" },
+            coverImage: {
+              large: "https://s4.anilist.co/file/anilistcdn/media/anime/1.jpg",
+            },
+          },
+        ],
+      },
+      manga: {
+        nodes: [
+          {
+            id: 2,
+            title: { romaji: "Manga" },
+            coverImage: {
+              large: "https://s4.anilist.co/file/anilistcdn/media/manga/2.jpg",
+            },
+          },
+        ],
+      },
+      characters: {
+        nodes: [
+          {
+            id: 3,
+            name: { full: "Character" },
+            image: {
+              large: "https://s4.anilist.co/file/anilistcdn/character/3.jpg",
+            },
+          },
+        ],
+      },
+      staff: { nodes: [] },
+      studios: { nodes: [] },
+    };
+
+    sharedRedisMockGet.mockResolvedValue(null);
+
+    const fetchMock = mock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      type: "basic",
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type" ? "image/png" : null,
+      },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await embedFavoritesGridImages(favourites, "anime", 1, 1);
+
+    expect(result.anime?.nodes?.[0]?.coverImage?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.manga?.nodes?.[0]?.coverImage?.large).toBe(
+      "https://s4.anilist.co/file/anilistcdn/media/manga/2.jpg",
+    );
+    expect(result.characters?.nodes?.[0]?.image?.large).toBe(
+      "https://s4.anilist.co/file/anilistcdn/character/3.jpg",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://s4.anilist.co/file/anilistcdn/media/anime/1.jpg",
+      expect.any(Object),
+    );
   });
 });

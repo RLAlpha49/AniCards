@@ -129,7 +129,75 @@ console.log(
     expect(result.svg).toContain('data-template="media"');
   });
 
-  it("uses cache-only image preparation helpers for image-heavy cards", async () => {
+  it("initializes the server pretext runtime before rendering cards", async () => {
+    const probeScript = `
+import { mock } from "bun:test";
+
+mock.module("@/lib/utils/milestones", () => ({
+  calculateMilestones: mock(() => ({ milestone: 100 })),
+}));
+
+const events = [];
+const initializeServerPretext = mock(async () => {
+  events.push("init");
+  return true;
+});
+mock.module("@/lib/pretext/server", () => ({
+  initializeServerPretext,
+}));
+
+const mediaStatsTemplate = mock(() => {
+  events.push("render");
+  return ${JSON.stringify(expectedSvg)};
+});
+mock.module("@/lib/svg-templates/media-stats/shared", () => ({
+  mediaStatsTemplate,
+}));
+
+const { default: generateCardSvg } = await import("@/lib/card-generator");
+
+const svg = await generateCardSvg(
+  ${JSON.stringify(cardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+
+console.log(
+  JSON.stringify({
+    initCalls: initializeServerPretext.mock.calls.length,
+    events,
+    svg,
+  }),
+);
+`;
+
+    const subprocess = Bun.spawnSync({
+      cmd: [process.execPath, "run", "-"],
+      cwd: process.cwd(),
+      stdin: new Blob([probeScript]),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+
+    expect(subprocess.exitCode).toBe(0);
+    expect(stderr).toBe("");
+
+    const result = JSON.parse(stdout) as {
+      events: string[];
+      initCalls: number;
+      svg: string;
+    };
+
+    expect(result.initCalls).toBe(1);
+    expect(result.events[0]).toBe("init");
+    expect(result.events).toContain("render");
+    expect(result.svg).toContain('data-template="media"');
+  });
+
+  it("embeds image-heavy cards without cache-only fallbacks", async () => {
     const profileOverviewConfig = {
       ...cardConfig,
       cardName: "profileOverview",
@@ -324,19 +392,16 @@ console.log(
     };
 
     expect(result.fetchCalls).toEqual([
-      [
-        "https://s4.anilist.co/file/anilistcdn/user/avatar/test.png",
-        { cacheOnly: true },
-      ],
+      ["https://s4.anilist.co/file/anilistcdn/user/avatar/test.png"],
     ]);
     expect(result.favoritesEmbedCalls).toHaveLength(1);
     expect(result.favoritesEmbedCalls[0]?.[1]).toBe("staff");
     expect(result.favoritesEmbedCalls[0]?.[2]).toBe(1);
     expect(result.favoritesEmbedCalls[0]?.[3]).toBe(1);
-    expect(result.favoritesEmbedCalls[0]?.[4]).toEqual({ cacheOnly: true });
+    expect(result.favoritesEmbedCalls[0]?.[4]).toBeUndefined();
     expect(result.currentEmbedCalls).toHaveLength(2);
-    expect(result.currentEmbedCalls[0]?.[1]).toEqual({ cacheOnly: true });
-    expect(result.currentEmbedCalls[1]?.[1]).toEqual({ cacheOnly: true });
+    expect(result.currentEmbedCalls[0]?.[1]).toBeUndefined();
+    expect(result.currentEmbedCalls[1]?.[1]).toBeUndefined();
   });
 
   it("injects a static render override when animations are disabled", async () => {

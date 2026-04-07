@@ -347,6 +347,7 @@ export async function fetchImageAsDataUrl(
 
     try {
       const response = await fetch(urlString, {
+        redirect: "manual",
         signal: controller.signal,
         headers: {
           "User-Agent": "AniCards/1.0",
@@ -355,6 +356,9 @@ export async function fetchImageAsDataUrl(
         },
       });
 
+      if (response.type === "opaqueredirect") return null;
+      if (response.status >= 300 && response.status < 400) return null;
+      if (!isAllowedAniListImageUrl(response.url || urlString)) return null;
       if (!response.ok) return null;
 
       const contentType = response.headers.get("content-type");
@@ -559,40 +563,54 @@ function computeMixedCounts(
  */
 async function embedNonMixed(
   favourites: UserFavourites,
+  variant: "anime" | "manga" | "characters",
   limit: number,
   options: EmbedImageOptions = {},
 ): Promise<UserFavourites> {
-  const anime = favourites.anime
-    ? {
-        ...favourites.anime,
-        nodes: await embedCoverNodesWithLimit(
-          favourites.anime.nodes ?? [],
-          limit,
-          options,
-        ),
-      }
-    : undefined;
-  const manga = favourites.manga
-    ? {
-        ...favourites.manga,
-        nodes: await embedCoverNodesWithLimit(
-          favourites.manga.nodes ?? [],
-          limit,
-          options,
-        ),
-      }
-    : undefined;
-  const characters = favourites.characters
-    ? {
-        ...favourites.characters,
-        nodes: await embedCharacterNodesWithLimit(
-          favourites.characters.nodes ?? [],
-          limit,
-          options,
-        ),
-      }
-    : undefined;
-  return { ...favourites, anime, manga, characters };
+  switch (variant) {
+    case "anime":
+      return {
+        ...favourites,
+        anime: favourites.anime
+          ? {
+              ...favourites.anime,
+              nodes: await embedCoverNodesWithLimit(
+                favourites.anime.nodes ?? [],
+                limit,
+                options,
+              ),
+            }
+          : undefined,
+      };
+    case "manga":
+      return {
+        ...favourites,
+        manga: favourites.manga
+          ? {
+              ...favourites.manga,
+              nodes: await embedCoverNodesWithLimit(
+                favourites.manga.nodes ?? [],
+                limit,
+                options,
+              ),
+            }
+          : undefined,
+      };
+    case "characters":
+      return {
+        ...favourites,
+        characters: favourites.characters
+          ? {
+              ...favourites.characters,
+              nodes: await embedCharacterNodesWithLimit(
+                favourites.characters.nodes ?? [],
+                limit,
+                options,
+              ),
+            }
+          : undefined,
+      };
+  }
 }
 
 export async function embedFavoritesGridImages(
@@ -628,7 +646,7 @@ export async function embedFavoritesGridImages(
   }
 
   if (variant !== "mixed") {
-    return await embedNonMixed(favourites, capacity, options);
+    return await embedNonMixed(favourites, variant, capacity, options);
   }
 
   return await embedMixedVariant(favourites, capacity);

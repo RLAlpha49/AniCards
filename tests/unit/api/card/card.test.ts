@@ -1738,7 +1738,7 @@ describe("Card SVG Route", () => {
       }
     });
 
-    it("should avoid remote staff-image fetches in mixed variant when cache-only lookup misses", async () => {
+    it("should fetch and embed remote staff images in mixed variant when cache-only lookup misses", async () => {
       const userData = createMockUserData(542244, "testUser", {
         User: {
           favourites: {
@@ -1763,11 +1763,15 @@ describe("Card SVG Route", () => {
       setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const originalFetch = globalThis.fetch;
-      const fetchSpy = mock(async () => {
-        throw new Error(
-          "mixed favorites-grid renders should not refetch remote staff images on cache-only misses",
-        );
-      });
+      const expectedUrl = "https://s4.anilist.co/file/anilistcdn/staff/1.jpg";
+      const fetchSpy = mock(async () => ({
+        ok: true,
+        headers: {
+          get: (name: string) =>
+            name.toLowerCase() === "content-type" ? "image/png" : null,
+        },
+        arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+      }));
 
       globalThis.fetch = fetchSpy as unknown as typeof fetch;
 
@@ -1787,25 +1791,24 @@ describe("Card SVG Route", () => {
         );
 
         const res = await GET(req);
-        expect([200, 404]).toContain(res.status);
-        if (res.status === 200) {
-          expect(favoritesGridTemplateMock).toHaveBeenCalled();
-          const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
-            | {
-                gridCols?: number;
-                gridRows?: number;
-                variant?: string;
-                favourites?: {
-                  staff?: { nodes?: { image?: { large?: string } }[] };
-                };
-              }
-            | undefined;
-          expect(callArgs).toBeTruthy();
-          expect(callArgs?.favourites?.staff?.nodes?.[0]?.image?.large).toBe(
-            "https://s4.anilist.co/file/anilistcdn/staff/1.jpg",
-          );
-        }
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(res.status).toBe(200);
+        expect(favoritesGridTemplateMock).toHaveBeenCalled();
+        const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
+          | {
+              gridCols?: number;
+              gridRows?: number;
+              variant?: string;
+              favourites?: {
+                staff?: { nodes?: { image?: { large?: string } }[] };
+              };
+            }
+          | undefined;
+        expect(callArgs).toBeTruthy();
+        expect(callArgs?.favourites?.staff?.nodes?.[0]?.image?.large).toMatch(
+          /^data:image\/png;base64,/,
+        );
+        expect(fetchSpy).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
       } finally {
         globalThis.fetch = originalFetch;
       }

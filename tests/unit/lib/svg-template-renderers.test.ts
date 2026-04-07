@@ -1,9 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
 import { comparativeTwoColumnTemplate } from "@/lib/svg-templates/comparative-distribution-stats/shared";
+import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
+import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
+import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
+import type { MediaListEntry, UserFavourites } from "@/lib/types/records";
 import { mockUserRecord } from "@/tests/e2e/fixtures/mock-data";
 import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
 
@@ -254,5 +258,113 @@ describe("svg template renderers", () => {
     expect(svg).toContain("Thread Posts/Comments:");
     expect(svg).toContain(">257<");
     expect(svg).toContain("Total Activity (4 days):");
+  });
+
+  it("omits remote avatar URLs from profile overview SVGs", () => {
+    const svg = profileOverviewTemplate({
+      username: testUsername,
+      styles: baseStyles,
+      statistics: mockUserRecord.stats.User.statistics,
+      avatar: {
+        medium: "https://s4.anilist.co/file/anilistcdn/user/avatar/test.png",
+      } as Parameters<typeof profileOverviewTemplate>[0]["avatar"],
+    });
+
+    expect(svg).not.toContain(
+      "https://s4.anilist.co/file/anilistcdn/user/avatar/test.png",
+    );
+    expect(svg).not.toContain("<image");
+    expect(svg).toContain("<circle");
+  });
+
+  it("uses stable clip ids for profile overview avatars", () => {
+    const embeddedAvatar =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9p2f6WQAAAAASUVORK5CYII=";
+    const firstSvg = profileOverviewTemplate({
+      username: "名探偵",
+      styles: baseStyles,
+      statistics: mockUserRecord.stats.User.statistics,
+      avatarDataUrl: embeddedAvatar,
+    });
+    const secondSvg = profileOverviewTemplate({
+      username: "名探偵",
+      styles: baseStyles,
+      statistics: mockUserRecord.stats.User.statistics,
+      avatarDataUrl: embeddedAvatar,
+    });
+
+    const clipIdPattern = /avatar-clip-[a-z0-9-]+/;
+    const firstClipId = firstSvg.match(clipIdPattern)?.[0];
+    const secondClipId = secondSvg.match(clipIdPattern)?.[0];
+
+    expect(firstClipId).toBeTruthy();
+    expect(secondClipId).toBe(firstClipId);
+  });
+
+  it("omits remote cover URLs from favorites grid SVGs", () => {
+    const favourites = {
+      anime: {
+        nodes: [
+          {
+            id: 1,
+            title: { english: "Anime One" },
+            coverImage: {
+              large: "https://s4.anilist.co/file/anilistcdn/media/anime/1.jpg",
+            },
+          },
+        ],
+      },
+      manga: { nodes: [] },
+      characters: { nodes: [] },
+      staff: { nodes: [] },
+      studios: { nodes: [] },
+    } as UserFavourites;
+
+    const svg = favoritesGridTemplate({
+      username: testUsername,
+      variant: "anime",
+      styles: baseStyles,
+      favourites,
+      gridCols: 1,
+      gridRows: 1,
+    });
+
+    expect(svg).not.toContain(
+      "https://s4.anilist.co/file/anilistcdn/media/anime/1.jpg",
+    );
+    expect(svg).not.toContain("<image");
+    expect(svg).toContain("item-placeholder");
+  });
+
+  it("omits remote cover URLs from currently watching cards", () => {
+    const animeCurrent = [
+      {
+        id: 1,
+        progress: 3,
+        media: {
+          id: 10,
+          title: { romaji: "Anime One" },
+          episodes: 12,
+          coverImage: {
+            large: "https://s4.anilist.co/file/anilistcdn/media/anime/10.jpg",
+          },
+        },
+      },
+    ] as MediaListEntry[];
+
+    const svg = currentlyWatchingReadingTemplate({
+      username: testUsername,
+      styles: baseStyles,
+      animeCurrent,
+      mangaCurrent: [],
+      animeCount: 1,
+      mangaCount: 0,
+    });
+
+    expect(svg).not.toContain(
+      "https://s4.anilist.co/file/anilistcdn/media/anime/10.jpg",
+    );
+    expect(svg).not.toContain("<image");
+    expect(svg).toContain("<rect");
   });
 });
