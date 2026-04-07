@@ -344,7 +344,7 @@ export default async function RootLayout({
         />
         <ResourceHints />
         <GithubCorner />
-        <Providers>
+        <Providers nonce={nonce}>
           <PwaRegistration />
           <Suspense fallback={<div>Loading...</div>}>
             <StructuredDataScript

@@ -18,9 +18,15 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
  */
 export function Providers({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  nonce,
+}: Readonly<{ children: React.ReactNode; nonce?: string }>) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system">
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableColorScheme
+      nonce={nonce}
+    >
       <TooltipProvider delayDuration={200}>
         {children}
         <Toaster />
