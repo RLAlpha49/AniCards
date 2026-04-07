@@ -83,7 +83,7 @@ test.describe("Examples gallery", () => {
     await waitForAppReady(page);
 
     await expect(searchInput).toHaveValue("Voice Actors");
-    await expect(animeDeepDiveButton).toHaveAttribute("aria-current", "page");
+    await expect(animeDeepDiveButton).toHaveAttribute("aria-pressed", "true");
     await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
 
     await dismissAnalyticsPromptIfVisible(page);
@@ -97,7 +97,7 @@ test.describe("Examples gallery", () => {
 
     await expect(page).toHaveURL(/\/examples(?:\?|$)/);
     await expect(searchInput).toHaveValue("Voice Actors");
-    await expect(animeDeepDiveButton).toHaveAttribute("aria-current", "page");
+    await expect(animeDeepDiveButton).toHaveAttribute("aria-pressed", "true");
   });
 
   test("drops invalid category params from the URL", async ({ page }) => {
@@ -115,7 +115,7 @@ test.describe("Examples gallery", () => {
 
     await expect(searchInput).toHaveValue("Voice Actors");
     await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
-    await expect(allCategoriesButton).toHaveAttribute("aria-current", "page");
+    await expect(allCategoriesButton).toHaveAttribute("aria-pressed", "true");
     await expect
       .poll(() => new URL(page.url()).searchParams.get("search"))
       .toBe("Voice Actors");

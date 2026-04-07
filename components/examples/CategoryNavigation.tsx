@@ -52,7 +52,10 @@ export function CategoryNavigation({
   ];
 
   return (
-    <nav className="relative w-full" aria-label="Category navigation">
+    <nav
+      className="relative w-full"
+      aria-label="Filter example cards by category"
+    >
       {/* Fade edges for mobile scroll */}
       <div className="
         pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-linear-to-l from-background
@@ -82,7 +85,7 @@ export function CategoryNavigation({
               <button
                 type="button"
                 key={item.name}
-                aria-current={isActive ? "page" : undefined}
+                aria-pressed={isActive}
                 onClick={() => onCategoryClick(item.key)}
                 className={cn(
                   `
