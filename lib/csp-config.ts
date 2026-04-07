@@ -184,12 +184,6 @@ export const CSP_DIRECTIVES = {
     "https://region1.google-analytics.com",
   ],
 
-  /** Allows same-origin service workers and other workers used for progressive enhancement. */
-  workerSrc: [CSP_KEYWORDS.SELF],
-
-  /** Allows the install manifest to be loaded from the same origin. */
-  manifestSrc: [CSP_KEYWORDS.SELF],
-
   /**
    * Frame ancestors - controls which origins can embed this page
    * Set to 'none' to prevent clickjacking attacks
@@ -251,8 +245,6 @@ export function buildCSPHeader(
     `img-src ${CSP_DIRECTIVES.imgSrc.join(" ")}`,
     `font-src ${CSP_DIRECTIVES.fontSrc.join(" ")}`,
     `connect-src ${CSP_DIRECTIVES.connectSrc.join(" ")}`,
-    `worker-src ${CSP_DIRECTIVES.workerSrc.join(" ")}`,
-    `manifest-src ${CSP_DIRECTIVES.manifestSrc.join(" ")}`,
     `frame-ancestors ${CSP_DIRECTIVES.frameAncestors.join(" ")}`,
     `object-src ${CSP_DIRECTIVES.objectSrc.join(" ")}`,
     `base-uri ${CSP_DIRECTIVES.baseUri.join(" ")}`,

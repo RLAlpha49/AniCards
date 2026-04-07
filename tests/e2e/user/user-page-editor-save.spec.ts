@@ -91,8 +91,6 @@ function expectSavedTogglePayload(
   }
 }
 
-test.use({ serviceWorkers: "block" });
-
 test.describe("User page editor - save UX", () => {
   test("saving submits a minimal /api/store-cards payload", async ({
     page,

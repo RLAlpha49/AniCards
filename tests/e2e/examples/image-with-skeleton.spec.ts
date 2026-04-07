@@ -42,8 +42,6 @@ async function mockExamplePreviewResponses(
   });
 }
 
-test.use({ serviceWorkers: "block" });
-
 test.describe("ImageWithSkeleton", () => {
   test("keeps skeletons visible during slow image loads until a real response completes", async ({
     page,

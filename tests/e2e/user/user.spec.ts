@@ -5,8 +5,6 @@ import {
 } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
-test.use({ serviceWorkers: "block" });
-
 test.describe("User page", () => {
   test("shows fallback when no query params are provided", async ({ page }) => {
     await test.step("Navigate to user page", async () => {
