@@ -8,6 +8,7 @@ import {
   generateMetadata as generateLookupUserMetadata,
 } from "@/app/user/page";
 import { REQUEST_PROOF_COOKIE_NAME } from "@/lib/api/request-proof";
+import { siteMetadata as rootMetadata } from "@/lib/seo";
 import { getSiteUrl, resolveSiteUrl } from "@/lib/site-config";
 import { config as middlewareConfig, proxy } from "@/proxy";
 
@@ -43,8 +44,23 @@ describe("App shell server coverage", () => {
 
   it("covers API routes in the proxy matcher so request IDs are injected consistently", () => {
     expect(middlewareConfig.matcher).toContain(
-      "/((?!_next/static|_next/image|favicon.ico).*)",
+      "/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)",
     );
+  });
+
+  it("advertises the favicon assets in root metadata", () => {
+    expect(rootMetadata.icons).toMatchObject({
+      icon: [
+        {
+          url: "/icon.svg",
+          type: "image/svg+xml",
+        },
+        {
+          url: "/icon.ico",
+          sizes: "any",
+        },
+      ],
+    });
   });
 
   it("injects request IDs for API routes without adding HTML-only CSP headers", async () => {

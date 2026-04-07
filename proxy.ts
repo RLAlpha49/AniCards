@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { middleware } from "@/app/middleware";
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)"],
 };
 
 /**

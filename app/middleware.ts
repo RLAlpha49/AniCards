@@ -13,7 +13,7 @@ import { generateSecureId } from "@/lib/utils";
 
 const REQUEST_ID_HEADER = "x-request-id";
 const REQUEST_ID_MIDDLEWARE_MATCHER =
-  "/((?!_next/static|_next/image|favicon.ico).*)";
+  "/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)";
 
 function isSafeRequestId(value: string): boolean {
   return /^[A-Za-z0-9._:-]{8,120}$/.test(value);

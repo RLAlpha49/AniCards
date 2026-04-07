@@ -95,6 +95,41 @@ export function getDefaultSocialPreviewImages(): string[] {
   return [getDefaultSocialPreviewImage()];
 }
 
+/**
+ * Shared root metadata for the App Router shell.
+ *
+ * This keeps the favicon metadata available for both the root layout and
+ * lightweight unit tests without importing the font-heavy layout module.
+ * @source
+ */
+export const siteMetadata: Metadata = {
+  metadataBase: getSiteUrlObject(),
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+  icons: {
+    icon: [
+      {
+        url: "/icon.svg",
+        type: "image/svg+xml",
+      },
+      {
+        url: "/icon.ico",
+        sizes: "any",
+      },
+    ],
+  },
+  openGraph: {
+    images: getDefaultSocialPreviewImages(),
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: getDefaultSocialPreviewImages(),
+  },
+};
+
 export function buildUserSocialPreviewImage(params: {
   username?: string;
   userId?: string;
