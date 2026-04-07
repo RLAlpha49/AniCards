@@ -192,25 +192,6 @@ export async function batchConvertSvgsToPngs(
 }
 
 /**
- * Generates a ZIP archive from converted images.
- *
- * @param images - Image data with filenames and formats.
- * @returns ZIP blob ready for download.
- * @source
- */
-export async function generateZipFromImages(
-  images: BatchConversionImage[],
-): Promise<Blob> {
-  const zip = new JSZip();
-
-  for (const image of images) {
-    zip.file(image.filename, await image.blob.arrayBuffer());
-  }
-
-  return await zip.generateAsync({ type: "blob" });
-}
-
-/**
  * Triggers a browser download for the provided blob.
  *
  * @param blob - Binary data to download.

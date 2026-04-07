@@ -2,8 +2,6 @@ import { normalizeAnalyticsPage } from "@/lib/utils/google-analytics";
 
 export type ErrorReportMetadataValue = string | number | boolean | null;
 
-export const ERROR_REPORT_REQUEST_MAX_BYTES = 24_000;
-
 const MAX_METADATA_KEY_LENGTH = 64;
 const MAX_METADATA_VALUE_LENGTH = 160;
 const MAX_METADATA_ENTRIES = 12;
