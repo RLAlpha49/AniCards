@@ -1,9 +1,18 @@
-import { MILESTONES } from "@/lib/svg-templates/common/constants";
+import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
+  MILESTONES,
+  MIN_FONT_SIZE,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -46,6 +55,8 @@ const MILESTONE_CONFIG: Record<
   days: { minStep: 10, targetSpan: 0.2 },
   count: { minStep: 25, targetSpan: 0.2 },
 };
+
+const NUMBER_LOCALE = "en-US";
 
 function toNiceStepSize(
   rawStep: number,
@@ -127,12 +138,46 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
   const valueY = barHeight + MILESTONES.VALUE_Y_OFFSET;
   const rowY = MILESTONES.ROW_Y_OFFSET;
   const rowHeight = barHeight + MILESTONES.ROW_HEIGHT;
+  const targetText = `→ ${next.toLocaleString(NUMBER_LOCALE)} ${unit}`;
+  // fitSvgAnchoredTextPair sizes labelFontSize and targetFontSize together within availableWidth (shrinking as needed and respecting secondaryMaxWidth), while fitSvgSingleLineText gives valueFontSize the shrink-then-truncate treatment within VALUE_MAX_WIDTH or the remaining width.
+  const rowFit = fitSvgAnchoredTextPair({
+    availableWidth: width,
+    gapPx: MILESTONES.GAP_PX,
+    primaryFontWeight: 600,
+    primaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    primaryMinFontSize: MIN_FONT_SIZE,
+    primaryText: label,
+    secondaryInitialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+    secondaryMaxWidth: Math.max(
+      MILESTONES.VALUE_MAX_WIDTH + MILESTONES.GAP_PX,
+      Math.floor(width * MILESTONES.SECONDARY_WIDTH_RATIO),
+    ),
+    secondaryMinFontSize: MIN_FONT_SIZE,
+    secondaryFontWeight: 500,
+    secondaryText: targetText,
+  });
+  const labelFontSize = rowFit?.primary.fontSize ?? TYPOGRAPHY.STAT_LABEL_SIZE;
+  const targetFontSize =
+    rowFit?.secondary.fontSize ?? TYPOGRAPHY.SECTION_TITLE_SIZE;
+  const valueText = `${safeValue.toLocaleString(NUMBER_LOCALE)} ${unit}`;
+  const valueFit = fitSvgSingleLineText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+    maxWidth: Math.max(
+      MILESTONES.VALUE_MAX_WIDTH,
+      width - MILESTONES.HORIZONTAL_PADDING,
+    ),
+    minFontSize: MIN_FONT_SIZE,
+    mode: "shrink-then-truncate",
+    text: valueText,
+  });
+  const valueFontSize = valueFit?.fontSize ?? TYPOGRAPHY.SMALL_TEXT_SIZE;
 
   return `
     <g transform="translate(${x}, ${y})" class="stagger" style="animation-delay:${delay}ms">
       <rect x="-12" y="${rowY}" width="${width + 24}" height="${rowHeight}" rx="12" opacity="0.08"/>
-      <text x="0" y="${labelY}" class="milestone-label" fill="${textColor}">${escapeForXml(label)}</text>
-      <text x="${width}" y="${labelY}" text-anchor="end" class="milestone-target" fill="${textColor}">→ ${next.toLocaleString()} ${unit}</text>
+      <text x="0" y="${labelY}" class="milestone-label" fill="${textColor}" font-size="${labelFontSize}">${escapeForXml(rowFit?.primary.text ?? label)}</text>
+      <text x="${width}" y="${labelY}" text-anchor="end" class="milestone-target" fill="${textColor}" font-size="${targetFontSize}">${escapeForXml(rowFit?.secondary.text ?? targetText)}</text>
       <defs>
         <clipPath id="${clipId}">
           <rect x="0" y="0" width="${width}" height="${barHeight}" rx="${barRadius}"/>
@@ -143,7 +188,7 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${barHeight}" fill="${circleColor}"/>
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${Math.max(1, Math.floor(barHeight / 2))}" fill="#ffffff" opacity="0.12"/>
       </g>
-      <text x="${width / 2}" y="${valueY}" text-anchor="middle" class="milestone-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke">${safeValue.toLocaleString()} ${unit}</text>
+      <text x="${width / 2}" y="${valueY}" text-anchor="middle" class="milestone-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke" font-size="${valueFontSize}">${escapeForXml(valueFit?.text ?? valueText)}</text>
     </g>
   `;
 }
@@ -176,7 +221,16 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
   const baseDims = getCardDimensions("milestones", variant);
   const title = `${username}'s Milestones`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, baseDims.w - 40);
+  const titleMaxWidth = baseDims.w - TYPOGRAPHY.TITLE_HORIZONTAL_PADDING;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const idPrefix = `ms-${toSvgIdFragment(username)}-${toSvgIdFragment(variant)}`;
   const daysWatched = Math.floor((stats.minutesWatched ?? 0) / 1440);
@@ -306,16 +360,16 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .milestone-label { font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .milestone-target { font: 500 11px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.78; }
-        .milestone-value { font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFit.fontSize ?? TYPOGRAPHY.HEADER_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .milestone-label { font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; }
+        .milestone-target { font-weight: 500; font-family: 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.78; }
+        .milestone-value { font-weight: 700; font-family: 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
       <rect x="0.5" y="0.5" width="${baseDims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       ${milestoneBars.join("")}
     </svg>

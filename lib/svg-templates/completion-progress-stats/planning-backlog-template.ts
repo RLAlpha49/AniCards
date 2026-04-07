@@ -1,4 +1,9 @@
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
@@ -7,7 +12,6 @@ import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -66,7 +70,17 @@ export function planningBacklogTemplate(
   const dims = getDimensions("planningBacklog", variant);
   const title = `${username}'s Planning Backlog`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = dims.w - 40;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TYPOGRAPHY.HEADER_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.HEADER_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const allPlanning = [...animePlanning, ...mangaPlanning];
   const animeCount = input.animeCount ?? animePlanning.length;
@@ -77,6 +91,14 @@ export function planningBacklogTemplate(
     .slice(0, 5);
 
   const statsLine = `📺 ${animeCount} anime | 📚 ${mangaCount} manga planned`;
+  const statsLineFit = fitSvgSingleLineText({
+    fontWeight: 400,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: dims.w - 50,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: statsLine,
+  });
 
   const entriesContent = displayEntries
     .map((entry, i) => {
@@ -85,9 +107,19 @@ export function planningBacklogTemplate(
       const score = entry.media.averageScore
         ? `${entry.media.averageScore}%`
         : "N/A";
+      const entryTitleFit = fitSvgSingleLineText({
+        fontWeight: 500,
+        initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        maxWidth: dims.w - SPACING.CARD_PADDING * 2,
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: mediaTitle,
+      });
+      const entryTitleFontSize =
+        entryTitleFit?.fontSize ?? TYPOGRAPHY.STAT_LABEL_SIZE;
       return `
         <g transform="translate(${SPACING.CARD_PADDING}, ${85 + i * 32})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
-          <text class="entry-title" fill="${resolvedColors.textColor}">${escapeForXml(mediaTitle.slice(0, 50))}${mediaTitle.length > 50 ? "..." : ""}</text>
+          <text class="entry-title" fill="${resolvedColors.textColor}" font-size="${entryTitleFontSize}px">${escapeForXml(entryTitleFit?.text ?? mediaTitle ?? "")}</text>
           <text class="entry-meta" x="0" y="14" fill="${resolvedColors.circleColor}">${escapeForXml(format)} • Score: ${escapeForXml(score)}</text>
         </g>
       `;
@@ -99,19 +131,20 @@ export function planningBacklogTemplate(
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        /* Keep font-weight and font-family in these static classes; .header is the exception and uses the fitted title size in the font shorthand, while stats-line and entry-title stay on rendered elements. */
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .stats-line { font-weight: 400; font-family: 'Segoe UI', Ubuntu, Sans-Serif; }
+        .entry-title { font-weight: 500; font-family: 'Segoe UI', Ubuntu, Sans-Serif; }
         .entry-meta { font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.8; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${dims.h - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       <g transform="translate(25, 58)">
-        <text class="stats-line" fill="${resolvedColors.textColor}">${escapeForXml(statsLine)}</text>
+        <text class="stats-line" fill="${resolvedColors.textColor}" font-size="${statsLineFit?.fontSize ?? TYPOGRAPHY.STAT_LABEL_SIZE}px">${escapeForXml(statsLineFit?.text ?? statsLine)}</text>
       </g>
       ${entriesContent}
     </svg>

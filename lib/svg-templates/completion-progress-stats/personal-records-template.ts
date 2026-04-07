@@ -1,4 +1,9 @@
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
@@ -7,7 +12,6 @@ import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -15,6 +19,12 @@ import {
 } from "@/lib/utils";
 
 import { getDimensions, getMediaTitle, truncateWithEllipsis } from "./shared";
+
+const TITLE_HORIZONTAL_PADDING = 40;
+const TITLE_INITIAL_FONT_SIZE = 18;
+const VALUE_RIGHT_MARGIN = 12;
+// Keep the value column readable on narrow cards before truncation kicks in.
+const MIN_VALUE_FONT_SIZE = 8;
 
 /** Personal records card input structure. @source */
 interface PersonalRecordsInput {
@@ -70,7 +80,16 @@ export function personalRecordsTemplate(
   const dims = getDimensions("personalRecords", variant);
   const title = `${username}'s Personal Records`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = dims.w - TITLE_HORIZONTAL_PADDING;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const longestAnime = [...animeCompleted].sort(
     (a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0),
@@ -100,7 +119,7 @@ export function personalRecordsTemplate(
     if (!entry) return { value: "—", missing: true };
     const titleText = getMediaTitle(entry);
     const clipped = truncateWithEllipsis(titleText, maxTitleChars);
-    return { value: `${escapeForXml(clipped)} ${suffix}`, missing: false };
+    return { value: `${clipped} ${suffix}`, missing: false };
   };
 
   const formatScoreValue = (
@@ -111,7 +130,7 @@ export function personalRecordsTemplate(
     const titleText = getMediaTitle(entry);
     const clipped = truncateWithEllipsis(titleText, maxTitleChars);
     return {
-      value: `${escapeForXml(clipped)} (${escapeForXml(score)}/10)`,
+      value: `${clipped} (${score}/10)`,
       missing: false,
     };
   };
@@ -188,10 +207,31 @@ export function personalRecordsTemplate(
         ? resolvedColors.textColor
         : resolvedColors.circleColor;
       const valueOpacity = r.missing ? 0.65 : 1;
+      const valueMaxWidth =
+        dims.w - SPACING.CARD_PADDING * 2 - VALUE_RIGHT_MARGIN;
+      const safeValueMaxWidth = Math.max(
+        valueMaxWidth,
+        MIN_VALUE_FONT_SIZE * 2,
+      );
+      const valueFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+        maxWidth: safeValueMaxWidth,
+        minFontSize: MIN_VALUE_FONT_SIZE,
+        mode: "shrink-then-truncate",
+        text: r.value,
+      });
+      const valueAttrs = valueFit ? `font-size="${valueFit.fontSize}"` : "";
+      const valueLengthAdjustAttrs = valueFit
+        ? buildSvgTextLengthAdjustAttributes(valueFit, {
+            initialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+            maxWidth: safeValueMaxWidth,
+          })
+        : "";
       return `
       <g transform="translate(${SPACING.CARD_PADDING}, ${startY + i * rowHeight})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms">
         <text class="record-label" x="0" y="0" fill="${resolvedColors.textColor}">${escapeForXml(r.label)}:</text>
-        <text class="record-value" x="0" y="16" fill="${valueFill}" opacity="${valueOpacity}">${r.value}</text>
+        <text class="record-value" x="0" y="16" fill="${valueFill}" opacity="${valueOpacity}" ${valueAttrs}${valueLengthAdjustAttrs}>${escapeForXml(valueFit?.text ?? r.value)}</text>
       </g>
     `;
     })
@@ -202,7 +242,7 @@ export function personalRecordsTemplate(
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .record-label { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 500; font-size: ${TYPOGRAPHY.STAT_LABEL_SIZE}px; }
         .record-value { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 400; font-size: ${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
@@ -210,7 +250,7 @@ export function personalRecordsTemplate(
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       ${recordsContent}
     </svg>

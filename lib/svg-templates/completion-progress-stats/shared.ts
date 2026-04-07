@@ -1,10 +1,15 @@
-import { ANIMATION } from "@/lib/svg-templates/common/constants";
+import { fitSvgSingleLineText } from "@/lib/pretext/runtime";
+import { ANIMATION, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 import {
   CARD_DIMENSIONS,
   getCardDimensions,
 } from "@/lib/svg-templates/common/dimensions";
 import type { MediaListEntry } from "@/lib/types/records";
 import { escapeForXml } from "@/lib/utils";
+
+const MIN_FITTED_FONT_SIZE = 8;
+const COLUMN_SPACING = 110;
+const TEXT_X_OFFSET = 14;
 
 /** Status color mapping for list statuses. @source */
 export const STATUS_COLORS: Record<string, string> = {
@@ -151,6 +156,14 @@ export function generateStackedBar(
 
   const barRadius = Math.max(2, Math.min(height / 2, 10));
   const clipId = `bar-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}-${Math.round(width)}-${Math.round(height)}`;
+  const labelFit = fitSvgSingleLineText({
+    fontWeight: 500,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: width,
+    minFontSize: MIN_FITTED_FONT_SIZE,
+    mode: "shrink-then-truncate",
+    text: label,
+  });
 
   let usedWidth = 0;
   const bars = normalized
@@ -172,7 +185,7 @@ export function generateStackedBar(
         <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${barRadius}"/>
       </clipPath>
     </defs>
-    <text x="${x}" y="${y - 8}" class="bar-label" fill="${textColor}">${escapeForXml(label)}</text>
+    <text x="${x}" y="${y - 8}" class="bar-label" fill="${textColor}"${Number.isFinite(labelFit?.fontSize) ? ` font-size="${labelFit.fontSize}"` : ""}>${escapeForXml(labelFit?.text ?? label)}</text>
     <g clip-path="url(#${clipId})">
       <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${barRadius}" fill="${trackColor}" opacity="0.18"/>
       ${bars}
@@ -198,12 +211,21 @@ export function generateStatusLegend(
       const name = STATUS_NAMES[s.status] ?? s.status;
       const row = Math.floor(i / 3);
       const col = i % 3;
-      const itemX = x + col * 110;
+      const itemX = x + col * COLUMN_SPACING;
       const itemY = y + row * 18;
+      const legendText = `${name}: ${s.count}`;
+      const legendFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+        maxWidth: COLUMN_SPACING - TEXT_X_OFFSET,
+        minFontSize: MIN_FITTED_FONT_SIZE,
+        mode: "shrink-then-truncate",
+        text: legendText,
+      });
       return `
         <g transform="translate(${itemX}, ${itemY})" class="stagger" style="animation-delay:${ANIMATION.LEGEND_BASE_DELAY + i * ANIMATION.LEGEND_INCREMENT}ms">
           <rect x="0" y="-8" width="10" height="10" rx="2" fill="${color}"/>
-          <text x="14" y="0" class="legend-text" fill="${textColor}">${escapeForXml(name)}: ${s.count}</text>
+          <text x="${TEXT_X_OFFSET}" y="0" class="legend-text" fill="${textColor}"${Number.isFinite(legendFit?.fontSize) ? ` font-size="${legendFit.fontSize}"` : ""}>${escapeForXml(legendFit?.text ?? legendText)}</text>
         </g>
       `;
     })
