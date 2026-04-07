@@ -164,6 +164,10 @@ export function generateStackedBar(
     mode: "shrink-then-truncate",
     text: label,
   });
+  const labelFontSizeAttr =
+    labelFit && Number.isFinite(labelFit.fontSize)
+      ? ` font-size="${labelFit.fontSize}"`
+      : "";
 
   let usedWidth = 0;
   const bars = normalized
@@ -185,7 +189,7 @@ export function generateStackedBar(
         <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${barRadius}"/>
       </clipPath>
     </defs>
-    <text x="${x}" y="${y - 8}" class="bar-label" fill="${textColor}"${Number.isFinite(labelFit?.fontSize) ? ` font-size="${labelFit.fontSize}"` : ""}>${escapeForXml(labelFit?.text ?? label)}</text>
+    <text x="${x}" y="${y - 8}" class="bar-label" fill="${textColor}"${labelFontSizeAttr}>${escapeForXml(labelFit?.text ?? label)}</text>
     <g clip-path="url(#${clipId})">
       <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${barRadius}" fill="${trackColor}" opacity="0.18"/>
       ${bars}
@@ -222,10 +226,14 @@ export function generateStatusLegend(
         mode: "shrink-then-truncate",
         text: legendText,
       });
+      const legendFontSizeAttr =
+        legendFit && Number.isFinite(legendFit.fontSize)
+          ? ` font-size="${legendFit.fontSize}"`
+          : "";
       return `
         <g transform="translate(${itemX}, ${itemY})" class="stagger" style="animation-delay:${ANIMATION.LEGEND_BASE_DELAY + i * ANIMATION.LEGEND_INCREMENT}ms">
           <rect x="0" y="-8" width="10" height="10" rx="2" fill="${color}"/>
-          <text x="${TEXT_X_OFFSET}" y="0" class="legend-text" fill="${textColor}"${Number.isFinite(legendFit?.fontSize) ? ` font-size="${legendFit.fontSize}"` : ""}>${escapeForXml(legendFit?.text ?? legendText)}</text>
+          <text x="${TEXT_X_OFFSET}" y="0" class="legend-text" fill="${textColor}"${legendFontSizeAttr}>${escapeForXml(legendFit?.text ?? legendText)}</text>
         </g>
       `;
     })

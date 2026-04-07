@@ -193,11 +193,10 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
         truncatedFallbackTitle === mediaTitle
           ? truncatedFallbackTitle
           : `${truncatedFallbackTitle}...`;
-      const entryTitleMaxWidth = entryFit?.availablePrimaryWidth;
       const entryTitleLengthAdjustAttrs = entryFit
         ? buildSvgTextLengthAdjustAttributes(entryFit.primary, {
             initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
-            maxWidth: entryTitleMaxWidth,
+            maxWidth: entryFit.availablePrimaryWidth,
           })
         : "";
       const entryTitleFontSizeStyle = entryFit

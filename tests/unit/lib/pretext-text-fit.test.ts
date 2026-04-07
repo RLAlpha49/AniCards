@@ -44,7 +44,24 @@ function createMockPretext(): {
     walk: 0,
   };
 
-  const pretext = {
+  type MockPretextModule = {
+    layout(
+      prepared: MockPreparedText,
+      maxWidth: number,
+      lineHeight: number,
+    ): {
+      height: number;
+      lineCount: number;
+    };
+    prepareWithSegments(text: string, font: string): MockPreparedText;
+    walkLineRanges(
+      prepared: MockPreparedText,
+      maxWidth: number,
+      callback: (line: { width: number }) => void,
+    ): void;
+  };
+
+  const pretext: MockPretextModule = {
     layout(
       prepared: MockPreparedText,
       maxWidth: number,
@@ -90,11 +107,11 @@ function createMockPretext(): {
       calls.walk += 1;
       callback({ width: prepared.width });
     },
-  } satisfies PretextModule;
+  };
 
   return {
     calls,
-    pretext,
+    pretext: pretext as unknown as PretextModule,
   };
 }
 

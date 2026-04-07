@@ -388,7 +388,7 @@ console.log(
       favoritesEmbedCalls: Array<
         [unknown, string, number, number, { cacheOnly?: boolean }]
       >;
-      fetchCalls: Array<[string, { cacheOnly?: boolean }]>;
+      fetchCalls: Array<[string, { cacheOnly?: boolean }?]>;
     };
 
     expect(result.fetchCalls).toEqual([

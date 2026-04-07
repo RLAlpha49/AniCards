@@ -200,9 +200,12 @@ export function buildSvgTextLengthAdjustAttributes(
     Number.isFinite(options.maxWidth) && options.maxWidth > 0
       ? textFit.roundToTenths(options.maxWidth)
       : null;
+  const initialFontSize = options.initialFontSize;
   const safeInitialFontSize =
-    Number.isFinite(options.initialFontSize) && options.initialFontSize > 0
-      ? options.initialFontSize
+    typeof initialFontSize === "number" &&
+    Number.isFinite(initialFontSize) &&
+    initialFontSize > 0
+      ? initialFontSize
       : safeFitFontSize;
 
   if (
@@ -220,13 +223,14 @@ export function buildSvgTextLengthAdjustAttributes(
   const thresholdFontSize = safeInitialFontSize * (1 - shrinkThreshold);
   const hasMeasuredNaturalWidth =
     typeof fit.naturalWidth === "number" && Number.isFinite(fit.naturalWidth);
+  const safeNaturalWidth = hasMeasuredNaturalWidth ? fit.naturalWidth : null;
   const shouldClampWidth =
     fit.truncated === true ||
     // Only clamp measured text. Heuristic fallback fits do not have a trustworthy
     // natural width, so emitting textLength there can stretch short titles
     // dramatically instead of degrading gracefully.
-    (hasMeasuredNaturalWidth &&
-      (fit.naturalWidth > safeMaxWidth - textFit.PRETEXT_WIDTH_EPSILON_PX ||
+    (safeNaturalWidth !== null &&
+      (safeNaturalWidth > safeMaxWidth - textFit.PRETEXT_WIDTH_EPSILON_PX ||
         safeFitFontSize < thresholdFontSize));
 
   if (!shouldClampWidth) {
