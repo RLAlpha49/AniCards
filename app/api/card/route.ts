@@ -60,6 +60,8 @@ import {
   validateColorValue,
 } from "@/lib/utils";
 
+export const runtime = "nodejs";
+
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({
   limit: 150,

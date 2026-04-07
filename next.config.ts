@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL ?? "https://api.anicards.alpha49.com",
   },
+  serverExternalPackages: ["@napi-rs/canvas"],
   images: {
     remotePatterns: [
       {

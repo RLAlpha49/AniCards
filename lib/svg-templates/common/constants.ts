@@ -30,6 +30,8 @@ export const SPACING = {
 export const TYPOGRAPHY = {
   HEADER_SIZE: 18,
   HEADER_SIZE_LARGE: 20,
+  TITLE_HORIZONTAL_PADDING: 40,
+  TITLE_INITIAL_FONT_SIZE: 18,
   KPI_SIZE: 24,
   STAT_SIZE: 13,
   STAT_LABEL_SIZE: 12,
@@ -38,7 +40,10 @@ export const TYPOGRAPHY = {
   SMALL_TEXT_SIZE: 10,
   LARGE_TEXT_SIZE: 16,
   USERNAME_SIZE: 18,
+  MIN_FONT_SIZE: 8,
 } as const;
+
+export const MIN_FONT_SIZE = TYPOGRAPHY.MIN_FONT_SIZE;
 
 export const SHAPES = {
   CIRCLE_RADIUS_LARGE: 40,
@@ -57,16 +62,26 @@ export const SHAPES = {
 
 export const POSITIONING = {
   STAT_LABEL_X: 0,
+  // Default value-column X offset used by the shared media stats layouts; the
+  // fractional .01 keeps the default alignment stable while callers can still
+  // override spacing for variant-specific layouts.
   STAT_VALUE_X_DEFAULT: 199.01,
   STAT_VALUE_X_COMPACT: 160,
   STAT_VALUE_X_SMALL: 120,
   STAT_VALUE_X_LARGE: 125,
+  VALUE_MAX_WIDTH_VERTICAL: 45,
+  VALUE_MAX_WIDTH_COMPACT: 56,
+  VALUE_MAX_WIDTH_DEFAULT: 110,
   BAR_START_X: 30,
   BAR_START_X_LARGE: 150,
   COUNT_BASE_X: 35,
   RIGHT_PADDING: 60,
   AVATAR_OFFSET_X: 100,
 } as const;
+
+// Common default gap for row-fit and milestone-style layouts. Individual
+// templates may still override this when their spacing needs diverge.
+export const DEFAULT_GAP_PX = 12;
 
 export const MILESTONES = {
   BAR_SPACING: 42,
@@ -75,9 +90,27 @@ export const MILESTONES = {
   ROW_HEIGHT: 34,
   LABEL_Y_OFFSET: -8,
   VALUE_Y_OFFSET: -3,
+  GAP_PX: DEFAULT_GAP_PX,
+  SECONDARY_WIDTH_RATIO: 0.38,
+  VALUE_MAX_WIDTH: 48,
+  HORIZONTAL_PADDING: 24,
   BASE_DELAY: 400,
   DELAY_INCREMENT: 100,
 } as const;
+
+export const ROW_FIT = {
+  GAP_PX: DEFAULT_GAP_PX,
+  SECONDARY_MAX_WIDTH: 96,
+  MIN_FONT_SIZE,
+} as const;
+
+export const ACTIVITY_STREAK = {
+  GAP_PX: DEFAULT_GAP_PX,
+  SECONDARY_MAX_WIDTH_BASE: 64,
+  SECONDARY_MAX_WIDTH_RATIO: 0.42,
+} as const;
+
+export const CARD_HORIZONTAL_PADDING = 40;
 
 export const DISTRIBUTION = {
   MAX_BAR_WIDTH_OFFSET: 60,
@@ -96,4 +129,5 @@ export const PROFILE = {
   AVATAR_STROKE_WIDTH: 2,
   SECTION_SPACING: 150,
   YEARS_SECTION_X: 300,
+  USERNAME_OFFSET: 120,
 } as const;
