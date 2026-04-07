@@ -378,11 +378,12 @@ export function UserPageHeader({
                 )}
               </motion.div>
 
-              <div className="flex flex-1 flex-col items-center text-center">
+              <div className="flex w-full min-w-0 flex-1 flex-col items-center text-center">
                 <motion.h1
                   variants={itemVariants}
                   className="
-                    text-3xl/tight font-bold tracking-tight text-foreground
+                    w-full max-w-full min-w-0 text-3xl/tight font-bold tracking-tight
+                    text-foreground
                     sm:text-4xl
                     lg:text-5xl
                   "
@@ -396,7 +397,10 @@ export function UserPageHeader({
                       ">
                         ✦ Welcome back ✦
                       </span>
-                      <span className="mt-3 block font-display">
+                      <span
+                        title={username}
+                        className="mt-3 block max-w-full font-display wrap-break-word"
+                      >
                         {username}
                       </span>
                     </>
