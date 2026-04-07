@@ -6,6 +6,13 @@
  * consistent structure without duplicating layout math.
  */
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  measureSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
   getCardDimensions,
   SHAPES,
@@ -22,7 +29,6 @@ import {
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -44,6 +50,7 @@ export interface ComparativeTwoColumnTemplateInput {
   cardType: Parameters<typeof getCardDimensions>[0];
   username: string;
   title: string;
+  noDataText?: string;
   variant?: string;
   styles: {
     titleColor: ColorValue;
@@ -52,6 +59,7 @@ export interface ComparativeTwoColumnTemplateInput {
     circleColor: ColorValue;
     borderColor?: ColorValue;
     borderRadius?: number;
+    animate?: boolean;
   };
   left: {
     title: string;
@@ -66,6 +74,7 @@ export interface ComparativeTwoColumnTemplateInput {
 }
 
 const MAX_BARS_PER_COLUMN = 8;
+const EFFECTIVE_MAX_TEXT_WIDTH = 100_000; // Effectively unlimited width for measurement purposes.
 
 function countRenderableBars(bars: ComparativeBarRow[]): number {
   return Math.min(
@@ -106,17 +115,54 @@ function estimateTextWidthPx(text: string, fontSizePx: number): number {
   return t.length * fontSizePx * charWidthMultiplier;
 }
 
+function measureTextWidthPx(
+  text: string,
+  fontSizePx: number,
+  fontWeight: number = 400,
+): number {
+  const measurement = measureSvgSingleLineText({
+    fontSize: fontSizePx,
+    fontWeight,
+    maxWidth: EFFECTIVE_MAX_TEXT_WIDTH,
+    text,
+  });
+
+  return measurement?.naturalWidth ?? estimateTextWidthPx(text, fontSizePx);
+}
+
 function renderMetricsBlock(
   metrics: ComparativeMetricRow[],
   colW: number,
 ): string {
   return metrics
     .map((m, i) => {
+      const rowFit = fitSvgAnchoredTextPair({
+        availableWidth: colW,
+        gapPx: 12,
+        primaryFontWeight: 400,
+        primaryInitialFontSize: TYPOGRAPHY.STAT_SIZE,
+        primaryMinFontSize: 8,
+        primaryText: m.label,
+        secondaryInitialFontSize: TYPOGRAPHY.STAT_VALUE_SIZE,
+        secondaryMaxWidth: Math.max(42, Math.floor(colW * 0.42)),
+        secondaryMinFontSize: 8,
+        secondaryFontWeight: 700,
+        secondaryText: m.value,
+      });
       const content =
-        createTextElement(0, 12, m.label, "stat") +
-        createTextElement(colW, 12, m.value, "stat-value", {
-          textAnchor: "end",
-        });
+        createTextElement(0, 12, rowFit?.primary.text ?? m.label, "stat", {
+          ...(rowFit ? { fontSize: rowFit.primary.fontSize } : {}),
+        }) +
+        createTextElement(
+          colW,
+          12,
+          rowFit?.secondary.text ?? m.value,
+          "stat-value",
+          {
+            textAnchor: "end",
+            ...(rowFit ? { fontSize: rowFit.secondary.fontSize } : {}),
+          },
+        );
 
       return createStaggeredGroup(
         `translate(0, ${i * SPACING.ROW_HEIGHT_COMPACT})`,
@@ -141,58 +187,80 @@ function renderBarsBlock(
     .filter((b) => b.label.trim().length > 0);
 
   const maxCount = Math.max(1, ...sanitized.map((b) => b.count));
-  const labelToBarGap = 10;
+  const labelToBarGap = 6;
   const barToCountGap = 10;
   const minBarW = 20;
 
-  const fallbackBarStartX = 74;
-  const fallbackCountPad = 36;
-
-  const rows = sanitized.slice(0, 8).map((b) => {
+  const rows = sanitized.slice(0, MAX_BARS_PER_COLUMN).map((b) => {
     const countText = formatInt(b.count);
-    const labelW = estimateTextWidthPx(b.label, TYPOGRAPHY.STAT_SIZE);
-    const countW = estimateTextWidthPx(countText, TYPOGRAPHY.STAT_SIZE);
-    return { ...b, countText, labelW, countW };
+    const countW = measureTextWidthPx(countText, TYPOGRAPHY.STAT_SIZE, 600);
+    return { ...b, countText, countW };
   });
 
-  const maxLabelW = Math.max(0, ...rows.map((r) => r.labelW));
   const maxCountW = Math.max(0, ...rows.map((r) => r.countW));
+  const maxLabelSlotWidth = Math.max(
+    24,
+    Math.floor(colW - maxCountW - labelToBarGap - barToCountGap - minBarW),
+  );
+  const fittedRows = rows.map((row) => {
+    const labelFit = fitSvgSingleLineText({
+      fontWeight: 400,
+      initialFontSize: TYPOGRAPHY.STAT_SIZE,
+      maxWidth: maxLabelSlotWidth,
+      minFontSize: 8,
+      mode: "shrink-then-truncate",
+      text: row.label,
+    });
 
-  let barStartX = Math.ceil(maxLabelW + labelToBarGap);
-  const barEndX = Math.floor(colW - maxCountW - barToCountGap);
-  let maxBarW = barEndX - barStartX;
+    return {
+      ...row,
+      labelFit,
+      labelW:
+        labelFit?.naturalWidth ??
+        measureTextWidthPx(
+          labelFit?.text ?? row.label,
+          labelFit?.fontSize ?? TYPOGRAPHY.STAT_SIZE,
+        ),
+    };
+  });
 
-  if (!Number.isFinite(barStartX) || !Number.isFinite(maxBarW)) {
-    barStartX = fallbackBarStartX;
-    maxBarW = colW - fallbackBarStartX - fallbackCountPad;
-  }
-
-  if (maxBarW < minBarW) {
-    barStartX = fallbackBarStartX;
-    maxBarW = colW - fallbackBarStartX - fallbackCountPad;
-  }
-
-  maxBarW = Math.max(minBarW, Math.floor(maxBarW));
-  barStartX = Math.min(
-    Math.max(0, barStartX),
-    Math.max(0, Math.floor(colW - maxBarW)),
+  const widestLabelWidth = Math.min(
+    maxLabelSlotWidth,
+    Math.max(0, ...fittedRows.map((row) => row.labelW)),
+  );
+  const barStartX = Math.max(24, Math.ceil(widestLabelWidth + labelToBarGap));
+  const maxBarW = Math.max(
+    minBarW,
+    Math.floor(colW - barStartX - maxCountW - barToCountGap),
   );
 
-  return rows
+  return fittedRows
     .map((b, i) => {
+      const countFit = fitSvgSingleLineText({
+        fontWeight: 600,
+        initialFontSize: TYPOGRAPHY.STAT_SIZE,
+        maxWidth: Math.max(24, Math.ceil(maxCountW)),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: b.countText,
+      });
       const w = Math.min(
         maxBarW,
         Math.max(2, Math.round((Math.max(0, b.count) / maxCount) * maxBarW)),
       );
       const content =
-        createTextElement(0, 12, b.label, "stat") +
+        createTextElement(0, 12, b.labelFit?.text ?? b.label, "stat", {
+          ...(b.labelFit ? { fontSize: b.labelFit.fontSize } : {}),
+        }) +
         createRectElement(barStartX, 4, w, SHAPES.BAR_HEIGHT_SMALL, {
           rx: SHAPES.BAR_RADIUS,
           fill: barColor,
           opacity: 0.85,
         }) +
-        createTextElement(colW, 12, b.countText, "stat", {
+        createTextElement(colW, 12, countFit?.text ?? b.countText, "stat", {
           textAnchor: "end",
+          fontWeight: 600,
+          ...(countFit ? { fontSize: countFit.fontSize } : {}),
         });
 
       return createStaggeredGroup(
@@ -202,6 +270,85 @@ function renderBarsBlock(
       );
     })
     .join("");
+}
+
+function renderOptionalColumnBlock(content: string, y: number): string {
+  if (!content) {
+    return "";
+  }
+
+  return `<g transform="translate(0, ${y})">${content}</g>`;
+}
+
+function resolveColumnBarsY(
+  metricsCount: number,
+  hasBars: boolean,
+  sectionStartY: number,
+  metricsGap: number,
+): number {
+  return (
+    sectionStartY +
+    metricsCount * SPACING.ROW_HEIGHT_COMPACT +
+    (metricsCount > 0 && hasBars ? metricsGap : 0)
+  );
+}
+
+function buildComparativeColumnSection(args: {
+  bars: ComparativeBarRow[];
+  circleColor: string;
+  colW: number;
+  metrics: ComparativeMetricRow[];
+  noDataText?: string;
+  sectionStartY: number;
+  sectionTitleY: number;
+  title: string;
+  titleFontSize?: number;
+  x: number;
+}): string {
+  const noDataText = args.noDataText ?? "No data";
+  const metricsMarkup = renderOptionalColumnBlock(
+    args.metrics.length > 0 ? renderMetricsBlock(args.metrics, args.colW) : "",
+    args.sectionStartY,
+  );
+  const barsMarkup = renderOptionalColumnBlock(
+    args.bars.length > 0
+      ? renderBarsBlock(args.bars, args.colW, args.circleColor)
+      : "",
+    resolveColumnBarsY(
+      args.metrics.length,
+      args.bars.length > 0,
+      args.sectionStartY,
+      10,
+    ),
+  );
+  let emptyMarkup = "";
+  if (args.metrics.length === 0 && args.bars.length === 0) {
+    const emptyFit = fitSvgSingleLineText({
+      fontWeight: 400,
+      initialFontSize: TYPOGRAPHY.STAT_SIZE,
+      maxWidth: args.colW,
+      minFontSize: 8,
+      mode: "shrink-then-truncate",
+      text: noDataText,
+    });
+    emptyMarkup = createTextElement(
+      0,
+      args.sectionStartY + 12,
+      emptyFit?.text ?? noDataText,
+      "stat",
+      {
+        ...(emptyFit ? { fontSize: emptyFit.fontSize } : {}),
+      },
+    );
+  }
+
+  return `
+        <g transform="translate(${args.x}, ${SPACING.CONTENT_Y})">
+          <text class="col-title" x="0" y="${args.sectionTitleY}"${typeof args.titleFontSize === "number" ? ` font-size="${args.titleFontSize}"` : ""}>${escapeForXml(args.title)}</text>
+          ${metricsMarkup}
+          ${barsMarkup}
+          ${emptyMarkup}
+        </g>`;
 }
 
 export function comparativeTwoColumnTemplate(
@@ -230,11 +377,17 @@ export function comparativeTwoColumnTemplate(
 
   const fullTitle = `${username}'s ${title}`;
   const safeTitle = escapeForXml(fullTitle);
-  const headerFontSize =
-    Number.parseFloat(
-      calculateDynamicFontSize(fullTitle, 18, baseDims.w - 40),
-    ) || TYPOGRAPHY.HEADER_SIZE;
-  const animationsEnabled = (styles as { animate?: boolean }).animate !== false;
+  const titleMaxWidth = baseDims.w - 40;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: fullTitle,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: 18,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
+  const animationsEnabled = styles.animate !== false; // Default on when styles.animate is undefined; only false disables animations.
 
   const padding = SPACING.CARD_PADDING;
   const colGap = 20;
@@ -275,69 +428,63 @@ export function comparativeTwoColumnTemplate(
     ...baseDims,
     h: Math.max(baseDims.h, minRequiredHeight),
   };
-
-  const leftMetricsBlock = leftMetrics.length
-    ? `<g transform="translate(0, ${sectionStartY})">${renderMetricsBlock(leftMetrics, colW)}</g>`
-    : "";
-
-  const rightMetricsBlock = rightMetrics.length
-    ? `<g transform="translate(0, ${sectionStartY})">${renderMetricsBlock(rightMetrics, colW)}</g>`
-    : "";
-
-  const leftBarsY =
-    sectionStartY +
-    (leftMetrics.length ? leftMetrics.length * SPACING.ROW_HEIGHT_COMPACT : 0) +
-    (leftMetrics.length && leftBars.length ? metricsGap : 0);
-  const rightBarsY =
-    sectionStartY +
-    (rightMetrics.length
-      ? rightMetrics.length * SPACING.ROW_HEIGHT_COMPACT
-      : 0) +
-    (rightMetrics.length && rightBars.length ? metricsGap : 0);
-
-  const leftBarsBlock = leftBars.length
-    ? `<g transform="translate(0, ${leftBarsY})">${renderBarsBlock(leftBars, colW, resolvedColors.circleColor)}</g>`
-    : "";
-  const rightBarsBlock = rightBars.length
-    ? `<g transform="translate(0, ${rightBarsY})">${renderBarsBlock(rightBars, colW, resolvedColors.circleColor)}</g>`
-    : "";
-
-  const leftEmpty =
-    !leftMetrics.length && !leftBars.length
-      ? `<text class="stat" x="0" y="${sectionStartY + 12}">No data</text>`
-      : "";
-  const rightEmpty =
-    !rightMetrics.length && !rightBars.length
-      ? `<text class="stat" x="0" y="${sectionStartY + 12}">No data</text>`
-      : "";
+  const leftTitleFit = fitSvgSingleLineText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.STAT_VALUE_SIZE,
+    maxWidth: colW,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: input.left.title,
+  });
+  const rightTitleFit = fitSvgSingleLineText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.STAT_VALUE_SIZE,
+    maxWidth: colW,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: input.right.title,
+  });
+  const leftColumnMarkup = buildComparativeColumnSection({
+    bars: leftBars,
+    circleColor: resolvedColors.circleColor,
+    colW,
+    metrics: leftMetrics,
+    noDataText: input.noDataText,
+    sectionStartY,
+    sectionTitleY,
+    title: leftTitleFit?.text ?? input.left.title,
+    titleFontSize: leftTitleFit?.fontSize,
+    x: col1X,
+  });
+  const rightColumnMarkup = buildComparativeColumnSection({
+    bars: rightBars,
+    circleColor: resolvedColors.circleColor,
+    colW,
+    metrics: rightMetrics,
+    noDataText: input.noDataText,
+    sectionStartY,
+    sectionTitleY,
+    title: rightTitleFit?.text ?? input.right.title,
+    titleFontSize: rightTitleFit?.fontSize,
+    x: col2X,
+  });
 
   return markTrustedSvg(`
     <svg xmlns="http://www.w3.org/2000/svg" width="${dims.w}" height="${dims.h}" viewBox="0 0 ${dims.w} ${dims.h}" fill="none" role="img" aria-labelledby="title-id">
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        ${generateCommonStyles(resolvedColors, headerFontSize, { includeAnimations: animationsEnabled })}
+        ${generateCommonStyles(resolvedColors, titleFit.fontSize, { includeAnimations: animationsEnabled })}
         .col-title { fill: ${resolvedColors.circleColor}; font: 600 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       </style>
       ${generateCardBackground(dims, cardRadius, resolvedColors)}
       <g transform="translate(20, ${SPACING.HEADER_Y})" data-testid="card-title">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
 
       <g data-testid="main-card-body">
-        <g transform="translate(${col1X}, ${SPACING.CONTENT_Y})">
-          <text class="col-title" x="0" y="${sectionTitleY}">${escapeForXml(input.left.title)}</text>
-          ${leftMetricsBlock}
-          ${leftBarsBlock}
-          ${leftEmpty}
-        </g>
-
-        <g transform="translate(${col2X}, ${SPACING.CONTENT_Y})">
-          <text class="col-title" x="0" y="${sectionTitleY}">${escapeForXml(input.right.title)}</text>
-          ${rightMetricsBlock}
-          ${rightBarsBlock}
-          ${rightEmpty}
-        </g>
+        ${leftColumnMarkup}
+        ${rightColumnMarkup}
       </g>
     </svg>
   `);

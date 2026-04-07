@@ -1,5 +1,13 @@
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
+  CARD_HORIZONTAL_PADDING,
+  MIN_FONT_SIZE,
   POSITIONING,
   SPACING,
   TYPOGRAPHY,
@@ -9,7 +17,6 @@ import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -17,6 +24,11 @@ import {
 } from "@/lib/utils";
 
 import { detectTopActivityDays } from "./shared";
+
+const DATE_AMOUNT_GAP = 12;
+const AMOUNT_MAX_WIDTH = 96;
+const RANK_MIN_WIDTH = Math.max(20, POSITIONING.BAR_START_X - 8);
+const CONTENT_LEFT_OFFSET = 20;
 
 /**
  * Generates a Top Activity Days card showing days with the highest activity.
@@ -62,21 +74,80 @@ export function topActivityDaysTemplate(data: {
   const topDays = topActivityDays.slice(0, 5);
 
   const dims = getCardDimensions("topActivityDays", "default");
+  const titleMaxWidth = dims.w - CARD_HORIZONTAL_PADDING;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
-  const activityRows =
-    topDays.length > 0
-      ? topDays
-          .map(
-            (day, i) => `
+  let activityRows: string;
+
+  if (topDays.length > 0) {
+    activityRows = topDays
+      .map((day, i) => {
+        const amountText = `${day.amount} activities`;
+        const dateFit = fitSvgAnchoredTextPair({
+          availableWidth:
+            dims.w - CARD_HORIZONTAL_PADDING - POSITIONING.BAR_START_X,
+          gapPx: DATE_AMOUNT_GAP,
+          primaryFontWeight: 400,
+          primaryInitialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+          primaryMinFontSize: MIN_FONT_SIZE,
+          primaryText: day.date,
+          secondaryInitialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+          secondaryMaxWidth: AMOUNT_MAX_WIDTH,
+          secondaryMinFontSize: MIN_FONT_SIZE,
+          secondaryFontWeight: 500,
+          secondaryText: amountText,
+        });
+        const rankFit = fitSvgSingleLineText({
+          fontWeight: 600,
+          initialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+          maxWidth: RANK_MIN_WIDTH,
+          minFontSize: MIN_FONT_SIZE,
+          mode: "shrink-then-truncate",
+          text: `#${i + 1}`,
+        });
+        const dateFontSize = dateFit
+          ? ` font-size="${dateFit.primary.fontSize}"`
+          : "";
+        const amountFontSize = dateFit
+          ? ` font-size="${dateFit.secondary.fontSize}"`
+          : "";
+
+        return `
       <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.SLOW_INCREMENT}ms" transform="translate(0, ${i * SPACING.ROW_HEIGHT})">
-        <text class="rank" y="12">#${i + 1}</text>
-        <text class="date" x="${POSITIONING.BAR_START_X}" y="12">${day.date}</text>
-        <text class="amount" x="${dims.w - 40}" y="12" text-anchor="end">${day.amount} activities</text>
+        <text class="rank" y="12"${rankFit ? ` font-size="${rankFit.fontSize}"` : ""}>${escapeForXml(rankFit?.text ?? `#${i + 1}`)}</text>
+        <text class="date" x="${POSITIONING.BAR_START_X}" y="12"${dateFontSize}>${escapeForXml(dateFit?.primary.text ?? day.date)}</text>
+        <text class="amount" x="${dims.w - CARD_HORIZONTAL_PADDING}" y="12" text-anchor="end"${amountFontSize}>${escapeForXml(dateFit?.secondary.text ?? amountText)}</text>
       </g>
-    `,
-          )
-          .join("")
-      : `<text class="no-data" x="${dims.w / 2 - 20}" y="40">No top activity days detected</text>`;
+    `;
+      })
+      .join("");
+  } else {
+    const noDataFit = fitSvgSingleLineText({
+      fontWeight: 400,
+      initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+      maxWidth: dims.w - CARD_HORIZONTAL_PADDING * 2,
+      minFontSize: MIN_FONT_SIZE,
+      mode: "shrink-then-truncate",
+      text: "No top activity days detected",
+    });
+    const noDataFontSize = noDataFit
+      ? ` font-size="${noDataFit.fontSize}"`
+      : "";
+    const noDataText = escapeForXml(
+      noDataFit?.text ?? "No top activity days detected",
+    );
+
+    activityRows = `<text class="no-data" x="${dims.w / 2 - CONTENT_LEFT_OFFSET}" y="40" text-anchor="middle"${noDataFontSize}>${noDataText}</text>`;
+  }
 
   return markTrustedSvg(`
 <svg
@@ -94,7 +165,7 @@ export function topActivityDaysTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .rank {
@@ -135,9 +206,9 @@ export function topActivityDaysTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
-  <g transform="translate(20, ${SPACING.CONTENT_Y})">
+  <g transform="translate(${CONTENT_LEFT_OFFSET}, ${SPACING.CONTENT_Y})">
     ${activityRows}
   </g>
 </svg>

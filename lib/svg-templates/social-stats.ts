@@ -1,6 +1,11 @@
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
-  POSITIONING,
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
@@ -9,12 +14,14 @@ import { ColorValue, SocialStats } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "../utils";
+
+const STAT_ROW_GAP_PX = 14;
+const STAT_SECONDARY_MAX_WIDTH = 72;
 
 /**
  * Renders an SVG string visualizing a user's social metrics: followers,
@@ -104,7 +111,17 @@ export const socialStatsTemplate = (data: {
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Social Stats`;
+  const titleMaxWidth = Math.max(1, dims.w - SPACING.CARD_PADDING * 2);
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.HEADER_SIZE,
+    maxWidth: titleMaxWidth,
+  });
   const safeTitle = escapeForXml(title);
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const activityTimespanStr = hasActivity
     ? `${totalActivity} over ${daysDifference} ${dayLabel}`
@@ -137,7 +154,6 @@ export const socialStatsTemplate = (data: {
     const cellW = Math.floor((dims.w - gridX * 2 - gapX) / 2);
     const cellH = 42;
 
-    const safeValue = (n: number) => escapeForXml(formatCompact(n));
     const safeLabel = (s: string) => escapeForXml(s);
 
     return `
@@ -171,12 +187,30 @@ export const socialStatsTemplate = (data: {
                 const x = gridX + (isLast ? 0 : col * (cellW + gapX));
                 const y = row * (cellH + gapY);
                 const w = isLast ? dims.w - gridX * 2 : cellW;
+                const labelFit = fitSvgSingleLineText({
+                  fontWeight: 600,
+                  initialFontSize: 10,
+                  maxWidth: Math.max(24, w - 24),
+                  minFontSize: 8,
+                  mode: "shrink-then-truncate",
+                  text: it.label,
+                });
+                const valueFit = fitSvgSingleLineText({
+                  fontWeight: 700,
+                  initialFontSize: 16,
+                  maxWidth: Math.max(24, w - 24),
+                  minFontSize: 8,
+                  mode: "shrink-then-truncate",
+                  text: formatCompact(it.value),
+                });
+                const fittedValueText =
+                  valueFit?.text ?? formatCompact(it.value);
 
                 return `
                   <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + idx * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(${x}, ${y})">
                     <rect class="kpi-box" rx="10" ry="10" width="${w}" height="${cellH}" />
-                    <text class="kpi-label" x="12" y="15">${safeLabel(it.label)}</text>
-                    <text class="kpi-value" x="12" y="34">${safeValue(it.value)}</text>
+                    <text class="kpi-label" x="12" y="15"${labelFit ? ` font-size="${labelFit.fontSize}"` : ""}>${safeLabel(labelFit?.text ?? it.label)}</text>
+                    <text class="kpi-value" x="12" y="34"${valueFit ? ` font-size="${valueFit.fontSize}"` : ""}>${escapeForXml(fittedValueText)}</text>
                   </g>`;
               })
               .join("")}
@@ -184,6 +218,7 @@ export const socialStatsTemplate = (data: {
   };
 
   const renderDefaultRows = (): string => {
+    const rowWidth = Math.max(1, dims.w - SPACING.CARD_PADDING * 2);
     const rows = [
       {
         id: "followers",
@@ -224,17 +259,39 @@ export const socialStatsTemplate = (data: {
     return `
         <g transform="translate(0, 0)">
           ${filtered
-            .map(
-              (stat, index) => `
+            .map((stat, index) => {
+              const valueText = String(stat.value);
+              // Fit label+value within rowWidth while respecting STAT_ROW_GAP_PX and the configured font bounds.
+              const rowFit = fitSvgAnchoredTextPair({
+                availableWidth: rowWidth,
+                gapPx: STAT_ROW_GAP_PX,
+                primaryFontWeight: 700,
+                primaryInitialFontSize: TYPOGRAPHY.STAT_SIZE,
+                primaryMinFontSize: TYPOGRAPHY.MIN_FONT_SIZE,
+                primaryText: stat.label,
+                secondaryFontWeight: 700,
+                secondaryInitialFontSize: TYPOGRAPHY.STAT_SIZE,
+                secondaryMaxWidth: STAT_SECONDARY_MAX_WIDTH,
+                secondaryMinFontSize: TYPOGRAPHY.MIN_FONT_SIZE,
+                secondaryText: valueText,
+              });
+              const labelText = rowFit?.primary.text ?? stat.label;
+              const valueTextContent = rowFit?.secondary.text ?? valueText;
+              const labelFontSize =
+                rowFit?.primary.fontSize ?? TYPOGRAPHY.STAT_SIZE;
+              const valueFontSize =
+                rowFit?.secondary.fontSize ?? TYPOGRAPHY.STAT_SIZE;
+
+              return `
             <g
               class="stagger"
               style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms"
               transform="translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})"
             >
-              <text class="stat.bold" y="12.5">${escapeForXml(stat.label)}</text>
-              <text class="stat.bold" x="${POSITIONING.STAT_VALUE_X_DEFAULT}" y="12.5">${escapeForXml(String(stat.value))}</text>
-            </g>`,
-            )
+              <text class="stat bold" y="12.5" font-size="${labelFontSize}">${escapeForXml(labelText)}</text>
+              <text class="stat bold" x="${rowWidth}" y="12.5" text-anchor="end" font-size="${valueFontSize}">${escapeForXml(valueTextContent)}</text>
+            </g>`;
+            })
             .join("")}
         </g>`;
   };
@@ -260,13 +317,13 @@ export const socialStatsTemplate = (data: {
 
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
-    .header { 
+    .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
 
-    
+
     [data-testid="card-title"] text {
       fill: ${resolvedColors.titleColor};
     }
@@ -283,9 +340,14 @@ export const socialStatsTemplate = (data: {
       fill: ${resolvedColors.textColor};
     }
 
-    .stat { 
+    .stat {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.STAT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font-family: 'Segoe UI', Ubuntu, Sans-Serif;
+    }
+
+    /* .bold stays separate from .stat so fitSvgAnchoredTextPair and similar measurement helpers can choose the base label style while default-row labels and values still lock to 700 for visual consistency. */
+    .bold {
+      font-weight: 700;
     }
 
     .stagger {
@@ -311,8 +373,8 @@ export const socialStatsTemplate = (data: {
   />
   <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
     <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">
-        ${safeTitle}
+      <text x="0" y="0" class="header" data-testid="header"${titleLengthAdjustAttrs}>
+        ${safeVisibleTitle}
       </text>
     </g>
   </g>

@@ -1,5 +1,11 @@
 import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
   ANIMATION,
+  ROW_FIT,
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
@@ -8,7 +14,6 @@ import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
@@ -78,6 +83,21 @@ export function recentActivitySummaryTemplate(data: {
     : "N/A";
 
   const dims = getCardDimensions("recentActivitySummary", "default");
+  const titleMaxWidth = dims.w - 40;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const safeTitleFontSize =
+    Number.isFinite(titleFit.fontSize) && titleFit.fontSize > 0
+      ? titleFit.fontSize
+      : TYPOGRAPHY.LARGE_TEXT_SIZE;
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   // Generate sparkline data (last 30 points or all if less)
   const sparklineData = sorted.slice(-30).map((item) => item.amount);
@@ -89,7 +109,57 @@ export function recentActivitySummaryTemplate(data: {
     sparklineHeight,
   );
 
-  const showSparkline = true;
+  const rowWidth = dims.w - 40;
+  const statsMarkup = [
+    {
+      label: "Total Activities:",
+      value: String(totalActivity),
+    },
+    {
+      label: "Avg per Day:",
+      value: avgPerDay,
+    },
+    {
+      label: "Best Day:",
+      value: `${bestDay.amount} (${bestDayStr})`,
+    },
+  ]
+    .map((row, index) => {
+      const rowFit = fitSvgAnchoredTextPair({
+        availableWidth: rowWidth,
+        gapPx: ROW_FIT.GAP_PX,
+        primaryFontWeight: 400,
+        primaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        primaryMinFontSize: ROW_FIT.MIN_FONT_SIZE,
+        primaryText: row.label,
+        secondaryInitialFontSize: TYPOGRAPHY.STAT_VALUE_SIZE,
+        secondaryMaxWidth: ROW_FIT.SECONDARY_MAX_WIDTH,
+        secondaryMinFontSize: ROW_FIT.MIN_FONT_SIZE,
+        secondaryFontWeight: 600,
+        secondaryText: row.value,
+      });
+      const labelFontSize = rowFit?.primary.fontSize;
+      const valueFontSize = rowFit?.secondary.fontSize;
+      const labelStyle =
+        typeof labelFontSize === "number" &&
+        Number.isFinite(labelFontSize) &&
+        labelFontSize > 0
+          ? ` style="font-size: ${labelFontSize}px;"`
+          : "";
+      const valueStyle =
+        typeof valueFontSize === "number" &&
+        Number.isFinite(valueFontSize) &&
+        valueFontSize > 0
+          ? ` style="font-size: ${valueFontSize}px;"`
+          : "";
+
+      return `
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${index * SPACING.ROW_HEIGHT_COMPACT})">
+      <text class="stat" y="12"${labelStyle}>${escapeForXml(rowFit?.primary.text ?? row.label)}</text>
+      <text class="stat-value" x="${rowWidth}" y="12" text-anchor="end"${valueStyle}>${escapeForXml(rowFit?.secondary.text ?? row.value)}</text>
+    </g>`;
+    })
+    .join("");
 
   return markTrustedSvg(`
 <svg
@@ -107,7 +177,7 @@ export function recentActivitySummaryTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${safeTitleFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
@@ -147,24 +217,13 @@ export function recentActivitySummaryTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
   <g transform="translate(20, 50)">
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY}ms">
-      <text class="stat" y="12">Total Activities:</text>
-      <text class="stat-value" x="110" y="12">${totalActivity}</text>
-    </g>
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT})">
-      <text class="stat" y="12">Avg per Day:</text>
-      <text class="stat-value" x="110" y="12">${avgPerDay}</text>
-    </g>
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + 2 * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT * 2})">
-      <text class="stat" y="12">Best Day:</text>
-      <text class="stat-value" x="110" y="12">${bestDay.amount} (${bestDayStr})</text>
-    </g>
+    ${statsMarkup}
   </g>
   ${
-    showSparkline && sparklinePath
+    sparklinePath
       ? `<g transform="translate(20, ${dims.h - 50})">
     <path class="sparkline" d="${sparklinePath}" />
   </g>`
