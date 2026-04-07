@@ -165,6 +165,7 @@ export function HeroSection({
               card.previewUrls,
               previewColorPreset,
             );
+            const isPriorityPreview = i === 0;
 
             return (
               <motion.div
@@ -188,6 +189,10 @@ export function HeroSection({
                       src={previewUrl}
                       alt={`${card.cardType} preview`}
                       className="h-auto w-full"
+                      width={card.width}
+                      height={card.height}
+                      loading={isPriorityPreview ? "eager" : "lazy"}
+                      fetchPriority={isPriorityPreview ? "high" : undefined}
                     />
                   ) : (
                     <CardPreviewPlaceholder

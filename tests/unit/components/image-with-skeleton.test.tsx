@@ -1,12 +1,41 @@
 import "@/tests/unit/__setup__";
 
-import { describe, expect, it } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "bun:test";
 
 import {
   getImageLoadState,
+  ImageWithSkeleton,
   isImageReady,
   SLOW_LOAD_THRESHOLD_MS,
 } from "@/components/ImageWithSkeleton";
+import {
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
+
+installHappyDom();
+
+const { cleanup, fireEvent, render } = await import("@testing-library/react");
+
+beforeEach(() => {
+  resetHappyDom();
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+afterAll(() => {
+  restoreHappyDom();
+});
 
 describe("ImageWithSkeleton", () => {
   it("uses the documented slow-load threshold for delayed skeleton fallbacks", () => {
@@ -65,5 +94,65 @@ describe("ImageWithSkeleton", () => {
     expect(isImageReady(emptyImage)).toBe(false);
     expect(isImageReady(incompleteImage)).toBe(false);
     expect(isImageReady(null)).toBe(false);
+  });
+
+  it("uses known intrinsic dimensions to reserve space and forward native loading hints", () => {
+    const { container } = render(
+      <ImageWithSkeleton
+        src="/preview.svg"
+        alt="Preview card"
+        className="h-auto w-full"
+        width={450}
+        height={195}
+        loading="eager"
+        fetchPriority="high"
+      />,
+    );
+
+    const wrapper = container.querySelector("[data-image-state]");
+    const image = container.querySelector("img");
+
+    if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
+      throw new Error("Expected ImageWithSkeleton to render an image element.");
+    }
+
+    expect(wrapper?.getAttribute("data-image-state")).toBe("loading");
+    expect(wrapper?.getAttribute("aria-busy")).toBe("true");
+    expect(wrapper?.getAttribute("style")).toContain("aspect-ratio");
+    expect(image.getAttribute("width")).toBe("450");
+    expect(image.getAttribute("height")).toBe("195");
+    expect(image.getAttribute("loading")).toBe("eager");
+    expect(image.getAttribute("fetchpriority")).toBe("high");
+  });
+
+  it("switches visibility when the native image lifecycle reports a load", () => {
+    const { container } = render(
+      <ImageWithSkeleton
+        src="/preview.svg"
+        alt="Preview card"
+        className="h-auto w-full"
+        width={450}
+        height={195}
+      />,
+    );
+
+    const wrapper = container.querySelector("[data-image-state]");
+    const image = container.querySelector("img");
+
+    if (!(wrapper instanceof HTMLElement) || wrapper.tagName !== "DIV") {
+      throw new Error(
+        "Expected ImageWithSkeleton to render a wrapper element.",
+      );
+    }
+
+    if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
+      throw new Error("Expected ImageWithSkeleton to render an image element.");
+    }
+
+    fireEvent.load(image);
+
+    expect(wrapper.getAttribute("data-image-state")).toBe("loaded");
+    expect(image.className).toMatch(/opacity-100/);
+    expect(wrapper.querySelector(".animate-pulse")).toBeNull();
   });
 });

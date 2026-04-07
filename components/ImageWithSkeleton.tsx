@@ -26,7 +26,13 @@ type ImageWithSkeletonProps = {
   containerClassName?: string;
   loading?: "eager" | "lazy";
   decoding?: "async" | "auto" | "sync";
+  fetchPriority?: React.ImgHTMLAttributes<HTMLImageElement>["fetchPriority"];
   fixedDimensions?: boolean;
+};
+
+type ImageDimensions = {
+  width: number;
+  height: number;
 };
 
 export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
@@ -63,138 +69,47 @@ export function getImageLoadState({
   return "loading";
 }
 
-function useImageDimensions(
-  src: string,
-  imgRef: React.RefObject<HTMLImageElement | null>,
-  isMounted: boolean,
-  width?: number,
-  height?: number,
-): readonly [
-  { width: number; height: number } | null,
-  React.Dispatch<
-    React.SetStateAction<{ width: number; height: number } | null>
-  >,
-] {
-  const [imageDimensions, setImageDimensions] = useState<{
-    width: number;
-    height: number;
-  } | null>(width && height ? { width, height } : null);
+function getImageDimensions(
+  imageElement: HTMLImageElement | null,
+): ImageDimensions | null {
+  if (!imageElement) {
+    return null;
+  }
 
-  useEffect(() => {
-    if (!isMounted) return;
-    const el = imgRef.current;
-    if (!el) return;
-
-    if (isImageReady(el) && !imageDimensions && el.naturalHeight > 0) {
-      setImageDimensions({
-        width: el.naturalWidth,
-        height: el.naturalHeight,
-      });
-    }
-  }, [isMounted, src, imageDimensions, imgRef]);
-
-  useEffect(() => {
-    if (width && height) {
-      setImageDimensions({ width, height });
-    } else {
-      setImageDimensions(null);
-    }
-  }, [src, width, height]);
-
-  return [imageDimensions, setImageDimensions] as const;
-}
-
-function useImageLoader(
-  imgRef: React.RefObject<HTMLImageElement | null>,
-  src: string,
-  isMounted: boolean,
-  slowLoadMs = SLOW_LOAD_THRESHOLD_MS,
-): {
-  isLoaded: boolean;
-  isSlowLoading: boolean;
-  hasError: boolean;
-  handleLoad: () => void;
-  handleError: () => void;
-} {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    setIsLoaded(false);
-    setIsSlowLoading(false);
-    setHasError(false);
-  }, [src]);
-
-  useEffect(() => {
-    if (!isMounted || isLoaded || hasError) {
-      setIsSlowLoading(false);
-      return;
-    }
-
-    const slowLoadingTimer = setTimeout(() => {
-      setIsSlowLoading(true);
-    }, slowLoadMs);
-
-    return () => clearTimeout(slowLoadingTimer);
-  }, [hasError, isLoaded, isMounted, slowLoadMs, src]);
-
-  useEffect(() => {
-    if (!isMounted) return;
-
-    const el = imgRef.current;
-    if (isImageReady(el)) {
-      setIsLoaded(true);
-      setIsSlowLoading(false);
-    }
-  }, [imgRef, isMounted, src]);
-
-  const handleLoad = () => {
-    setIsLoaded(true);
-    setIsSlowLoading(false);
-  };
-
-  const handleError = () => {
-    setIsLoaded(false);
-    setIsSlowLoading(false);
-    setHasError(true);
-  };
+  if (imageElement.naturalWidth <= 0 || imageElement.naturalHeight <= 0) {
+    return null;
+  }
 
   return {
-    isLoaded,
-    isSlowLoading,
-    hasError,
-    handleLoad,
-    handleError,
+    width: imageElement.naturalWidth,
+    height: imageElement.naturalHeight,
   };
 }
 
 function getContainerStyle(
-  imageDimensions: { width: number; height: number } | null,
+  imageDimensions: ImageDimensions | null,
   fallbackAspectRatio: number | undefined,
   fixedDimensions: boolean,
 ): React.CSSProperties {
-  if (imageDimensions) {
-    const style: React.CSSProperties = fixedDimensions
-      ? {
-          width: imageDimensions.width,
-          minWidth: imageDimensions.width,
-          maxWidth: imageDimensions.width,
-        }
-      : { maxWidth: imageDimensions.width };
+  if (fixedDimensions && imageDimensions) {
+    const style: React.CSSProperties = {
+      width: imageDimensions.width,
+      minWidth: imageDimensions.width,
+      maxWidth: imageDimensions.width,
+    };
 
     if (fallbackAspectRatio) style.aspectRatio = fallbackAspectRatio;
     return style;
   }
+
   if (fallbackAspectRatio) return { aspectRatio: fallbackAspectRatio };
   return {};
 }
 
 /**
  * Image wrapper that displays a Skeleton while the image is loading.
- * Uses a client-side mount lifecycle to avoid SSR mismatch for randomized
- * or lazy loaded images and provides a simple error fallback.
- * The skeleton sizing is constrained to the image's natural dimensions.
+ * Uses intrinsic dimensions when available to reserve responsive space and
+ * lets the native image lifecycle drive visibility with a simple error fallback.
  * @source
  */
 export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
@@ -207,37 +122,76 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   containerClassName,
   loading = "lazy",
   decoding = "async",
+  fetchPriority,
   fixedDimensions = false,
 }) => {
-  const [isMounted, setIsMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const [imageDimensions, setImageDimensions] = useImageDimensions(
-    src,
-    imgRef,
-    isMounted,
-    width,
-    height,
-  );
-  const { isLoaded, isSlowLoading, hasError, handleLoad, handleError } =
-    useImageLoader(imgRef, src, isMounted, SLOW_LOAD_THRESHOLD_MS);
+  const [loadedDimensions, setLoadedDimensions] =
+    useState<ImageDimensions | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const knownDimensions =
+    typeof width === "number" &&
+    width > 0 &&
+    typeof height === "number" &&
+    height > 0
+      ? { width, height }
+      : null;
+  const imageDimensions = knownDimensions ?? loadedDimensions;
+
+  useEffect(() => {
+    setLoadedDimensions(null);
+    setIsLoaded(false);
+    setIsSlowLoading(false);
+    setHasError(false);
+
+    const readyImage = imgRef.current;
+    if (!isImageReady(readyImage)) {
+      return;
+    }
+
+    if (!knownDimensions) {
+      const naturalDimensions = getImageDimensions(readyImage);
+      if (naturalDimensions) {
+        setLoadedDimensions(naturalDimensions);
+      }
+    }
+
+    setIsLoaded(true);
+  }, [height, src, width]);
+
+  useEffect(() => {
+    if (isLoaded || hasError) {
+      setIsSlowLoading(false);
+      return;
+    }
+
+    const slowLoadingTimer = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, SLOW_LOAD_THRESHOLD_MS);
+
+    return () => clearTimeout(slowLoadingTimer);
+  }, [hasError, isLoaded, src]);
 
   const onImageLoad = () => {
-    if (imgRef.current && !imageDimensions) {
-      setImageDimensions({
-        width: imgRef.current.naturalWidth,
-        height: imgRef.current.naturalHeight,
-      });
+    if (!knownDimensions) {
+      const naturalDimensions = getImageDimensions(imgRef.current);
+      if (naturalDimensions) {
+        setLoadedDimensions(naturalDimensions);
+      }
     }
-    handleLoad();
+
+    setHasError(false);
+    setIsLoaded(true);
+    setIsSlowLoading(false);
   };
 
   const onImageError = () => {
-    handleError();
+    setHasError(true);
+    setIsLoaded(false);
+    setIsSlowLoading(false);
   };
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const aspectRatio = imageDimensions
     ? imageDimensions.width / imageDimensions.height
@@ -254,9 +208,6 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const showSkeleton = !hasError && !isLoaded;
   const showImage = isLoaded;
 
-  const shouldShowSkeleton = !isMounted || showSkeleton;
-  const shouldShowImage = isMounted && showImage;
-
   const imageState = getImageLoadState({
     isLoaded,
     isSlowLoading,
@@ -270,7 +221,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
       data-image-state={imageState}
       aria-busy={imageState === "loading" || imageState === "slow"}
     >
-      {shouldShowSkeleton && (
+      {showSkeleton && (
         <Skeleton
           className="absolute inset-0 size-full"
           style={
@@ -284,7 +235,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         ref={imgRef}
         src={src}
         alt={alt}
-        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"}
+        className={`${className} ${showImage ? "opacity-100" : "opacity-0"}
           transition-opacity duration-300
         `}
         style={{ borderRadius: "4px", ...style }}
@@ -292,6 +243,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         height={height}
         loading={loading}
         decoding={decoding}
+        fetchPriority={fetchPriority}
         onLoad={onImageLoad}
         onError={onImageError}
       />

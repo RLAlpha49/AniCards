@@ -271,6 +271,8 @@ export function ExampleCard({
                 src={previewHref}
                 alt={`${cardTypeTitle} - ${variant.name}`}
                 className="h-auto w-full"
+                width={variant.width}
+                height={variant.height}
               />
             ) : (
               <CardPreviewPlaceholder
