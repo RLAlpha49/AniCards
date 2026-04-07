@@ -1090,39 +1090,6 @@ export function getResponseErrorMessage(
 }
 
 /**
- * Calculates a dynamic font size for the provided text such that it fits within a maximum width.
- *
- * The calculation iteratively reduces the font size based on the text's length and an adaptive multiplier,
- * ensuring the resulting font size does not drop below a minimum threshold.
- *
- * @param text - The text string for which the font size is calculated.
- * @param initialFontSize - The starting font size (default: 18).
- * @param maxWidth - The maximum width that the text is allowed to occupy (default: 220).
- * @param minFontSize - The minimum allowable font size to keep text readable (default: 8).
- * @returns The computed font size as a string rounded to one decimal place.
- * @source
- */
-export const calculateDynamicFontSize = (
-  text: string,
-  initialFontSize = 18,
-  maxWidth = 220,
-  minFontSize = 8,
-) => {
-  let fontSize = initialFontSize;
-  // Calculate a dynamic multiplier that reduces effective width per character as the text length increases.
-  const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
-
-  // Iteratively decrease the font size until the resulting width is less than the maxWidth or until the minimum font size is reached.
-  while (
-    text.length * fontSize * charWidthMultiplier > maxWidth &&
-    fontSize > minFontSize
-  ) {
-    fontSize -= 0.1;
-  }
-  return fontSize.toFixed(1);
-};
-
-/**
  * Safely parses a JSON string into an object of type T.
  *
  * If the input is a string, it attempts to parse it as JSON. If parsing fails, it logs an error and throws the exception.
