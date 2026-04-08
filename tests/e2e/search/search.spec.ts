@@ -6,7 +6,7 @@ async function waitForSearchFormHydrated(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
       const userIdRadio = document.querySelector(
-        'input[type="radio"][value="userid"]',
+        'input[type="radio"][value="userId"], input[type="radio"][value="userid"]',
       );
 
       if (!(userIdRadio instanceof HTMLInputElement)) {
@@ -30,25 +30,28 @@ async function selectLookupMethod(
   const radio = page.getByRole("radio", {
     name: new RegExp(`^${label}$`, "i"),
   });
+  const option = page
+    .locator("label")
+    .filter({ hasText: new RegExp(`^\\s*${label}\\s*$`, "i") })
+    .first();
 
-  await radio.evaluate((input) => {
-    if (!(input instanceof HTMLInputElement)) {
-      throw new TypeError(
-        "Expected a radio input for the search method toggle.",
-      );
-    }
-
-    input.click();
-  });
+  await option.click();
 
   await expect(radio).toBeChecked();
   await flushPaintFrames(page);
 }
 
-async function setSearchValue(input: Locator, value: string): Promise<void> {
-  await input.fill(value);
+async function setSearchValue(
+  page: Page,
+  input: Locator,
+  value: string,
+): Promise<void> {
+  await input.click();
+  await input.fill("");
+  await input.pressSequentially(value, { delay: 20 });
 
-  await expect(input).toHaveValue(value);
+  await expect.poll(async () => await input.inputValue()).toBe(value);
+  await flushPaintFrames(page);
 }
 
 async function flushPaintFrames(page: Page, count = 2): Promise<void> {
@@ -61,18 +64,7 @@ async function flushPaintFrames(page: Page, count = 2): Promise<void> {
 }
 
 async function submitSearchForm(page: Page): Promise<void> {
-  await page
-    .locator("form")
-    .first()
-    .evaluate((form) => {
-      if (!(form instanceof HTMLFormElement)) {
-        throw new TypeError(
-          "Expected the search page to render a form element.",
-        );
-      }
-
-      form.requestSubmit();
-    });
+  await page.getByRole("button", { name: /find profile/i }).click();
 
   await flushPaintFrames(page, 3);
 }
@@ -139,7 +131,7 @@ test.describe("Search page", () => {
 
     const userIdInput = page.getByLabel(/AniList User ID/i);
     await expect(userIdInput).toHaveAttribute("aria-invalid", "true");
-    await setSearchValue(userIdInput, "542244");
+    await setSearchValue(page, userIdInput, "542244");
     await expect(
       page.getByText(/you'll need to enter a user id first/i),
     ).toHaveCount(0);
@@ -149,7 +141,7 @@ test.describe("Search page", () => {
     page,
   }) => {
     const input = page.getByLabel(/AniList Username/i);
-    await setSearchValue(input, "Alpha49");
+    await setSearchValue(page, input, "Alpha49");
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\/Alpha49/i, { timeout: 15000 });
@@ -159,7 +151,7 @@ test.describe("Search page", () => {
     await selectLookupMethod(page, "User ID");
 
     const input = page.getByLabel(/AniList User ID/i);
-    await setSearchValue(input, "123456");
+    await setSearchValue(page, input, "123456");
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\?userId=123456/i, { timeout: 15000 });
