@@ -1,28 +1,143 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import type { Locator, Page } from "@playwright/test";
 
-import { gotoReady } from "../fixtures/browser-utils";
-import { mockCardsRecord } from "../fixtures/mock-data";
+import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
+import { mockCardsRecord, mockUserStatsData } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
-async function waitForUserEditorHydrated(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const toggle = document.querySelector(
-        '[data-testid^="card-tile-"] [role="switch"]',
-      );
+const REAL_HANDLER_REQUIRED_ENV_KEYS = [
+  "UPSTASH_REDIS_REST_URL",
+  "UPSTASH_REDIS_REST_TOKEN",
+] as const;
 
-      if (!(toggle instanceof HTMLElement)) {
-        return false;
+type BrowserJsonResponse = {
+  ok: boolean;
+  status: number;
+  payload: unknown;
+  text: string;
+};
+
+function readLocalEnvValues(): Record<string, string> {
+  const values: Record<string, string> = {};
+
+  for (const relativePath of [".env", ".env.local"]) {
+    const absolutePath = resolve(process.cwd(), relativePath);
+    if (!existsSync(absolutePath)) {
+      continue;
+    }
+
+    const source = readFileSync(absolutePath, "utf8");
+    for (const line of source.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
       }
 
-      return Object.keys(toggle).some(
-        (key) =>
-          key.startsWith("__reactProps$") || key.startsWith("__reactFiber$"),
-      );
-    },
-    undefined,
-    { timeout: 30000 },
+      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
+      if (!match) {
+        continue;
+      }
+
+      const [, key, rawValue] = match;
+      const unquotedValue = rawValue.replace(/^['\"]|['\"]$/g, "").trim();
+      if (unquotedValue) {
+        values[key] = unquotedValue;
+      }
+    }
+  }
+
+  return values;
+}
+
+const localEnvValues = readLocalEnvValues();
+
+function getRuntimeEnvValue(
+  key: (typeof REAL_HANDLER_REQUIRED_ENV_KEYS)[number],
+) {
+  const runtimeValue = process.env[key]?.trim();
+  if (runtimeValue) {
+    return runtimeValue;
+  }
+
+  return localEnvValues[key]?.trim() || undefined;
+}
+
+function getMissingRealHandlerEnvKeys(): string[] {
+  return REAL_HANDLER_REQUIRED_ENV_KEYS.filter(
+    (key) => !getRuntimeEnvValue(key),
   );
+}
+
+function isRealHandlerRunEnabled(): boolean {
+  return process.env.PLAYWRIGHT_REAL_USER_E2E === "1";
+}
+
+function expectSuccessfulBrowserResponse(
+  response: BrowserJsonResponse,
+  context: string,
+): void {
+  if (response.ok) {
+    return;
+  }
+
+  const details = response.text.trim() || JSON.stringify(response.payload);
+  throw new Error(`${context} failed with ${response.status}: ${details}`);
+}
+
+async function fetchBrowserJson(
+  page: Page,
+  path: string,
+  options: {
+    method?: string;
+    body?: unknown;
+  } = {},
+): Promise<BrowserJsonResponse> {
+  return page.evaluate(
+    async ({ body, method, path: requestPath }) => {
+      const response = await fetch(requestPath, {
+        method: method ?? (body === undefined ? "GET" : "POST"),
+        headers:
+          body === undefined
+            ? undefined
+            : { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: "same-origin",
+      });
+
+      const text = await response.text();
+      let payload: unknown = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        payload,
+        text,
+      };
+    },
+    {
+      path,
+      method: options.method,
+      body: options.body,
+    },
+  );
+}
+
+async function waitForUserEditorReady(page: Page): Promise<void> {
+  const editor = page.getByTestId("user-page-editor-main");
+  await waitForUiReady(editor);
+
+  const firstToggle = editor
+    .locator('[data-testid^="card-tile-"] [role="switch"]')
+    .first();
+  await expect(firstToggle).toBeVisible({ timeout: 15000 });
+  await expect(firstToggle).toBeEnabled({ timeout: 15000 });
 }
 
 type EditorCardToggleTarget = {
@@ -32,31 +147,9 @@ type EditorCardToggleTarget = {
 };
 
 async function clickEditorToggle(toggle: Locator): Promise<void> {
-  await toggle.evaluate((button) => {
-    if (!(button instanceof HTMLButtonElement) || button.disabled) {
-      throw new Error("Editor toggle was not clickable.");
-    }
-
-    const reactPropsKey = Object.keys(button).find((key) =>
-      key.startsWith("__reactProps$"),
-    );
-
-    const nextChecked = button.getAttribute("aria-checked") !== "true";
-
-    if (reactPropsKey) {
-      const props = button[reactPropsKey as keyof typeof button] as Record<
-        string,
-        unknown
-      >;
-
-      if (typeof props.onCheckedChange === "function") {
-        (props.onCheckedChange as (checked: boolean) => void)(nextChecked);
-        return;
-      }
-    }
-
-    button.click();
-  });
+  await toggle.scrollIntoViewIfNeeded();
+  await expect(toggle).toBeEnabled({ timeout: 15000 });
+  await toggle.click();
 }
 
 async function waitForCleanEditorState(page: Page): Promise<void> {
@@ -93,18 +186,12 @@ async function waitForPendingSaveState(page: Page): Promise<void> {
 async function getPrimaryEditorCardToggle(
   page: Page,
 ): Promise<EditorCardToggleTarget> {
-  const rawToggle = page
-    .locator('[data-testid^="card-tile-"] [role="switch"]')
-    .first();
+  const cardTile = page.locator('[data-testid^="card-tile-"]').first();
 
-  await expect(rawToggle).toBeVisible({ timeout: 15000 });
+  await expect(cardTile).toBeVisible({ timeout: 15000 });
 
-  const cardId = await rawToggle.evaluate((element) => {
-    const cardTile = element.closest('[data-testid^="card-tile-"]');
-    const testId =
-      cardTile instanceof HTMLElement ? (cardTile.dataset.testid ?? "") : "";
-    return testId.replace(/^card-tile-/, "");
-  });
+  const testId = await cardTile.getAttribute("data-testid");
+  const cardId = testId?.replace(/^card-tile-/, "") ?? "";
 
   if (!cardId) {
     throw new Error(
@@ -112,9 +199,7 @@ async function getPrimaryEditorCardToggle(
     );
   }
 
-  const toggle = page.locator(
-    `[data-testid="card-tile-${cardId}"] [role="switch"]`,
-  );
+  const toggle = cardTile.getByRole("switch").first();
   const initialChecked = await toggle.getAttribute("aria-checked");
 
   if (initialChecked !== "true" && initialChecked !== "false") {
@@ -184,7 +269,7 @@ test.describe("User page editor - save UX", () => {
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
       await expect(page.getByTestId("card-tile-animeStats")).toBeVisible();
-      await waitForUserEditorHydrated(page);
+      await waitForUserEditorReady(page);
       await waitForCleanEditorState(page);
     });
 
@@ -251,7 +336,7 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
-      await waitForUserEditorHydrated(page);
+      await waitForUserEditorReady(page);
       await waitForCleanEditorState(page);
     });
 
@@ -357,7 +442,7 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
-      await waitForUserEditorHydrated(page);
+      await waitForUserEditorReady(page);
       await waitForCleanEditorState(page);
 
       const targetToggle = await getPrimaryEditorCardToggle(page);
@@ -479,7 +564,7 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
-      await waitForUserEditorHydrated(page);
+      await waitForUserEditorReady(page);
     });
 
     await test.step("The draft should auto-apply and save without user intervention", async () => {
@@ -497,6 +582,113 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("button", { name: /save changes/i }),
       ).toBeDisabled();
+    });
+  });
+
+  test("@real-handlers persists editor changes through the real bootstrap and save handlers", async ({
+    page,
+  }) => {
+    test.skip(
+      !isRealHandlerRunEnabled(),
+      "Opt-in real-handler coverage. Run the dedicated real user Playwright script to enable this slice.",
+    );
+
+    const missingEnvKeys = getMissingRealHandlerEnvKeys();
+    test.skip(
+      missingEnvKeys.length > 0,
+      `Real-handler user/editor coverage requires: ${missingEnvKeys.join(", ")}`,
+    );
+
+    test.slow();
+
+    const uniqueSeed = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const userId = Number(uniqueSeed.slice(-9));
+    const username = `PlaywrightRealUser${userId}`;
+    const seededCards = structuredClone(mockCardsRecord.cards);
+
+    await test.step("Seed a real stored user and card snapshot from the browser context", async () => {
+      await gotoReady(page, "/");
+
+      const storeUserResponse = await fetchBrowserJson(
+        page,
+        "/api/store-users",
+        {
+          method: "POST",
+          body: {
+            userId,
+            username,
+            stats: mockUserStatsData,
+          },
+        },
+      );
+      expectSuccessfulBrowserResponse(
+        storeUserResponse,
+        "Seeding /api/store-users",
+      );
+
+      const storeCardsResponse = await fetchBrowserJson(
+        page,
+        "/api/store-cards",
+        {
+          method: "POST",
+          body: {
+            userId,
+            cards: seededCards,
+          },
+        },
+      );
+      expectSuccessfulBrowserResponse(
+        storeCardsResponse,
+        "Seeding /api/store-cards",
+      );
+    });
+
+    let targetCardId = "";
+    let expectedSavedState: "true" | "false" = "false";
+
+    await test.step("Load the real user editor and make a persistent change", async () => {
+      await gotoReady(page, `/user/${username}`);
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await waitForUserEditorReady(page);
+      await waitForCleanEditorState(page);
+
+      const targetToggle = await getPrimaryEditorCardToggle(page);
+      targetCardId = targetToggle.cardId;
+      expectedSavedState =
+        targetToggle.initialChecked === "true" ? "false" : "true";
+
+      await clickEditorToggle(targetToggle.toggle);
+      await waitForDirtyEditorState(page);
+
+      await page.getByRole("button", { name: /save changes/i }).click();
+
+      await expect(
+        page.getByRole("button", { name: /save changes/i }),
+      ).toBeDisabled({ timeout: 15000 });
+      await expect(
+        page.getByRole("button", { name: /discard unsaved changes/i }),
+      ).toBeDisabled({ timeout: 15000 });
+    });
+
+    await test.step("Reloading the page should read the saved toggle state from the real handlers", async () => {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await waitForUserEditorReady(page);
+
+      const reloadedToggle = page
+        .getByTestId(`card-tile-${targetCardId}`)
+        .getByRole("switch")
+        .first();
+
+      await expect(reloadedToggle).toHaveAttribute(
+        "aria-checked",
+        expectedSavedState,
+        { timeout: 15000 },
+      );
     });
   });
 });

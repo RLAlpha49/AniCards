@@ -1484,6 +1484,7 @@ export function UserPageEditor({
   const [hasRequestedHelpDialog, setHasRequestedHelpDialog] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
   const initialQuery = searchParams.get("q") ?? "";
   const initialVisibility = parseVisibilityParam(
@@ -1531,6 +1532,10 @@ export function UserPageEditor({
 
   const prefetchHelpDialog = useCallback(() => {
     void loadUserHelpDialog();
+  }, []);
+
+  useEffect(() => {
+    setHasMounted(true);
   }, []);
 
   const openHelpDialog = useCallback(() => {
@@ -1986,6 +1991,7 @@ export function UserPageEditor({
         <div className="mt-6 space-y-8">
           <main
             data-testid="user-page-editor-main"
+            data-ui-ready={hasMounted ? "true" : "false"}
             className="mx-auto w-full max-w-full space-y-6 lg:max-w-[80vw]"
           >
             <motion.div

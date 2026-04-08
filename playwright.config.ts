@@ -7,20 +7,73 @@
 // Artifacts live under `.artifacts/` so traces, videos, screenshots, and the HTML report
 // are easy to collect from CI.
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
+
+function loadLocalPlaywrightEnv(): void {
+  for (const relativePath of [".env", ".env.local"]) {
+    const absolutePath = resolve(process.cwd(), relativePath);
+    if (!existsSync(absolutePath)) {
+      continue;
+    }
+
+    for (const line of readFileSync(absolutePath, "utf8").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+
+      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
+      if (!match) {
+        continue;
+      }
+
+      const [, key, rawValue] = match;
+      if (process.env[key]?.trim()) {
+        continue;
+      }
+
+      const normalizedValue = rawValue.replace(/^['\"]|['\"]$/g, "").trim();
+      if (normalizedValue) {
+        process.env[key] = normalizedValue;
+      }
+    }
+  }
+}
+
+loadLocalPlaywrightEnv();
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const automationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const playwrightArtifactsDir = "./.artifacts";
+const useLocalProductionServer =
+  process.env.PLAYWRIGHT_LOCAL_PRODUCTION === "1";
+const includeRealHandlerIpHeader = process.env.PLAYWRIGHT_REAL_USER_E2E === "1";
 const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+const localServerCommand = process.env.CI
+  ? "bun run start"
+  : useLocalProductionServer
+    ? "bun run build && bun run start"
+    : "bun run dev";
 // Preview deployments can be protection-gated; these headers let CI reach them
 // without weakening the public site configuration.
-const extraHTTPHeaders = automationBypassSecret
-  ? {
-      "x-vercel-protection-bypass": automationBypassSecret,
-      "x-vercel-set-bypass-cookie": "true",
-    }
-  : undefined;
+const extraHTTPHeaders = {
+  ...(automationBypassSecret
+    ? {
+        "x-vercel-protection-bypass": automationBypassSecret,
+        "x-vercel-set-bypass-cookie": "true",
+      }
+    : {}),
+  ...(includeRealHandlerIpHeader
+    ? {
+        "x-playwright-client-ip": "127.0.0.1",
+      }
+    : {}),
+};
+const resolvedExtraHTTPHeaders =
+  Object.keys(extraHTTPHeaders).length > 0 ? extraHTTPHeaders : undefined;
 
 const projects = [
   {
@@ -56,7 +109,7 @@ export default defineConfig({
   ],
   use: {
     baseURL,
-    extraHTTPHeaders,
+    extraHTTPHeaders: resolvedExtraHTTPHeaders,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "on-first-retry",
@@ -68,10 +121,10 @@ export default defineConfig({
 
   webServer: shouldLaunchLocalServer
     ? {
-        command: process.env.CI ? "bun run start" : "bun run dev",
+        command: localServerCommand,
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
+        reuseExistingServer: !process.env.CI && !useLocalProductionServer,
+        timeout: useLocalProductionServer ? 300 * 1000 : 120 * 1000,
       }
     : undefined,
 });

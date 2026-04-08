@@ -28,6 +28,9 @@
     "test:unit:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=.artifacts/coverage",
     "test": "bun run test:unit && bun run test:e2e",
     "test:e2e": "playwright test",
+    "test:e2e:local-prod": "node -e \"const { spawnSync } = require('node:child_process'); const result = spawnSync('bunx playwright test', { stdio: 'inherit', shell: true, env: { ...process.env, PLAYWRIGHT_LOCAL_PRODUCTION: '1' } }); process.exit(result.status ?? 1);\"",
+    "test:e2e:user:real": "node -e \"const { spawnSync } = require('node:child_process'); const result = spawnSync('bunx playwright test tests/e2e/user/user.spec.ts tests/e2e/user/user-page-editor-save.spec.ts --project=chromium --grep @real-handlers', { stdio: 'inherit', shell: true, env: { ...process.env, PLAYWRIGHT_REAL_USER_E2E: '1', TRUSTED_CLIENT_IP_HEADERS: 'x-playwright-client-ip' } }); process.exit(result.status ?? 1);\"",
+    "test:e2e:user:real:local-prod": "node -e \"const { spawnSync } = require('node:child_process'); const result = spawnSync('bunx playwright test tests/e2e/user/user.spec.ts tests/e2e/user/user-page-editor-save.spec.ts --project=chromium --grep @real-handlers', { stdio: 'inherit', shell: true, env: { ...process.env, PLAYWRIGHT_REAL_USER_E2E: '1', PLAYWRIGHT_LOCAL_PRODUCTION: '1', TRUSTED_CLIENT_IP_HEADERS: 'x-playwright-client-ip' } }); process.exit(result.status ?? 1);\"",
     "test:e2e:deployed-smoke": "playwright test tests/e2e/smoke/unmocked-app-shell.spec.ts --grep \"serves the home app shell|serves robots.txt\"",
     "check:unused": "bunx knip",
     "prepare": "husky"

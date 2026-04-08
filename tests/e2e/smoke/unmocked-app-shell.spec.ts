@@ -34,7 +34,7 @@ async function getWithRetry(
 }
 
 test.describe("Unmocked app shell smoke", () => {
-  test("serves the home app shell with middleware CSP headers and nonce-aware JSON-LD", async ({
+  test("serves the home app shell with middleware CSP headers, nonce-aware JSON-LD, and the legacy card rewrite surface", async ({
     page,
     request,
   }) => {
@@ -63,6 +63,22 @@ test.describe("Unmocked app shell smoke", () => {
     await expect(page.getByRole("banner")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
     await expect(page).toHaveTitle(/AniCards/i);
+
+    const legacyCardResponse = await getWithRetry(request, "/card.svg");
+    expect(legacyCardResponse.status()).toBe(400);
+
+    const legacyCardHeaders = legacyCardResponse.headers();
+    const legacyCardSvg = await legacyCardResponse.text();
+
+    expect(legacyCardHeaders["content-type"]).toContain("image/svg+xml");
+    expect(legacyCardHeaders["cache-control"]).toContain("no-store");
+    expect(legacyCardHeaders["x-card-border-radius"]).toBeTruthy();
+    expect(legacyCardHeaders["access-control-expose-headers"]).toMatch(
+      /x-card-border-radius/i,
+    );
+    expect(legacyCardSvg).toContain(
+      "Client Error: Missing parameter: cardType",
+    );
   });
 
   test("exposes a root-shell skip link, stable main target, and AniList preconnect hint", async ({

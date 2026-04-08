@@ -162,6 +162,55 @@ jobs:
       - name: Run unit tests with coverage
         run: bun run test:unit:coverage
 
+      - name: Enforce unit test line coverage threshold
+        env:
+          COVERAGE_LINES_THRESHOLD: "73"
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const reportPath = ".artifacts/coverage/lcov.info";
+          const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "73");
+
+          if (!Number.isFinite(threshold)) {
+            console.error(`Invalid COVERAGE_LINES_THRESHOLD: ${process.env.COVERAGE_LINES_THRESHOLD ?? ""}`);
+            process.exit(1);
+          }
+
+          if (!fs.existsSync(reportPath)) {
+            console.error(`Coverage report not found at ${reportPath}`);
+            process.exit(1);
+          }
+
+          let linesFound = 0;
+          let linesHit = 0;
+
+          for (const line of fs.readFileSync(reportPath, "utf8").split(/\r?\n/)) {
+            if (line.startsWith("LF:")) {
+              linesFound += Number(line.slice(3));
+            } else if (line.startsWith("LH:")) {
+              linesHit += Number(line.slice(3));
+            }
+          }
+
+          if (linesFound === 0) {
+            console.error("LCOV report did not include any executable lines.");
+            process.exit(1);
+          }
+
+          const lineCoverage = (linesHit / linesFound) * 100;
+          console.log(
+            `Line coverage: ${lineCoverage.toFixed(2)}% (${linesHit}/${linesFound}); threshold: ${threshold.toFixed(2)}%`
+          );
+
+          if (lineCoverage < threshold) {
+            console.error(
+              `Coverage threshold not met: ${lineCoverage.toFixed(2)}% < ${threshold.toFixed(2)}%`
+            );
+            process.exit(1);
+          }
+          NODE
+
       - name: Upload unit test coverage
         if: ${{ always() }}
         uses: actions/upload-artifact@v5
@@ -279,6 +328,63 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: playwright-report-mobile-chrome
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-firefox-smoke:
+    name: E2E Firefox Smoke
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: next-build
+          path: .next
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Run Playwright smoke tests (Firefox)
+        id: playwright_firefox_smoke
+        run: bun run test:e2e:deployed-smoke -- --project=firefox
+
+      - name: Upload Playwright artifacts (Firefox Smoke)
+        if: ${{ always() && steps.playwright_firefox_smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report-firefox-smoke
           path: |
             .artifacts/playwright-report
             .artifacts/playwright-test-results

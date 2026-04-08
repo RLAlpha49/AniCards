@@ -1,9 +1,17 @@
-import { gotoReady } from "../fixtures/browser-utils";
+import type { Page } from "@playwright/test";
+
+import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 import {
   mockBootstrapUserRecord,
   mockServerError,
 } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
+
+async function waitForUserEditorReady(page: Page): Promise<void> {
+  const editor = page.getByTestId("user-page-editor-main");
+  await waitForUiReady(editor);
+  await expect(page.locator("#card-search")).toBeVisible({ timeout: 15000 });
+}
 
 test.describe("User page", () => {
   test("shows fallback when no query params are provided", async ({ page }) => {
@@ -151,6 +159,115 @@ test.describe("User page", () => {
 
       await downloadButton.click();
       await expect(page.getByText(/png/i)).toBeVisible();
+    });
+  });
+
+  test("supports keyboard entry points and opens the help dialog", async ({
+    page,
+    mockSuccessfulApi,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile-chrome",
+      "Keyboard shortcut coverage is limited to desktop projects.",
+    );
+
+    void mockSuccessfulApi;
+
+    await test.step("Load the mocked user editor", async () => {
+      await gotoReady(page, "/user/TestUser");
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible();
+      await waitForUserEditorReady(page);
+    });
+
+    await test.step("Ctrl+F focuses the card search box", async () => {
+      const searchInput = page.locator("#card-search");
+
+      await page.keyboard.press("Control+F");
+      await expect(searchInput).toBeFocused();
+    });
+
+    await test.step("The help button opens the editor guidance dialog", async () => {
+      await page.getByRole("button", { name: /^help$/i }).click();
+
+      const helpDialog = page.getByRole("dialog");
+      await expect(helpDialog).toBeVisible({ timeout: 15000 });
+      await expect(helpDialog.getByText(/quick start/i).first()).toBeVisible({
+        timeout: 15000,
+      });
+    });
+  });
+
+  test("opens the command palette and runs the bulk actions command", async ({
+    page,
+    mockSuccessfulApi,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "mobile-chrome",
+      "Keyboard command-palette coverage is limited to desktop projects.",
+    );
+
+    void mockSuccessfulApi;
+
+    await test.step("Load the mocked user editor", async () => {
+      await gotoReady(page, "/user/TestUser");
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible();
+      await waitForUserEditorReady(page);
+      await expect(
+        page.locator('[data-testid="bulk-actions-toolbar"]'),
+      ).toHaveCount(0);
+    });
+
+    await test.step("Ctrl+K opens the command palette with grouped actions", async () => {
+      await page.keyboard.press("Control+K");
+
+      const commandPaletteDialog = page.getByRole("dialog", {
+        name: /command palette/i,
+      });
+      const commandInput = commandPaletteDialog.getByRole("combobox", {
+        name: /command palette/i,
+      });
+
+      await expect(commandPaletteDialog).toBeVisible({ timeout: 15000 });
+      await expect(commandInput).toBeFocused();
+      await expect(commandPaletteDialog.getByText(/^Editor$/)).toBeVisible();
+      await expect(
+        commandPaletteDialog.getByText(/^Bulk Operations$/),
+      ).toBeVisible();
+      await expect(
+        commandPaletteDialog.getByText(/^Help & Guides$/),
+      ).toBeVisible();
+    });
+
+    await test.step("Running the bulk actions command opens the toolbar", async () => {
+      const commandPaletteDialog = page.getByRole("dialog", {
+        name: /command palette/i,
+      });
+      const commandInput = commandPaletteDialog.getByRole("combobox", {
+        name: /command palette/i,
+      });
+      const bulkActionsOption = commandPaletteDialog.getByRole("option", {
+        name: /bulk actions/i,
+      });
+      const toolbar = page.locator('[data-testid="bulk-actions-toolbar"]');
+
+      await commandInput.fill("bulk actions");
+      await expect(bulkActionsOption).toBeVisible();
+
+      await commandInput.press("Enter");
+
+      await expect(commandPaletteDialog).toBeHidden({ timeout: 15000 });
+      await expect(toolbar).toBeVisible({ timeout: 15000 });
+      await expect(toolbar.getByText(/selected/i)).toBeVisible();
+      await expect(
+        toolbar.getByRole("button", { name: /copy/i }),
+      ).toBeVisible();
+      await expect(
+        toolbar.getByRole("button", { name: /download/i }),
+      ).toBeVisible();
     });
   });
 

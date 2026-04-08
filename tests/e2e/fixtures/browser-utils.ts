@@ -8,7 +8,7 @@ const themeControlSelector = [
 
 export async function waitForAppReady(page: Page): Promise<void> {
   const themeControl = page.locator(themeControlSelector).first();
-  await page.waitForFunction(() => document.readyState !== "loading");
+  await page.waitForLoadState("domcontentloaded");
   await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
 
   if ((await themeControl.count()) > 0) {
@@ -37,14 +37,19 @@ export async function gotoReady(page: Page, url: string): Promise<void> {
   await dismissAnalyticsPromptIfVisible(page);
 }
 
+export async function waitForUiReady(target: Locator): Promise<void> {
+  await expect(target).toHaveAttribute("data-ui-ready", "true", {
+    timeout: 15000,
+  });
+}
+
 export async function clickAnchorAndExpectUrl(
   page: Page,
   locator: Locator,
   urlPattern: RegExp,
 ): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
-  await locator.evaluate((element) => {
-    (element as HTMLAnchorElement).click();
-  });
+  await expect(locator).toBeVisible({ timeout: 15000 });
+  await locator.click();
   await expect(page).toHaveURL(urlPattern, { timeout: 15000 });
 }
