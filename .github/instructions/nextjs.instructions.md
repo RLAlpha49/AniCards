@@ -12,12 +12,12 @@ This document summarizes the latest, authoritative best practices for building, 
 
 Do not create example/demo files (like ModalExample.tsx) in the main codebase unless the user specifically requests a live example, Storybook story, or explicit documentation component. Keep the repository clean and production-focused by default.
 
-## Always use the latest documentation and guides
+## Start from the repository's actual stack
 
-- For every nextjs related request, begin by searching for the most current nextjs documentation, guides, and examples.
-- Use the following tools to fetch and search documentation if they are available:
-  - `resolve_library_id` to resolve the package/library name in the docs.
-  - `get_library_docs` for up to date documentation.
+- AniCards runs on Bun + Next.js 16 App Router + React 19. Prefer `bun install` and `bun run ...` commands over npm, yarn, or pnpm examples unless the user explicitly asks otherwise.
+- Local development and builds use Turbopack through `bun run dev` and `bun run build`.
+- Unit tests run through Bun (`bun run test:unit`), while browser coverage uses Playwright (`bun run test:e2e` or `bun run test`).
+- Use current Next.js documentation when guidance is unclear, but keep recommendations compatible with this repository's actual scripts, directory layout, and runtime split.
 
 ---
 
@@ -30,6 +30,7 @@ Do not create example/demo files (like ModalExample.tsx) in the main codebase un
   - `hooks/` — Custom React hooks
   - `lib/` — Shared utilities, API clients, and logic
   - `public/` — Static assets (images, fonts, etc.)
+- **Request interception:** `proxy.ts` is the Next.js 16 request interception entrypoint in this repository. It delegates shared logic to `app/middleware.ts`; preserve that split instead of introducing a legacy root `middleware.ts`.
 - **Colocation:** Place files (components, styles, tests) near where they are used, but avoid deeply nested structures.
 - **Route Groups:** Use parentheses (e.g., `(admin)`) to group routes without affecting the URL path.
 - **Private Folders:** Prefix with `_` (e.g., `_internal`) to opt out of routing and signal implementation details.
@@ -126,7 +127,8 @@ Always move client-only UI into a Client Component and import it directly in you
 - **TypeScript:** Use TypeScript for all code. Enable `strict` mode in `tsconfig.json`.
 - **ESLint & Prettier:** Enforce code style and linting. Use the official Next.js ESLint config.
 - **Environment Variables:** Store secrets in `.env.local`. Never commit secrets to version control.
-- **Testing:** Use Jest, React Testing Library, or Playwright. Write tests for all critical logic and components.
+- **Testing:** Use `bun run test:unit` for unit coverage, add React Testing Library where component behavior warrants it, and use Playwright via `bun run test:e2e` or `bun run test` when browser behavior changes.
+- **Validation:** Prefer the repository scripts `bun run format:write`, `bun run typecheck`, and `bun run lint:check` rather than inventing alternate validation commands.
 - **Accessibility:** Use semantic HTML and ARIA attributes. Test with screen readers.
 - **Performance:**
   - Use `next/font` where appropriate and optimize native `<img>` assets with explicit dimensions, lazy loading, and modern formats.

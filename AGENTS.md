@@ -138,4 +138,4 @@ You are **never blocked** from launching multiple subagents at once. Independent
 - If you discover a memory is outdated, incorrect, duplicated, or no longer useful, update, replace, or delete it instead of layering on more notes.
 - When in doubt, fewer high-signal memories are better than many low-signal ones.
 
-Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/project-areas-to-avoid.instructions.md`.
+Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/roadmap-guardrails.instructions.md`.

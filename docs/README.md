@@ -12,6 +12,10 @@ The root [`README.md`](../README.md) is your way in. Everything here goes deeper
 - [`diagrams/card-generation-pipeline.drawio`](./diagrams/card-generation-pipeline.drawio) — end-to-end SVG render path from `/api/card` through cache layers, data resolution, and template dispatch.
 - [`diagrams/data-lifecycle.drawio`](./diagrams/data-lifecycle.drawio) — privacy-relevant data path from AniList ingestion through pruning to Redis storage and deletion.
 - [`diagrams/development-workflow.drawio`](./diagrams/development-workflow.drawio) — local setup, validation gate, and contributor flow.
+- [`diagrams/analytics-consent-flow.drawio`](./diagrams/analytics-consent-flow.drawio) — consent state management, Google Analytics bootstrap, and event tracking pipeline.
+- [`diagrams/card-type-taxonomy.drawio`](./diagrams/card-type-taxonomy.drawio) — every card family, its card types, supported variations, and the SVG template directory that renders each.
+- [`diagrams/component-hierarchy.drawio`](./diagrams/component-hierarchy.drawio) — component nesting from root layout through providers and shells into route children.
+- [`diagrams/error-handling-flow.drawio`](./diagrams/error-handling-flow.drawio) — error capture from component throws through boundaries, structured reporting, and durable storage.
 
 ## Product and usage
 

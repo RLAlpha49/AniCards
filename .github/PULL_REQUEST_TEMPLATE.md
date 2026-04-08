@@ -16,7 +16,7 @@
 
 ## Docs and contract
 
-- [ ] I reviewed [`CONTRIBUTING.md`](../CONTRIBUTING.md) and followed the contributor workflow.
+- [ ] I reviewed [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md) and followed the contributor workflow.
 - [ ] I updated contributor-facing docs when behavior or workflow changed.
 - [ ] I updated [`openapi.yaml`](../openapi.yaml) because this PR changes a public API contract.
 - [ ] No doc or API contract updates were needed.
