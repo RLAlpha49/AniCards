@@ -27,9 +27,25 @@ const { POST } = await import("@/app/api/cron/route");
 
 const CRON_SECRET = "testsecret";
 
-function createCronRequest(secret: string | null = CRON_SECRET): Request {
+function createCronRequest(
+  secret: string | null = CRON_SECRET,
+  options?: {
+    headers?: Record<string, string>;
+    useAuthorizationHeader?: boolean;
+  },
+): Request {
+  const headers = new Headers(options?.headers);
+
+  if (secret) {
+    if (options?.useAuthorizationHeader) {
+      headers.set("authorization", `Bearer ${secret}`);
+    } else {
+      headers.set("x-cron-secret", secret);
+    }
+  }
+
   return new Request("http://localhost/api/cron", {
-    headers: secret ? { "x-cron-secret": secret } : {},
+    headers,
   });
 }
 
@@ -266,6 +282,7 @@ describe("Cron API Route", () => {
 
   afterEach(() => {
     mock.clearAllMocks();
+    delete process.env.ANILIST_TOKEN;
     delete process.env.CRON_SECRET;
     delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
   });
@@ -280,6 +297,17 @@ describe("Cron API Route", () => {
       await POST(createCronRequest(null)),
       401,
       "Unauthorized",
+    );
+  });
+
+  it("accepts Vercel-style Authorization bearer cron secrets", async () => {
+    const response = await POST(
+      createCronRequest(CRON_SECRET, { useAuthorizationHeader: true }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
     );
   });
 
@@ -308,7 +336,13 @@ describe("Cron API Route", () => {
     expect(text).toContain(
       "Updated 0/0 users successfully. Failed: 0, Removed: 0",
     );
-    expect(text).toContain("Recommended schedules to refresh all 0 users");
+    expect(text).toContain(
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
+    );
+    expect(text).toContain(
+      "Refresh capacity budget: 5 users/run, 20 users/day.",
+    );
+    expect(text).toContain("No stored users are currently queued for refresh.");
   });
 
   it("echoes X-Request-Id on cron responses", async () => {
@@ -353,8 +387,18 @@ describe("Cron API Route", () => {
     expect(text).toContain(
       "Updated 5/5 users successfully. Failed: 0, Removed: 0",
     );
-    expect(text).toContain("Update 5 users/run: 0 */8 * * *");
-    expect(text).toContain("Update 10 users/run: 0 */12 * * *");
+    expect(text).toContain(
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
+    );
+    expect(text).toContain(
+      "Refresh capacity budget: 5 users/run, 20 users/day.",
+    );
+    expect(text).toContain(
+      "Current stored users: 15. Estimated full-sweep window: ~18 hours.",
+    );
+    expect(text).toContain(
+      "Current footprint fits within the repo-managed 24-hour freshness budget.",
+    );
     expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     expect(sharedRedisMockSet).toHaveBeenCalledWith(
       "user:15:activity",
@@ -366,6 +410,27 @@ describe("Cron API Route", () => {
       0,
       4,
     );
+  });
+
+  it("reuses AniList bearer auth for scheduled refresh requests", async () => {
+    process.env.ANILIST_TOKEN = "dummy-token";
+    mockUserRecords(["123"]);
+
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        createJsonResponse(200, { data: createValidStatsPayload("123") }),
+      ),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+      .mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer dummy-token",
+    });
   });
 
   it("loads only meta before AniList resolves and defers the remaining split parts until success", async () => {
@@ -596,6 +661,54 @@ describe("Cron API Route", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("Updated 1/1 users successfully");
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("skips writes when AniList returns GraphQL errors in a 200 envelope", async () => {
+    mockUserRecords(["123"]);
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        createJsonResponse(200, {
+          errors: [{ message: "User not found" }],
+        }),
+      ),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
+      "user:123:activity",
+      expect.any(String),
+    );
+  });
+
+  it("skips writes when AniList returns a malformed 200 stats payload", async () => {
+    mockUserRecords(["123"]);
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        createJsonResponse(200, {
+          data: {
+            User: {
+              id: 999,
+            },
+          },
+        }),
+      ),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
+      "user:123:activity",
+      expect.any(String),
+    );
   });
 
   it("does not count transport failures as 404 removals", async () => {

@@ -4,13 +4,18 @@
  * The cron route updates the oldest stored users in small batches so cached
  * profiles stay reasonably fresh without overwhelming AniList, and it removes
  * records only after repeated 404s to distinguish deleted accounts from
- * transient upstream failures. It also returns scheduling guidance so whoever
- * owns the external cron job can tune refresh frequency without doing the math
- * by hand every time the user count changes.
+ * transient upstream failures. The repository's cron contract lives in
+ * `vercel.json`, and this route returns capacity/budget context so operators can
+ * see when the fixed cadence no longer meets the 24-hour freshness goal.
  */
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
+import {
+  ANILIST_GRAPHQL_CIRCUIT_BREAKER,
+  ANILIST_GRAPHQL_URL,
+  buildAniListGraphQlRequestInit,
+} from "@/lib/api/upstream";
 import {
   apiErrorResponse,
   apiTextHeaders,
@@ -41,14 +46,23 @@ import {
 interface UpdateResult {
   success: boolean;
   is404Error: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  statsData?: any;
+  statsData?: AniListUserStatsData;
 }
 
 const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
 const USER_REFRESH_DEFERRED_DATA_PARTS = ALL_USER_DATA_PARTS.filter(
   (part) => part !== "meta",
 );
+const CRON_REFRESH_BATCH_SIZE = 5;
+const CRON_REFRESH_SCHEDULE = "0 */20 * * *";
+const CRON_REFRESH_RUNS_PER_DAY = 4;
+
+interface AniListUserStatsData {
+  User: {
+    id: number | string;
+  };
+  [key: string]: unknown;
+}
 
 type CronUserRefreshStage =
   | "fetch_user_data_parts"
@@ -61,6 +75,89 @@ type CronUserRefreshStage =
 
 function normalizeCronUserRefreshError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getAniListGraphQlErrorMessage(payload: unknown): string | null {
+  if (!isRecord(payload) || !Array.isArray(payload.errors)) {
+    return null;
+  }
+
+  const messages = payload.errors
+    .map((error) => {
+      if (!isRecord(error) || typeof error.message !== "string") {
+        return "";
+      }
+
+      return error.message.trim();
+    })
+    .filter((message) => message.length > 0);
+
+  if (messages.length > 0) {
+    return messages.join("; ");
+  }
+
+  return payload.errors.length > 0 ? "AniList returned GraphQL errors" : null;
+}
+
+function isAniListUserStatsData(
+  value: unknown,
+  expectedUserId: string,
+): value is AniListUserStatsData {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const user = value.User;
+  if (!isRecord(user)) {
+    return false;
+  }
+
+  const resolvedUserId =
+    typeof user.id === "number"
+      ? String(user.id)
+      : typeof user.id === "string"
+        ? user.id.trim()
+        : "";
+
+  return resolvedUserId === expectedUserId;
+}
+
+function summarizeCronRefreshBudget(totalUsers: number): {
+  dailyCapacity: number;
+  estimatedSweepHours: number;
+  note: string;
+} {
+  const dailyCapacity = CRON_REFRESH_BATCH_SIZE * CRON_REFRESH_RUNS_PER_DAY;
+  const estimatedSweepHours =
+    totalUsers === 0
+      ? 0
+      : Math.max(1, Math.ceil((totalUsers / dailyCapacity) * 24));
+
+  if (totalUsers === 0) {
+    return {
+      dailyCapacity,
+      estimatedSweepHours,
+      note: "No stored users are currently queued for refresh.",
+    };
+  }
+
+  if (totalUsers <= dailyCapacity) {
+    return {
+      dailyCapacity,
+      estimatedSweepHours,
+      note: "Current footprint fits within the repo-managed 24-hour freshness budget.",
+    };
+  }
+
+  return {
+    dailyCapacity,
+    estimatedSweepHours,
+    note: `Current footprint exceeds the repo-managed 24-hour freshness budget by ${totalUsers - dailyCapacity} users; change cadence and per-run batch budget together in a follow-up instead of only increasing invocation frequency.`,
+  };
 }
 
 async function reportCronUserRefreshError(options: {
@@ -126,20 +223,14 @@ async function updateUserStats(
 
     const statsResponse = await fetchUpstreamWithRetry({
       service: "AniList GraphQL",
-      url: "https://graphql.anilist.co",
-      init: {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: USER_STATS_QUERY,
-          variables: { userId },
-        }),
+      url: ANILIST_GRAPHQL_URL,
+      init: buildAniListGraphQlRequestInit({
+        query: USER_STATS_QUERY,
+        request,
         signal,
-      },
-      circuitBreaker: {
-        key: "anilist-graphql",
-        degradedModeEnvVar: "ANILIST_UPSTREAM_DEGRADED_MODE",
-      },
+        variables: { userId },
+      }),
+      circuitBreaker: ANILIST_GRAPHQL_CIRCUIT_BREAKER,
     });
 
     if (!statsResponse.ok) {
@@ -154,7 +245,31 @@ async function updateUserStats(
       return { success: false, is404Error };
     }
 
-    const statsData = await statsResponse.json();
+    const statsPayload = (await statsResponse.json()) as unknown;
+    const graphQlErrorMessage = getAniListGraphQlErrorMessage(statsPayload);
+    if (graphQlErrorMessage) {
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned GraphQL errors during scheduled refresh",
+        { userId, error: graphQlErrorMessage },
+        request,
+      );
+      return { success: false, is404Error: false };
+    }
+
+    const statsData = isRecord(statsPayload) ? statsPayload.data : undefined;
+    if (!isAniListUserStatsData(statsData, userId)) {
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned a malformed stats payload during scheduled refresh",
+        { userId },
+        request,
+      );
+      return { success: false, is404Error: false };
+    }
+
     return { success: true, is404Error: false, statsData };
   } catch (error) {
     if (signal?.aborted) {
@@ -253,90 +368,6 @@ async function clearFailureTracking(
 }
 
 /**
- * Computes a recommended cron expression so that all users are refreshed at least once
- * every 24 hours given the number of users and the number processed per run.
- *
- * Strategy:
- * - runsNeeded = ceil(totalUsers / batchSize)
- * - If runsNeeded <= 1 => run once per day ("0 0 * * *").
- * - If runsNeeded > 1440 => impossible with this batch size, suggest every minute ("* * * * *").
- * - Otherwise pick N = floor(1440 / runsNeeded) minutes.
- *   - If N >= 60, convert to an hourly schedule (e.g. run at minute 0 every H hours).
- *   - Else use a minute-based schedule (every N minutes).
- *
- * Returns cron expression, estimated runs/day, and approximate interval (minutes).
- */
-function computeCronForBatch(
-  totalUsers: number,
-  batchSize: number,
-): {
-  runsNeeded: number;
-  cron: string;
-  runsPerDay: number;
-  intervalMinutes: number;
-  note?: string;
-} {
-  const runsNeeded =
-    totalUsers === 0 ? 0 : Math.max(1, Math.ceil(totalUsers / batchSize));
-
-  if (totalUsers === 0) {
-    return {
-      runsNeeded: 0,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-      note: "No users",
-    };
-  }
-
-  if (runsNeeded <= 1) {
-    return {
-      runsNeeded,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-    };
-  }
-
-  if (runsNeeded > 1440) {
-    return {
-      runsNeeded,
-      cron: "* * * * *",
-      runsPerDay: 1440,
-      intervalMinutes: 1,
-      note: "Cannot satisfy with this batch size; consider increasing batch size or parallelism",
-    };
-  }
-
-  const Nmin = Math.max(1, Math.floor(1440 / runsNeeded));
-  if (Nmin >= 60) {
-    const H = Math.max(1, Math.floor(Nmin / 60));
-    if (H >= 24) {
-      return {
-        runsNeeded,
-        cron: "0 0 * * *",
-        runsPerDay: 1,
-        intervalMinutes: 1440,
-      };
-    }
-    const runsPerDay = Math.ceil(24 / H);
-    const interval = Math.round(1440 / runsPerDay);
-    return {
-      runsNeeded,
-      cron: `0 */${H} * * *`,
-      runsPerDay,
-      intervalMinutes: interval,
-    };
-  } else {
-    const cron = Nmin === 1 ? "* * * * *" : `*/${Nmin} * * * *`;
-    const runsPerHour = Math.ceil(60 / Nmin);
-    const runsPerDay = runsPerHour * 24;
-    const interval = Math.round(1440 / runsPerDay);
-    return { runsNeeded, cron, runsPerDay, intervalMinutes: interval };
-  }
-}
-
-/**
  * Executes the cron job that batches AniList stat refreshes for the oldest users.
  * @param request - Incoming request which must include the cron secret header.
  * @returns Response summarizing processed, failed, and removed users.
@@ -360,14 +391,16 @@ export async function POST(request: Request) {
     logPrivacySafe(
       "log",
       endpoint,
-      "QStash authorized, starting background update",
+      "Authorized cron request, starting background update",
       undefined,
       request,
     );
 
     // Refresh the stalest records first and keep the batch small. That trades a
     // little peak freshness for predictable AniList load and more stable cron runs.
-    const { userIds, totalUsers } = await listStalestUserIds(5);
+    const { userIds, totalUsers } = await listStalestUserIds(
+      CRON_REFRESH_BATCH_SIZE,
+    );
     const batch = userIds.map((id) => ({ id }));
 
     logPrivacySafe(
@@ -451,7 +484,7 @@ export async function POST(request: Request) {
               meta: metaParts.meta,
             });
             trackedUserId = user.userId || trackedUserId;
-            user.stats = updateResult.statsData.data;
+            user.stats = updateResult.statsData;
 
             stage = "normalize_user_record";
             const normalizationResult = validateAndNormalizeUserRecord(user);
@@ -528,35 +561,30 @@ export async function POST(request: Request) {
       request,
     );
 
-    const recFor5 = computeCronForBatch(totalUsers, 5);
-    const recFor10 = computeCronForBatch(totalUsers, 10);
-
-    // These recommendations are only operator-facing hints returned in the
-    // response body. The route reports the schedule math, but an external cron
-    // service still decides when to invoke it.
+    const refreshBudget = summarizeCronRefreshBudget(totalUsers);
 
     logPrivacySafe(
       "log",
       endpoint,
-      "Generated cron schedule recommendations",
+      "Generated repo-managed refresh budget summary",
       {
-        recommendation5: recFor5.cron,
-        recommendation10: recFor10.cron,
+        configuredBatchSize: CRON_REFRESH_BATCH_SIZE,
+        dailyCapacity: refreshBudget.dailyCapacity,
+        estimatedSweepHours: refreshBudget.estimatedSweepHours,
+        schedule: CRON_REFRESH_SCHEDULE,
       },
       request,
     );
 
     const headers = apiTextHeaders(request);
 
-    const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
-    const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
-
     const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
       "",
-      `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
-      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,
-      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10Note}`,
+      `Repo-managed refresh schedule: ${CRON_REFRESH_SCHEDULE} (${CRON_REFRESH_RUNS_PER_DAY} runs/day).`,
+      `Refresh capacity budget: ${CRON_REFRESH_BATCH_SIZE} users/run, ${refreshBudget.dailyCapacity} users/day.`,
+      `Current stored users: ${totalUsers}. Estimated full-sweep window: ~${refreshBudget.estimatedSweepHours} hours.`,
+      refreshBudget.note,
     ].join("\n");
 
     return new Response(scheduleMessage, { status: 200, headers });
