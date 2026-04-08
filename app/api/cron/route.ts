@@ -38,16 +38,22 @@ import {
   saveUserRecord,
   USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
+import type { UserStatsData } from "@/lib/types/records";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
  * @source
  */
-interface UpdateResult {
-  success: boolean;
-  is404Error: boolean;
-  statsData?: AniListUserStatsData;
-}
+type UpdateResult =
+  | {
+      success: true;
+      is404Error: false;
+      statsData: AniListUserStatsData;
+    }
+  | {
+      success: false;
+      is404Error: boolean;
+    };
 
 const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
 const USER_REFRESH_DEFERRED_DATA_PARTS = ALL_USER_DATA_PARTS.filter(
@@ -57,12 +63,11 @@ const CRON_REFRESH_BATCH_SIZE = 5;
 const CRON_REFRESH_SCHEDULE = "0 */20 * * *";
 const CRON_REFRESH_RUNS_PER_DAY = 4;
 
-interface AniListUserStatsData {
-  User: {
+type AniListUserStatsData = UserStatsData & {
+  User: UserStatsData["User"] & {
     id: number | string;
   };
-  [key: string]: unknown;
-}
+};
 
 type CronUserRefreshStage =
   | "fetch_user_data_parts"

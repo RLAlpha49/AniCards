@@ -307,7 +307,7 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(
-      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
     );
   });
 
@@ -337,7 +337,7 @@ describe("Cron API Route", () => {
       "Updated 0/0 users successfully. Failed: 0, Removed: 0",
     );
     expect(text).toContain(
-      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
     );
     expect(text).toContain(
       "Refresh capacity budget: 5 users/run, 20 users/day.",
@@ -388,7 +388,7 @@ describe("Cron API Route", () => {
       "Updated 5/5 users successfully. Failed: 0, Removed: 0",
     );
     expect(text).toContain(
-      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
     );
     expect(text).toContain(
       "Refresh capacity budget: 5 users/run, 20 users/day.",
