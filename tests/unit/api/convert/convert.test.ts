@@ -97,8 +97,7 @@ function createSharpInstance(buf?: Buffer) {
   return instance;
 }
 
-process.env.NEXT_PUBLIC_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost";
+process.env.NEXT_PUBLIC_API_URL = "http://localhost";
 
 const sharpConstructorMock = mock(createSharpInstance);
 

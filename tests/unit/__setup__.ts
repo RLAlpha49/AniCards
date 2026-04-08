@@ -58,11 +58,27 @@ const unexpectedConsoleError = mock((...args: unknown[]) => {
 console.warn = unexpectedConsoleWarn as typeof console.warn;
 console.error = unexpectedConsoleError as typeof console.error;
 
+const TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH = [
+  "ALLOW_UNSECURED_CRON_IN_DEV",
+  "ANILIST_TOKEN",
+  "ANILIST_UPSTREAM_CIRCUIT_COOLDOWN_MS",
+  "ANILIST_UPSTREAM_CIRCUIT_FAILURE_THRESHOLD",
+  "ANILIST_UPSTREAM_DEGRADED_MODE",
+  "API_SECRET_TOKEN",
+  "CRON_SECRET",
+  "ERROR_ALERT_WEBHOOK_URL",
+  "TRUSTED_CLIENT_IP_HEADERS",
+] as const;
+
 beforeEach(() => {
   unexpectedConsoleWarn.mockClear();
   unexpectedConsoleError.mockClear();
   console.warn = unexpectedConsoleWarn as typeof console.warn;
   console.error = unexpectedConsoleError as typeof console.error;
+  process.env.NODE_ENV = "test";
+  for (const key of TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH) {
+    delete process.env[key];
+  }
   sharedRedisMockEval.mockReset();
   sharedRedisMockEval.mockImplementation(defaultRedisEval);
 });
