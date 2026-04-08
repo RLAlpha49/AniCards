@@ -11,25 +11,23 @@ const SVG_IMAGE_RESPONSE = `
 
 const CARD_PREVIEW_ROUTE = /\/(?:api\/card|card\.svg)(?:\?.*)?$/;
 
-async function forceDarkPreviewTheme(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    try {
-      globalThis.localStorage.setItem("theme", "dark");
-    } catch {
-      // Ignore storage access failures in restrictive test contexts.
-    }
-
-    document.documentElement.classList.add("dark");
-  });
-
+async function preferDarkColorScheme(page: Page): Promise<void> {
   await page.emulateMedia({ colorScheme: "dark" });
 }
 
 async function mockExamplePreviewResponses(
   page: Page,
-  options: Readonly<{ delay?: Promise<void> }> = {},
+  options: Readonly<{ delay?: Promise<void>; failRequests?: number }> = {},
 ): Promise<void> {
+  let remainingFailures = options.failRequests ?? 0;
+
   await page.context().route(CARD_PREVIEW_ROUTE, async (route) => {
+    if (remainingFailures > 0) {
+      remainingFailures -= 1;
+      await route.abort("failed");
+      return;
+    }
+
     if (options.delay) {
       await options.delay;
     }
@@ -48,7 +46,7 @@ test.describe("ImageWithSkeleton", () => {
   }) => {
     const imageGate = Promise.withResolvers<void>();
 
-    await forceDarkPreviewTheme(page);
+    await preferDarkColorScheme(page);
     await mockExamplePreviewResponses(page, { delay: imageGate.promise });
 
     await gotoReady(page, "/examples");
@@ -118,8 +116,8 @@ test.describe("ImageWithSkeleton", () => {
   test("preserves the error fallback instead of pretending failed images loaded", async ({
     page,
   }) => {
-    await forceDarkPreviewTheme(page);
-    await mockExamplePreviewResponses(page);
+    await preferDarkColorScheme(page);
+    await mockExamplePreviewResponses(page, { failRequests: 1 });
 
     await gotoReady(page, "/examples");
 
@@ -134,34 +132,29 @@ test.describe("ImageWithSkeleton", () => {
       })
       .toBeGreaterThan(0);
 
-    const targetCard = imageCards.first();
+    await expect
+      .poll(
+        async () => await gallery.locator('[data-image-state="error"]').count(),
+        {
+          timeout: 30000,
+        },
+      )
+      .toBeGreaterThan(0);
 
-    await targetCard.evaluate((element) => {
-      element.dataset.playwrightTarget = "image-error-card";
-    });
+    const errorCard = gallery.locator('[data-image-state="error"]').first();
+    const errorImage = errorCard.locator("img[alt]");
 
-    const taggedCard = gallery.locator(
-      '[data-playwright-target="image-error-card"]',
-    );
-    const targetImage = taggedCard.locator("img[alt]");
-
-    await expect(targetImage).toHaveAttribute(
+    await expect(errorCard).toBeVisible({ timeout: 15000 });
+    await expect(errorImage).toHaveAttribute(
       "src",
       /\/(?:api\/card|card\.svg)/,
       {
         timeout: 15000,
       },
     );
-
-    await targetImage.evaluate((image) => {
-      image.dispatchEvent(new Event("error"));
-    });
-
-    await expect(taggedCard).toHaveAttribute("data-image-state", "error", {
+    await expect(errorCard.getByText(/failed to load/i)).toBeVisible({
       timeout: 15000,
     });
-
-    await expect(taggedCard.getByText(/failed to load/i)).toBeVisible();
 
     await expect(
       gallery

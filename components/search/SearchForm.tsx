@@ -67,6 +67,7 @@ export function SearchForm({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [modeAnnouncement, setModeAnnouncement] = useState("");
+  const [hasMounted, setHasMounted] = useState(false);
 
   const isUserIdMode = searchMethod === "userId";
   const inputId = `${baseId}-search-value`;
@@ -83,6 +84,10 @@ export function SearchForm({
   useEffect(() => {
     setSearchMethod(initialSearchMode);
   }, [initialSearchMode]);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     setSearchValue(initialSearchValue);
@@ -206,7 +211,12 @@ export function SearchForm({
         <div className="absolute -bottom-px -left-px size-5 border-b-2 border-l-2 border-gold" />
         <div className="absolute -right-px -bottom-px size-5 border-r-2 border-b-2 border-gold" />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          data-testid="search-form"
+          data-ui-ready={hasMounted ? "true" : "false"}
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
           <p
             role="status"
             aria-live="polite"

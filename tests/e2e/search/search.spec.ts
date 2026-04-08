@@ -1,26 +1,17 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-import { gotoReady } from "../fixtures/browser-utils";
+import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 
-async function waitForSearchFormHydrated(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const userIdRadio = document.querySelector(
-        'input[type="radio"][value="userId"], input[type="radio"][value="userid"]',
-      );
-
-      if (!(userIdRadio instanceof HTMLInputElement)) {
-        return false;
-      }
-
-      return Object.keys(userIdRadio).some(
-        (key) =>
-          key.startsWith("__reactProps$") || key.startsWith("__reactFiber$"),
-      );
+async function waitForSearchFormReady(page: Page): Promise<void> {
+  await waitForUiReady(page.getByTestId("search-form"));
+  await expect(page.getByRole("button", { name: /find profile/i })).toBeEnabled(
+    {
+      timeout: 15000,
     },
-    undefined,
-    { timeout: 30000 },
   );
+  await expect(page.getByRole("radio", { name: /^username$/i })).toBeChecked({
+    timeout: 15000,
+  });
 }
 
 async function selectLookupMethod(
@@ -38,41 +29,25 @@ async function selectLookupMethod(
   await option.click();
 
   await expect(radio).toBeChecked();
-  await flushPaintFrames(page);
 }
 
-async function setSearchValue(
-  page: Page,
-  input: Locator,
-  value: string,
-): Promise<void> {
-  await input.click();
-  await input.fill("");
-  await input.pressSequentially(value, { delay: 20 });
-
-  await expect.poll(async () => await input.inputValue()).toBe(value);
-  await flushPaintFrames(page);
-}
-
-async function flushPaintFrames(page: Page, count = 2): Promise<void> {
-  for (let frame = 0; frame < count; frame += 1) {
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-    );
-  }
+async function setSearchValue(input: Locator, value: string): Promise<void> {
+  await expect(input).toBeVisible({ timeout: 15000 });
+  await expect(input).toBeEnabled({ timeout: 15000 });
+  await input.fill(value);
+  await expect(input).toHaveValue(value);
 }
 
 async function submitSearchForm(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /find profile/i }).click();
-
-  await flushPaintFrames(page, 3);
+  const submitButton = page.getByRole("button", { name: /find profile/i });
+  await expect(submitButton).toBeEnabled({ timeout: 15000 });
+  await submitButton.click();
 }
 
 test.describe("Search page", () => {
   test.beforeEach(async ({ page }) => {
     await gotoReady(page, "/search");
-    await waitForSearchFormHydrated(page);
+    await waitForSearchFormReady(page);
   });
 
   test("switches between username and user ID modes", async ({ page }) => {
@@ -131,7 +106,7 @@ test.describe("Search page", () => {
 
     const userIdInput = page.getByLabel(/AniList User ID/i);
     await expect(userIdInput).toHaveAttribute("aria-invalid", "true");
-    await setSearchValue(page, userIdInput, "542244");
+    await setSearchValue(userIdInput, "542244");
     await expect(
       page.getByText(/you'll need to enter a user id first/i),
     ).toHaveCount(0);
@@ -141,7 +116,7 @@ test.describe("Search page", () => {
     page,
   }) => {
     const input = page.getByLabel(/AniList Username/i);
-    await setSearchValue(page, input, "Alpha49");
+    await setSearchValue(input, "Alpha49");
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\/Alpha49/i, { timeout: 15000 });
@@ -151,7 +126,7 @@ test.describe("Search page", () => {
     await selectLookupMethod(page, "User ID");
 
     const input = page.getByLabel(/AniList User ID/i);
-    await setSearchValue(page, input, "123456");
+    await setSearchValue(input, "123456");
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\?userId=123456/i, { timeout: 15000 });
