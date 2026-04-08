@@ -1,16 +1,37 @@
 import { describe, expect, it } from "bun:test";
 import type { NextRequest } from "next/server";
+import { isValidElement, type ReactNode } from "react";
 
 import robots from "@/app/robots";
 import { generateMetadata as generateProfileUserMetadata } from "@/app/user/[username]/page";
-import {
+import LookupUserPage, {
   buildLegacyUserRedirectUrl,
   generateMetadata as generateLookupUserMetadata,
 } from "@/app/user/page";
+import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { REQUEST_PROOF_COOKIE_NAME } from "@/lib/api/request-proof";
 import { siteMetadata as rootMetadata } from "@/lib/seo";
 import { getSiteUrl, resolveSiteUrl } from "@/lib/site-config";
 import { config as middlewareConfig, proxy } from "@/proxy";
+
+function treeContainsElementType(
+  node: ReactNode,
+  elementType: unknown,
+): boolean {
+  if (Array.isArray(node)) {
+    return node.some((child) => treeContainsElementType(child, elementType));
+  }
+
+  if (!isValidElement(node)) {
+    return false;
+  }
+
+  if (node.type === elementType) {
+    return true;
+  }
+
+  return treeContainsElementType(node.props.children, elementType);
+}
 
 describe("App shell server coverage", () => {
   it("injects CSP, nonce headers, and a request proof cookie for HTML routes", async () => {
@@ -131,6 +152,14 @@ describe("User route metadata and redirect helpers", () => {
     expect(metadata.openGraph).toMatchObject({
       type: "profile",
     });
+  });
+
+  it("omits page-level JSON-LD for lookup-only /user routes", async () => {
+    const page = await LookupUserPage({
+      searchParams: Promise.resolve({ userId: "123456" }),
+    });
+
+    expect(treeContainsElementType(page, StructuredDataScript)).toBe(false);
   });
 
   it("builds canonical profile metadata for username routes", async () => {

@@ -76,7 +76,12 @@ export default async function UserProfilePage({
   return (
     <>
       <StructuredDataScript
-        data={generateStructuredData("user", userPageSeo)}
+        data={generateStructuredData("user", {
+          ...userPageSeo,
+          profile: {
+            username,
+          },
+        })}
         nonce={nonce}
       />
       <Suspense

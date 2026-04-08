@@ -1,4 +1,8 @@
-import { seoConfigs } from "@/lib/seo";
+import {
+  getSearchPagePath,
+  SEARCH_PAGE_QUERY_PARAM,
+  seoConfigs,
+} from "@/lib/seo";
 import {
   buildCanonicalUrl,
   getSiteUrl,
@@ -49,13 +53,14 @@ interface SearchAction {
   "query-input": "required name=search_term_string";
 }
 
-type WebPageType = "CollectionPage" | "ContactPage" | "WebPage";
+type WebPageType = "CollectionPage" | "ContactPage" | "ProfilePage" | "WebPage";
 
 interface Person {
   "@type": "Person";
   "@context": string;
   "@id"?: string;
   name: string;
+  sameAs?: string[];
   url?: string;
 }
 
@@ -97,6 +102,7 @@ interface WebPage {
   about?: ThingReference | ThingReference[];
   breadcrumb?: ThingReference;
   mainEntity?: ThingReference;
+  potentialAction?: SearchAction | SearchAction[];
 }
 
 /**
@@ -160,6 +166,9 @@ interface StructuredDataOverrides {
   description?: string;
   canonical?: string;
   keywords?: string[];
+  profile?: {
+    username: string;
+  };
 }
 
 export type StructuredDataEntry =
@@ -195,13 +204,18 @@ function getEntityIds(siteUrl: string) {
   };
 }
 
-function getPageSchemaType(pageType: keyof typeof seoConfigs): WebPageType {
+function getPageSchemaType(
+  pageType: keyof typeof seoConfigs,
+  overrides: StructuredDataOverrides,
+): WebPageType {
   switch (pageType) {
     case "contact":
       return "ContactPage";
     case "examples":
     case "projects":
       return "CollectionPage";
+    case "user":
+      return overrides.profile?.username ? "ProfilePage" : "WebPage";
     default:
       return "WebPage";
   }
@@ -233,15 +247,46 @@ function buildOrganizationEntry(siteUrl: string): Organization {
   };
 }
 
-function buildWebSiteSearchAction(siteUrl: string): SearchAction {
+function buildSearchActionUrlTemplate(mode: "username" | "userId") {
+  const searchPath = getSearchPagePath({
+    mode,
+    includeDefaultMode: true,
+  });
+  const separator = searchPath.includes("?") ? "&" : "?";
+
+  return `${resolveSiteUrl(searchPath)}${separator}${SEARCH_PAGE_QUERY_PARAM}={${SEARCH_ACTION_TARGET_PARAMETER}}`;
+}
+
+function buildWebSiteSearchAction(): SearchAction {
   return {
     "@type": "SearchAction",
     target: {
       "@type": "EntryPoint",
-      urlTemplate: `${siteUrl}/user?username={${SEARCH_ACTION_TARGET_PARAMETER}}`,
+      urlTemplate: buildSearchActionUrlTemplate("username"),
     },
     "query-input": SEARCH_ACTION_QUERY_INPUT,
   };
+}
+
+function buildSearchPageActions(): SearchAction[] {
+  return [
+    {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: buildSearchActionUrlTemplate("username"),
+      },
+      "query-input": SEARCH_ACTION_QUERY_INPUT,
+    },
+    {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: buildSearchActionUrlTemplate("userId"),
+      },
+      "query-input": SEARCH_ACTION_QUERY_INPUT,
+    },
+  ];
 }
 
 function buildWebSiteEntry(siteUrl: string): WebSite {
@@ -255,7 +300,22 @@ function buildWebSiteEntry(siteUrl: string): WebSite {
     url: siteUrl,
     inLanguage: DEFAULT_LANGUAGE,
     publisher: buildReference(entityIds.organization),
-    potentialAction: buildWebSiteSearchAction(siteUrl),
+    potentialAction: buildWebSiteSearchAction(),
+  };
+}
+
+function buildAniListProfileUrl(username: string) {
+  return `https://anilist.co/user/${encodeURIComponent(username)}`;
+}
+
+function buildUserProfileEntry(canonicalUrl: string, username: string): Person {
+  return {
+    "@type": "Person",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#profile`,
+    name: username,
+    url: canonicalUrl,
+    sameAs: [buildAniListProfileUrl(username)],
   };
 }
 
@@ -363,13 +423,17 @@ function buildPageEntry(
   },
   canonicalUrl: string,
   siteUrl: string,
+  overrides: StructuredDataOverrides,
 ): WebPage {
   const entityIds = getEntityIds(siteUrl);
+  const profileEntityId = overrides.profile?.username
+    ? `${canonicalUrl}#profile`
+    : undefined;
   const fullTitle = config.title.includes(SITE_NAME)
     ? config.title
     : `${config.title} | ${SITE_NAME}`;
   const pageEntry: WebPage = {
-    "@type": getPageSchemaType(pageType),
+    "@type": getPageSchemaType(pageType, overrides),
     "@context": JSON_LD_CONTEXT,
     "@id": `${canonicalUrl}#webpage`,
     name: fullTitle,
@@ -397,8 +461,19 @@ function buildPageEntry(
       pageEntry.mainEntity = buildReference(`${canonicalUrl}#projects-list`);
       break;
     case "search":
-    case "user":
       pageEntry.about = buildReference(entityIds.softwareApplication);
+      pageEntry.potentialAction = buildSearchPageActions();
+      break;
+    case "user":
+      pageEntry.about = profileEntityId
+        ? [
+            buildReference(entityIds.softwareApplication),
+            buildReference(profileEntityId),
+          ]
+        : buildReference(entityIds.softwareApplication);
+      if (profileEntityId) {
+        pageEntry.mainEntity = buildReference(profileEntityId);
+      }
       break;
   }
 
@@ -435,7 +510,13 @@ export const generateStructuredData = (
   const canonicalUrl = resolveSiteUrl(
     overrides.canonical ?? config.canonical ?? "/",
   );
-  const pageEntry = buildPageEntry(pageType, config, canonicalUrl, siteUrl);
+  const pageEntry = buildPageEntry(
+    pageType,
+    config,
+    canonicalUrl,
+    siteUrl,
+    overrides,
+  );
   const entries: StructuredDataEntry[] = [pageEntry];
 
   if (pageType === "home") {
@@ -450,6 +531,12 @@ export const generateStructuredData = (
 
   if (pageType === "projects") {
     entries.push(buildProjectsItemListEntry(canonicalUrl));
+  }
+
+  if (pageType === "user" && overrides.profile?.username) {
+    entries.push(
+      buildUserProfileEntry(canonicalUrl, overrides.profile.username),
+    );
   }
 
   const breadcrumbEntry = buildBreadcrumbListEntry(canonicalUrl);

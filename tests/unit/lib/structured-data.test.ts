@@ -36,10 +36,45 @@ describe("structured data helpers", () => {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${resolveSiteUrl("/user")}?username={search_term_string}`,
+        urlTemplate: `${resolveSiteUrl("/search?mode=username")}&query={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     });
+  });
+
+  it("models /search as the public discovery surface for both lookup modes", () => {
+    const entries = generateStructuredData("search");
+    const webPageEntry = entries.find(
+      (entry) => entry["@type"] === "WebPage",
+    ) as {
+      potentialAction?: Array<{
+        "@type": string;
+        target: {
+          "@type": string;
+          urlTemplate: string;
+        };
+        "query-input": string;
+      }>;
+    };
+
+    expect(webPageEntry.potentialAction).toEqual([
+      {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${resolveSiteUrl("/search?mode=username")}&query={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
+      {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${resolveSiteUrl("/search?mode=userId")}&query={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
+    ]);
   });
 
   it("models the projects route as a collection page with a concrete item list", () => {
@@ -113,6 +148,9 @@ describe("structured data helpers", () => {
       canonical: "/user/Alpha49",
       description: "Profile stats for Alpha49.",
       keywords: ["alpha49", "anilist"],
+      profile: {
+        username: "Alpha49",
+      },
       title: "Alpha49's AniList Stats - AniCards",
     });
     const breadcrumbEntry = entries.find(
@@ -140,5 +178,43 @@ describe("structured data helpers", () => {
         item: resolveSiteUrl("/user/Alpha49"),
       },
     ]);
+  });
+
+  it("uses profile-oriented schema for canonical user profile routes", () => {
+    const canonicalUrl = resolveSiteUrl("/user/Alpha49");
+    const entries = generateStructuredData("user", {
+      canonical: "/user/Alpha49",
+      description: "Profile stats for Alpha49.",
+      keywords: ["alpha49", "anilist"],
+      profile: {
+        username: "Alpha49",
+      },
+      title: "Alpha49's AniList Stats - AniCards",
+    });
+    const pageEntry = entries.find(
+      (entry) => entry["@id"] === `${canonicalUrl}#webpage`,
+    ) as {
+      "@type": string;
+      mainEntity?: {
+        "@id": string;
+      };
+    };
+    const profileEntry = entries.find(
+      (entry) => entry["@id"] === `${canonicalUrl}#profile`,
+    ) as {
+      "@type": string;
+      name: string;
+      sameAs?: string[];
+      url: string;
+    };
+
+    expect(pageEntry["@type"]).toBe("ProfilePage");
+    expect(pageEntry.mainEntity?.["@id"]).toBe(`${canonicalUrl}#profile`);
+    expect(profileEntry).toMatchObject({
+      "@type": "Person",
+      name: "Alpha49",
+      url: canonicalUrl,
+    });
+    expect(profileEntry.sameAs).toEqual(["https://anilist.co/user/Alpha49"]);
   });
 });
