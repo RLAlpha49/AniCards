@@ -14,7 +14,7 @@ test.describe("Privacy disclosure", () => {
         name: /your data/i,
       }),
     ).toBeVisible();
-    await expect(page.getByText(/public product disclosure/i)).toBeVisible();
+    await expect(page.getByText(/^privacy disclosure$/i).first()).toBeVisible();
     await expect(page.getByText(/not a legal privacy policy/i)).toBeVisible();
     await expect(
       page.getByRole("heading", {
@@ -27,13 +27,11 @@ test.describe("Privacy disclosure", () => {
     ).toBeVisible();
     await expect(
       page
-        .getByText(/strip userid and username fields before persistence/i)
+        .getByText(/strip identifiers, normalize routes, scrub stack details/i)
         .first(),
     ).toBeVisible();
     await expect(
-      page
-        .getByText(/server lifecycle logs are capped at 250 entries/i)
-        .first(),
+      page.getByText(/server lifecycle entries are capped at 250/i).first(),
     ).toBeVisible();
     await expect(page.getByText(/expire after 14 days/i).first()).toBeVisible();
   });
