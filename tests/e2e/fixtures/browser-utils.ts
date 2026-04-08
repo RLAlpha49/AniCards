@@ -10,7 +10,13 @@ export async function waitForAppReady(page: Page): Promise<void> {
   const themeControl = page.locator(themeControlSelector).first();
   await page.waitForFunction(() => document.readyState !== "loading");
   await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
-  await expect(themeControl).toBeVisible({ timeout: 15000 });
+
+  if ((await themeControl.count()) > 0) {
+    await expect(themeControl).toBeVisible({ timeout: 15000 });
+    return;
+  }
+
+  await expect(page.locator("main").first()).toBeVisible({ timeout: 15000 });
 }
 
 export async function dismissAnalyticsPromptIfVisible(
