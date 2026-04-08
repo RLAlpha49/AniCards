@@ -75,7 +75,7 @@ beforeEach(() => {
   unexpectedConsoleError.mockClear();
   console.warn = unexpectedConsoleWarn as typeof console.warn;
   console.error = unexpectedConsoleError as typeof console.error;
-  process.env.NODE_ENV = "test";
+  (process.env as Record<string, string | undefined>)["NODE_ENV"] = "test";
   for (const key of TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH) {
     delete process.env[key];
   }
