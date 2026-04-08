@@ -49,8 +49,10 @@ The template in [`.env.example`](../.env.example) is grouped by concern. Match t
 | Analytics                              | `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`                                    | Optional local analytics wiring                                            |
 | SVG and CORS tuning                    | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`                                | Optional local card or embed testing                                       |
 | Cron protection                        | `CRON_SECRET`                                                        | Operator or cron endpoint testing; required outside local dev              |
-| Local cron escape hatch                | `ALLOW_UNSECURED_CRON_IN_DEV=1`                                      | Optional local-only testing without cron auth                              |
-| Upstream degradation toggle            | `ANILIST_UPSTREAM_DEGRADED_MODE=1`                                   | Optional local resilience testing                                          |
+| Local cron escape hatch                | `ALLOW_UNSECURED_CRON_IN_DEV=true`                                   | Optional local-only testing without cron auth                              |
+| Upstream degradation toggle            | `ANILIST_UPSTREAM_DEGRADED_MODE=true`                                | Optional local resilience testing                                          |
+
+Boolean env toggles in this repository use literal `true` / `false` values. `1` / `0` are ignored by the shared env parser.
 
 ### UI-only mode
 
@@ -58,7 +60,7 @@ The local URL variables are usually all you need here. Pages dependent on AniLis
 
 ### Full app/API mode
 
-Fill in the AniList token, Upstash Redis credentials, and whichever cron settings your test path calls for. Leave `VERCEL` unset locally — the platform injects it in hosted environments on its own.
+Fill in the AniList token, Upstash Redis credentials, and whichever cron settings your test path calls for. If you opt into local-only booleans such as `ALLOW_UNSECURED_CRON_IN_DEV` or `ANILIST_UPSTREAM_DEGRADED_MODE`, use `true` to enable them. Leave `VERCEL` unset locally — the platform injects it in hosted environments on its own.
 
 ## Start the dev server
 
@@ -72,26 +74,29 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 The full command surface lives in [`package.json`](../package.json). Here's what each one actually does:
 
-| Command                      | What it does                                    | When to use it                                          |
-| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------- |
-| `bun run format`             | Prettier check-only pass                        | Read-only formatting check                              |
-| `bun run format:write`       | Writes Prettier fixes, then runs ESLint autofix | Best all-in-one cleanup pass before pushing             |
-| `bun run lint`               | ESLint with `--fix`                             | Local autofix lint run                                  |
-| `bun run lint:check`         | ESLint check-only                               | CI parity or read-only validation                       |
-| `bun run typecheck`          | TypeScript no-emit check                        | Required before push                                    |
-| `bun run test:unit`          | Bun unit test suite only                        | Fast check for most logic changes                       |
-| `bun run test:unit:coverage` | Unit tests with coverage artifacts              | Coverage or CI parity                                   |
-| `bun run test`               | `test:unit` plus Playwright E2E                 | Full regression when browser behavior might be affected |
-| `bun run test:e2e`           | Playwright E2E only                             | Focused browser validation                              |
-| `bun run check:unused`       | Knip unused-code analysis                       | Optional hygiene pass                                   |
-| `bun run check:licenses`     | License policy check                            | Optional dependency and compliance check                |
+| Command                      | What it does                                    | When to use it                                                                         |
+| ---------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `bun run format:write`       | Writes Prettier fixes, then runs ESLint autofix | Best all-in-one cleanup pass before pushing                                            |
+| `bun run lint`               | ESLint with `--fix`                             | Local autofix lint run                                                                 |
+| `bun run lint:check`         | ESLint check-only                               | CI parity or read-only validation                                                      |
+| `bun run typecheck`          | TypeScript no-emit check                        | Required before push                                                                   |
+| `bun run test:unit`          | Bun unit test suite only                        | Fast check for most logic changes                                                      |
+| `bun run test:unit:coverage` | Unit tests with coverage artifacts              | Coverage or CI parity                                                                  |
+| `bun run test`               | `test:unit` plus Playwright E2E                 | Full regression when browser behavior might be affected                                |
+| `bun run test:e2e`           | Playwright E2E only                             | Focused browser validation                                                             |
+| `bun run check:unused`       | Knip unused-code analysis                       | CI-enforced merge gate; run locally for PR parity after refactors or file removals     |
+| `bun run check:licenses`     | License policy check                            | CI-enforced merge gate; run locally for PR parity, especially after dependency changes |
 
-For most changes, this sequence covers it:
+There is no separate `bun run format` script in this repository — `bun run format:write` is the formatter entrypoint.
+
+For most changes, this sequence covers the common local pass:
 
 1. `bun run format:write`
 2. `bun run test:unit` for logic changes — or `bun run test` when browser behavior might shift
 3. `bun run typecheck`
 4. `bun run lint:check`
+
+CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests, so include them when you want full merge-gate parity before opening a PR.
 
 ## Husky hooks
 

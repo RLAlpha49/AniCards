@@ -208,6 +208,20 @@ describe("Store Cards API POST Endpoint", () => {
       expect(data.error).toBe("Invalid data: Invalid stats");
     });
 
+    it("should return 400 when statsData is a malformed non-empty object", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: { score: 95 },
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+    });
+
     it("should reject invalid card data", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -532,7 +546,7 @@ describe("Store Cards API POST Endpoint", () => {
       const userId = 123;
       const req = createRequest({
         userId,
-        statsData: { score: 95 },
+        statsData: {},
         cards: [
           {
             cardName: "animeStats",
@@ -2237,7 +2251,7 @@ describe("Store Cards API POST Endpoint", () => {
 
       const req = createRequest({
         userId: 77,
-        statsData: { score: 42 },
+        statsData: {},
         cards: [
           {
             cardName: "animeStats",

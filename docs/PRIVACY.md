@@ -58,12 +58,12 @@ Route and label values that look sensitive are intentionally redacted or normali
 
 ### Runtime telemetry
 
-When AniCards is deployed on Vercel with runtime telemetry enabled, the app also renders:
+When AniCards is deployed on Vercel and runtime telemetry is enabled by the deployment environment, the app also renders:
 
 - **Vercel Analytics**
 - **Vercel Speed Insights**
 
-These runtime signals are not gated behind the Google Analytics consent toggle.
+These runtime signals are deployment-controlled. They are not turned on or off by the browser-stored Google Analytics consent choice.
 
 ### Structured error reports
 
@@ -93,7 +93,7 @@ The codebase touches these external services:
 - **AniList GraphQL** — upstream source for profile and statistics data
 - **Upstash Redis / Ratelimit** — persistence, analytics counters, and retention-limited reports
 - **Google Analytics / Google Tag Manager** — consent-gated analytics when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
-- **Vercel Analytics / Speed Insights** — runtime telemetry enabled on Vercel deployments when the app turns on runtime telemetry
+- **Vercel Analytics / Speed Insights** — deployment-controlled runtime telemetry on Vercel deployments; separate from the Google Analytics consent state
 
 ## Analytics consent model
 
@@ -104,7 +104,7 @@ How it works:
 - Google Analytics is disabled by default
 - the consent banner only appears when a tracking ID is actually configured
 - granting consent enables Google Analytics pageviews and events
-- Vercel Analytics and Speed Insights render whenever runtime telemetry is enabled and the app is running on Vercel
+- Vercel Analytics and Speed Insights render whenever runtime telemetry is enabled for a Vercel deployment, independent of the Google Analytics consent state
 - revoking consent stops future Google Analytics events immediately
 
 Google Analytics is initialized with:

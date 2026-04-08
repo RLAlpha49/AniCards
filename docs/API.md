@@ -20,22 +20,24 @@ Worth being explicit here: this file is hand-maintained. Nothing auto-generates 
 At the moment, the contract covers these public route families:
 
 - `anilist` — allowlisted AniList GraphQL proxying
-- `card` — SVG rendering through the canonical `/api/card` handler and its public aliases
+- `card` — SVG rendering through the canonical `/api/card` handler, its public aliases, and the legacy notice endpoint for retired StatCards URLs
 - `cards` — stored card configuration reads
 - `convert` — SVG-to-PNG or WebP conversion
 - `cron` — operator-facing refresh and reporting jobs
 - `store` — stored user and card mutation routes
+- `telemetry` — structured client error-report ingestion via `/api/error-reports`
 - `user` — stored user lookup routes
 
-## Canonical and alias entrypoints
+## Canonical, alias, and legacy compatibility entrypoints
 
-Three paths matter here. Keep them straight — especially in docs and code reviews where inconsistency tends to quietly accumulate:
+Four paths matter here. Keep them straight — especially in docs and code reviews where inconsistency tends to quietly accumulate:
 
 - **Canonical SVG route:** `/api/card`
 - **Pretty public alias:** `/card.svg`
 - **Compatibility alias:** `/api/card.svg`
+- **Legacy StatCards compatibility notice:** `/StatCards/{username}/{key}.svg`
 
-For implementation discussions and contract work, stick to the canonical handler path. For user-facing embeds, `/card.svg` is perfectly fine and honestly a bit cleaner to read.
+For implementation discussions and contract work, stick to the canonical handler path. For user-facing embeds, `/card.svg` is perfectly fine and honestly a bit cleaner to read. The legacy `/StatCards/{username}/{key}.svg` route is still public, but it returns a cacheable static SVG that tells older consumers to regenerate their cards on AniCards instead of rendering live stats.
 
 ## When to update `openapi.yaml`
 

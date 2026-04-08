@@ -39,7 +39,7 @@ Non-API page requests follow this path:
 2. The shared middleware logic creates a per-request request ID for all matched routes, and a CSP nonce for non-API HTML routes.
 3. The middleware forwards the nonce through the `x-nonce` request header and sets the `Content-Security-Policy` response header.
 4. `app/layout.tsx` reads that nonce via `getRequestNonce()` and passes it to nonce-aware inline scripts, including structured data and analytics bootstrap code.
-5. Client-side analytics and consent UI live in `components/AnalyticsProvider.tsx`. See [`analytics-consent-flow.drawio`](./diagrams/analytics-consent-flow.drawio) for the full consent → bootstrap → tracking pipeline.
+5. Client-side analytics and consent UI live in `components/AnalyticsProvider.tsx`. That boundary keeps Google Analytics opt-in while leaving Vercel runtime telemetry on a separate deployment-controlled path. See [`analytics-consent-flow.drawio`](./diagrams/analytics-consent-flow.drawio) for the full consent → bootstrap → tracking pipeline.
 
 ### API requests
 
@@ -94,7 +94,7 @@ Both user snapshot and card settings writes support optimistic concurrency throu
 - **AniList GraphQL** — upstream source for profile and stats data
 - **Upstash Redis / Ratelimit** — persistence, analytics counters, and rate limiting
 - **Google Analytics** — consent-gated pageview tracking and bounded event telemetry when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
-- **Vercel Analytics / Speed Insights** — consent-gated runtime telemetry on Vercel deployments
+- **Vercel Analytics / Speed Insights** — deployment-controlled runtime telemetry on Vercel deployments, separate from the Google Analytics consent state
 
 ## Public API boundaries
 
@@ -102,8 +102,8 @@ The public API contract is documented in `openapi.yaml`.
 
 The current route families:
 
-- public reads: `/api/get-user`, `/api/get-cards`, `/api/card`
-- browser-facing writes: `/api/store-users`, `/api/store-cards`, `/api/anilist`, `/api/error-reports`
+- public reads and compatibility routes: `/api/get-user`, `/api/get-cards`, `/api/card`, `/card.svg`, `/api/card.svg`, `/StatCards/{username}/{key}.svg`
+- browser-facing writes and telemetry ingestion: `/api/store-users`, `/api/store-cards`, `/api/anilist`, `/api/error-reports`
 - operator-only cron routes guarded by `x-cron-secret`
 
 ## Related docs

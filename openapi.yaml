@@ -28,7 +28,7 @@ tags:
   - name: "anilist"
     description: "Proxy access to AniList GraphQL"
   - name: "card"
-    description: "SVG card rendering endpoints and aliases"
+    description: "SVG card endpoints, aliases, and legacy compatibility notices"
   - name: "cards"
     description: "Stored card configuration retrieval"
   - name: "convert"
@@ -47,11 +47,16 @@ paths:
       operationId: "proxyAniList"
       tags:
         - "anilist"
-      summary: "Proxy an AniList GraphQL request"
+      summary: "Proxy approved AniList GraphQL operations"
       description: >-
-        Forwards a GraphQL request to AniList and returns the unwrapped `data`
-        payload from the upstream response. In production this route also applies
-        same-origin validation and shared rate limiting.
+        Accepts only the built-in AniCards AniList operations `GetUserId` and
+        `GetUserStats`, forwards the canonical server-side GraphQL document for
+        the selected operation, and returns the upstream `data` payload
+        unwrapped. Supplying `operation` is the preferred contract. Deprecated
+        query-text compatibility remains available only for the server-approved
+        documents and rejects arbitrary custom GraphQL operations with `400`.
+        In production this route also enforces verified-client-IP,
+        request-proof, same-origin, and shared rate-limit guards.
       parameters:
         - in: header
           name: X-Test-Status
@@ -69,43 +74,127 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GraphQLRequest"
+              $ref: "#/components/schemas/AniListRequest"
             examples:
+              getUserIdByOperation:
+                value:
+                  operation: "GetUserId"
+                  variables:
+                    userName: "sampleuser"
               getUserStatsByOperation:
                 value:
                   operation: "GetUserStats"
                   variables:
                     userId: 12345
-              getUserStats:
+              getUserIdByCompatibilityQuery:
                 value:
                   query: |-
-                    query GetUserStats($userId: Int!) {
-                      User(id: $userId) {
+                    query GetUserId($userName: String) {
+                      User(name: $userName) {
                         id
-                        name
                       }
                     }
                   variables:
-                    userId: 12345
+                    userName: "sampleuser"
       responses:
         "200":
-          description: "AniList GraphQL data payload"
+          description: >-
+            Unwrapped AniList GraphQL `data` payload for the approved
+            `GetUserId` or `GetUserStats` operation.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GraphQLData"
               examples:
-                user:
+                getUserId:
+                  value:
+                    User:
+                      id: 12345
+                getUserStats:
                   value:
                     User:
                       id: 12345
                       name: "sampleuser"
+        "400":
+          description: >-
+            Malformed JSON body, unsupported operation/query document, invalid
+            AniList identifier, or a propagated AniList `400` response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                unsupportedOperation:
+                  value:
+                    error: "Unsupported AniList operation"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserName:
+                  value:
+                    error: "Invalid AniList username"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserId:
+                  value:
+                    error: "Invalid AniList userId"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                upstreamRejected:
+                  value:
+                    error: "HTTP error! status: 400 - Invalid query"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "429":
-          $ref: "#/components/responses/TooManyRequestsJson"
+          description: "Local or upstream rate limit exceeded"
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/RateLimitLimit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/RateLimitRemaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/RateLimitReset"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                simulated:
+                  value:
+                    error: "Rate limited (test simulation)"
+                    category: "rate_limited"
+                    retryable: true
+                    status: 429
+                    recoverySuggestions: []
+                upstream:
+                  value:
+                    error: "HTTP error! status: 429 - Too Many Requests (Retry-After: 60)"
+                    category: "rate_limited"
+                    retryable: true
+                    status: 429
+                    recoverySuggestions: []
         "500":
-          description: "Upstream or internal failure"
+          description: >-
+            AniList returned a GraphQL error payload or the route hit an
+            internal/server-side failure.
           content:
             application/json:
               schema:
@@ -114,9 +203,95 @@ paths:
                 simulated:
                   value:
                     error: "Internal server error (test simulation)"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+                graphQlError:
+                  value:
+                    error: "User not found"
                 upstream:
                   value:
                     error: "HTTP error! status: 500 - Internal Server Error"
+        "502":
+          description: "AniList transport failure before any upstream response was received"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                transportFailure:
+                  value:
+                    error: "AniList GraphQL request failed: Network error"
+                    category: "server_error"
+                    retryable: true
+                    status: 502
+                    recoverySuggestions: []
+        "503":
+          description: >-
+            Missing server-side request-guard configuration, unverifiable
+            client IP, or an open AniList upstream circuit breaker.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                missingAppOrigin:
+                  value:
+                    error: "Server misconfigured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                missingRequestProofSecret:
+                  value:
+                    error: "API_SECRET_TOKEN is not configured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                unverifiedClientIp:
+                  value:
+                    error: "Client IP could not be verified"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                circuitOpen:
+                  value:
+                    error: "AniList GraphQL circuit breaker is open (Retry-After: 30)"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+        "504":
+          description: "Timed out while waiting for AniList to respond"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                timeout:
+                  value:
+                    error: "AniList GraphQL request timed out after 5000ms"
+                    category: "timeout"
+                    retryable: true
+                    status: 504
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightAniList"
+      tags:
+        - "anilist"
+      summary: "CORS preflight for AniList proxy requests"
+      description: >-
+        Returns the CORS headers required for browser clients to POST approved
+        AniList operations to this endpoint.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
 
   /api/card:
     get:
@@ -157,8 +332,21 @@ paths:
           $ref: "#/components/responses/CardSvgNotFound"
         "429":
           $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
         "500":
           $ref: "#/components/responses/CardSvgInternalError"
+    options:
+      operationId: "preflightCardSvg"
+      tags:
+        - "card"
+      summary: "CORS preflight for SVG card rendering"
+      description: >-
+        Returns the embed CORS headers required for browser and third-party
+        clients to fetch card SVGs from the canonical `/api/card` endpoint.
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgPreflight"
 
   /card.svg:
     get:
@@ -197,6 +385,8 @@ paths:
           $ref: "#/components/responses/CardSvgNotFound"
         "429":
           $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
         "500":
           $ref: "#/components/responses/CardSvgInternalError"
 
@@ -237,8 +427,69 @@ paths:
           $ref: "#/components/responses/CardSvgNotFound"
         "429":
           $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
         "500":
           $ref: "#/components/responses/CardSvgInternalError"
+
+  /StatCards/{username}/{key}.svg:
+    get:
+      operationId: "renderLegacyStatCardsNotice"
+      tags:
+        - "card"
+      summary: "Serve the legacy StatCards compatibility notice"
+      description: >-
+        Legacy compatibility endpoint kept alive for older StatCards embed
+        URLs. The `username` and `key` path segments are preserved only so
+        historical links continue to resolve; the handler ignores both values
+        and returns the same cacheable static SVG notice for every request.
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: >-
+            Historical AniList username segment preserved for backward
+            compatibility only. It does not affect the response body.
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: >-
+            Historical StatCards key segment preserved for backward
+            compatibility only. It does not affect the response body.
+      responses:
+        "200":
+          description: "Cacheable static SVG migration notice"
+          headers:
+            Cache-Control:
+              description: "Browser cache policy for the notice SVG"
+              schema:
+                type: string
+              example: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+            CDN-Cache-Control:
+              description: "Shared-cache policy for CDN intermediaries"
+              schema:
+                type: string
+              example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+            Edge-Cache-Control:
+              description: "Edge-cache policy exposed by the route"
+              schema:
+                type: string
+              example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+              examples:
+                legacyNotice:
+                  summary: "Static migration prompt"
+                  value: >-
+                    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"><rect width="100%" height="100%" fill="#0b1622"/><text x="50%" y="25%" dominant-baseline="middle" text-anchor="middle" fill="#3cc8ff" font-size="30" font-family="Segoe UI">AniCards Updated!</text><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#E8E8E8" font-size="18" font-family="Segoe UI"><tspan x="50%" dy="0">Go to anicards.alpha49.com</tspan><tspan x="50%" dy="1.2em">to regenerate statcards.</tspan></text></svg>
 
   /api/get-cards:
     get:
@@ -246,7 +497,11 @@ paths:
       tags:
         - "cards"
       summary: "Retrieve a stored cards record"
-      description: "Returns the persisted card configuration for a numeric AniList user ID."
+      description: >-
+        Returns the persisted card configuration for a numeric AniList user ID.
+        Read responses preserve already-stored legacy unsupported `cardName`
+        values so older embeds remain visible until the next successful
+        `/api/store-cards` write.
       parameters:
         - in: query
           name: userId
@@ -286,6 +541,8 @@ paths:
                         circleColor: "#22d3ee"
                       - cardName: "mangaStats"
                         disabled: true
+                      - cardName: "legacyUnsupportedCard"
+                        disabled: true
         "400":
           description: "Missing or invalid user ID"
           content:
@@ -322,19 +579,44 @@ paths:
                     status: 404
                     recoverySuggestions: []
         "500":
-          description: "Unexpected storage failure"
+          description: "Detected stored-record corruption"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                failure:
+                corrupted:
                   value:
-                    error: "Failed to fetch cards"
+                    error: "Stored cards record is incomplete or corrupted"
                     category: "server_error"
-                    retryable: true
+                    retryable: false
                     status: 500
                     recoverySuggestions: []
+        "503":
+          description: "Card storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "Card data is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightGetStoredCards"
+      tags:
+        - "cards"
+      summary: "CORS preflight for stored-card lookups"
+      description: >-
+        Returns the CORS headers required for browser clients to fetch stored
+        card configuration records.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonGetPreflight"
 
   /api/get-user:
     get:
@@ -461,19 +743,44 @@ paths:
                     status: 404
                     recoverySuggestions: []
         "500":
-          description: "Unexpected storage failure or detected record corruption"
+          description: "Detected stored-record corruption"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                failure:
+                corrupted:
                   value:
                     error: "Stored user record is incomplete or corrupted"
                     category: "server_error"
-                    retryable: true
+                    retryable: false
                     status: 500
                     recoverySuggestions: []
+        "503":
+          description: "User storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "User data is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightGetStoredUser"
+      tags:
+        - "user"
+      summary: "CORS preflight for stored-user lookups"
+      description: >-
+        Returns the CORS headers required for browser clients to fetch stored
+        public user records.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonGetPreflight"
 
   /api/store-cards:
     post:
@@ -485,7 +792,10 @@ paths:
         Stores card editor state in Redis using partial-update semantics. In
         production this route also enforces same-origin validation and shared
         rate limiting. The current repository does not expose a public self-serve
-        deletion or export endpoint for this stored server-side data.
+        deletion or export endpoint for this stored server-side data. Reads may
+        still return legacy unsupported card IDs, but writes only accept current
+        `CardType` values and strip unsupported legacy entries from the merged
+        record before persisting.
       requestBody:
         required: true
         content:
@@ -496,9 +806,7 @@ paths:
               saveCards:
                 value:
                   userId: 12345
-                  statsData:
-                    User:
-                      id: 12345
+                  statsData: {}
                   cardOrder:
                     - "animeStats"
                     - "mangaStats"
@@ -598,6 +906,20 @@ paths:
                     currentUpdatedAt: "2026-03-21T10:10:00.000Z"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
+        "503":
+          description: "Card storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "Card storage is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
         "500":
           description: "Unexpected storage failure"
           content:
@@ -608,6 +930,21 @@ paths:
                 failure:
                   value:
                     error: "Card storage failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightStoreCards"
+      tags:
+        - "store"
+      summary: "CORS preflight for card configuration writes"
+      description: >-
+        Returns the CORS headers required for browser clients to POST stored
+        card configuration updates.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
 
   /api/store-users:
     post:
@@ -637,9 +974,60 @@ paths:
                   stats:
                     User:
                       name: "sampleuser"
+                      stats:
+                        activityHistory: []
+                      favourites:
+                        anime:
+                          nodes: []
+                        manga:
+                          nodes: []
+                        characters:
+                          nodes: []
+                        staff:
+                          nodes: []
+                        studios:
+                          nodes: []
                       statistics:
                         anime:
                           count: 420
+                          episodesWatched: 5200
+                          minutesWatched: 156000
+                          meanScore: 82
+                          standardDeviation: 12
+                          genres: []
+                          tags: []
+                          voiceActors: []
+                          studios: []
+                          staff: []
+                        manga:
+                          count: 90
+                          chaptersRead: 1800
+                          volumesRead: 260
+                          meanScore: 79
+                          standardDeviation: 9
+                          genres: []
+                          tags: []
+                          staff: []
+                    followersPage:
+                      pageInfo:
+                        total: 12
+                      followers: []
+                    followingPage:
+                      pageInfo:
+                        total: 8
+                      following: []
+                    threadsPage:
+                      pageInfo:
+                        total: 3
+                      threads: []
+                    threadCommentsPage:
+                      pageInfo:
+                        total: 7
+                      threadComments: []
+                    reviewsPage:
+                      pageInfo:
+                        total: 1
+                      reviews: []
       responses:
         "200":
           description: "User record stored successfully"
@@ -686,6 +1074,20 @@ paths:
                     currentUpdatedAt: "2026-03-21T10:15:00.000Z"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
+        "503":
+          description: "User storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "User storage is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
         "500":
           description: "Unexpected storage failure"
           content:
@@ -700,6 +1102,17 @@ paths:
                     retryable: true
                     status: 500
                     recoverySuggestions: []
+    options:
+      operationId: "preflightStoreUser"
+      tags:
+        - "store"
+      summary: "CORS preflight for user record writes"
+      description: >-
+        Returns the CORS headers required for browser clients to POST stored
+        user record updates.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
 
   /api/error-reports:
     post:
@@ -816,18 +1229,7 @@ paths:
         structured error reports, including support for `X-Request-Id`.
       responses:
         "200":
-          description: "CORS preflight response"
-          headers:
-            Access-Control-Allow-Headers:
-              description: "Allowed request headers for this endpoint"
-              schema:
-                type: string
-              example: "Content-Type, X-Request-Id"
-            Access-Control-Allow-Methods:
-              description: "Allowed HTTP methods for this endpoint"
-              schema:
-                type: string
-              example: "POST, OPTIONS"
+          $ref: "#/components/responses/ErrorReportsPreflight"
 
   /api/convert:
     post:
@@ -836,11 +1238,13 @@ paths:
         - "convert"
       summary: "Fetch an allowed SVG and convert it to PNG or WebP"
       description: >-
-        Fetches an allow-listed SVG URL, sanitizes the markup, and converts it
-        to a raster image. JSON responses return a format-agnostic data URL
-        payload, while `responseType: "binary"` streams the converted image
-        directly. SSRF protections reject unsafe protocols, IP literals, and
-        hosts outside the configured AniCards allow-list.
+        Accepts either an allow-listed `svgUrl` or inline `svgContent`,
+        sanitizes the markup, and converts it to a raster image. When both are
+        supplied, inline `svgContent` wins and no remote fetch occurs. JSON
+        responses return a format-agnostic data URL payload, while
+        `responseType: "binary"` or an omitted `responseType` streams the
+        converted image directly. SSRF protections reject unsafe protocols, IP
+        literals, redirects, and hosts outside the configured AniCards allow-list.
       requestBody:
         required: true
         content:
@@ -852,18 +1256,28 @@ paths:
                 value:
                   svgUrl: "/card.svg?userId=12345&cardType=animeStats"
                   format: "png"
+                  responseType: "json"
               webp:
                 value:
                   svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
                   format: "webp"
+                  responseType: "json"
               inlineBinary:
                 value:
                   svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
                   format: "webp"
                   responseType: "binary"
+              inlineWins:
+                value:
+                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=animeStats"
+                  svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#0f172a" /></svg>'
+                  format: "png"
+                  responseType: "json"
       responses:
         "200":
-          description: "Converted raster image as JSON or streamed binary"
+          description: >-
+            Converted raster image as JSON when `responseType` is `json`, or
+            streamed binary when `responseType` is `binary` or omitted.
           content:
             application/json:
               schema:
@@ -910,8 +1324,10 @@ paths:
                 invalidFormat:
                   value:
                     error: "Invalid format parameter"
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
         "403":
-          description: "Blocked by the domain/protocol allow-list"
+          description: "Blocked by the domain/protocol allow-list or by redirect protection"
           content:
             application/json:
               schema:
@@ -920,19 +1336,98 @@ paths:
                 forbidden:
                   value:
                     error: "Unauthorized or unsafe domain/protocol"
-        "500":
-          description: "SVG fetch or conversion failure"
+                redirectBlocked:
+                  value:
+                    error: "SVG redirects are not allowed"
+        "404":
+          description: "Allow-listed upstream SVG was not found"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                fetchFailure:
+                missingUpstream:
                   value:
                     error: "Failed to fetch SVG"
+        "413":
+          description: "SVG payload or rasterized output exceeded size limits"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                responseTooLarge:
+                  value:
+                    error: "SVG response too large"
+                rasterTooLarge:
+                  value:
+                    error: "SVG rasterization exceeds pixel limits"
+        "415":
+          description: "Fetched or inline content was not valid SVG markup"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidInline:
+                  value:
+                    error: "Provided content is not a valid SVG"
+                invalidFetched:
+                  value:
+                    error: "Fetched content is not a valid SVG"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "500":
+          description: "Unexpected rasterization or conversion failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
                 conversionFailure:
                   value:
                     error: "Conversion failed"
+        "502":
+          description: "Transient transport failure while fetching the upstream SVG"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamTransport:
+                  value:
+                    error: "Failed to fetch SVG"
+        "503":
+          description: "Allow-listed upstream SVG source was temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamUnavailable:
+                  value:
+                    error: "Failed to fetch SVG"
+        "504":
+          description: "Timed out while fetching the upstream SVG"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamTimeout:
+                  value:
+                    error: "SVG fetch timed out"
+    options:
+      operationId: "preflightConvertSvg"
+      tags:
+        - "convert"
+      summary: "CORS preflight for SVG conversion requests"
+      description: >-
+        Returns the CORS headers required for browser clients to POST SVG
+        conversion requests.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
 
   /api/cron:
     post:
@@ -943,12 +1438,13 @@ paths:
       description: >-
         Operator-facing cron endpoint that refreshes the five stalest stored user
         records from the maintained stale-user refresh index, tracks repeated
-        AniList 404 failures, and returns scheduling guidance in a plain-text
-        summary.
+        AniList 404 failures, and returns a plain-text repo-managed refresh
+        budget summary.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
         - CronSecret: []
+        - CronBearer: []
       responses:
         "200":
           description: "Plain-text execution summary"
@@ -961,13 +1457,28 @@ paths:
                   value: |-
                     Updated 5/5 users successfully. Failed: 0, Removed: 0
 
-                    Recommended schedules to refresh all 125 users at least once per 24 hours:
-                     - Update 5 users/run: 0 */8 * * * (3 runs/day, ~every 480 min)
-                     - Update 10 users/run: 0 */12 * * * (2 runs/day, ~every 720 min)
+                    Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).
+                    Refresh capacity budget: 5 users/run, 20 users/day.
+                    Current stored users: 18. Estimated full-sweep window: ~24 hours.
+                    Current footprint fits within the repo-managed 24-hour freshness budget.
         "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
+          $ref: "#/components/responses/CronUnauthorizedJson"
         "500":
-          $ref: "#/components/responses/InternalErrorPlain"
+          description: "Unexpected cron refresh failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Cron job failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
 
   /api/cron/analytics-reporting:
     get:
@@ -995,6 +1506,7 @@ paths:
             retention cap are clamped to the configured maximum.
       security:
         - CronSecret: []
+        - CronBearer: []
       responses:
         "200":
           description: "Recent analytics reports, newest first"
@@ -1028,8 +1540,12 @@ paths:
                 invalidLimit:
                   value:
                     error: "Invalid limit parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
+          $ref: "#/components/responses/CronUnauthorizedJson"
         "500":
           description: "Unexpected analytics report read failure"
           content:
@@ -1040,6 +1556,12 @@ paths:
                 failure:
                   value:
                     error: "Failed to fetch analytics reports"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
     post:
       operationId: "generateAnalyticsReport"
       tags:
@@ -1055,6 +1577,7 @@ paths:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
         - CronSecret: []
+        - CronBearer: []
       responses:
         "200":
           description: "Generated analytics report"
@@ -1074,16 +1597,23 @@ paths:
                       analytics:anilist_api:successful_requests: 200
                     generatedAt: "2026-03-21T10:30:00.000Z"
         "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
+          $ref: "#/components/responses/CronUnauthorizedJson"
         "500":
           description: "Unexpected analytics job failure"
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
+                $ref: "#/components/schemas/ApiError"
               examples:
                 failure:
-                  value: "Analytics and reporting job failed"
+                  value:
+                    error: "Analytics and reporting job failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
 
 components:
   securitySchemes:
@@ -1092,8 +1622,17 @@ components:
       in: header
       name: x-cron-secret
       description: >-
-        Shared cron secret header. It is required only when `CRON_SECRET` is set
-        in the deployment environment.
+        Shared cron secret header for operator-facing cron endpoints. Local and
+        manual callers can send `x-cron-secret`. Deployed environments fail
+        with `503` when `CRON_SECRET` is missing; unsecured cron is available
+        only through the explicit development override.
+    CronBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: "CRON_SECRET"
+      description: >-
+        Hosted schedulers such as Vercel may send `Authorization: Bearer
+        <CRON_SECRET>` instead of `x-cron-secret`.
 
   parameters:
     CronSecretHeader:
@@ -1103,8 +1642,11 @@ components:
       schema:
         type: string
       description: >-
-        Cron secret used to protect operator-only endpoints. Required when the
-        server has `CRON_SECRET` configured.
+        Cron secret used to protect operator-only endpoints. When the server is
+        missing `CRON_SECRET`, the route fails with `503` instead of allowing
+        unauthenticated access, except in the explicit development override.
+        Hosted schedulers may alternatively use `Authorization: Bearer
+        <CRON_SECRET>`.
 
     CardUserId:
       in: query
@@ -1303,6 +1845,62 @@ components:
       description: "Unix timestamp in milliseconds when the current rate-limit window resets"
       schema:
         type: string
+    AccessControlAllowOriginJsonApi:
+      description: >-
+        Allowed browser origin for JSON API requests. In production this comes
+        from `NEXT_PUBLIC_APP_URL`; in development it falls back to the request
+        origin or `*`.
+      schema:
+        type: string
+      example: "https://anicards.alpha49.com"
+    AccessControlAllowOriginCardSvg:
+      description: >-
+        Allowed embed origin for card SVG responses. In production this defaults
+        to `https://anilist.co` unless `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`
+        overrides it.
+      schema:
+        type: string
+      example: "https://anilist.co"
+    AccessControlAllowHeadersContentType:
+      description: "Allowed request headers for this endpoint"
+      schema:
+        type: string
+      example: "Content-Type"
+    AccessControlAllowHeadersContentTypeRequestId:
+      description: "Allowed request headers for this endpoint"
+      schema:
+        type: string
+      example: "Content-Type, X-Request-Id"
+    AccessControlAllowMethodsGetHeadOptions:
+      description: "Allowed HTTP methods for this endpoint"
+      schema:
+        type: string
+      example: "GET, HEAD, OPTIONS"
+    AccessControlAllowMethodsPostOptions:
+      description: "Allowed HTTP methods for this endpoint"
+      schema:
+        type: string
+      example: "POST, OPTIONS"
+    AccessControlExposeHeadersJsonApi:
+      description: "Response headers exposed to JSON API browser clients"
+      schema:
+        type: string
+      example: "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id"
+    AccessControlExposeHeadersCardSvg:
+      description: "Response headers exposed to SVG card browser clients"
+      schema:
+        type: string
+      example: "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id"
+    HeaderVaryOrigin:
+      description: "Response varies by request `Origin`."
+      schema:
+        type: string
+      example: "Origin"
+    RequestId:
+      description: "Per-request correlation ID generated by the API layer"
+      schema:
+        type: string
+      example: "req_01HZQK8F8Y6Z8A2R3M4N5P6Q7R"
 
   responses:
     UnauthorizedJson:
@@ -1345,6 +1943,100 @@ components:
                 recoverySuggestions:
                   - title: "Wait and retry"
                     description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
+
+    JsonGetPreflight:
+      description: "CORS preflight response for JSON read endpoints"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    JsonPostPreflight:
+      description: "CORS preflight response for JSON write endpoints"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsPostOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    ErrorReportsPreflight:
+      description: "CORS preflight response for structured error-report ingestion"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentTypeRequestId"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsPostOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    CardSvgPreflight:
+      description: "CORS preflight response for SVG card requests"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginCardSvg"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersCardSvg"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    CronUnauthorizedJson:
+      description: "Invalid or missing cron secret"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            unauthorized:
+              value:
+                error: "Unauthorized"
+                category: "authentication"
+                retryable: false
+                status: 401
+                recoverySuggestions: []
+
+    CronServiceUnavailableJson:
+      description: "Server-side cron authentication is not configured"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            missingCronSecret:
+              value:
+                error: "CRON_SECRET is not configured"
+                category: "server_error"
+                retryable: true
+                status: 503
+                recoverySuggestions: []
 
     UnauthorizedPlain:
       description: "Invalid or missing cron secret"
@@ -1453,6 +2145,25 @@ components:
               value: |-
                 <?xml version="1.0" encoding="UTF-8"?>
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: An internal error occurred</text></svg>
+
+    CardSvgServiceUnavailable:
+      description: "SVG-formatted temporary availability failure"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            userUnavailable:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: User data is temporarily unavailable</text></svg>
+            cardUnavailable:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: Card data is temporarily unavailable</text></svg>
 
   schemas:
     ApiError:
@@ -1631,30 +2342,145 @@ components:
         - userAction
         - message
 
-    GraphQLRequest:
+    AniListRequest:
+      oneOf:
+        - $ref: "#/components/schemas/AniListGetUserIdOperationRequest"
+        - $ref: "#/components/schemas/AniListGetUserStatsOperationRequest"
+        - $ref: "#/components/schemas/AniListGetUserIdCompatibilityRequest"
+        - $ref: "#/components/schemas/AniListGetUserStatsCompatibilityRequest"
+      description: >-
+        Strict `/api/anilist` request contract. `operation` mode is preferred
+        and forwards the canonical server-side GraphQL document for the
+        selected operation. Query-text mode is deprecated compatibility only
+        and accepts only the built-in AniCards `GetUserId` and `GetUserStats`
+        documents after server-side whitespace normalization.
+
+    AniListUsername:
+      type: string
+      minLength: 1
+      maxLength: 100
+      pattern: "^[a-zA-Z0-9_\\-\\s]*$"
+      description: >-
+        AniList username. The server trims surrounding whitespace before
+        validation.
+
+    AniListUserId:
+      type: integer
+      minimum: 1
+      description: "Positive AniList numeric user ID"
+
+    AniListIgnoredQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      description: >-
+        Optional legacy query text. When `operation` is present, the server
+        ignores this field and forwards the built-in document for that
+        operation.
+
+    AniListGetUserIdQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      pattern: '^\s*query\s+GetUserId\b[\s\S]*$'
+      description: >-
+        Deprecated compatibility query text. The server normalizes whitespace
+        and requires the full built-in `GetUserId` document; arbitrary custom
+        GraphQL documents are rejected with `400`.
+
+    AniListGetUserStatsQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      pattern: '^\s*query\s+GetUserStats\b[\s\S]*$'
+      description: >-
+        Deprecated compatibility query text. The server normalizes whitespace
+        and requires the full built-in `GetUserStats` document; arbitrary custom
+        GraphQL documents are rejected with `400`.
+
+    AniListGetUserIdVariables:
       type: object
       additionalProperties: false
       properties:
+        userName:
+          $ref: "#/components/schemas/AniListUsername"
+      required:
+        - userName
+
+    AniListGetUserStatsVariables:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: "#/components/schemas/AniListUserId"
+      required:
+        - userId
+
+    AniListGetUserIdOperationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Preferred request shape for resolving an AniList username to its
+        numeric AniList user ID.
+      properties:
         operation:
           type: string
-          enum:
-            - "GetUserId"
-            - "GetUserStats"
-          description: >-
-            Optional operation selector. When present, the route prioritizes it
-            over query-text matching and forwards the canonical server-side
-            document for that operation.
-        query:
-          type: string
-          minLength: 1
+          const: "GetUserId"
         variables:
-          type: object
-          additionalProperties: true
-      anyOf:
-        - required:
-            - operation
-        - required:
-            - query
+          $ref: "#/components/schemas/AniListGetUserIdVariables"
+        query:
+          $ref: "#/components/schemas/AniListIgnoredQueryText"
+      required:
+        - operation
+        - variables
+
+    AniListGetUserStatsOperationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Preferred request shape for resolving the AniCards AniList statistics
+        payload for a known numeric AniList user ID.
+      properties:
+        operation:
+          type: string
+          const: "GetUserStats"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserStatsVariables"
+        query:
+          $ref: "#/components/schemas/AniListIgnoredQueryText"
+      required:
+        - operation
+        - variables
+
+    AniListGetUserIdCompatibilityRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Deprecated backward-compatible request shape. Prefer `operation:
+        "GetUserId"` instead.
+      properties:
+        query:
+          $ref: "#/components/schemas/AniListGetUserIdQueryText"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserIdVariables"
+      required:
+        - query
+        - variables
+
+    AniListGetUserStatsCompatibilityRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Deprecated backward-compatible request shape. Prefer `operation:
+        "GetUserStats"` instead.
+      properties:
+        query:
+          $ref: "#/components/schemas/AniListGetUserStatsQueryText"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserStatsVariables"
+      required:
+        - query
+        - variables
 
     GraphQLData:
       type: object
@@ -1813,12 +2639,21 @@ components:
         - $ref: "#/components/schemas/GradientDefinition"
         - $ref: "#/components/schemas/StringifiedGradientDefinition"
 
+    StoredCardName:
+      type: string
+      minLength: 1
+      description: >-
+        Card identifier returned by stored-card reads. `/api/store-cards`
+        writes only accept current `CardType` values, but `/api/get-cards`
+        may still return legacy unsupported IDs that were already stored before
+        the current allow-list was introduced.
+
     StoredCardConfig:
       type: object
       additionalProperties: false
       properties:
         cardName:
-          $ref: "#/components/schemas/CardType"
+          $ref: "#/components/schemas/StoredCardName"
         variation:
           $ref: "#/components/schemas/CardVariation"
         colorPreset:
@@ -1861,10 +2696,25 @@ components:
       required:
         - cardName
       description: >-
-        Stored per-card configuration. `/api/store-cards` accepts partial patch
-        entries and merges them with the existing stored record, so most fields
-        are optional even for enabled cards. Disabled entries may omit
-        `variation` and all per-card colors.
+        Stored per-card configuration returned by `/api/get-cards`. Reads may
+        include legacy unsupported `cardName` values that are preserved for
+        compatibility until the next successful write. `/api/store-cards`
+        accepts partial patch entries and merges them with the existing stored
+        record, so most fields are optional even for enabled cards. Disabled
+        entries may omit `variation` and all per-card colors.
+
+    StoreCardsPatchCard:
+      allOf:
+        - $ref: "#/components/schemas/StoredCardConfig"
+        - type: object
+          properties:
+            cardName:
+              $ref: "#/components/schemas/CardType"
+          required:
+            - cardName
+      description: >-
+        Incoming card patch entry for `/api/store-cards`. Writes only accept
+        currently supported `CardType` values.
 
     GlobalCardSettings:
       type: object
@@ -1906,6 +2756,10 @@ components:
     CardsRecord:
       type: object
       additionalProperties: false
+      description: >-
+        Persisted cards record returned by `/api/get-cards`. Reads preserve
+        already-stored legacy unsupported `cardName` values until the next
+        successful `/api/store-cards` write.
       properties:
         userId:
           type: integer
@@ -1930,20 +2784,23 @@ components:
         Partial-update payload for `/api/store-cards`. The route merges incoming
         card entries and global settings into the existing Redis record,
         preserves omitted card settings, and backfills any newly supported base
-        card types as disabled records before persisting.
+        card types as disabled records before persisting. Optional `statsData`
+        must either be `{}` or a full normalized AniList stats snapshot; other
+        malformed non-empty objects are rejected.
       properties:
         userId:
           type: integer
         statsData:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/StoreCardsStatsData"
           description: >-
-            Optional stats payload carried by the editor workflow. When present,
-            a top-level `error` field causes the route to reject the request.
+            Optional stats payload carried by the editor workflow. Empty
+            placeholder objects are accepted, but non-empty objects must match
+            the normalized AniList snapshot shape. A top-level `error` field
+            causes the route to reject the request.
         cards:
           type: array
           items:
-            $ref: "#/components/schemas/StoredCardConfig"
+            $ref: "#/components/schemas/StoreCardsPatchCard"
         globalSettings:
           $ref: "#/components/schemas/GlobalCardSettings"
         ifMatchUpdatedAt:
@@ -1979,8 +2836,8 @@ components:
       additionalProperties: false
       description: >-
         Explicit minimized persistence input. Top-level fields are allow-listed,
-        while `stats` intentionally stays open-ended as a JSON object so AniList-
-        shaped nested payloads can evolve without widening the public contract.
+        and `stats` must match the normalized AniList-derived snapshot shape
+        that the server validates and persists.
       properties:
         userId:
           type: integer
@@ -1988,6 +2845,10 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+          nullable: true
+          description: >-
+            Optional AniList username alias. Explicit `null` is accepted and is
+            treated the same as omitting the field before normalization.
         ifMatchUpdatedAt:
           type: string
           format: date-time
@@ -1996,9 +2857,10 @@ components:
             rejected with `409` if the stored record has a different
             `updatedAt`.
         stats:
-          type: object
-          additionalProperties: true
-          description: "Open-ended AniList-derived payload. Must be a JSON object; arrays are rejected."
+          $ref: "#/components/schemas/UserStatsData"
+          description: >-
+            Normalized AniList-derived snapshot. Arrays or partial placeholder
+            objects are rejected.
       required:
         - userId
         - stats
@@ -2028,12 +2890,13 @@ components:
           type: string
           description: >-
             Absolute or relative URL to an SVG resource on an allow-listed
-            AniCards host.
+            AniCards host. Ignored when `svgContent` is also supplied.
         svgContent:
           type: string
           description: >-
             Inline SVG markup to convert directly without refetching a remote
-            URL.
+            URL. When both `svgContent` and `svgUrl` are supplied, this inline
+            markup takes precedence.
         format:
           type: string
           enum:
@@ -2045,10 +2908,11 @@ components:
           enum:
             - "json"
             - "binary"
-          default: "json"
+          default: "binary"
           description: >-
-            When set to `binary`, the route streams the converted image with the
-            appropriate image content type instead of returning JSON.
+            When set to `json`, the route returns a data URL payload. When set
+            to `binary` or omitted, the route streams the converted image with
+            the appropriate image content type.
       anyOf:
         - required:
             - svgUrl
@@ -2093,6 +2957,345 @@ components:
             additionalProperties: true
         pageInfo:
           $ref: "#/components/schemas/PageInfo"
+
+    EmptyObject:
+      type: object
+      additionalProperties: false
+      maxProperties: 0
+
+    LooseObject:
+      type: object
+      additionalProperties: true
+
+    UserStatsActivityItem:
+      type: object
+      additionalProperties: true
+      properties:
+        date:
+          type: number
+        amount:
+          type: number
+      required:
+        - date
+        - amount
+
+    UserActivityStats:
+      type: object
+      additionalProperties: true
+      properties:
+        activityHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserStatsActivityItem"
+      required:
+        - activityHistory
+
+    UserStatsFavourites:
+      type: object
+      additionalProperties: true
+      properties:
+        anime:
+          $ref: "#/components/schemas/FavouriteCollection"
+        manga:
+          $ref: "#/components/schemas/FavouriteCollection"
+        characters:
+          $ref: "#/components/schemas/FavouriteCollection"
+        staff:
+          $ref: "#/components/schemas/FavouriteCollection"
+        studios:
+          $ref: "#/components/schemas/FavouriteCollection"
+      required:
+        - staff
+        - studios
+
+    UserStatsAnimeStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        count:
+          type: number
+        episodesWatched:
+          type: number
+        minutesWatched:
+          type: number
+        meanScore:
+          type: number
+        standardDeviation:
+          type: number
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        voiceActors:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        studios:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - count
+        - episodesWatched
+        - minutesWatched
+        - meanScore
+        - standardDeviation
+        - genres
+        - tags
+        - voiceActors
+        - studios
+        - staff
+
+    UserStatsMangaStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        count:
+          type: number
+        chaptersRead:
+          type: number
+        volumesRead:
+          type: number
+        meanScore:
+          type: number
+        standardDeviation:
+          type: number
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - count
+        - chaptersRead
+        - volumesRead
+        - meanScore
+        - standardDeviation
+        - genres
+        - tags
+        - staff
+
+    UserStatsStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        anime:
+          $ref: "#/components/schemas/UserStatsAnimeStatistics"
+        manga:
+          $ref: "#/components/schemas/UserStatsMangaStatistics"
+
+    UserStatsAvatar:
+      type: object
+      additionalProperties: true
+      properties:
+        large:
+          type: string
+        medium:
+          type: string
+
+    UserStatsUserSection:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        avatar:
+          $ref: "#/components/schemas/UserStatsAvatar"
+        bannerImage:
+          type: string
+        createdAt:
+          type: number
+        stats:
+          $ref: "#/components/schemas/UserActivityStats"
+        favourites:
+          $ref: "#/components/schemas/UserStatsFavourites"
+        statistics:
+          $ref: "#/components/schemas/UserStatsStatistics"
+      required:
+        - stats
+        - favourites
+        - statistics
+
+    FollowersPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        followers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - followers
+
+    FollowingPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        following:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - following
+
+    ThreadsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - threads
+
+    ThreadCommentsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        threadComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - threadComments
+
+    ReviewsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - reviews
+
+    UserReviewsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - reviews
+
+    UserRecommendationsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - recommendations
+
+    MediaListCollection:
+      type: object
+      additionalProperties: true
+      properties:
+        lists:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        count:
+          type: number
+        totalRepeat:
+          type: number
+      required:
+        - lists
+
+    UserStatsData:
+      type: object
+      additionalProperties: true
+      properties:
+        User:
+          $ref: "#/components/schemas/UserStatsUserSection"
+        followersPage:
+          $ref: "#/components/schemas/FollowersPage"
+        followingPage:
+          $ref: "#/components/schemas/FollowingPage"
+        threadsPage:
+          $ref: "#/components/schemas/ThreadsPage"
+        threadCommentsPage:
+          $ref: "#/components/schemas/ThreadCommentsPage"
+        reviewsPage:
+          $ref: "#/components/schemas/ReviewsPage"
+        userReviews:
+          $ref: "#/components/schemas/UserReviewsPage"
+        userRecommendations:
+          $ref: "#/components/schemas/UserRecommendationsPage"
+        animePlanning:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaPlanning:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeCompleted:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaCompleted:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeDropped:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaDropped:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeWatching:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaReading:
+          $ref: "#/components/schemas/MediaListCollection"
+      required:
+        - User
+        - followersPage
+        - followingPage
+        - threadsPage
+        - threadCommentsPage
+        - reviewsPage
+
+    StoreCardsStatsData:
+      description: >-
+        Optional editor-carried stats payload. The route accepts an empty
+        object placeholder or a full normalized `UserStatsData` snapshot; other
+        non-empty object shapes are rejected.
+      oneOf:
+        - $ref: "#/components/schemas/EmptyObject"
+        - $ref: "#/components/schemas/UserStatsData"
 
     UserPages:
       type: object

@@ -651,6 +651,41 @@ describe("Convert API POST Endpoint", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
+    it("prefers inline svgContent over svgUrl when both are provided", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const inlineSvg =
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#0f172a" /></svg>';
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          svgContent: inlineSvg,
+          format: "png",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.format).toBe("png");
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(lastSharpBuffer?.toString()).toContain("rect");
+    });
+
     it("requests AniCards card SVGs in static mode before rasterizing them", async () => {
       const fetchSpy = mock(
         async () =>

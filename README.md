@@ -18,7 +18,7 @@ Go to [anicards.alpha49.com](https://anicards.alpha49.com), enter your AniList u
 If you prefer to build the URL by hand:
 
 ```text
-https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&variation=compact&colorPreset=sunset
+https://api.anicards.alpha49.com/card.svg?cardType=animeStats&username=Alpha49&variation=compact&colorPreset=sunset
 ```
 
 Every supported card type, variation, and parameter is documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md).

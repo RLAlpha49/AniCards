@@ -1461,9 +1461,17 @@ export function validateStoreCardsStatsData(
     }
 
     const parsed = userStatsDataSchema.safeParse(statsData);
+    if (!parsed.success) {
+      return {
+        success: false,
+        errorMessage: "Invalid stats payload",
+        issue: getSchemaValidationIssueSummary(parsed.error),
+      };
+    }
+
     return {
       success: true,
-      data: parsed.success ? parsed.data : (statsData as Record<string, never>),
+      data: parsed.data,
     };
   }
 

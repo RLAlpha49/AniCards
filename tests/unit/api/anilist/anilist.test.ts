@@ -185,6 +185,29 @@ describe("AniList API Route", () => {
     expect(body.variables).toEqual({ userName: "testUser" });
   });
 
+  it("accepts the explicit GetUserId contract and forwards the canonical query", async () => {
+    setEnvironment("test");
+    mockJsonFetch({ data: { User: { id: 99 } } });
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserId",
+          variables: { userName: "testUser" },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ User: { id: 99 } });
+
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+      .mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.query).toBe(USER_ID_QUERY);
+    expect(body.variables).toEqual({ userName: "testUser" });
+  });
+
   it("rejects unsupported operations", async () => {
     setEnvironment("test");
 
@@ -371,6 +394,25 @@ describe("AniList API Route", () => {
 
     expect(response.status).toBe(502);
     expect((await response.json()).error).toContain("Network error");
+  });
+
+  it("surfaces upstream timeouts as 504 responses", async () => {
+    setEnvironment("test");
+    globalThis.fetch = mock(() =>
+      Promise.reject(new DOMException("Timed out", "TimeoutError")),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(504);
+    expect((await response.json()).error).toContain("timed out");
   });
 
   it("propagates Retry-After when the shared upstream circuit is already open", async () => {
