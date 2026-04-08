@@ -51,9 +51,9 @@ export default function DarkModeToggle() {
       role="switch"
       aria-checked={isDark}
       className="
-        group relative isolate flex size-11 cursor-pointer items-center justify-center rounded-full
-        border border-gold/40 bg-transparent transition-[transform,border-color] duration-300
-        outline-none
+        group relative isolate flex size-11 cursor-pointer touch-manipulation-safe items-center
+        justify-center rounded-full border border-gold/40 bg-transparent
+        transition-[transform,border-color] duration-300 outline-none
         hover:border-gold/80
         focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
         focus-visible:ring-offset-background

@@ -4,11 +4,16 @@ import type { MotionStyle } from "framer-motion";
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
-import { fadeUp, lineExpand, VIEWPORT_ONCE } from "@/lib/animations";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
+import {
+  buildFadeUpVariants,
+  buildLineExpandVariants,
+  VIEWPORT_ONCE,
+} from "@/lib/animations";
 
 const REVEAL_VARIANTS = {
-  fadeUp,
-  lineExpand,
+  fadeUp: buildFadeUpVariants,
+  lineExpand: buildLineExpandVariants,
 } as const;
 
 type RevealVariant = keyof typeof REVEAL_VARIANTS;
@@ -26,9 +31,14 @@ export function SectionReveal({
   className,
   style,
 }: Readonly<SectionRevealProps>) {
+  const { prefersSimplifiedMotion } = useMotionPreferences();
+  const variants = REVEAL_VARIANTS[variant]({
+    reducedMotion: prefersSimplifiedMotion,
+  });
+
   return (
     <motion.div
-      variants={REVEAL_VARIANTS[variant]}
+      variants={variants}
       initial="hidden"
       whileInView="visible"
       viewport={VIEWPORT_ONCE}

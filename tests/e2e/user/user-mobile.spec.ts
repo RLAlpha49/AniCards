@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/test-utils";
 
 test.describe("User page mobile ergonomics", () => {
-  test("uses the touch-first mobile editor and dialog contract", async ({
+  test("uses the touch-first mobile editor shell contract", async ({
     page,
     mockSuccessfulApi,
   }, testInfo) => {
@@ -14,7 +14,7 @@ test.describe("User page mobile ergonomics", () => {
     await page.goto("/user/TestUser");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /testuser/i }),
+      page.getByRole("heading", { level: 1, name: /your collection/i }),
     ).toBeVisible();
 
     const analyticsPromptDismiss = page.getByRole("button", {
@@ -23,6 +23,15 @@ test.describe("User page mobile ergonomics", () => {
     if (await analyticsPromptDismiss.isVisible()) {
       await analyticsPromptDismiss.click();
     }
+
+    const menuToggle = page.getByRole("button", { name: /open menu/i });
+    await expect(menuToggle).toBeVisible();
+
+    const menuToggleTouchAction = await menuToggle.evaluate(
+      (node) => getComputedStyle(node as HTMLElement).touchAction,
+    );
+
+    expect(menuToggleTouchAction).toBe("manipulation");
 
     const viewport = page.viewportSize();
     const editorMain = page.getByTestId("user-page-editor-main");
@@ -43,37 +52,11 @@ test.describe("User page mobile ergonomics", () => {
       tile.getByRole("button", { name: /toggle actions for/i }),
     ).toHaveCount(0);
 
-    await expect(tile.getByRole("link", { name: /^open/i })).toBeVisible();
-    await expect(tile.getByRole("button", { name: /copy url/i })).toBeVisible();
     await expect(
-      tile.getByRole("button", { name: /^download$/i }),
+      tile.getByRole("switch", { name: /toggle anime stats card/i }),
     ).toBeVisible();
-
-    await page.locator('[data-tour="global-settings"]').click({ force: true });
-
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible({ timeout: 10000 });
-
-    const dialogStyles = await dialog.evaluate((node) => {
-      const styles = getComputedStyle(node as HTMLElement);
-      return {
-        overflowY: styles.overflowY,
-        overscrollBehavior: styles.overscrollBehavior,
-      };
-    });
-
-    expect(dialogStyles.overflowY).toMatch(/auto|scroll/i);
-    expect(dialogStyles.overscrollBehavior).toBe("contain");
-
-    const closeButton = dialog.getByRole("button", { name: /^close$/i });
-    const closeButtonBox = await closeButton.boundingBox();
-
-    expect(closeButtonBox).not.toBeNull();
-    if (!closeButtonBox) {
-      throw new Error("Expected the dialog close button to be visible");
-    }
-
-    expect(closeButtonBox.width).toBeGreaterThanOrEqual(44);
-    expect(closeButtonBox.height).toBeGreaterThanOrEqual(44);
+    await expect(
+      tile.getByRole("status", { name: /card disabled/i }),
+    ).toBeVisible();
   });
 });

@@ -6,6 +6,30 @@ export const EASE_OUT_EXPO: [number, number, number, number] = [
   0.22, 1, 0.36, 1,
 ];
 
+export interface MotionPreferenceOptions {
+  reducedMotion?: boolean;
+  reducedData?: boolean;
+  coarsePointer?: boolean;
+}
+
+export const REDUCED_DATA_MEDIA_QUERY = "(prefers-reduced-data: reduce)";
+export const COARSE_POINTER_MEDIA_QUERY = "(pointer: coarse)";
+
+export function shouldReduceMotion({
+  reducedMotion = false,
+  reducedData = false,
+}: Pick<MotionPreferenceOptions, "reducedMotion" | "reducedData"> = {}) {
+  return reducedMotion || reducedData;
+}
+
+export function shouldSimplifyMotion({
+  reducedMotion = false,
+  reducedData = false,
+  coarsePointer = false,
+}: MotionPreferenceOptions = {}) {
+  return reducedMotion || reducedData || coarsePointer;
+}
+
 // ── Shared spring configs ──
 
 export const SPRING_GENTLE: Transition = {
@@ -41,6 +65,11 @@ interface MotionSafeScaleOptions {
   reducedMotion?: boolean;
   initialScale?: number;
   y?: number;
+  duration?: number;
+}
+
+interface MotionSafeLineExpandOptions {
+  reducedMotion?: boolean;
   duration?: number;
 }
 
@@ -123,10 +152,41 @@ export function buildScaleInVariants({
   };
 }
 
+export function buildLineExpandVariants({
+  reducedMotion = false,
+  duration = 0.8,
+}: MotionSafeLineExpandOptions = {}): Variants {
+  if (reducedMotion) {
+    return {
+      hidden: { scaleX: 1, opacity: 1 },
+      visible: {
+        scaleX: 1,
+        opacity: 1,
+        transition: NO_MOTION_TRANSITION,
+      },
+    };
+  }
+
+  return {
+    hidden: { scaleX: 0, opacity: 0 },
+    visible: {
+      scaleX: 1,
+      opacity: 1,
+      transition: { duration, ease: EASE_OUT_EXPO },
+    },
+  };
+}
+
 export function getMotionSafeScrollBehavior(
   reducedMotion: boolean,
+  options: Pick<MotionPreferenceOptions, "reducedData"> = {},
 ): ScrollBehavior {
-  return reducedMotion ? "auto" : "smooth";
+  return shouldReduceMotion({
+    reducedMotion,
+    reducedData: options.reducedData,
+  })
+    ? "auto"
+    : "smooth";
 }
 
 // ── Scroll-reveal section container ──

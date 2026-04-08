@@ -196,7 +196,10 @@ export default function HeaderClient() {
 
   return (
     <>
-      <div className="w-full px-6 py-4">
+      <div className="
+        w-full safe-area-inline-padding safe-area-top-padding pb-4
+        [--safe-area-inline-padding:1.5rem] [--safe-area-top-padding:1rem]
+      ">
         <div
           className={cn(
             "grid grid-cols-[1fr_auto] items-center gap-4",
@@ -206,7 +209,7 @@ export default function HeaderClient() {
           <Link
             href="/"
             className="
-              group flex items-center gap-3 rounded-sm
+              group flex touch-manipulation-safe items-center gap-3 rounded-sm
               focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
               focus-visible:ring-offset-background focus-visible:outline-none
               md:justify-self-start
@@ -262,8 +265,8 @@ export default function HeaderClient() {
                     }
                     className={cn(
                       `
-                        relative rounded-sm font-body-serif text-xs tracking-[0.15em] text-gold
-                        uppercase transition-colors
+                        relative touch-manipulation-safe rounded-sm font-body-serif text-xs
+                        tracking-[0.15em] text-gold uppercase transition-colors
                         focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
                         focus-visible:ring-offset-2 focus-visible:ring-offset-background
                         focus-visible:outline-none
@@ -291,8 +294,9 @@ export default function HeaderClient() {
               type="button"
               data-mobile-menu-toggle="true"
               className="
-                flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/20
-                bg-background/70 text-foreground/60 transition-colors
+                flex size-11 shrink-0 touch-manipulation-safe items-center justify-center
+                rounded-full border border-gold/20 bg-background/70 text-foreground/60
+                transition-colors
                 hover:border-gold/35 hover:text-gold
                 focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
                 md:hidden
@@ -347,7 +351,10 @@ export default function HeaderClient() {
         aria-hidden={!mobileMenuOpen}
         tabIndex={-1}
       >
-        <div className="min-h-0 space-y-1 px-6 py-4">
+        <div className="
+          min-h-0 space-y-1 safe-area-inline-padding pt-4 safe-area-bottom-padding
+          [--safe-area-bottom-padding:1rem] [--safe-area-inline-padding:1.5rem]
+        ">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
 
@@ -363,8 +370,8 @@ export default function HeaderClient() {
                 }}
                 className={cn(
                   `
-                    block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em] text-gold
-                    uppercase transition-colors
+                    block touch-manipulation-safe rounded-sm px-2 py-3 font-body-serif text-sm
+                    tracking-[0.15em] text-gold uppercase transition-colors
                     focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
                     focus-visible:ring-offset-2 focus-visible:ring-offset-background
                     focus-visible:outline-none

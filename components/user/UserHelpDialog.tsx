@@ -22,7 +22,7 @@ import {
   SquareStack,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -33,6 +33,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
+import { getMotionSafeScrollBehavior } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 
 import {
@@ -191,6 +193,8 @@ export function UserHelpDialog({
   onOpenChange,
   onStartTour,
 }: Readonly<UserHelpDialogProps>) {
+  const { prefersReducedMotion, prefersReducedData, prefersSimplifiedMotion } =
+    useMotionPreferences();
   const [query, setQuery] = useState("");
   const [selectedTopicId, setSelectedTopicId] = useState<string>(
     USER_HELP_TOPICS[0]?.id ?? "quick-start",
@@ -266,6 +270,13 @@ export function UserHelpDialog({
 
   const didResetRef = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const topicPanelId = useId();
+  const topicScrollBehavior = getMotionSafeScrollBehavior(
+    prefersReducedMotion,
+    {
+      reducedData: prefersReducedData,
+    },
+  );
 
   useEffect(() => {
     if (!open) {
@@ -288,8 +299,8 @@ export function UserHelpDialog({
   }, [filteredTopics, open, selectedTopicId]);
 
   useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, [selectedTopicId]);
+    contentRef.current?.scrollTo({ top: 0, behavior: topicScrollBehavior });
+  }, [selectedTopicId, topicScrollBehavior]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -330,7 +341,8 @@ export function UserHelpDialog({
             </div>
           </div>
 
-          <nav
+          <div
+            role="group"
             aria-label="Help topics"
             className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
           >
@@ -357,7 +369,8 @@ export function UserHelpDialog({
                           ? "bg-gold/8 dark:bg-gold/8"
                           : "hover:bg-gold/4 dark:hover:bg-gold/4",
                       )}
-                      aria-current={isActive ? "page" : undefined}
+                      aria-controls={topicPanelId}
+                      aria-pressed={isActive}
                     >
                       <div
                         className={cn(
@@ -400,7 +413,7 @@ export function UserHelpDialog({
                 })}
               </div>
             )}
-          </nav>
+          </div>
         </div>
 
         {/* Right column: header + mobile strip + content + footer */}
@@ -441,7 +454,11 @@ export function UserHelpDialog({
               />
             </div>
 
-            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+            <div
+              role="group"
+              aria-label="Help topics"
+              className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5"
+            >
               {filteredTopics.length === 0 ? (
                 <p className="py-1 text-xs text-muted-foreground/50 italic">
                   No results
@@ -467,6 +484,8 @@ export function UserHelpDialog({
                             hover:border-gold/25 hover:bg-gold/5
                           `,
                       )}
+                      aria-controls={topicPanelId}
+                      aria-pressed={isActive}
                     >
                       {Icon && <Icon className="size-3" />}
                       {t.title}
@@ -481,9 +500,13 @@ export function UserHelpDialog({
           <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto">
             {selectedTopic ? (
               <article
+                id={topicPanelId}
                 aria-label={selectedTopic.title}
                 key={selectedTopic.id}
-                className="animate-in p-6 duration-200 fade-in md:px-8"
+                className={cn(
+                  "p-6 md:px-8",
+                  !prefersSimplifiedMotion && "animate-in duration-200 fade-in",
+                )}
               >
                 <header className="mb-5">
                   <div className="flex items-center gap-3.5">

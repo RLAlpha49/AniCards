@@ -3,9 +3,29 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  getMotionSafeAnimation,
+  NO_MOTION_TRANSITION,
+  VIEWPORT_ONCE,
+} from "@/lib/animations";
 import { safeTrack, trackButtonClick } from "@/lib/utils/google-analytics";
 
 export function HomeCTA() {
+  const { prefersSimplifiedMotion } = useMotionPreferences();
+  const ctaContainer = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersSimplifiedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.08,
+  });
+  const ctaChild = buildFadeUpVariants({
+    reducedMotion: prefersSimplifiedMotion,
+    distance: 24,
+    duration: 0.7,
+  });
+
   const handleClick = () => {
     safeTrack(() => trackButtonClick("cta_create_cards", "homepage_cta"));
   };
@@ -19,48 +39,57 @@ export function HomeCTA() {
         " />
       </div>
 
-      <div className="relative z-10">
-        <div className="mb-8 gold-ornament">
+      <motion.div
+        className="relative z-10"
+        variants={ctaContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={VIEWPORT_ONCE}
+      >
+        <motion.div variants={ctaChild} className="mb-8 gold-ornament">
           <span className="text-xl text-gold">❖</span>
-        </div>
+        </motion.div>
+
+        <motion.h2
+          variants={ctaChild}
+          className="mb-5 font-display text-3xl text-gold sm:text-4xl lg:text-5xl"
+        >
+          READY TO BUILD YOURS?
+        </motion.h2>
+
+        <motion.p
+          variants={ctaChild}
+          className="mx-auto mb-10 max-w-md font-body-serif text-base text-foreground/40 sm:text-lg"
+        >
+          Numbers that look good enough to frame. Your stats deserve better than
+          a spreadsheet.
+        </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
+          variants={ctaChild}
+          className="inline-block"
+          whileHover={getMotionSafeAnimation(prefersSimplifiedMotion, {
+            scale: 1.04,
+            boxShadow: "0 0 40px hsl(42 63% 55% / 0.4)",
+          })}
+          whileTap={getMotionSafeAnimation(prefersSimplifiedMotion, {
+            scale: 0.97,
+          })}
+          transition={
+            prefersSimplifiedMotion
+              ? NO_MOTION_TRANSITION
+              : { type: "spring", stiffness: 400, damping: 20 }
+          }
         >
-          <h2 className="mb-5 font-display text-3xl text-gold sm:text-4xl lg:text-5xl">
-            READY TO BUILD YOURS?
-          </h2>
-
-          <p className="
-            mx-auto mb-10 max-w-md font-body-serif text-base text-foreground/40
-            sm:text-lg
-          ">
-            Numbers that look good enough to frame. Your stats deserve better
-            than a spreadsheet.
-          </p>
-
-          <motion.div
-            className="inline-block"
-            whileHover={{
-              scale: 1.04,
-              boxShadow: "0 0 40px hsl(42 63% 55% / 0.4)",
-            }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+          <Link
+            href="/search"
+            onClick={handleClick}
+            className="imperial-btn imperial-btn-fill"
           >
-            <Link
-              href="/search"
-              onClick={handleClick}
-              className="imperial-btn imperial-btn-fill"
-            >
-              ❖ Build Your Cards ❖
-            </Link>
-          </motion.div>
+            ❖ Build Your Cards ❖
+          </Link>
         </motion.div>
-      </div>
+      </motion.div>
     </section>
   );
 }

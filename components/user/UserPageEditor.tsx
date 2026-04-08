@@ -79,7 +79,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import { useUserPageDraftBackup } from "@/hooks/useUserPageDraftBackup";
+import {
+  getMotionSafeScrollBehavior,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
 import { statCardTypes } from "@/lib/card-types";
 import {
@@ -172,6 +177,7 @@ function UserPageEditorLoadingScreen(
   props: Readonly<{
     loadingPhase: LoadingPhase;
     expectedCardCount?: number;
+    prefersSimplifiedMotion: boolean;
   }>,
 ) {
   const loadingMessage = useMemo(() => {
@@ -190,8 +196,13 @@ function UserPageEditorLoadingScreen(
       relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
     ">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={
+          props.prefersSimplifiedMotion ? false : { opacity: 0, scale: 0.95 }
+        }
         animate={{ opacity: 1, scale: 1 }}
+        transition={
+          props.prefersSimplifiedMotion ? NO_MOTION_TRANSITION : undefined
+        }
         className="flex flex-col items-center gap-6"
       >
         {isSettingUp ? (
@@ -206,8 +217,16 @@ function UserPageEditorLoadingScreen(
               </div>
               <motion.div
                 className="absolute -inset-1 rounded-full border-2 border-gold/50"
-                animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
+                animate={
+                  props.prefersSimplifiedMotion
+                    ? undefined
+                    : { scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }
+                }
+                transition={
+                  props.prefersSimplifiedMotion
+                    ? undefined
+                    : { duration: 1.5, repeat: Infinity }
+                }
               />
             </div>
             <div className="text-center">
@@ -233,6 +252,7 @@ function UserPageEditorErrorScreen(
     loadError: string;
     canRetry?: boolean;
     onRetry?: () => void;
+    prefersSimplifiedMotion: boolean;
   }>,
 ) {
   return (
@@ -240,8 +260,13 @@ function UserPageEditorErrorScreen(
       relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
     ">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={
+          props.prefersSimplifiedMotion ? false : { opacity: 0, scale: 0.95 }
+        }
         animate={{ opacity: 1, scale: 1 }}
+        transition={
+          props.prefersSimplifiedMotion ? NO_MOTION_TRANSITION : undefined
+        }
         className="w-full max-w-md"
       >
         <div className="
@@ -449,6 +474,7 @@ export function useDebouncedEditorUrlSync(opts: {
 
 function useUserPageEditorCommandPalette(opts: {
   userId: string | null;
+  scrollBehavior: ScrollBehavior;
   visibility: VisibilityFilter;
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
   searchRef: React.RefObject<HTMLInputElement | null>;
@@ -471,6 +497,7 @@ function useUserPageEditorCommandPalette(opts: {
 } {
   const {
     userId,
+    scrollBehavior,
     visibility,
     setVisibility,
     searchRef,
@@ -675,7 +702,7 @@ function useUserPageEditorCommandPalette(opts: {
         group: "editor",
         icon: <ArrowUp className="size-4" aria-hidden="true" />,
         run: () => {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          window.scrollTo({ top: 0, behavior: scrollBehavior });
         },
       },
     ],
@@ -693,6 +720,7 @@ function useUserPageEditorCommandPalette(opts: {
       toggleVisibilityFilter,
       selectAllEnabled,
       deselectAll,
+      scrollBehavior,
       toggleTheme,
       expandAll,
       collapseAll,
@@ -1262,6 +1290,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
       overId: string;
       scopeIds?: readonly string[];
     }) => void;
+    prefersSimplifiedMotion: boolean;
     setQuery: (value: string) => void;
     setVisibility: (value: VisibilityFilter) => void;
     visibleGroupNames: readonly string[];
@@ -1331,9 +1360,15 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
           return (
             <motion.div
               key={groupName}
-              initial={{ opacity: 0, y: 14 }}
+              initial={
+                props.prefersSimplifiedMotion ? false : { opacity: 0, y: 14 }
+              }
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(index * 0.04, 0.25) }}
+              transition={
+                props.prefersSimplifiedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { delay: Math.min(index * 0.04, 0.25) }
+              }
             >
               <CardCategorySection
                 title={groupName}
@@ -1378,6 +1413,15 @@ export function UserPageEditor({
 }>) {
   const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();
+  const { prefersReducedMotion, prefersReducedData, prefersSimplifiedMotion } =
+    useMotionPreferences();
+  const scrollBehavior = useMemo(
+    () =>
+      getMotionSafeScrollBehavior(prefersReducedMotion, {
+        reducedData: prefersReducedData,
+      }),
+    [prefersReducedData, prefersReducedMotion],
+  );
   const {
     userId,
     username,
@@ -1743,6 +1787,7 @@ export function UserPageEditor({
   const { recentActionsStorageKey, commandPaletteCommands } =
     useUserPageEditorCommandPalette({
       userId,
+      scrollBehavior,
       visibility,
       setVisibility,
       searchRef,
@@ -1870,6 +1915,7 @@ export function UserPageEditor({
       <UserPageEditorLoadingScreen
         loadingPhase={loadingPhase}
         expectedCardCount={expectedCardCount}
+        prefersSimplifiedMotion={prefersSimplifiedMotion}
       />
     );
   }
@@ -1879,6 +1925,7 @@ export function UserPageEditor({
       <UserPageEditorErrorScreen
         loadError={loadError}
         canRetry={canRetryLoadInPlace}
+        prefersSimplifiedMotion={prefersSimplifiedMotion}
         onRetry={() => {
           void reload();
         }}
@@ -1942,9 +1989,13 @@ export function UserPageEditor({
             className="mx-auto w-full max-w-full space-y-6 lg:max-w-[80vw]"
           >
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={prefersSimplifiedMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
+              transition={
+                prefersSimplifiedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { duration: 0.4, ease: "easeOut" }
+              }
               className="space-y-3"
             >
               <div className="mb-4 gold-ornament text-xs tracking-[0.3em] text-gold/50 uppercase">
@@ -2959,6 +3010,7 @@ export function UserPageEditor({
               isCardEnabled={isCardEnabled}
               isReorderMode={isReorderMode}
               layoutVersion={layoutVersion}
+              prefersSimplifiedMotion={prefersSimplifiedMotion}
               renderCardTile={renderCardTile}
               reorderCardsInScope={reorderCardsInScope}
               setQuery={setQuery}
