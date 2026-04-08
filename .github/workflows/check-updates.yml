@@ -27,13 +27,24 @@ jobs:
       pull-requests: write
     env:
       PR_BRANCH: deps/update-packages
-      GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
 
     steps:
+      - name: Require PULL_REQUEST_TOKEN for downstream workflow enforcement
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+        run: |
+          if [ -z "$PULL_REQUEST_TOKEN" ]; then
+            echo "::error::PULL_REQUEST_TOKEN is required for dependency update branch and PR automation because GITHUB_TOKEN-originated pushes can suppress downstream CI and security workflows."
+            exit 1
+          fi
+
+          printf '%s\n' "Dependency updater will use PULL_REQUEST_TOKEN so downstream push and pull_request workflows can run normally." >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PULL_REQUEST_TOKEN }}
 
       - name: Cache Bun deps & node_modules
         uses: actions/cache@v4
