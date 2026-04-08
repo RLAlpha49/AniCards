@@ -6,8 +6,17 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingOverlay } from "@/components/LoadingSpinner";
 import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { SearchHeroSection } from "@/components/search/SearchHeroSection";
+import type { SearchLookupMode } from "@/lib/seo";
 
-export default function SearchHeroShell() {
+interface SearchHeroShellProps {
+  initialSearchMode: SearchLookupMode;
+  initialSearchValue: string;
+}
+
+export default function SearchHeroShell({
+  initialSearchMode,
+  initialSearchValue,
+}: Readonly<SearchHeroShellProps>) {
   const [loading, setLoading] = useState(false);
 
   return (
@@ -18,7 +27,11 @@ export default function SearchHeroShell() {
       {loading && <LoadingOverlay text="Tracking down that profile..." />}
 
       <SectionReveal>
-        <SearchHeroSection onLoadingChange={setLoading} />
+        <SearchHeroSection
+          initialSearchMode={initialSearchMode}
+          initialSearchValue={initialSearchValue}
+          onLoadingChange={setLoading}
+        />
       </SectionReveal>
     </ErrorBoundary>
   );

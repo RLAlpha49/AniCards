@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
 const CACHE_CONTROL = "public, s-maxage=3600, stale-while-revalidate=600";
-const SITEMAP_PATHS = ["/", "/search", "/examples", "/projects", "/contact"];
+const SITEMAP_PATHS = [
+  "/",
+  "/search",
+  "/examples",
+  "/projects",
+  "/privacy",
+  "/contact",
+];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
 
 async function getSitemap(siteUrl?: string) {
@@ -43,6 +50,7 @@ describe("sitemap.xml route", () => {
 
     expect(xml).not.toContain("<lastmod>");
     expect(xml).not.toContain(`${DEFAULT_BASE_URL}/user`);
+    expect(xml).not.toContain(`${DEFAULT_BASE_URL}/search?mode=userId`);
   });
 
   it("uses NEXT_PUBLIC_SITE_URL when provided", async () => {

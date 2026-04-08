@@ -3,23 +3,21 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
 import { normalizePositiveIntegerString } from "@/lib/api/primitives";
-import { getUserProfilePath } from "@/lib/seo";
+import type { SearchLookupMode } from "@/lib/seo";
+import { getSearchPagePath, getUserProfilePath } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import {
   safeTrack,
   trackFormSubmission,
   trackNavigation,
 } from "@/lib/utils/google-analytics";
-
-/** Supported lookup modes for the search form. @source */
-type SearchMethod = "username" | "userid";
 
 function scheduleAfterPaint(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
@@ -42,6 +40,10 @@ function normalizeAniListUserId(value: string): string | null {
  * @source
  */
 interface SearchFormProps {
+  /** Initial lookup mode derived from the current search page URL. */
+  initialSearchMode?: SearchLookupMode;
+  /** Initial search value derived from the current search page URL. */
+  initialSearchValue?: string;
   /** Callback when loading state changes. */
   onLoadingChange?: (loading: boolean) => void;
 }
@@ -52,16 +54,21 @@ interface SearchFormProps {
  * @returns The search form element.
  * @source
  */
-export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
+export function SearchForm({
+  initialSearchMode = "username",
+  initialSearchValue = "",
+  onLoadingChange,
+}: Readonly<SearchFormProps>) {
   const router = useRouter();
   const baseId = useId();
-  const [searchMethod, setSearchMethod] = useState<SearchMethod>("username");
-  const [searchValue, setSearchValue] = useState("");
+  const [searchMethod, setSearchMethod] =
+    useState<SearchLookupMode>(initialSearchMode);
+  const [searchValue, setSearchValue] = useState(initialSearchValue);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [modeAnnouncement, setModeAnnouncement] = useState("");
 
-  const isUserIdMode = searchMethod === "userid";
+  const isUserIdMode = searchMethod === "userId";
   const inputId = `${baseId}-search-value`;
   const inputHintId = `${baseId}-search-hint`;
   const errorId = `${baseId}-search-error`;
@@ -73,20 +80,39 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
   const inputPlaceholder = isUserIdMode ? "e.g., 542244" : "e.g., Alpha49";
   const inputDescribedBy = error ? `${inputHintId} ${errorId}` : inputHintId;
 
+  useEffect(() => {
+    setSearchMethod(initialSearchMode);
+  }, [initialSearchMode]);
+
+  useEffect(() => {
+    setSearchValue(initialSearchValue);
+  }, [initialSearchValue]);
+
   const updateSearchMethod = useCallback(
-    (nextMethod: SearchMethod) => {
+    (nextMethod: SearchLookupMode) => {
       if (nextMethod !== searchMethod) {
         setModeAnnouncement(
           nextMethod === "username"
             ? "Search mode changed to AniList username."
             : "Search mode changed to AniList user ID.",
         );
+
+        const nextSearchPagePath = getSearchPagePath({
+          mode: nextMethod,
+          query: searchValue,
+          includeDefaultMode:
+            nextMethod !== "username" || Boolean(searchValue.trim()),
+        });
+
+        void Promise.resolve(router.replace(nextSearchPagePath)).catch(() => {
+          return undefined;
+        });
       }
 
       setSearchMethod(nextMethod);
       setError("");
     },
-    [searchMethod],
+    [router, searchMethod, searchValue],
   );
 
   /**
@@ -272,9 +298,9 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   id={userIdRadioId}
                   type="radio"
                   name={searchMethodName}
-                  value="userid"
-                  checked={searchMethod === "userid"}
-                  onChange={() => updateSearchMethod("userid")}
+                  value="userId"
+                  checked={searchMethod === "userId"}
+                  onChange={() => updateSearchMethod("userId")}
                   className="peer sr-only"
                 />
                 <span
@@ -285,7 +311,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                       peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
                       peer-focus-visible:outline-gold
                     `,
-                    searchMethod === "userid"
+                    searchMethod === "userId"
                       ? "text-gold"
                       : "text-foreground/40 hover:text-foreground/60",
                   )}

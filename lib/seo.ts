@@ -34,11 +34,15 @@ interface SEOConfig {
 
 export type SEOPageKey = keyof typeof seoConfigs;
 export type SearchParamValue = string | string[] | undefined;
+export type SearchLookupMode = "username" | "userId";
 export type StaticSitemapChangeFrequency =
   | "daily"
   | "weekly"
   | "monthly"
   | "yearly";
+
+export const SEARCH_PAGE_MODE_PARAM = "mode";
+export const SEARCH_PAGE_QUERY_PARAM = "query";
 
 const DEFAULT_ROBOTS: Metadata["robots"] = {
   index: true,
@@ -73,6 +77,8 @@ const DEFAULT_SOCIAL_PREVIEW_CARD_QUERY = {
 
 const SOCIAL_PREVIEW_IMAGE_PATH = "/card.png";
 const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
+const DEFAULT_SEARCH_LOOKUP_MODE: SearchLookupMode = "username";
+const SEARCH_LOOKUP_MODE_USER_ID_ALIASES = new Set(["userid", "user-id"]);
 
 function resolveSocialPreviewImages(images?: readonly string[]): string[] {
   const normalizedImages = (
@@ -155,6 +161,43 @@ function getSearchParamValue(value: SearchParamValue): string | undefined {
   const trimmedValue = normalizedValue?.trim();
 
   return trimmedValue || undefined;
+}
+
+export function getSearchLookupMode(value: SearchParamValue): SearchLookupMode {
+  const normalizedValue = getSearchParamValue(value)?.toLowerCase();
+
+  return normalizedValue &&
+    SEARCH_LOOKUP_MODE_USER_ID_ALIASES.has(normalizedValue)
+    ? "userId"
+    : DEFAULT_SEARCH_LOOKUP_MODE;
+}
+
+export function getSearchPagePrefillQuery(value: SearchParamValue): string {
+  return getSearchParamValue(value) ?? "";
+}
+
+export function getSearchPagePath(
+  options: {
+    mode?: SearchParamValue;
+    query?: SearchParamValue;
+    includeDefaultMode?: boolean;
+  } = {},
+): string {
+  const mode = getSearchLookupMode(options.mode);
+  const query = getSearchParamValue(options.query);
+  const searchParams = new URLSearchParams();
+
+  if (options.includeDefaultMode || mode !== DEFAULT_SEARCH_LOOKUP_MODE) {
+    searchParams.set(SEARCH_PAGE_MODE_PARAM, mode);
+  }
+
+  if (query) {
+    searchParams.set(SEARCH_PAGE_QUERY_PARAM, query);
+  }
+
+  const search = searchParams.toString();
+
+  return search ? `/search?${search}` : "/search";
 }
 
 /**
@@ -265,10 +308,13 @@ export const seoConfigs = {
   search: {
     title: "Search AniList Users - AniCards",
     description:
-      "Search for any AniList user to generate their personalized anime and manga stat cards. Enter a username to view detailed statistics and create shareable cards.",
+      "Search for any AniList user by username or numeric user ID to open their public profile, review detailed statistics, and generate shareable anime and manga stat cards.",
     keywords: [
       "anilist user search",
+      "anilist username search",
+      "anilist user id search",
       "find anilist profile",
+      "search anilist by id",
       "anime user stats",
       "manga user stats",
       "anilist lookup",

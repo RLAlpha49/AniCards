@@ -16,6 +16,7 @@ import { Window } from "happy-dom";
 import type { ComponentProps, ReactNode } from "react";
 
 const routerPush = mock((href: string) => Promise.resolve(href));
+const routerReplace = mock((href: string) => Promise.resolve(href));
 const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
 const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
   .gtag;
@@ -32,6 +33,7 @@ let SearchForm: typeof import("@/components/search/SearchForm").SearchForm;
 type NextNavigationState = {
   pathname: string;
   routerPush: (href: string) => unknown;
+  routerReplace: (href: string) => unknown;
   searchParams: URLSearchParams;
 };
 
@@ -47,6 +49,7 @@ function getNextNavigationState(): NextNavigationState {
   return {
     pathname: "/",
     routerPush: () => Promise.resolve(undefined),
+    routerReplace: () => Promise.resolve(undefined),
     searchParams: new URLSearchParams(),
   };
 }
@@ -76,6 +79,7 @@ mock.module("next/navigation", () => ({
   usePathname: () => getNextNavigationState().pathname,
   useRouter: () => ({
     push: (href: string) => getNextNavigationState().routerPush(href),
+    replace: (href: string) => getNextNavigationState().routerReplace(href),
   }),
   useSearchParams: () => getNextNavigationState().searchParams,
 }));
@@ -273,6 +277,7 @@ describe("SearchForm", () => {
     );
     process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
     routerPush.mockClear();
+    routerReplace.mockClear();
     gtagMock.mockClear();
     Object.defineProperty(globalThis, "gtag", {
       configurable: true,
@@ -293,6 +298,7 @@ describe("SearchForm", () => {
 
         return result;
       },
+      routerReplace: (href: string) => routerReplace(href),
       searchParams: new URLSearchParams(),
     } satisfies NextNavigationState;
   });
@@ -364,6 +370,19 @@ describe("SearchForm", () => {
     expect(view.getByRole("status").textContent).toContain(
       "Search mode changed to AniList user ID.",
     );
+    expect(routerReplace.mock.calls).toEqual([["/search?mode=userId"]]);
+  });
+
+  it("honors the search page mode and query contract from server props", () => {
+    const view = render(
+      <SearchForm initialSearchMode="userId" initialSearchValue="542244" />,
+    );
+    const userIdInput = view.getByLabelText(
+      "AniList User ID",
+    ) as HTMLInputElement;
+
+    expect(userIdInput.value).toBe("542244");
+    expect(view.queryByLabelText("AniList Username")).toBeNull();
   });
 
   it("keeps malformed AniList IDs in the search UI instead of routing away", async () => {

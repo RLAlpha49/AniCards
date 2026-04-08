@@ -5,6 +5,8 @@ import {
   buildUserSocialPreviewImage,
   generateMetadata,
   getDefaultSocialPreviewImage,
+  getSearchLookupMode,
+  getSearchPagePath,
   getUserPageSEOConfig,
   seoConfigs,
 } from "@/lib/seo";
@@ -111,6 +113,31 @@ describe("SEO metadata helpers", () => {
 
     expect(metadata.alternates).toBeUndefined();
     expect(openGraph?.url).toBe(resolveSiteUrl("/"));
+  });
+
+  it("keeps /search canonical while describing both username and user ID discovery", () => {
+    const metadata = generateMetadata(seoConfigs.search);
+    const openGraph = getOpenGraphMetadata(metadata);
+
+    expect(metadata.alternates?.canonical).toBe("/search");
+    expect(metadata.description).toContain("username or numeric user ID");
+    expect(openGraph?.url).toBe(resolveSiteUrl("/search"));
+  });
+
+  it("normalizes the public /search mode contract and omits the default mode when possible", () => {
+    expect(getSearchLookupMode(" user-id ")).toBe("userId");
+    expect(getSearchLookupMode("userid")).toBe("userId");
+    expect(getSearchLookupMode("username")).toBe("username");
+
+    expect(getSearchPagePath()).toBe("/search");
+    expect(getSearchPagePath({ mode: "userId" })).toBe("/search?mode=userId");
+    expect(
+      getSearchPagePath({
+        mode: "username",
+        query: "Alpha49",
+        includeDefaultMode: true,
+      }),
+    ).toBe("/search?mode=username&query=Alpha49");
   });
 
   it("keeps the privacy disclosure publicly canonical and indexable", () => {

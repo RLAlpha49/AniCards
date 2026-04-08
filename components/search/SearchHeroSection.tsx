@@ -6,14 +6,19 @@ import {
   buildFadeUpVariants,
   buildMotionSafeStaggerContainer,
 } from "@/lib/animations";
+import type { SearchLookupMode } from "@/lib/seo";
 
 import { SearchForm } from "./SearchForm";
 
 interface SearchHeroSectionProps {
+  initialSearchMode: SearchLookupMode;
+  initialSearchValue: string;
   onLoadingChange: (loading: boolean) => void;
 }
 
 export function SearchHeroSection({
+  initialSearchMode,
+  initialSearchValue,
   onLoadingChange,
 }: Readonly<SearchHeroSectionProps>) {
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -199,7 +204,11 @@ export function SearchHeroSection({
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <SearchForm onLoadingChange={onLoadingChange} />
+          <SearchForm
+            initialSearchMode={initialSearchMode}
+            initialSearchValue={initialSearchValue}
+            onLoadingChange={onLoadingChange}
+          />
         </motion.div>
       </motion.div>
     </section>
