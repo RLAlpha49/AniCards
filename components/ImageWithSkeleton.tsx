@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -35,9 +35,17 @@ type ImageDimensions = {
   height: number;
 };
 
+type ImageRenderState = {
+  loadState: ImageLoadState;
+  naturalDimensions: ImageDimensions | null;
+};
+
 export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
 
 export const SLOW_LOAD_THRESHOLD_MS = 2000;
+
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function isImageReady(
   imageElement: HTMLImageElement | null,
@@ -69,6 +77,25 @@ export function getImageLoadState({
   return "loading";
 }
 
+function getKnownDimensions(
+  width: number | undefined,
+  height: number | undefined,
+): ImageDimensions | null {
+  if (
+    typeof width !== "number" ||
+    width <= 0 ||
+    typeof height !== "number" ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    width,
+    height,
+  };
+}
+
 function getImageDimensions(
   imageElement: HTMLImageElement | null,
 ): ImageDimensions | null {
@@ -83,6 +110,42 @@ function getImageDimensions(
   return {
     width: imageElement.naturalWidth,
     height: imageElement.naturalHeight,
+  };
+}
+
+function areImageDimensionsEqual(
+  current: ImageDimensions | null,
+  next: ImageDimensions | null,
+): boolean {
+  return current?.width === next?.width && current?.height === next?.height;
+}
+
+function areImageRenderStatesEqual(
+  current: ImageRenderState,
+  next: ImageRenderState,
+): boolean {
+  return (
+    current.loadState === next.loadState &&
+    areImageDimensionsEqual(current.naturalDimensions, next.naturalDimensions)
+  );
+}
+
+function getLoadingImageState(): ImageRenderState {
+  return {
+    loadState: "loading",
+    naturalDimensions: null,
+  };
+}
+
+function getLoadedImageState(
+  imageElement: HTMLImageElement | null,
+  knownDimensions: ImageDimensions | null,
+): ImageRenderState {
+  return {
+    loadState: "loaded",
+    naturalDimensions: knownDimensions
+      ? null
+      : getImageDimensions(imageElement),
   };
 }
 
@@ -126,71 +189,53 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   fixedDimensions = false,
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
-  const [loadedDimensions, setLoadedDimensions] =
-    useState<ImageDimensions | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isSlowLoading, setIsSlowLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const knownDimensions =
-    typeof width === "number" &&
-    width > 0 &&
-    typeof height === "number" &&
-    height > 0
-      ? { width, height }
-      : null;
-  const imageDimensions = knownDimensions ?? loadedDimensions;
+  const [imageState, setImageState] = useState<ImageRenderState>(() =>
+    getLoadingImageState(),
+  );
+  const knownDimensions = getKnownDimensions(width, height);
+  const imageDimensions = knownDimensions ?? imageState.naturalDimensions;
 
-  useEffect(() => {
-    setLoadedDimensions(null);
-    setIsLoaded(false);
-    setIsSlowLoading(false);
-    setHasError(false);
-
+  useIsomorphicLayoutEffect(() => {
     const readyImage = imgRef.current;
-    if (!isImageReady(readyImage)) {
+
+    if (isImageReady(readyImage)) {
+      const loadedState = getLoadedImageState(readyImage, knownDimensions);
+      setImageState((current) =>
+        areImageRenderStatesEqual(current, loadedState) ? current : loadedState,
+      );
       return;
     }
 
-    if (!knownDimensions) {
-      const naturalDimensions = getImageDimensions(readyImage);
-      if (naturalDimensions) {
-        setLoadedDimensions(naturalDimensions);
-      }
-    }
+    const loadingState = getLoadingImageState();
+    setImageState((current) =>
+      areImageRenderStatesEqual(current, loadingState) ? current : loadingState,
+    );
 
-    setIsLoaded(true);
-  }, [height, src, width]);
-
-  useEffect(() => {
-    if (isLoaded || hasError) {
-      setIsSlowLoading(false);
-      return;
-    }
-
-    const slowLoadingTimer = setTimeout(() => {
-      setIsSlowLoading(true);
+    const slowLoadingTimer = window.setTimeout(() => {
+      setImageState((current) =>
+        current.loadState === "loading"
+          ? { ...current, loadState: "slow" }
+          : current,
+      );
     }, SLOW_LOAD_THRESHOLD_MS);
 
-    return () => clearTimeout(slowLoadingTimer);
-  }, [hasError, isLoaded, src]);
+    return () => window.clearTimeout(slowLoadingTimer);
+  }, [height, src, width]);
 
   const onImageLoad = () => {
-    if (!knownDimensions) {
-      const naturalDimensions = getImageDimensions(imgRef.current);
-      if (naturalDimensions) {
-        setLoadedDimensions(naturalDimensions);
-      }
-    }
+    const loadedState = getLoadedImageState(imgRef.current, knownDimensions);
 
-    setHasError(false);
-    setIsLoaded(true);
-    setIsSlowLoading(false);
+    setImageState((current) =>
+      areImageRenderStatesEqual(current, loadedState) ? current : loadedState,
+    );
   };
 
   const onImageError = () => {
-    setHasError(true);
-    setIsLoaded(false);
-    setIsSlowLoading(false);
+    setImageState((current) =>
+      current.loadState === "error"
+        ? current
+        : { ...current, loadState: "error" },
+    );
   };
 
   const aspectRatio = imageDimensions
@@ -205,21 +250,18 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     fixedDimensions,
   );
 
-  const showSkeleton = !hasError && !isLoaded;
-  const showImage = isLoaded;
-
-  const imageState = getImageLoadState({
-    isLoaded,
-    isSlowLoading,
-    hasError,
-  });
+  const showSkeleton =
+    imageState.loadState === "loading" || imageState.loadState === "slow";
+  const showImage = imageState.loadState === "loaded";
 
   return (
     <div
       className={`relative w-full ${containerClassName ?? ""}`}
       style={containerStyle}
-      data-image-state={imageState}
-      aria-busy={imageState === "loading" || imageState === "slow"}
+      data-image-state={imageState.loadState}
+      aria-busy={
+        imageState.loadState === "loading" || imageState.loadState === "slow"
+      }
     >
       {showSkeleton && (
         <Skeleton
@@ -247,7 +289,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         onLoad={onImageLoad}
         onError={onImageError}
       />
-      {hasError && (
+      {imageState.loadState === "error" && (
         <div className="
           absolute inset-0 flex items-center justify-center bg-gray-100
           dark:bg-gray-800

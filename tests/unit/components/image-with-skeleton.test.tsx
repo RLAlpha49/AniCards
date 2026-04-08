@@ -25,6 +25,19 @@ installHappyDom();
 
 const { cleanup, fireEvent, render } = await import("@testing-library/react");
 
+function restorePrototypeProperty(
+  target: object,
+  property: string,
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+    return;
+  }
+
+  Reflect.deleteProperty(target, property);
+}
+
 beforeEach(() => {
   resetHappyDom();
 });
@@ -154,5 +167,66 @@ describe("ImageWithSkeleton", () => {
     expect(wrapper.getAttribute("data-image-state")).toBe("loaded");
     expect(image.className).toMatch(/opacity-100/);
     expect(wrapper.querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("treats cached images as loaded without waiting for a delayed settle", () => {
+    const imagePrototype = Object.getPrototypeOf(
+      globalThis.document.createElement("img"),
+    );
+    const completeDescriptor = Object.getOwnPropertyDescriptor(
+      imagePrototype,
+      "complete",
+    );
+    const naturalWidthDescriptor = Object.getOwnPropertyDescriptor(
+      imagePrototype,
+      "naturalWidth",
+    );
+
+    Object.defineProperty(imagePrototype, "complete", {
+      configurable: true,
+      get() {
+        return this.getAttribute("src") === "/cached-preview.svg";
+      },
+    });
+
+    Object.defineProperty(imagePrototype, "naturalWidth", {
+      configurable: true,
+      get() {
+        return this.getAttribute("src") === "/cached-preview.svg" ? 450 : 0;
+      },
+    });
+
+    try {
+      const { container } = render(
+        <ImageWithSkeleton
+          src="/cached-preview.svg"
+          alt="Cached preview card"
+          className="h-auto w-full"
+          width={450}
+          height={195}
+        />,
+      );
+
+      const wrapper = container.querySelector("[data-image-state]");
+      const image = container.querySelector("img");
+
+      if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
+        throw new Error(
+          "Expected cached ImageWithSkeleton to render an image element.",
+        );
+      }
+
+      expect(wrapper?.getAttribute("data-image-state")).toBe("loaded");
+      expect(wrapper?.getAttribute("aria-busy")).toBe("false");
+      expect(image.className).toMatch(/opacity-100/);
+      expect(wrapper?.querySelector(".animate-pulse")).toBeNull();
+    } finally {
+      restorePrototypeProperty(imagePrototype, "complete", completeDescriptor);
+      restorePrototypeProperty(
+        imagePrototype,
+        "naturalWidth",
+        naturalWidthDescriptor,
+      );
+    }
   });
 });
