@@ -291,8 +291,9 @@ export default function HeaderClient() {
               type="button"
               data-mobile-menu-toggle="true"
               className="
-                flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/20
-                bg-background/70 text-foreground/60 transition-colors
+                flex size-11 shrink-0 touch-manipulation-safe items-center justify-center
+                rounded-full border border-gold/20 bg-background/70 text-foreground/60
+                transition-colors
                 hover:border-gold/35 hover:text-gold
                 focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
                 md:hidden
