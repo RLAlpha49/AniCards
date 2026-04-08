@@ -174,7 +174,7 @@ export function ExamplesHeroSection({
           spread across{" "}
           <span className="font-semibold text-foreground/70">
             {categoryCount} categories
-          </span>
+          </span>{" "}
           — all pulled live from{" "}
           <a
             href="https://anilist.co/user/Alpha49"
