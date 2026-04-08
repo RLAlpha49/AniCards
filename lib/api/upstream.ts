@@ -55,6 +55,11 @@ const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const UPSTREAM_CIRCUIT_KEY_PREFIX = "upstream:circuit";
+export const ANILIST_GRAPHQL_URL = "https://graphql.anilist.co";
+export const ANILIST_GRAPHQL_CIRCUIT_BREAKER = {
+  key: "anilist-graphql",
+  degradedModeEnvVar: "ANILIST_UPSTREAM_DEGRADED_MODE",
+} as const;
 const RETRYABLE_UPSTREAM_ERROR_CODES = new Set([
   "ECONNABORTED",
   "ECONNREFUSED",
@@ -184,6 +189,57 @@ function isAbortErrorLike(error: unknown): boolean {
   return error instanceof Error
     ? error.name === "AbortError" || error.name === "TimeoutError"
     : false;
+}
+
+function getAniListDevelopmentTestStatusHeader(
+  request?: Pick<Request, "headers">,
+): string | null {
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
+
+  const testStatusHeader = request?.headers.get("X-Test-Status")?.trim();
+  return testStatusHeader && testStatusHeader.length > 0
+    ? testStatusHeader
+    : null;
+}
+
+export function buildAniListGraphQlHeaders(
+  request?: Pick<Request, "headers">,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+
+  const anilistToken = process.env.ANILIST_TOKEN?.trim();
+  if (anilistToken) {
+    headers.Authorization = `Bearer ${anilistToken}`;
+  }
+
+  const testStatusHeader = getAniListDevelopmentTestStatusHeader(request);
+  if (testStatusHeader) {
+    headers["X-Test-Status"] = testStatusHeader;
+  }
+
+  return headers;
+}
+
+export function buildAniListGraphQlRequestInit(options: {
+  query: string;
+  request?: Pick<Request, "headers">;
+  signal?: AbortSignal;
+  variables?: Record<string, unknown>;
+}): RequestInit {
+  return {
+    method: "POST",
+    headers: buildAniListGraphQlHeaders(options.request),
+    body: JSON.stringify({
+      query: options.query,
+      variables: options.variables,
+    }),
+    ...(options.signal ? { signal: options.signal } : {}),
+  };
 }
 
 function iterateErrorChain(error: unknown): unknown[] {
@@ -366,6 +422,22 @@ function secretsMatchConstantTime(
   );
 
   return timingSafeEqual(expectedHash, providedHash);
+}
+
+function extractBearerToken(
+  authorizationHeader: string | null | undefined,
+): string | null {
+  if (!authorizationHeader) {
+    return null;
+  }
+
+  const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader.trim());
+  if (!match) {
+    return null;
+  }
+
+  const token = match[1]?.trim();
+  return token && token.length > 0 ? token : null;
 }
 
 function createAbortContext(
@@ -963,7 +1035,8 @@ function shouldAllowUnsecuredCronInDevelopment(): boolean {
  * Verifies the cron secret for internal maintenance routes.
  *
  * Local development can opt into unsecured cron calls with `ALLOW_UNSECURED_CRON_IN_DEV`,
- * but production stays fail-closed when the shared secret is missing or wrong.
+ * while hosted schedulers such as Vercel send `Authorization: Bearer <CRON_SECRET>` and
+ * local/manual callers can continue using `x-cron-secret`.
  */
 export function authorizeCronRequest(
   request: Request,
@@ -971,6 +1044,9 @@ export function authorizeCronRequest(
 ): Response | null {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const cronSecretHeader = request.headers.get("x-cron-secret")?.trim();
+  const authorizationBearerToken = extractBearerToken(
+    request.headers.get("authorization"),
+  );
 
   if (!cronSecret) {
     if (shouldAllowUnsecuredCronInDevelopment()) {
@@ -994,7 +1070,10 @@ export function authorizeCronRequest(
     return apiErrorResponse(request, 503, "CRON_SECRET is not configured");
   }
 
-  if (!secretsMatchConstantTime(cronSecret, cronSecretHeader)) {
+  if (
+    !secretsMatchConstantTime(cronSecret, cronSecretHeader) &&
+    !secretsMatchConstantTime(cronSecret, authorizationBearerToken)
+  ) {
     logPrivacySafe(
       "error",
       endpointName,

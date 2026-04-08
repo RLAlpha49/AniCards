@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
+  ANILIST_GRAPHQL_CIRCUIT_BREAKER,
+  ANILIST_GRAPHQL_URL,
+  buildAniListGraphQlRequestInit,
+} from "@/lib/api/upstream";
+import {
   apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
@@ -340,33 +345,15 @@ async function makeAniListRequest(
   requestData: ResolvedAniListRequest,
   request: Request,
 ): Promise<unknown> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-  const anilistToken = process.env.ANILIST_TOKEN?.trim();
-  if (anilistToken) {
-    headers.Authorization = `Bearer ${anilistToken}`;
-  }
-  if (process.env.NODE_ENV === "development") {
-    headers["X-Test-Status"] = request.headers.get("X-Test-Status") || "";
-  }
-
   const response = await fetchUpstreamWithRetry({
     service: "AniList GraphQL",
-    url: "https://graphql.anilist.co",
-    init: {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        query: requestData.query,
-        variables: requestData.variables,
-      }),
-    },
-    circuitBreaker: {
-      key: "anilist-graphql",
-      degradedModeEnvVar: "ANILIST_UPSTREAM_DEGRADED_MODE",
-    },
+    url: ANILIST_GRAPHQL_URL,
+    init: buildAniListGraphQlRequestInit({
+      query: requestData.query,
+      request,
+      variables: requestData.variables,
+    }),
+    circuitBreaker: ANILIST_GRAPHQL_CIRCUIT_BREAKER,
   });
 
   const rateLimitLimit = response.headers.get("X-RateLimit-Limit");

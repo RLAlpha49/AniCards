@@ -18,8 +18,10 @@ const BASE_URL = "http://localhost/api/cron/analytics-reporting";
 function createCronRequest(
   secret: string | null = CRON_SECRET,
   options?: {
+    headers?: Record<string, string>;
     method?: "GET" | "POST";
     searchParams?: Record<string, string>;
+    useAuthorizationHeader?: boolean;
   },
 ): Request {
   const url = new URL(BASE_URL);
@@ -27,9 +29,19 @@ function createCronRequest(
     url.searchParams.set(key, value);
   });
 
+  const headers = new Headers(options?.headers);
+
+  if (secret) {
+    if (options?.useAuthorizationHeader) {
+      headers.set("authorization", `Bearer ${secret}`);
+    } else {
+      headers.set("x-cron-secret", secret);
+    }
+  }
+
   return new Request(url, {
     method: options?.method ?? "POST",
-    headers: secret ? { "x-cron-secret": secret } : {},
+    headers,
   });
 }
 
@@ -133,6 +145,18 @@ describe("Analytics & Reporting Cron API", () => {
       401,
       "Unauthorized",
     );
+  });
+
+  it("accepts Vercel-style Authorization bearer cron secrets", async () => {
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const report = await expectSuccessfulReport(
+      await POST(
+        createCronRequest(CRON_SECRET, { useAuthorizationHeader: true }),
+      ),
+    );
+
+    expect(report.summary.visits).toBe(100);
   });
 
   it("fails closed when CRON_SECRET is missing", async () => {
