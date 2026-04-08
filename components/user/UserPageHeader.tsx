@@ -399,7 +399,10 @@ export function UserPageHeader({
                       </span>
                       <span
                         title={username}
-                        className="mt-3 block max-w-full font-display wrap-break-word"
+                        className="
+                          mt-3 block max-w-full font-display wrap-anywhere
+                          sm:wrap-break-word
+                        "
                       >
                         {username}
                       </span>
