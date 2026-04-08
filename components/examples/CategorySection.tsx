@@ -130,17 +130,17 @@ export function CategorySection({
               </h2>
             </div>
 
-            <div className="ml-11 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <p className="max-w-md font-body-serif text-sm/relaxed text-foreground/35">
-                {CATEGORY_DESCRIPTIONS[category]}
-              </p>
-              <span className="text-xs text-foreground/20 tabular-nums">
-                {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
-                {totalVariants} variant
-                {totalVariants === 1 ? "" : "s"}
-              </span>
-            </div>
+            <p className="ml-11 max-w-md font-body-serif text-sm/relaxed text-foreground/35">
+              {CATEGORY_DESCRIPTIONS[category]}
+            </p>
           </div>
+        </div>
+
+        <div className="mt-2 flex w-full justify-center">
+          <span className="text-xs whitespace-nowrap text-foreground/20 tabular-nums">
+            {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
+            {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+          </span>
         </div>
       </div>
 
