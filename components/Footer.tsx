@@ -48,11 +48,7 @@ export default function Footer() {
         absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-gold/50 to-transparent
       " />
 
-      <div className="
-        safe-area-inline-padding pt-6 safe-area-bottom-padding [--safe-area-bottom-padding:1.5rem]
-        [--safe-area-inline-padding:2rem]
-        sm:[--safe-area-inline-padding:3rem]
-      ">
+      <div className="px-8 py-6 sm:px-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2 text-xs tracking-widest">
             <span className="font-display text-foreground/30">
@@ -62,8 +58,8 @@ export default function Footer() {
             <Link
               href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
               className="
-                group inline-flex touch-manipulation-safe items-center gap-1 rounded-sm
-                font-body-serif text-foreground/40 transition-colors
+                group inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
+                transition-colors
                 hover:text-gold
                 focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-background
@@ -83,8 +79,8 @@ export default function Footer() {
             <Link
               href="/privacy"
               className="
-                inline-flex touch-manipulation-safe items-center gap-1 rounded-sm font-body-serif
-                text-foreground/40 transition-colors
+                inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
+                transition-colors
                 hover:text-gold
                 focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-background
@@ -116,8 +112,8 @@ export default function Footer() {
                     link.name === "email" ? undefined : "noopener noreferrer"
                   }
                   className="
-                    flex size-11 touch-manipulation-safe items-center justify-center rounded-full
-                    border border-gold/15 text-foreground/40 transition-all
+                    flex size-11 items-center justify-center rounded-full border border-gold/15
+                    text-foreground/40 transition-all
                     hover:border-gold/40 hover:text-gold
                     focus-visible:border-gold/40 focus-visible:text-gold focus-visible:ring-2
                     focus-visible:ring-gold/50 focus-visible:ring-offset-2
