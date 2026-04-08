@@ -30,7 +30,9 @@ function treeContainsElementType(
     return true;
   }
 
-  return treeContainsElementType(node.props.children, elementType);
+  const { children } = node.props as { children?: ReactNode };
+
+  return treeContainsElementType(children, elementType);
 }
 
 describe("App shell server coverage", () => {
