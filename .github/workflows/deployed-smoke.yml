@@ -126,5 +126,6 @@ jobs:
           path: |
             .artifacts/playwright-report
             .artifacts/playwright-test-results
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
