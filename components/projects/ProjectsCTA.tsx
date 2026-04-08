@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, GitFork } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
@@ -68,7 +68,7 @@ export function ProjectsCTA() {
           variants={fadeIn}
           className="mb-5 font-mono text-[0.6rem] tracking-[0.5em] text-gold/50 uppercase"
         >
-          ◆ Contribute
+          ◆ Continue Here
         </motion.p>
 
         <motion.h2
@@ -79,9 +79,9 @@ export function ProjectsCTA() {
             md:text-6xl
           "
         >
-          BUILD WITH
+          START WITH
           <br />
-          <span className="text-gold">US</span>
+          <span className="text-gold">A PROFILE</span>
         </motion.h2>
 
         <motion.div
@@ -96,17 +96,18 @@ export function ProjectsCTA() {
         <motion.p
           variants={fadeIn}
           className="
-            mx-auto mb-12 max-w-md font-body-serif text-sm leading-[1.85] text-foreground/40
+            mx-auto mb-12 max-w-xl font-body-serif text-sm leading-[1.85] text-foreground/40
             sm:text-base
           "
         >
-          Every star, issue, and pull request pushes these tools forward. Jump
-          in — contributions of any size are genuinely welcome.
+          Projects explain the ecosystem. The real next step is inside AniCards:
+          search any public AniList username or ID, browse working card
+          examples, or open the code once you&apos;re ready to contribute.
         </motion.p>
 
         <motion.div
           variants={fadeIn}
-          className="flex flex-col items-center justify-center gap-4 sm:flex-row"
+          className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:flex-wrap"
         >
           <motion.div
             variants={fadeIn}
@@ -119,16 +120,11 @@ export function ProjectsCTA() {
             })}
           >
             <Button asChild className="imperial-btn imperial-btn-fill">
-              <a
-                href="https://github.com/RLAlpha49"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2"
-              >
-                <SimpleGithubIcon size={20} />
-                Visit My GitHub
+              <Link href="/search" className="group flex items-center gap-2">
+                <Search className="size-4" />
+                Search a Profile
                 <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-              </a>
+              </Link>
             </Button>
           </motion.div>
 
@@ -143,10 +139,34 @@ export function ProjectsCTA() {
             })}
           >
             <Button asChild className="imperial-btn imperial-btn-ghost">
-              <Link href="/" className="flex items-center gap-2">
-                <GitFork className="size-4" />
-                Back to Home
+              <Link href="/examples" className="group flex items-center gap-2">
+                Browse Examples
+                <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
               </Link>
+            </Button>
+          </motion.div>
+
+          <motion.div
+            variants={fadeIn}
+            whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+              scale: 1.04,
+              transition: { duration: 0.25, ease: EASE_OUT_EXPO },
+            })}
+            whileTap={getMotionSafeAnimation(prefersReducedMotion, {
+              scale: 0.97,
+            })}
+          >
+            <Button asChild className="imperial-btn imperial-btn-ghost">
+              <a
+                href="https://github.com/RLAlpha49"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center gap-2"
+              >
+                <SimpleGithubIcon size={20} />
+                Visit My GitHub
+                <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+              </a>
             </Button>
           </motion.div>
         </motion.div>

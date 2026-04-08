@@ -9,7 +9,7 @@ import {
 } from "framer-motion";
 import { ArrowDown, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { type MouseEvent, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   buildFadeUpVariants,
@@ -24,6 +24,9 @@ interface HeroSectionProps {
   categoryCount: number;
   createHref: string;
 }
+
+const GALLERY_SECTION_ID = "card-gallery";
+const GALLERY_HASH = `#${GALLERY_SECTION_ID}`;
 
 function AnimatedNumber({ target }: Readonly<{ target: number }>) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -80,24 +83,57 @@ export function ExamplesHeroSection({
     duration: 1.1,
   });
 
-  const scrollToGallery = () => {
-    const el = document.getElementById("card-gallery");
-    if (el) {
-      el.scrollIntoView({
-        behavior: getMotionSafeScrollBehavior(prefersReducedMotion),
-        block: "start",
-      });
-      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
-      el.focus();
-      el.addEventListener("blur", () => el.removeAttribute("tabindex"), {
-        once: true,
-      });
+  const getGalleryElement = (): HTMLElement | null => {
+    const target = document.getElementById(GALLERY_SECTION_ID);
+
+    return target instanceof HTMLElement ? target : null;
+  };
+
+  const focusGalleryElement = (target: HTMLElement) => {
+    const addedTemporaryTabIndex = !target.hasAttribute("tabindex");
+
+    if (addedTemporaryTabIndex) {
+      target.setAttribute("tabindex", "-1");
+    }
+
+    target.focus({ preventScroll: true });
+
+    if (addedTemporaryTabIndex) {
+      target.addEventListener(
+        "blur",
+        () => target.removeAttribute("tabindex"),
+        {
+          once: true,
+        },
+      );
     }
   };
 
-  const handleBrowseGalleryClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    scrollToGallery();
+  const scrollToGallery = () => {
+    const target = getGalleryElement();
+
+    if (target) {
+      target.scrollIntoView({
+        behavior: getMotionSafeScrollBehavior(prefersReducedMotion),
+        block: "start",
+      });
+      focusGalleryElement(target);
+    }
+  };
+
+  const handleBrowseGalleryClick = () => {
+    if (globalThis.location.hash === GALLERY_HASH) {
+      scrollToGallery();
+      return;
+    }
+
+    globalThis.requestAnimationFrame(() => {
+      const target = getGalleryElement();
+
+      if (target) {
+        focusGalleryElement(target);
+      }
+    });
   };
 
   return (

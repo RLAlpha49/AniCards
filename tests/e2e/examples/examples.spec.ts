@@ -126,6 +126,32 @@ test.describe("Examples gallery", () => {
       .toBe(null);
   });
 
+  test("preserves the gallery hash and history when browsing from the hero CTA", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples");
+
+    const browseGalleryLink = page.getByRole("link", {
+      name: /browse the gallery/i,
+    });
+    const gallery = page.locator("#card-gallery");
+
+    await expect(browseGalleryLink).toHaveAttribute("href", "#card-gallery");
+
+    await browseGalleryLink.click();
+
+    await expect(page).toHaveURL(/\/examples#card-gallery$/, {
+      timeout: 15000,
+    });
+    await expect(gallery).toBeVisible({ timeout: 15000 });
+    await expect(gallery).toBeFocused({ timeout: 15000 });
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/, {
+      timeout: 15000,
+    });
+  });
+
   test("navigates to search from examples CTA", async ({ page }) => {
     await gotoReady(page, "/examples");
 

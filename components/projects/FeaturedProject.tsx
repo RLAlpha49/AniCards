@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Star } from "lucide-react";
+import { ArrowRight, Search, Star } from "lucide-react";
 import Link from "next/link";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
@@ -198,7 +198,7 @@ export function FeaturedProject() {
                       href={FEATURED_PROJECT.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2"
+                      className="group flex items-center gap-2"
                     >
                       <Star className="size-4" />
                       Star on GitHub
@@ -209,11 +209,39 @@ export function FeaturedProject() {
                     </a>
                   </Button>
                   <Button asChild className="imperial-btn imperial-btn-ghost">
-                    <Link href="/examples" className="flex items-center gap-2">
-                      See It in Action
+                    <Link
+                      href="/search"
+                      className="group flex items-center gap-2"
+                    >
+                      <Search className="size-4" />
+                      Open Profile Search
+                      <ArrowRight className="
+                        size-4 transition-transform
+                        group-hover:translate-x-0.5
+                      " />
                     </Link>
                   </Button>
                 </motion.div>
+
+                <motion.p
+                  variants={slideUp}
+                  className="mt-4 font-body-serif text-sm leading-[1.75] text-foreground/35"
+                >
+                  Want to see what it does?{" "}
+                  <Link
+                    href="/examples"
+                    className="
+                      font-mono text-[0.65rem] tracking-[0.2em] text-gold/70 uppercase
+                      transition-colors duration-300
+                      hover:text-gold
+                      focus-visible:text-gold focus-visible:underline
+                      focus-visible:underline-offset-4
+                    "
+                  >
+                    Browse the gallery
+                  </Link>
+                  .
+                </motion.p>
               </div>
 
               {/* Right decorative column — spec plate */}
