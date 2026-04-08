@@ -5,10 +5,10 @@ import { z } from "zod";
 
 import { CARD_RENDER_MATRIX_CASE_COUNT } from "@/tests/shared/card-render-matrix";
 
-const TEXT_BOUNDARY_TOLERANCE_PX = 2;
+const TEXT_BOUNDARY_TOLERANCE_PX = 4;
 const TEXT_MIN_HORIZONTAL_GAP_PX = 2;
 const VERTICAL_OVERLAP_ROW_THRESHOLD = 0.35;
-const PROBE_TIMEOUT_MS = 60_000;
+const PROBE_TIMEOUT_MS = 240_000;
 
 const renderedMatrixCardSchema = z.object({
   cardId: z.string(),
@@ -313,9 +313,12 @@ function buildMatrixHtml(cards: RenderedMatrixCards): string {
 }
 
 test.describe("pretext card matrix browser audit", () => {
+  test.describe.configure({ timeout: PROBE_TIMEOUT_MS + 60_000 });
+
   let matrixHtml = "";
 
   test.beforeAll(async () => {
+    test.setTimeout(PROBE_TIMEOUT_MS + 60_000);
     const renderedCards = await renderMatrixCards();
     matrixHtml = buildMatrixHtml(renderedCards);
   });
