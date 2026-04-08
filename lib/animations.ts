@@ -232,17 +232,6 @@ export const scaleIn: Variants = {
   },
 };
 
-// ── Expand line (horizontal divider reveal) ──
-
-export const lineExpand: Variants = {
-  hidden: { scaleX: 0, opacity: 0 },
-  visible: {
-    scaleX: 1,
-    opacity: 1,
-    transition: { duration: 0.8, ease: EASE_OUT_EXPO },
-  },
-};
-
 // ── Viewport config presets ──
 
 export const VIEWPORT_ONCE = { once: true, margin: "-60px" as const };

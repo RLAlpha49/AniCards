@@ -601,16 +601,6 @@ export function splitIntoGraphemesSync(text: string): string[] {
   return splitIntoGraphemeClustersFallback(text);
 }
 
-/**
- * Backwards-compatible async wrapper over `splitIntoGraphemesSync`.
- *
- * The implementation stays synchronous so existing callers can await it
- * without changing behavior while the sync helper remains the real workhorse.
- */
-export async function splitIntoGraphemesAsync(text: string): Promise<string[]> {
-  return splitIntoGraphemesSync(text);
-}
-
 function truncateWithMeasuredSuffix(
   pretext: PretextModule,
   options: Omit<MeasureSingleLineTextOptions, "maxWidth"> & {
