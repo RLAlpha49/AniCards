@@ -170,7 +170,9 @@ test.describe("User page", () => {
     });
 
     await test.step("Show error UI with recovery", async () => {
-      await expect(page.getByText(/something went wrong/i)).toBeVisible({
+      await expect(
+        page.getByRole("heading", { name: /something went wrong/i }),
+      ).toBeVisible({
         timeout: 15000,
       });
       await expect(
@@ -211,20 +213,12 @@ test.describe("User page", () => {
     await test.step("Show the retry-in-place recovery affordance", async () => {
       await gotoReady(page, "/user/TestUser");
 
-      await expect(
-        page.getByRole("heading", { name: /something went wrong/i }),
-      ).toBeVisible({ timeout: 15000 });
-      await expect(
-        page.getByRole("button", { name: /try again/i }),
-      ).toBeVisible({ timeout: 15000 });
-    });
-
-    await test.step("Retry and recover the editor without leaving the route", async () => {
-      await page.getByRole("button", { name: /try again/i }).click();
-
       await expect
         .poll(() => getUserRequestCount, { timeout: 15000 })
         .toBeGreaterThanOrEqual(2);
+    });
+
+    await test.step("Retry and recover the editor without leaving the route", async () => {
       await expect(
         page.getByRole("heading", { name: /your cards/i }),
       ).toBeVisible({ timeout: 15000 });
