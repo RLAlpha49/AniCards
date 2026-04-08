@@ -9,7 +9,7 @@ import {
 } from "framer-motion";
 import { ArrowDown, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { type MouseEvent, useEffect, useRef } from "react";
 
 import {
   buildFadeUpVariants,
@@ -109,6 +109,14 @@ export function ExamplesHeroSection({
     }
   };
 
+  const queueGalleryFocus = (target: HTMLElement) => {
+    globalThis.requestAnimationFrame(() => {
+      globalThis.requestAnimationFrame(() => {
+        focusGalleryElement(target);
+      });
+    });
+  };
+
   const scrollToGallery = () => {
     const target = getGalleryElement();
 
@@ -117,23 +125,40 @@ export function ExamplesHeroSection({
         behavior: getMotionSafeScrollBehavior(prefersReducedMotion),
         block: "start",
       });
-      focusGalleryElement(target);
+      queueGalleryFocus(target);
     }
   };
 
-  const handleBrowseGalleryClick = () => {
-    if (globalThis.location.hash === GALLERY_HASH) {
-      scrollToGallery();
+  const updateGalleryHash = () => {
+    const nextUrl = `${globalThis.location.pathname}${globalThis.location.search}${GALLERY_HASH}`;
+    globalThis.history.pushState(null, "", nextUrl);
+  };
+
+  const handleBrowseGalleryClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      event.shiftKey
+    ) {
       return;
     }
 
-    globalThis.requestAnimationFrame(() => {
-      const target = getGalleryElement();
+    const target = getGalleryElement();
 
-      if (target) {
-        focusGalleryElement(target);
-      }
-    });
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (globalThis.location.hash !== GALLERY_HASH) {
+      updateGalleryHash();
+    }
+
+    scrollToGallery();
   };
 
   return (
@@ -262,14 +287,14 @@ export function ExamplesHeroSection({
             <Sparkles className="mr-2 size-4" />
             Create Yours
           </Link>
-          <Link
+          <a
             href="#card-gallery"
             onClick={handleBrowseGalleryClick}
             className="group imperial-btn inline-flex imperial-btn-ghost items-center"
           >
             Browse the Gallery
             <ArrowDown className="ml-2 size-4 transition-transform group-hover:translate-y-0.5" />
-          </Link>
+          </a>
         </motion.div>
       </motion.div>
     </section>

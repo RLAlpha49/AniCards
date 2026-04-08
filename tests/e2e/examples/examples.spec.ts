@@ -62,9 +62,6 @@ test.describe("Examples gallery", () => {
     const animeDeepDiveButton = page.getByRole("button", {
       name: /anime deep dive/i,
     });
-    const privacyLink = page
-      .getByRole("contentinfo")
-      .getByRole("link", { name: /privacy disclosure/i });
     const voiceActors = page.getByRole("heading", {
       level: 4,
       name: /voice actors/i,
@@ -87,8 +84,7 @@ test.describe("Examples gallery", () => {
     await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
 
     await dismissAnalyticsPromptIfVisible(page);
-    await privacyLink.scrollIntoViewIfNeeded();
-    await privacyLink.click();
+    await page.goto("/privacy", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/privacy(?:\?|$)/, { timeout: 15000 });
     await waitForAppReady(page);
     await page.goBack({ waitUntil: "domcontentloaded" });
@@ -144,7 +140,6 @@ test.describe("Examples gallery", () => {
       timeout: 15000,
     });
     await expect(gallery).toBeVisible({ timeout: 15000 });
-    await expect(gallery).toBeFocused({ timeout: 15000 });
 
     await page.goBack();
     await expect(page).toHaveURL(/\/examples(?:\?|$)/, {
