@@ -472,6 +472,7 @@ describe("Cron API Route", () => {
 
   it("aborts the overlapping AniList refresh when bootstrap metadata loading fails", async () => {
     mockUserRecords(["123"]);
+    const errorReportCalls: unknown[][] = [];
     let fetchSignal: AbortSignal | undefined;
 
     globalThis.fetch = mock(
@@ -491,6 +492,10 @@ describe("Cron API Route", () => {
         }),
     ) as unknown as typeof fetch;
 
+    sharedRedisMockRpush.mockImplementation(async (...args: unknown[]) => {
+      errorReportCalls.push(args);
+      return 1;
+    });
     sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
 
     const response = await POST(createCronRequest());
@@ -500,10 +505,15 @@ describe("Cron API Route", () => {
       "Updated 0/1 users successfully. Failed: 0, Removed: 0",
     );
     expect(fetchSignal?.aborted).toBe(true);
-    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+
+    const errorReportCall = errorReportCalls.find(
+      ([key]) => key === "telemetry:error-reports:v1",
+    );
+    expect(errorReportCall).toBeDefined();
+    expect(errorReportCall).toEqual([
       "telemetry:error-reports:v1",
       expect.any(String),
-    );
+    ]);
   });
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
@@ -732,6 +742,11 @@ describe("Cron API Route", () => {
 
   it("records structured per-user cron errors without aborting the whole job", async () => {
     mockUserRecords(["123"]);
+    const errorReportCalls: unknown[][] = [];
+    sharedRedisMockRpush.mockImplementation(async (...args: unknown[]) => {
+      errorReportCalls.push(args);
+      return 1;
+    });
     sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
 
     const response = await POST(
@@ -748,10 +763,14 @@ describe("Cron API Route", () => {
       "Updated 0/1 users successfully. Failed: 0, Removed: 0",
     );
 
-    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+    const errorReportCall = errorReportCalls.find(
+      ([key]) => key === "telemetry:error-reports:v1",
+    );
+    expect(errorReportCall).toBeDefined();
+    expect(errorReportCall).toEqual([
       "telemetry:error-reports:v1",
       expect.any(String),
-    );
+    ]);
     expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       -250,
