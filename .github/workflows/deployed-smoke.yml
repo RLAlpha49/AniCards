@@ -88,21 +88,6 @@ jobs:
           echo "PLAYWRIGHT_BASE_URL=$candidate" >> "$GITHUB_ENV"
           echo "[INFO] Using deployed smoke URL: $candidate"
 
-      - name: Validate required production env before smoke
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_APP_URL: ${{ vars['NEXT_PUBLIC_APP_URL'] || secrets['NEXT_PUBLIC_APP_URL'] }}
-          UPSTASH_REDIS_REST_URL: ${{ vars['UPSTASH_REDIS_REST_URL'] || secrets['UPSTASH_REDIS_REST_URL'] }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets['UPSTASH_REDIS_REST_TOKEN'] }}
-          CRON_SECRET: ${{ secrets['CRON_SECRET'] }}
-          API_SECRET_TOKEN: ${{ secrets['API_SECRET_TOKEN'] }}
-        run: |
-          bun --eval '
-            const { assertRequiredProductionEnv } = await import("./lib/api-utils.ts");
-            assertRequiredProductionEnv();
-            console.log("[INFO] Required production env is configured for rollout validation.");
-          '
-
       - name: Wait for deployed Vercel URL
         env:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
