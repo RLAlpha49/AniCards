@@ -49,13 +49,13 @@ function isMobileMenuPreopened(): boolean {
 function getFocusableMenuElements(
   container: HTMLElement | null,
 ): HTMLElement[] {
-  if (!container) {
+  if (!container || container.hidden) {
     return [];
   }
 
   return Array.from(
     container.querySelectorAll<HTMLElement>(MOBILE_MENU_FOCUSABLE_SELECTOR),
-  ).filter((element) => !element.hasAttribute("aria-hidden"));
+  );
 }
 
 function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {

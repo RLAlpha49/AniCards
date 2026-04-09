@@ -59,12 +59,12 @@ const EARLY_ACCESSIBILITY_SHELL_SCRIPT = `(function () {
   function getFocusableMenuElements() {
     const mobileNavigation = getMobileNavigation();
 
-    if (!(mobileNavigation instanceof HTMLElement)) {
+    if (!(mobileNavigation instanceof HTMLElement) || mobileNavigation.hidden) {
       return [];
     }
 
     return Array.from(mobileNavigation.querySelectorAll(focusableSelector)).filter(
-      (element) => element instanceof HTMLElement && !element.hasAttribute('aria-hidden'),
+      (element) => element instanceof HTMLElement,
     );
   }
 
@@ -94,10 +94,8 @@ const EARLY_ACCESSIBILITY_SHELL_SCRIPT = `(function () {
     if (mobileNavigation instanceof HTMLElement) {
       if (open) {
         mobileNavigation.removeAttribute('hidden');
-        mobileNavigation.setAttribute('aria-hidden', 'false');
       } else {
         mobileNavigation.setAttribute('hidden', '');
-        mobileNavigation.setAttribute('aria-hidden', 'true');
       }
     }
 

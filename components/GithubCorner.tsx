@@ -50,7 +50,7 @@ export default function GithubCorner() {
           href="https://github.com/RLAlpha49/Anicards"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="View AniCards on GitHub"
+          aria-label="View the AniCards repository"
           className="
             relative flex size-12 items-center justify-center border border-gold/20 bg-white/90
             backdrop-blur-sm transition-all duration-300
@@ -134,7 +134,7 @@ export default function GithubCorner() {
                   href="https://github.com/RLAlpha49/Anicards"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Star AniCards on GitHub"
+                  aria-label="Star the AniCards repository"
                   className="
                     flex flex-1 items-center justify-center gap-1.5 border border-gold bg-gold px-3
                     py-1.5 text-[11px] font-semibold tracking-wide text-white transition-colors
@@ -150,7 +150,7 @@ export default function GithubCorner() {
                   href="https://github.com/RLAlpha49/Anicards/fork"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Fork AniCards on GitHub"
+                  aria-label="Fork the AniCards repository"
                   className="
                     flex flex-1 items-center justify-center gap-1.5 border border-gold/25
                     bg-transparent px-3 py-1.5 text-[11px] font-semibold tracking-wide
