@@ -33,102 +33,104 @@ type TabsContentProps = ComponentProps<"div"> & {
   value: string;
 };
 
-mock.module("framer-motion", () => {
-  const MotionDiv = ({ children, ...props }: ComponentProps<"div">) => (
-    <div {...props}>{children}</div>
-  );
+function registerModuleMocks() {
+  mock.module("@/components/ui/Motion", () => {
+    const MotionDiv = ({ children, ...props }: ComponentProps<"div">) => (
+      <div {...props}>{children}</div>
+    );
 
-  return {
-    AnimatePresence: ({ children }: { children?: ReactNode }) => (
-      <>{children}</>
+    return {
+      AnimatePresence: ({ children }: { children?: ReactNode }) => (
+        <>{children}</>
+      ),
+      motion: {
+        div: MotionDiv,
+      },
+    };
+  });
+
+  mock.module("@/components/stat-card-generator/ColorPickerGroup", () => ({
+    ColorPickerGroup: () => <div data-kind="color-picker-group" />,
+  }));
+
+  mock.module("@/components/stat-card-generator/ColorPresetSelector", () => ({
+    ColorPresetSelector: ({
+      onPresetChange,
+      selectedPreset,
+    }: {
+      onPresetChange: (preset: string) => void;
+      selectedPreset: string;
+    }) => (
+      <div data-kind="color-preset-selector" data-selected={selectedPreset}>
+        <button type="button" onClick={() => onPresetChange("default")}>
+          Preset selector default
+        </button>
+      </div>
     ),
-    motion: {
-      div: MotionDiv,
+  }));
+
+  mock.module("@/components/user/ColorPreviewCard", () => ({
+    ColorPreviewCard: () => <div data-kind="color-preview-card" />,
+  }));
+
+  mock.module("@/components/ui/Button", () => ({
+    Button: ({
+      children,
+      size,
+      type = "button",
+      variant,
+      ...props
+    }: ButtonProps) => {
+      void size;
+      void variant;
+
+      return (
+        <button type={type} {...props}>
+          {children}
+        </button>
+      );
     },
-  };
-});
+  }));
 
-mock.module("@/components/stat-card-generator/ColorPickerGroup", () => ({
-  ColorPickerGroup: () => <div data-kind="color-picker-group" />,
-}));
+  mock.module("@/components/ui/Input", () => ({
+    Input: (props: ComponentProps<"input">) => <input {...props} />,
+  }));
 
-mock.module("@/components/stat-card-generator/ColorPresetSelector", () => ({
-  ColorPresetSelector: ({
-    onPresetChange,
-    selectedPreset,
-  }: {
-    onPresetChange: (preset: string) => void;
-    selectedPreset: string;
-  }) => (
-    <div data-kind="color-preset-selector" data-selected={selectedPreset}>
-      <button type="button" onClick={() => onPresetChange("default")}>
-        Preset selector default
-      </button>
-    </div>
-  ),
-}));
+  mock.module("@/components/ui/Label", () => ({
+    Label: ({ children, ...props }: ComponentProps<"label">) => (
+      <label {...props}>{children}</label>
+    ),
+  }));
 
-mock.module("@/components/user/ColorPreviewCard", () => ({
-  ColorPreviewCard: () => <div data-kind="color-preview-card" />,
-}));
+  mock.module("@/components/ui/Switch", () => ({
+    Switch: ({ checked = false, onCheckedChange, ...props }: SwitchProps) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onCheckedChange?.(!checked)}
+        {...props}
+      />
+    ),
+  }));
 
-mock.module("@/components/ui/Button", () => ({
-  Button: ({
-    children,
-    size,
-    type = "button",
-    variant,
-    ...props
-  }: ButtonProps) => {
-    void size;
-    void variant;
-
-    return (
-      <button type={type} {...props}>
+  mock.module("@/components/ui/Tabs", () => ({
+    Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TabsList: ({ children, ...props }: ComponentProps<"div">) => (
+      <div {...props}>{children}</div>
+    ),
+    TabsTrigger: ({ children, value, ...props }: TabsTriggerProps) => (
+      <button data-value={value} type="button" {...props}>
         {children}
       </button>
-    );
-  },
-}));
-
-mock.module("@/components/ui/Input", () => ({
-  Input: (props: ComponentProps<"input">) => <input {...props} />,
-}));
-
-mock.module("@/components/ui/Label", () => ({
-  Label: ({ children, ...props }: ComponentProps<"label">) => (
-    <label {...props}>{children}</label>
-  ),
-}));
-
-mock.module("@/components/ui/Switch", () => ({
-  Switch: ({ checked = false, onCheckedChange, ...props }: SwitchProps) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onCheckedChange?.(!checked)}
-      {...props}
-    />
-  ),
-}));
-
-mock.module("@/components/ui/Tabs", () => ({
-  Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  TabsList: ({ children, ...props }: ComponentProps<"div">) => (
-    <div {...props}>{children}</div>
-  ),
-  TabsTrigger: ({ children, value, ...props }: TabsTriggerProps) => (
-    <button data-value={value} type="button" {...props}>
-      {children}
-    </button>
-  ),
-  TabsContent: ({ children, value, ...props }: TabsContentProps) => (
-    <div data-value={value} {...props}>
-      {children}
-    </div>
-  ),
-}));
+    ),
+    TabsContent: ({ children, value, ...props }: TabsContentProps) => (
+      <div data-value={value} {...props}>
+        {children}
+      </div>
+    ),
+  }));
+}
 
 function installDomGlobals() {
   const window = new Window({
@@ -213,11 +215,13 @@ function installDomGlobals() {
 
 beforeEach(() => {
   restoreDomGlobals = installDomGlobals();
+  registerModuleMocks();
 });
 
 afterEach(() => {
   restoreDomGlobals?.();
   restoreDomGlobals = null;
+  mock.restore();
 });
 
 afterAll(() => {

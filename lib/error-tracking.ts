@@ -31,6 +31,7 @@ interface ReportErrorOptions {
   userAction: string;
   error: unknown;
   category?: ErrorCategory;
+  executionEnvironment?: "auto" | "client" | "server";
   retryable?: boolean;
   recoverySuggestions?: RecoverySuggestion[];
   statusCode?: number;
@@ -2298,8 +2299,11 @@ async function executeStructuredErrorReport(
   options: ReportErrorOptions,
 ): Promise<StructuredErrorReport> {
   const report = buildStructuredErrorReport(options);
+  const executionEnvironment =
+    options.executionEnvironment ??
+    (globalThis.window === undefined ? "server" : "client");
 
-  if (globalThis.window === undefined) {
+  if (executionEnvironment === "server") {
     await persistStructuredErrorBufferEntry(report);
   } else {
     await postStructuredErrorReport(report);
@@ -2352,6 +2356,7 @@ export async function trackUserActionError(
   error: Error | string,
   errorType: ErrorCategory,
   additionalContext?: {
+    executionEnvironment?: "auto" | "client" | "server";
     retryable?: boolean;
     recoverySuggestions?: RecoverySuggestion[];
     statusCode?: number;
@@ -2368,6 +2373,7 @@ export async function trackUserActionError(
     userAction,
     error,
     category: errorType,
+    executionEnvironment: additionalContext?.executionEnvironment,
     retryable: additionalContext?.retryable,
     recoverySuggestions: additionalContext?.recoverySuggestions,
     statusCode: additionalContext?.statusCode,

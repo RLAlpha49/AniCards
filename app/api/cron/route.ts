@@ -193,6 +193,7 @@ async function reportCronUserRefreshError(options: {
     normalizedError,
     categorizeError(normalizedError.message),
     {
+      executionEnvironment: "server",
       route: "/api/cron",
       source: "api_route",
       stack: normalizedError.stack,

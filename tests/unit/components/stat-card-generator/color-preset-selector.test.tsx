@@ -46,7 +46,7 @@ type TooltipTriggerProps = {
   children?: ReactNode;
 };
 
-mock.module("framer-motion", () => {
+mock.module("@/components/ui/Motion", () => {
   const MotionButton = ({
     animate,
     children,

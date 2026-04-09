@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronRight,
   Grid,
@@ -21,6 +20,7 @@ import { ColorPresetSelector } from "@/components/stat-card-generator/ColorPrese
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
+import { AnimatePresence, motion } from "@/components/ui/Motion";
 import { Switch } from "@/components/ui/Switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";

@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
   ChevronDown,
@@ -14,6 +13,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
+import { AnimatePresence, motion } from "@/components/ui/Motion";
 import {
   Tooltip,
   TooltipContent,

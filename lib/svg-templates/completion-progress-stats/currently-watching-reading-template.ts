@@ -191,7 +191,7 @@ export function currentlyWatchingReadingTemplate(
     initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
     maxWidth: dims.w - 40,
     minFontSize: 8,
-    mode: "shrink-then-truncate",
+    mode: "shrink",
     text: "No currently watching/reading entries found",
   });
   const noDataText = escapeForXml(

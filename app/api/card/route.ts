@@ -707,6 +707,7 @@ async function handleCardDataError(
     err,
     err.category,
     {
+      executionEnvironment: "server",
       statusCode: err.status,
       source: "api_route",
       metadata: {
@@ -1401,6 +1402,7 @@ async function generateCardResponse(
       err instanceof Error ? err : new Error(String(err)),
       "server_error",
       {
+        executionEnvironment: "server",
         statusCode: 500,
         source: "api_route",
         metadata: {

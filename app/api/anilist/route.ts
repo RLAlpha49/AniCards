@@ -478,6 +478,7 @@ export async function POST(request: Request) {
           error instanceof Error ? error : new Error(errorMessage),
           errorCategory,
           {
+            executionEnvironment: "server",
             statusCode,
             source: "api_route",
             metadata: {

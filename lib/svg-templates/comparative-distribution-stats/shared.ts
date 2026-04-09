@@ -139,6 +139,7 @@ function renderMetricsBlock(
       const rowFit = fitSvgAnchoredTextPair({
         availableWidth: colW,
         gapPx: 12,
+        mode: "shrink",
         primaryFontWeight: 400,
         primaryInitialFontSize: TYPOGRAPHY.STAT_SIZE,
         primaryMinFontSize: 8,
@@ -147,6 +148,7 @@ function renderMetricsBlock(
         secondaryMaxWidth: Math.max(42, Math.floor(colW * 0.42)),
         secondaryMinFontSize: 8,
         secondaryFontWeight: 700,
+        secondaryMode: "shrink",
         secondaryText: m.value,
       });
       const content =
