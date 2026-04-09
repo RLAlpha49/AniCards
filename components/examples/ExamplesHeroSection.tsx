@@ -248,6 +248,18 @@ export function ExamplesHeroSection({
           {"."}
         </motion.p>
 
+        <motion.p
+          variants={riseIn}
+          className="
+            mt-5 max-w-3xl font-body-serif text-sm/relaxed text-foreground/40
+            sm:text-base/relaxed
+          "
+        >
+          Open a single collection when you want a cleaner comparison, or load
+          the full gallery when you are in full gremlin mode and need to inspect
+          every variation side by side before choosing a direction.
+        </motion.p>
+
         {/* Stats strip */}
         <motion.div
           variants={riseIn}

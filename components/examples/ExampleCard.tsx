@@ -51,13 +51,11 @@ function buildButtonLabels(opts: {
   queuedForEditor: boolean;
 }) {
   let copy = "Preview is still loading";
-  let editor = "Pick a preview theme to use this style";
+  let editor = opts.queuedForEditor ? "Queued" : "Use in editor";
 
   if (opts.isPreviewReady) {
     copy = opts.copied ? "Copied!" : "Copy embed URL";
-    editor = opts.queuedForEditor
-      ? "Queued for editor"
-      : "Use this style in the editor";
+    editor = opts.queuedForEditor ? "Queued" : "Use in editor";
   }
 
   return {
@@ -338,10 +336,17 @@ export function ExampleCard({
                   `,
               )}
               aria-label={buttonLabels.editor}
+              title={
+                selectedSettingsSnapshot
+                  ? queuedForEditor
+                    ? "Queued for the editor"
+                    : "Queue this style for the editor"
+                  : "Choose a preview theme before queuing this style"
+              }
               disabled={!selectedSettingsSnapshot}
             >
               <Sparkles className="size-3" />
-              <span className="hidden sm:inline">
+              <span className="hidden sm:inline" aria-hidden="true">
                 {queuedForEditor ? "Queued" : "Use in editor"}
               </span>
             </button>

@@ -21,6 +21,20 @@ import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
 const SEARCH_PAGE_HREF = "/search";
 const SEARCH_QUERY_PARAM = "search";
 const CATEGORY_QUERY_PARAM = "category";
+const EXAMPLES_CATEGORY_DESCRIPTIONS: Record<ExampleCategory, string> = {
+  "Core Stats":
+    "Start with the headline cards that summarize anime, manga, social, and profile-level stats before you dive into the more obsessive breakdowns.",
+  "Anime Deep Dive":
+    "Open the anime collection when you want a denser read on genres, studios, voice actors, scores, seasons, and the patterns buried in your watch history.",
+  "Manga Deep Dive":
+    "This collection focuses on reading habits, format splits, staff patterns, score spread, and the recurring traits that shape a manga-heavy profile.",
+  "Activity & Engagement":
+    "Use these cards to zoom in on recency, streaks, milestones, reviews, and the pace of your public AniList activity over time.",
+  "Library & Progress":
+    "These layouts surface favourites, backlog pressure, current titles, milestone moments, and the broader shape of a working library.",
+  "Advanced Analytics":
+    "When you want the comparison layer, this collection pairs anime and manga habits side by side so long-term preferences become easier to spot.",
+};
 
 function parseExampleCategory(
   category: string | null,
@@ -77,6 +91,7 @@ export default function ExamplesPageClient({
     () =>
       parseExampleCategory(searchParams.get(CATEGORY_QUERY_PARAM), categorySet),
   );
+  const [showAllCollections, setShowAllCollections] = useState(false);
   const previewColorPreset = usePreviewColorPreset();
 
   const replaceQueryString = useCallback(
@@ -111,6 +126,10 @@ export default function ExamplesPageClient({
         : nextActiveCategory,
     );
 
+    if (nextSearchQuery.trim().length > 0 || nextActiveCategory !== null) {
+      setShowAllCollections(false);
+    }
+
     const normalizedQueryString = buildFilterQueryString(
       searchParams,
       nextSearchQuery,
@@ -138,6 +157,7 @@ export default function ExamplesPageClient({
         category === null ? null : parseExampleCategory(category, categorySet);
 
       setActiveCategory(nextActiveCategory);
+      setShowAllCollections(category === null);
       replaceQueryString(
         buildFilterQueryString(searchParams, searchQuery, nextActiveCategory),
       );
@@ -148,6 +168,7 @@ export default function ExamplesPageClient({
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
     setActiveCategory(null);
+    setShowAllCollections(false);
     replaceQueryString(buildFilterQueryString(searchParams, "", null));
   }, [replaceQueryString, searchParams]);
 
@@ -171,6 +192,31 @@ export default function ExamplesPageClient({
 
     return filtered;
   }, [catalog.cardTypes, searchQuery, activeCategory]);
+
+  const categorySummaries = useMemo(
+    () =>
+      catalog.categories.map((category) => {
+        const categoryCardTypes = catalog.cardTypes.filter(
+          (card) => card.category === category,
+        );
+
+        return {
+          name: category,
+          description: EXAMPLES_CATEGORY_DESCRIPTIONS[category],
+          cardTypeCount: categoryCardTypes.length,
+          variantCount: categoryCardTypes.reduce(
+            (sum, cardType) => sum + cardType.variants.length,
+            0,
+          ),
+        };
+      }),
+    [catalog.cardTypes, catalog.categories],
+  );
+
+  const shouldRenderExpandedGallery =
+    searchQuery.trim().length > 0 ||
+    activeCategory !== null ||
+    showAllCollections;
 
   return (
     <ErrorBoundary
@@ -256,7 +302,95 @@ export default function ExamplesPageClient({
         >
           <div className="relative container mx-auto px-4">
             <div className="mx-auto max-w-7xl space-y-28">
-              {activeCategory ? (
+              {!shouldRenderExpandedGallery ? (
+                <section
+                  aria-labelledby="gallery-collections-heading"
+                  className="space-y-10"
+                >
+                  <div className="mx-auto max-w-3xl text-center">
+                    <p className="mb-3 text-xs tracking-[0.4em] text-gold/55 uppercase">
+                      Browse by collection
+                    </p>
+                    <h2
+                      id="gallery-collections-heading"
+                      className="
+                        font-display text-3xl tracking-[0.12em] text-foreground
+                        sm:text-4xl
+                      "
+                    >
+                      PICK A SLICE OF THE GALLERY
+                    </h2>
+                    <p className="
+                      mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/42
+                      sm:text-base/relaxed
+                    ">
+                      Open the category you care about, or load the full wall if
+                      you want every preview on one gloriously oversized canvas.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                    {categorySummaries.map((category, index) => (
+                      <button
+                        key={category.name}
+                        type="button"
+                        onClick={() => handleCategoryChange(category.name)}
+                        className="
+                          group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left
+                          transition-all duration-300
+                          hover:border-gold/30 hover:bg-gold/6
+                          focus-visible:ring-2 focus-visible:ring-gold/50
+                          focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                          focus-visible:outline-none
+                        "
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <span className="
+                            font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
+                          ">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span className="text-xs text-foreground/25 tabular-nums">
+                            {category.cardTypeCount} types ·{" "}
+                            {category.variantCount} variants
+                          </span>
+                        </div>
+                        <h3 className="
+                          font-display text-lg tracking-[0.08em] text-foreground transition-colors
+                          group-hover:text-gold/90
+                        ">
+                          {category.name}
+                        </h3>
+                        <p className="mt-4 font-body-serif text-sm/relaxed text-foreground/40">
+                          {category.description}
+                        </p>
+                        <span className="
+                          mt-6 inline-flex text-xs font-semibold tracking-[0.18em] text-gold
+                          uppercase
+                        ">
+                          Open collection
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCollections(true)}
+                      className="
+                        border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em]
+                        text-gold uppercase transition-colors
+                        hover:border-gold/40 hover:bg-gold/6
+                        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                        focus-visible:ring-offset-background focus-visible:outline-none
+                      "
+                    >
+                      Load the full gallery
+                    </button>
+                  </div>
+                </section>
+              ) : activeCategory ? (
                 <CategorySection
                   key={activeCategory}
                   category={activeCategory}
@@ -300,36 +434,39 @@ export default function ExamplesPageClient({
                 )
               )}
 
-              {filteredCardTypes.length === 0 && (
-                <div className="py-32 text-center">
-                  <div className="
-                    mb-4 font-display text-7xl font-black text-foreground/6 select-none
-                    sm:text-8xl
-                  ">
-                    ∅
+              {shouldRenderExpandedGallery &&
+                filteredCardTypes.length === 0 && (
+                  <div className="py-32 text-center">
+                    <div className="
+                      mb-4 font-display text-7xl font-black text-foreground/6 select-none
+                      sm:text-8xl
+                    ">
+                      ∅
+                    </div>
+                    <p className="
+                      mb-2 font-display text-base tracking-[0.25em] text-foreground/20 uppercase
+                    ">
+                      Nothing Here
+                    </p>
+                    <p className="
+                      mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/30
+                    ">
+                      Your filters came up empty. Try loosening the search or
+                      picking a different category.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleClearFilters}
+                      className="
+                        mt-8 text-xs font-semibold tracking-widest text-gold uppercase
+                        transition-colors
+                        hover:text-gold/80 hover:underline
+                      "
+                    >
+                      Start fresh
+                    </button>
                   </div>
-                  <p className="
-                    mb-2 font-display text-base tracking-[0.25em] text-foreground/20 uppercase
-                  ">
-                    Nothing Here
-                  </p>
-                  <p className="mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/30">
-                    Your filters came up empty. Try loosening the search or
-                    picking a different category.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleClearFilters}
-                    className="
-                      mt-8 text-xs font-semibold tracking-widest text-gold uppercase
-                      transition-colors
-                      hover:text-gold/80 hover:underline
-                    "
-                  >
-                    Start fresh
-                  </button>
-                </div>
-              )}
+                )}
             </div>
           </div>
         </motion.section>

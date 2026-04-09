@@ -159,9 +159,9 @@ export function CategorySection({
                     <CardTypeIcon className="size-3.5 shrink-0 text-gold/40" />
                   );
                 })()}
-                <h4 className="text-sm font-semibold tracking-wide text-foreground/80">
+                <h3 className="text-sm font-semibold tracking-wide text-foreground/80">
                   {cardType.title}
-                </h4>
+                </h3>
               </div>
               <div className="gold-line flex-1" />
               <span className="
