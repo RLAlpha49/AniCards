@@ -503,8 +503,7 @@ function getGraphemeSegmenter(): GraphemeSegmenter | null {
   return cachedSegmenter;
 }
 
-const COMBINING_MARK_PATTERN =
-  /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]/u;
+const COMBINING_MARK_PATTERN = /\p{M}/u;
 const EMOJI_MODIFIER_PATTERN = /[\u{1f3fb}-\u{1f3ff}]/u;
 const REGIONAL_INDICATOR_PATTERN = /[\u{1f1e6}-\u{1f1ff}]/u;
 const VARIATION_SELECTOR_15 = "\uFE0E";
