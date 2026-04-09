@@ -24,14 +24,14 @@ test.describe("Examples gallery", () => {
   test("filters card variants via search", async ({ page }) => {
     await gotoReady(page, "/examples?search=Voice%20Actors");
 
-    const variants = page.getByRole("heading", { level: 4 });
+    const variants = page.getByRole("heading", { level: 3 });
     const searchInput = page.getByLabel(/search gallery cards/i);
     const animeStatistics = page.getByRole("heading", {
-      level: 4,
+      level: 3,
       name: /anime statistics/i,
     });
     const voiceActors = page.getByRole("heading", {
-      level: 4,
+      level: 3,
       name: /voice actors/i,
     });
 
@@ -63,7 +63,7 @@ test.describe("Examples gallery", () => {
       name: /anime deep dive/i,
     });
     const voiceActors = page.getByRole("heading", {
-      level: 4,
+      level: 3,
       name: /voice actors/i,
     });
 
@@ -103,9 +103,11 @@ test.describe("Examples gallery", () => {
     );
 
     const searchInput = page.getByLabel(/search gallery cards/i);
-    const allCategoriesButton = page.getByRole("button", { name: /^all/i });
+    const allCategoriesButton = page.getByRole("button", {
+      name: /^all\s+\d+$/i,
+    });
     const voiceActors = page.getByRole("heading", {
-      level: 4,
+      level: 3,
       name: /voice actors/i,
     });
 

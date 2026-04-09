@@ -57,6 +57,13 @@ test.describe("ImageWithSkeleton", () => {
     });
     await gallery.scrollIntoViewIfNeeded();
 
+    const openCollectionButton = page.getByRole("button", {
+      name: /open collection/i,
+    });
+    await expect(openCollectionButton.first()).toBeVisible({ timeout: 15000 });
+    await openCollectionButton.first().scrollIntoViewIfNeeded();
+    await openCollectionButton.first().click();
+
     const imageCards = gallery.locator("[data-image-state]");
     await expect
       .poll(async () => await imageCards.count(), {
@@ -124,6 +131,13 @@ test.describe("ImageWithSkeleton", () => {
     const gallery = page.locator("#card-gallery");
     await expect(gallery).toBeVisible({ timeout: 15000 });
     await gallery.scrollIntoViewIfNeeded();
+
+    const openCollectionButton = page.getByRole("button", {
+      name: /open collection/i,
+    });
+    await expect(openCollectionButton.first()).toBeVisible({ timeout: 15000 });
+    await openCollectionButton.first().scrollIntoViewIfNeeded();
+    await openCollectionButton.first().click();
 
     const imageCards = gallery.locator("[data-image-state]");
     await expect
