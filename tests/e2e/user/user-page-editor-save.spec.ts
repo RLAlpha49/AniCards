@@ -7,6 +7,8 @@ import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 import { mockCardsRecord, mockUserStatsData } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
+let realHandlerSeedCounter = 0;
+
 const REAL_HANDLER_REQUIRED_ENV_KEYS = [
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
@@ -601,7 +603,7 @@ test.describe("User page editor - save UX", () => {
 
     test.slow();
 
-    const uniqueSeed = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const uniqueSeed = `${Date.now()}${test.info().workerIndex}${realHandlerSeedCounter++}`;
     const userId = Number(uniqueSeed.slice(-9));
     const username = `PlaywrightRealUser${userId}`;
     const seededCards = structuredClone(mockCardsRecord.cards);

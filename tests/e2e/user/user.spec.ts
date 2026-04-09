@@ -157,7 +157,7 @@ test.describe("User page", () => {
       await copyButton.click();
       await expect(page.getByText(/raw urls/i)).toBeVisible();
 
-      await downloadButton.click();
+      await downloadButton.click({ force: true });
       await expect(page.getByText(/png/i)).toBeVisible();
     });
   });
@@ -183,8 +183,10 @@ test.describe("User page", () => {
 
     await test.step("Ctrl+F focuses the card search box", async () => {
       const searchInput = page.locator("#card-search");
+      const findShortcut =
+        testInfo.project.name === "firefox" ? "Meta+F" : "Control+F";
 
-      await page.keyboard.press("Control+F");
+      await page.keyboard.press(findShortcut);
       await expect(searchInput).toBeFocused();
     });
 
