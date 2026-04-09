@@ -102,7 +102,8 @@ export function ProjectsCTA() {
         >
           Projects explain the ecosystem. The real next step is inside AniCards:
           search any public AniList username or ID, browse working card
-          examples, or open the code once you&apos;re ready to contribute.
+          examples, learn the project context on the about page, or open the
+          code once you&apos;re ready to contribute.
         </motion.p>
 
         <motion.div

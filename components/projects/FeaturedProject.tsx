@@ -144,12 +144,12 @@ export function FeaturedProject() {
                     <p className="font-mono text-[0.55rem] tracking-[0.4em] text-gold/50 uppercase">
                       You&apos;re looking at it
                     </p>
-                    <h3 className="
+                    <h2 className="
                       font-display text-2xl tracking-widest text-foreground uppercase
                       sm:text-3xl
                     ">
                       {FEATURED_PROJECT.name}
-                    </h3>
+                    </h2>
                   </div>
                 </motion.div>
 
