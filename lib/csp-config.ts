@@ -131,7 +131,7 @@ export const CSP_DIRECTIVES = {
     CSP_KEYWORDS.SELF,
     "https://www.googletagmanager.com",
     "https://va.vercel-scripts.com",
-    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
     CSP_KEYWORDS.STRICT_DYNAMIC,
   ],
 
@@ -179,7 +179,7 @@ export const CSP_DIRECTIVES = {
     "https://graphql.anilist.co",
     "https://*.upstash.io",
     "https://va.vercel-scripts.com",
-    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
   ],
