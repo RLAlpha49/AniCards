@@ -334,6 +334,7 @@ function isPreparedSingleLineLayoutInput(
   }
 
   const candidate = prepared as {
+    breakableFitAdvances?: unknown;
     breakablePrefixWidths?: unknown;
     breakableWidths?: unknown;
     chunks?: unknown;
@@ -348,6 +349,13 @@ function isPreparedSingleLineLayoutInput(
     tabStopAdvance?: unknown;
   };
 
+  const hasCurrentBreakableAdvances = Array.isArray(
+    candidate.breakableFitAdvances,
+  );
+  const hasLegacyBreakableAdvances =
+    Array.isArray(candidate.breakableWidths) &&
+    Array.isArray(candidate.breakablePrefixWidths);
+
   return (
     Array.isArray(candidate.segments) &&
     Array.isArray(candidate.widths) &&
@@ -356,8 +364,7 @@ function isPreparedSingleLineLayoutInput(
     Array.isArray(candidate.kinds) &&
     (candidate.segLevels === null ||
       candidate.segLevels instanceof Int8Array) &&
-    Array.isArray(candidate.breakableWidths) &&
-    Array.isArray(candidate.breakablePrefixWidths) &&
+    (hasCurrentBreakableAdvances || hasLegacyBreakableAdvances) &&
     Array.isArray(candidate.chunks) &&
     typeof candidate.discretionaryHyphenWidth === "number" &&
     typeof candidate.tabStopAdvance === "number" &&
@@ -408,7 +415,7 @@ export function measureSingleLineText(
     });
 
     throw new Error(
-      `Pretext returned an unexpected prepared text shape; prepared=${preparedDebug}; pretext=${pretextDebug}; text=${JSON.stringify(safeText)}; font=${JSON.stringify(font)}; expected segments, widths, kinds, and segLevels before calling layout.`,
+      `Pretext returned an unexpected prepared text shape; prepared=${preparedDebug}; pretext=${pretextDebug}; text=${JSON.stringify(safeText)}; font=${JSON.stringify(font)}; expected segments, widths, line-end advances, kinds, and current or legacy breakable advances before calling layout.`,
     );
   }
   let naturalWidth = 0;
