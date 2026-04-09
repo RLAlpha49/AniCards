@@ -36,6 +36,11 @@ async function getWithRetry(
 }
 
 test.describe("Unmocked app shell smoke", () => {
+  const mobileNavigationViewport = {
+    width: 393,
+    height: 851,
+  };
+
   test("serves the home app shell with middleware CSP headers, nonce-aware JSON-LD, and the legacy card rewrite surface", async ({
     page,
     request,
@@ -85,12 +90,7 @@ test.describe("Unmocked app shell smoke", () => {
 
   test("exposes a root-shell skip link, stable main target, and AniList preconnect hint", async ({
     page,
-  }, testInfo) => {
-    test.skip(
-      testInfo.project.name === "webkit",
-      "WebKit keyboard focus order is unreliable in Playwright for this shell-level skip-link check.",
-    );
-
+  }) => {
     await gotoReady(page, "/");
     await dismissAnalyticsPromptIfVisible(page);
 
@@ -113,14 +113,9 @@ test.describe("Unmocked app shell smoke", () => {
 
   test("traps focus in the mobile navigation menu and restores focus on close", async ({
     page,
-  }, testInfo) => {
-    test.skip(
-      testInfo.project.name !== "mobile-chrome",
-      "This spec validates mobile-menu focus behavior.",
-    );
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsPromptIfVisible(page);
+  }) => {
+    await page.setViewportSize(mobileNavigationViewport);
+    await gotoReady(page, "/");
 
     const menuToggle = page.getByRole("button", { name: /open menu/i });
     await menuToggle.click();
