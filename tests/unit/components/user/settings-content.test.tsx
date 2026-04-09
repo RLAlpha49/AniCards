@@ -35,6 +35,10 @@ type TabsContentProps = ComponentProps<"div"> & {
 
 function registerModuleMocks() {
   mock.module("@/components/ui/Motion", () => {
+    const MotionButton = ({ children, ...props }: ComponentProps<"button">) => (
+      <button {...props}>{children}</button>
+    );
+
     const MotionDiv = ({ children, ...props }: ComponentProps<"div">) => (
       <div {...props}>{children}</div>
     );
@@ -44,30 +48,11 @@ function registerModuleMocks() {
         <>{children}</>
       ),
       motion: {
+        button: MotionButton,
         div: MotionDiv,
       },
     };
   });
-
-  mock.module("@/components/stat-card-generator/ColorPickerGroup", () => ({
-    ColorPickerGroup: () => <div data-kind="color-picker-group" />,
-  }));
-
-  mock.module("@/components/stat-card-generator/ColorPresetSelector", () => ({
-    ColorPresetSelector: ({
-      onPresetChange,
-      selectedPreset,
-    }: {
-      onPresetChange: (preset: string) => void;
-      selectedPreset: string;
-    }) => (
-      <div data-kind="color-preset-selector" data-selected={selectedPreset}>
-        <button type="button" onClick={() => onPresetChange("default")}>
-          Preset selector default
-        </button>
-      </div>
-    ),
-  }));
 
   mock.module("@/components/user/ColorPreviewCard", () => ({
     ColorPreviewCard: () => <div data-kind="color-preview-card" />,
