@@ -29,7 +29,10 @@ export function ContactCTA() {
   });
 
   return (
-    <section className="relative px-6 py-20 sm:px-12 md:py-32">
+    <section
+      id="drop-a-line"
+      className="relative scroll-mt-28 px-6 py-20 sm:px-12 md:py-32"
+    >
       {/* Background glow */}
       <div className="pointer-events-none absolute inset-0">
         <div className="
@@ -65,7 +68,9 @@ export function ContactCTA() {
           variants={ctaChild}
           className="mb-10 font-body-serif text-base/relaxed text-foreground/35"
         >
-          Some things deserve more than a quick message.
+          Some things deserve more than a quick message. If you need a manual
+          data deletion, a technical clarification, help reproducing a bug,
+          email is still the most reliable lane.
         </motion.p>
 
         <motion.div

@@ -18,17 +18,19 @@ import {
 import {
   safeTrack,
   trackExternalLinkClick,
+  trackNavigation,
 } from "@/lib/utils/google-analytics";
 
 const CHANNELS = [
   {
-    href: "mailto:contact@alpha49.com",
+    href: "#drop-a-line",
     icon: Mail,
     name: "email",
     label: "Email",
     tagline: "For detailed inquiries & collaboration",
     address: "contact@alpha49.com",
     numeral: "01",
+    interaction: "internal",
   },
   {
     href: "https://discordid.netlify.app/?id=251479989378220044",
@@ -38,15 +40,17 @@ const CHANNELS = [
     tagline: "Low-key questions & casual back-and-forth",
     address: "Alpha49",
     numeral: "02",
+    interaction: "external",
   },
   {
     href: "https://github.com/RLAlpha49",
     icon: SimpleGithubIcon,
     name: "github",
-    label: "GitHub",
-    tagline: "Where the code actually lives",
+    label: "GitHub Profile",
+    tagline: "RLAlpha49 on GitHub, where the code actually lives",
     address: "RLAlpha49",
     numeral: "03",
+    interaction: "external",
   },
   {
     href: "https://anilist.co/user/Alpha49",
@@ -56,8 +60,9 @@ const CHANNELS = [
     tagline: "Lists, stats & the anime deep-cuts",
     address: "Alpha49",
     numeral: "04",
+    interaction: "external",
   },
-];
+] as const;
 
 export function ContactChannels() {
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -72,8 +77,18 @@ export function ContactChannels() {
     duration: 0.6,
   });
 
-  const handleClick = (platform: string) => {
-    safeTrack(() => trackExternalLinkClick(platform, "contact_page"));
+  const handleClick = (
+    platform: string,
+    interaction: (typeof CHANNELS)[number]["interaction"],
+  ) => {
+    safeTrack(() => {
+      if (interaction === "internal") {
+        trackNavigation(platform, "contact_page");
+        return;
+      }
+
+      trackExternalLinkClick(platform, "contact_page");
+    });
   };
 
   return (
@@ -96,6 +111,14 @@ export function ContactChannels() {
             <br />
             <span className="text-gold">CONNECT</span>
           </h2>
+          <p className="
+            mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/45
+            sm:text-base/relaxed
+          ">
+            Whether you want to report a bug, talk through a feature idea, ask
+            how the data flow works, or just say hello, this points you to the
+            fastest route.
+          </p>
         </div>
 
         {/* Channel panels — separated by 1px gold gap lines */}
@@ -121,9 +144,13 @@ export function ContactChannels() {
             >
               <Link
                 href={ch.href}
-                target={ch.name === "email" ? undefined : "_blank"}
-                rel={ch.name === "email" ? undefined : "noopener noreferrer"}
-                onClick={() => handleClick(ch.name)}
+                target={ch.interaction === "external" ? "_blank" : undefined}
+                rel={
+                  ch.interaction === "external"
+                    ? "noopener noreferrer"
+                    : undefined
+                }
+                onClick={() => handleClick(ch.name, ch.interaction)}
                 className="
                   group relative flex h-full flex-col rounded-sm bg-background p-8 transition-all
                   duration-500

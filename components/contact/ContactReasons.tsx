@@ -101,6 +101,23 @@ export function ContactReasons() {
             mx-auto mt-5 h-px max-w-16 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.4)]
             to-transparent
           " />
+          <p className="
+            mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/45
+            sm:text-base/relaxed
+          ">
+            Most messages fall into one of these buckets. Picking the closest
+            match helps set expectations early, whether you need a direct fix, a
+            product conversation, or a quick pointer to the right public
+            resource.
+          </p>
+          <p className="
+            mx-auto mt-4 max-w-2xl font-body-serif text-sm/relaxed text-foreground/40
+            sm:text-base/relaxed
+          ">
+            Even a short note is useful when it includes the page, username, or
+            card setup involved. Specific context turns vague reports into
+            something that can actually be reproduced and answered.
+          </p>
         </div>
 
         {/* Reasons grid */}
