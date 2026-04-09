@@ -1,4 +1,15 @@
 import { spawn } from "node:child_process";
+import {
+  mkdir,
+  open,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
@@ -9,6 +20,16 @@ const TEXT_BOUNDARY_TOLERANCE_PX = 4;
 const TEXT_MIN_HORIZONTAL_GAP_PX = 2;
 const VERTICAL_OVERLAP_ROW_THRESHOLD = 0.35;
 const PROBE_TIMEOUT_MS = 240_000;
+const MATRIX_CACHE_DIR = join(
+  process.cwd(),
+  ".artifacts",
+  "playwright-test-results",
+  "shared-probe-cache",
+);
+const MATRIX_CACHE_PATH = join(MATRIX_CACHE_DIR, "pretext-card-matrix.json");
+const MATRIX_CACHE_LOCK_PATH = `${MATRIX_CACHE_PATH}.lock`;
+const MATRIX_CACHE_LOCK_STALE_MS = PROBE_TIMEOUT_MS + 60_000;
+const MATRIX_CACHE_POLL_MS = 250;
 
 const renderedMatrixCardSchema = z.object({
   cardId: z.string(),
@@ -21,6 +42,15 @@ const renderedMatrixCardSchema = z.object({
 const renderedMatrixCardsSchema = z.array(renderedMatrixCardSchema);
 
 type RenderedMatrixCards = z.infer<typeof renderedMatrixCardsSchema>;
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === code
+  );
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
@@ -138,6 +168,130 @@ function runProbeScript(
   });
 }
 
+function parseRenderedMatrixCardsJson(
+  jsonPayload: string,
+  sourceLabel: string,
+): RenderedMatrixCards {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload);
+  } catch (error) {
+    throw new Error(
+      `${sourceLabel} emitted invalid JSON: ${jsonPayload}\n${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const validation = renderedMatrixCardsSchema.safeParse(parsed);
+  if (!validation.success) {
+    const issues = validation.error.issues
+      .map((issue) => {
+        const path = issue.path.length > 0 ? issue.path.join(".") : "<root>";
+        return `${path}: ${issue.message}`;
+      })
+      .join("; ");
+
+    throw new Error(
+      `${sourceLabel} JSON failed validation: ${jsonPayload}\n${issues}`,
+    );
+  }
+
+  return validation.data;
+}
+
+function extractProbeJsonPayload(stdout: string, stderr: string): string {
+  const trimmedStdout = stdout.trim();
+  const trimmedStderr = stderr.trim();
+
+  expect(trimmedStderr).toBe("");
+
+  const jsonStartMarker = "---JSON_START---";
+  const jsonEndMarker = "---JSON_END---";
+  const jsonStartIndex = trimmedStdout.indexOf(jsonStartMarker);
+  const jsonEndIndex = trimmedStdout.indexOf(jsonEndMarker);
+  if (
+    jsonStartIndex === -1 ||
+    jsonEndIndex === -1 ||
+    jsonEndIndex <= jsonStartIndex
+  ) {
+    throw new Error(
+      `Matrix render probe did not emit marked JSON output: ${trimmedStdout}`,
+    );
+  }
+
+  const jsonPayload = trimmedStdout
+    .slice(jsonStartIndex + jsonStartMarker.length, jsonEndIndex)
+    .trim();
+
+  if (!jsonPayload) {
+    throw new Error("Matrix render probe emitted an empty JSON payload");
+  }
+
+  return jsonPayload;
+}
+
+async function readCachedMatrixCards(): Promise<RenderedMatrixCards | null> {
+  try {
+    const cachedJson = await readFile(MATRIX_CACHE_PATH, "utf8");
+    return parseRenderedMatrixCardsJson(cachedJson, "Matrix render cache");
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return null;
+    }
+
+    if (error instanceof Error) {
+      await rm(MATRIX_CACHE_PATH, { force: true });
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function tryAcquireMatrixCacheLock() {
+  await mkdir(MATRIX_CACHE_DIR, { recursive: true });
+
+  try {
+    return await open(MATRIX_CACHE_LOCK_PATH, "wx");
+  } catch (error) {
+    if (hasErrorCode(error, "EEXIST")) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function clearStaleMatrixCacheLockIfNeeded(): Promise<void> {
+  try {
+    const lockStats = await stat(MATRIX_CACHE_LOCK_PATH);
+    if (Date.now() - lockStats.mtimeMs > MATRIX_CACHE_LOCK_STALE_MS) {
+      await rm(MATRIX_CACHE_LOCK_PATH, { force: true });
+    }
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function writeCachedMatrixCards(
+  cards: RenderedMatrixCards,
+): Promise<void> {
+  await mkdir(MATRIX_CACHE_DIR, { recursive: true });
+
+  const tempCachePath = `${MATRIX_CACHE_PATH}.${process.pid}.tmp`;
+
+  try {
+    await writeFile(tempCachePath, JSON.stringify(cards), "utf8");
+    await rm(MATRIX_CACHE_PATH, { force: true });
+    await rename(tempCachePath, MATRIX_CACHE_PATH);
+  } finally {
+    await rm(tempCachePath, { force: true });
+  }
+}
+
 async function renderMatrixCards(): Promise<RenderedMatrixCards> {
   const probeScript = `
 import { mockPretextStressUserRecord } from "@/tests/e2e/fixtures/pretext-stress-data";
@@ -167,59 +321,44 @@ console.log(JSON.stringify(renderedCards));
 console.log("---JSON_END---");
 `;
 
-  const { stdout, stderr } = await runProbeScript(probeScript);
+  const deadline = Date.now() + PROBE_TIMEOUT_MS;
 
-  const trimmedStdout = stdout.trim();
-  const trimmedStderr = stderr.trim();
+  while (Date.now() < deadline) {
+    const cachedCards = await readCachedMatrixCards();
+    if (cachedCards) {
+      return cachedCards;
+    }
 
-  expect(trimmedStderr).toBe("");
+    const lockHandle = await tryAcquireMatrixCacheLock();
+    if (!lockHandle) {
+      await clearStaleMatrixCacheLockIfNeeded();
+      await delay(MATRIX_CACHE_POLL_MS);
+      continue;
+    }
 
-  const jsonStartMarker = "---JSON_START---";
-  const jsonEndMarker = "---JSON_END---";
-  const jsonStartIndex = trimmedStdout.indexOf(jsonStartMarker);
-  const jsonEndIndex = trimmedStdout.indexOf(jsonEndMarker);
-  if (
-    jsonStartIndex === -1 ||
-    jsonEndIndex === -1 ||
-    jsonEndIndex <= jsonStartIndex
-  ) {
-    throw new Error(
-      `Matrix render probe did not emit marked JSON output: ${trimmedStdout}`,
-    );
+    try {
+      const cachedAfterLock = await readCachedMatrixCards();
+      if (cachedAfterLock) {
+        return cachedAfterLock;
+      }
+
+      const { stdout, stderr } = await runProbeScript(probeScript);
+      const renderedCards = parseRenderedMatrixCardsJson(
+        extractProbeJsonPayload(stdout, stderr),
+        "Matrix render probe",
+      );
+
+      await writeCachedMatrixCards(renderedCards);
+      return renderedCards;
+    } finally {
+      await lockHandle.close();
+      await rm(MATRIX_CACHE_LOCK_PATH, { force: true });
+    }
   }
 
-  const jsonPayload = trimmedStdout
-    .slice(jsonStartIndex + jsonStartMarker.length, jsonEndIndex)
-    .trim();
-
-  if (!jsonPayload) {
-    throw new Error("Matrix render probe emitted an empty JSON payload");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonPayload);
-  } catch (error) {
-    throw new Error(
-      `Matrix render probe emitted invalid JSON: ${jsonPayload}\n${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-
-  const validation = renderedMatrixCardsSchema.safeParse(parsed);
-  if (!validation.success) {
-    const issues = validation.error.issues
-      .map((issue) => {
-        const path = issue.path.length > 0 ? issue.path.join(".") : "<root>";
-        return `${path}: ${issue.message}`;
-      })
-      .join("; ");
-
-    throw new Error(
-      `Matrix render probe JSON failed validation: ${jsonPayload}\n${issues}`,
-    );
-  }
-
-  return validation.data;
+  throw new Error(
+    `Timed out waiting for shared matrix render cache after ${PROBE_TIMEOUT_MS}ms`,
+  );
 }
 
 function buildMatrixHtml(cards: RenderedMatrixCards): string {
