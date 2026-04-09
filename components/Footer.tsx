@@ -37,7 +37,7 @@ const SOCIAL_LINKS = [
     href: "https://github.com/RLAlpha49",
     icon: SimpleGithubIcon,
     name: "github",
-    label: "GitHub",
+    label: "GitHub Profile",
   },
 ];
 
@@ -92,6 +92,23 @@ export default function Footer() {
             >
               <Shield className="size-3" />
               Privacy Disclosure
+            </Link>
+            <span className="text-gold/30">•</span>
+            <Link
+              href="/about"
+              className="
+                inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
+                transition-colors
+                hover:text-gold
+                focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                focus-visible:outline-none
+              "
+              onClick={() =>
+                safeTrack(() => trackNavigation("about", "footer"))
+              }
+            >
+              About AniCards
             </Link>
           </div>
 

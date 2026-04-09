@@ -273,10 +273,9 @@ export function generateMetadata(config: SEOConfig): Metadata {
 /** Canonical SEO configurations for static app pages. @source */
 export const seoConfigs = {
   home: {
-    title:
-      "AniList Stat Cards Generator - AniCards | Beautiful AniList Statistics",
+    title: "AniList Stat Cards & Profile Visuals",
     description:
-      "Generate stunning AniList stat cards from your anime and manga data. Create beautiful, shareable AniList statistics cards that visualize your consumption habits, preferences, and social activity.",
+      "Turn public AniList activity into polished anime and manga stat cards, compare long-term library patterns, and export visuals for profiles, posts, and readmes.",
     keywords: [
       "anilist stat cards",
       "anilist statistics cards",
@@ -306,9 +305,9 @@ export const seoConfigs = {
   },
 
   search: {
-    title: "Search AniList Users - AniCards",
+    title: "Search AniList Profiles",
     description:
-      "Search for any AniList user by username or numeric user ID to open their public profile, review detailed statistics, and generate shareable anime and manga stat cards.",
+      "Look up any public AniList profile by username or numeric ID, open a polished stats view, and carry example styles straight into the card editor.",
     keywords: [
       "anilist user search",
       "anilist username search",
@@ -324,9 +323,9 @@ export const seoConfigs = {
   },
 
   examples: {
-    title: "All Card Examples - AniCards",
+    title: "AniCards Gallery & Card Examples",
     description:
-      "Explore all available AniCards types and variants with real examples. View anime statistics, social metrics, genre distributions, voice actor insights, studio breakdowns, and more.",
+      "Browse the AniCards gallery by collection, preview real card variations, and jump into the editor with layouts for stats, genres, favourites, and activity.",
     keywords: [
       "anilist card examples",
       "anime stat card examples",
@@ -342,17 +341,17 @@ export const seoConfigs = {
   },
 
   contact: {
-    title: "Contact Us - AniCards",
+    title: "Contact the AniCards Project Maintainer",
     description:
-      "Get in touch with the AniCards team. Find our social media links, GitHub repository, and contact information for support or feedback.",
+      "Reach the AniCards maintainer for bug reports, collaboration notes, privacy requests, and feature ideas through the channel that fits the conversation.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
     canonical: "/contact",
   },
 
   projects: {
-    title: "Other Projects - AniCards",
+    title: "Anime Tracking Projects & Tools",
     description:
-      "Explore other anime and manga related projects including AniList Custom List Manager, Kenmai to AniList converter, AniSearch ML tool, and more.",
+      "Explore the wider AniCards toolset, from AniList automation helpers to migration utilities built for anime and manga tracking workflows.",
     keywords: [
       "anime projects",
       "anilist tools",
@@ -365,9 +364,9 @@ export const seoConfigs = {
   },
 
   privacy: {
-    title: "Privacy Disclosure - AniCards",
+    title: "AniCards Privacy & Data Handling",
     description:
-      "Read AniCards' plain-language summary of analytics consent, saved data, telemetry minimization, and current retention limits.",
+      "Read the plain-language overview of AniCards analytics consent, saved settings, telemetry minimization, and current retention limits.",
     keywords: [
       "privacy disclosure",
       "analytics consent",
@@ -376,6 +375,20 @@ export const seoConfigs = {
       "saved data",
     ],
     canonical: "/privacy",
+  },
+
+  about: {
+    title: "About AniCards",
+    description:
+      "Learn why AniCards exists, how it turns public AniList data into customizable stat cards, and which open-source principles shape the project.",
+    keywords: [
+      "about anicards",
+      "anilist project",
+      "anime stat cards",
+      "open source",
+      "project philosophy",
+    ],
+    canonical: "/about",
   },
 
   user: {
@@ -420,6 +433,11 @@ const staticSitemapEntryDefs = [
   {
     seoKey: "projects",
     priority: 0.6,
+    changefreq: "monthly",
+  },
+  {
+    seoKey: "about",
+    priority: 0.65,
     changefreq: "monthly",
   },
   {

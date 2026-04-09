@@ -183,6 +183,7 @@ export type StructuredDataEntry =
 const SEARCH_ACTION_QUERY_INPUT = "required name=search_term_string";
 const SEARCH_ACTION_TARGET_PARAMETER = "search_term_string";
 const BREADCRUMB_SEGMENT_LABELS = {
+  about: "About",
   contact: "Contact",
   examples: "Examples",
   privacy: "Privacy",
@@ -445,6 +446,10 @@ function buildPageEntry(
   };
 
   switch (pageType) {
+    case "about":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(entityIds.organization);
+      break;
     case "contact":
       pageEntry.about = buildReference(entityIds.organization);
       pageEntry.mainEntity = buildReference(entityIds.organization);

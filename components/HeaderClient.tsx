@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { label: "Search", href: "/search" },
   { label: "Examples", href: "/examples" },
   { label: "Projects", href: "/projects" },
+  { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ] as const;
 
@@ -345,7 +346,6 @@ export default function HeaderClient() {
         className="overflow-hidden border-t border-gold/20 md:hidden"
         aria-label="Mobile navigation"
         hidden={!mobileMenuOpen}
-        aria-hidden={!mobileMenuOpen}
         tabIndex={-1}
       >
         <div className="min-h-0 space-y-1 px-6 py-4">

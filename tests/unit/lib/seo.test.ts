@@ -120,8 +120,18 @@ describe("SEO metadata helpers", () => {
     const openGraph = getOpenGraphMetadata(metadata);
 
     expect(metadata.alternates?.canonical).toBe("/search");
-    expect(metadata.description).toContain("username or numeric user ID");
+    expect(metadata.description).toContain("username or numeric ID");
     expect(openGraph?.url).toBe(resolveSiteUrl("/search"));
+  });
+
+  it("keeps the about page canonical and indexable", () => {
+    const metadata = generateMetadata(seoConfigs.about);
+    const openGraph = getOpenGraphMetadata(metadata);
+    const robots = getRobotsMetadata(metadata);
+
+    expect(metadata.alternates?.canonical).toBe("/about");
+    expect(openGraph?.url).toBe(resolveSiteUrl("/about"));
+    expect(robots?.index).toBe(true);
   });
 
   it("normalizes the public /search mode contract and omits the default mode when possible", () => {
