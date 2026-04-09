@@ -1,188 +1,198 @@
-<mxfile host="Electron" modified="2026-03-31T23:30:00.000Z" agent="GitHub Copilot" version="26.0.0">
-  <diagram id="consent-flow" name="Analytics Consent Flow">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <!-- Title -->
-        <mxCell id="title" value="Analytics Consent Flow" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="20" width="300" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="subtitle" value="Consent state management, Google Analytics bootstrap, and event tracking pipeline. Vercel runtime telemetry is separate and not consent-gated." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="500" y="20" width="580" height="40" as="geometry" />
-        </mxCell>
-
-        <!-- Consent State Layer -->
-        <mxCell id="lane-state" value="Consent State (lib/utils/google-analytics.ts)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="80" width="1080" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="storage" value="localStorage&#xa;anicards:analytics-consent:v1&#xa;&#xa;Values: unset | granted | denied" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="lane-state">
-          <mxGeometry x="30" y="40" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="get-consent" value="getAnalyticsConsentState()&#xa;reads + caches consent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="lane-state">
-          <mxGeometry x="320" y="50" width="220" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="set-consent" value="setAnalyticsConsentState()&#xa;persist + update mode&#xa;+ dispatch event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="lane-state">
-          <mxGeometry x="590" y="50" width="220" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="consent-event" value="Custom Event&#xa;anicards:analytics-consent-changed&#xa;(cross-tab sync via storage event)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-state">
-          <mxGeometry x="860" y="40" width="200" height="80" as="geometry" />
-        </mxCell>
-
-        <!-- Edges in consent state -->
-        <mxCell id="e-storage-get" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="storage" target="get-consent" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-set-storage" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="set-consent" target="storage" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-set-event" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="set-consent" target="consent-event" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- UI Layer -->
-        <mxCell id="lane-ui" value="Consent UI (components/AnalyticsProvider.tsx)" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="250" width="1080" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="provider-mount" value="AnalyticsProvider mount&#xa;syncConsentState()&#xa;subscribe to storage + custom events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane-ui">
-          <mxGeometry x="30" y="40" width="250" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="banner-decision" value="consentState === unset?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-ui">
-          <mxGeometry x="340" y="35" width="200" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="banner" value="Consent Banner&#xa;Accept / Deny" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane-ui">
-          <mxGeometry x="610" y="35" width="160" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="manager" value="Consent Manager&#xa;(existing preference)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane-ui">
-          <mxGeometry x="610" y="95" width="160" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="update-fn" value="updateConsent(true|false)&#xa;calls setAnalyticsConsentState()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane-ui">
-          <mxGeometry x="840" y="40" width="220" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- UI edges -->
-        <mxCell id="e-mount-decision" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="provider-mount" target="banner-decision" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-decision-banner" value="Yes" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="banner-decision" target="banner" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-decision-manager" value="No" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="banner-decision" target="manager" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-banner-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="banner" target="update-fn" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-manager-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="manager" target="update-fn" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Connect UI to state layer -->
-        <mxCell id="e-update-setconsent" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="update-fn" target="set-consent" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-event-provider" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="consent-event" target="provider-mount" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- GA Bootstrap Layer -->
-        <mxCell id="lane-ga" value="Google Analytics Bootstrap (components/GoogleAnalytics.tsx)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="420" width="1080" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="ga-init" value="Bootstrap script&#xa;window.dataLayer&#xa;window.gtag&#xa;gtag('consent', 'default', denied)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane-ga">
-          <mxGeometry x="30" y="40" width="250" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="ga-consent-update" value="useEffect&#xa;updateAnalyticsConsentMode()&#xa;when consentGranted changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane-ga">
-          <mxGeometry x="330" y="40" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="ga-script" value="gtag.js loader &lt;Script&gt;&#xa;renders only when&#xa;consentGranted === true" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane-ga">
-          <mxGeometry x="620" y="40" width="220" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="ga-config" value="gtag('config', trackingId)&#xa;send_page_view: false" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane-ga">
-          <mxGeometry x="890" y="45" width="170" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- GA edges -->
-        <mxCell id="e-ga-init-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="ga-init" target="ga-consent-update" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-ga-update-script" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="ga-consent-update" target="ga-script" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-ga-script-config" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="ga-script" target="ga-config" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Tracking Layer -->
-        <mxCell id="lane-tracking" value="Event Tracking (hooks/useGoogleAnalytics.ts + lib/utils/google-analytics.ts)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="580" width="1080" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="pageview-hook" value="useGoogleAnalytics()&#xa;listens to pathname changes&#xa;calls pageview()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-tracking">
-          <mxGeometry x="30" y="40" width="210" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="pageview-fn" value="pageview()&#xa;normalizeAnalyticsPage()&#xa;sends page_view event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-tracking">
-          <mxGeometry x="290" y="40" width="200" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="event-fn" value="event()&#xa;normalizeAnalyticsLabel()&#xa;action / category / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-tracking">
-          <mxGeometry x="540" y="40" width="200" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="safe-track" value="safeTrack(fn)&#xa;consent gate&#xa;catches shim failures" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane-tracking">
-          <mxGeometry x="790" y="40" width="180" height="70" as="geometry" />
-        </mxCell>
-
-        <!-- Tracking edges -->
-        <mxCell id="e-pv-hook-fn" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="pageview-hook" target="pageview-fn" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-pv-fn-event" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="pageview-fn" target="event-fn" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Callers Layer -->
-        <mxCell id="lane-callers" value="Tracking Callers (components throughout the app)" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="740" width="1080" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="caller-nav" value="trackNavigation()&#xa;Footer, Header, Privacy links" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-callers">
-          <mxGeometry x="30" y="40" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="caller-btn" value="trackButtonClick()&#xa;DarkModeToggle, HomeCTA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-callers">
-          <mxGeometry x="260" y="40" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="caller-settings" value="trackSettingsChanged()&#xa;trackColorPresetSelection()&#xa;Editor interactions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-callers">
-          <mxGeometry x="490" y="40" width="220" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="caller-error" value="trackError()&#xa;ErrorBoundary, error.tsx&#xa;global-error.tsx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-callers">
-          <mxGeometry x="740" y="40" width="200" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- Caller to safeTrack edges -->
-        <mxCell id="e-nav-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="caller-nav" target="safe-track" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-btn-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="caller-btn" target="safe-track" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-settings-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="caller-settings" target="safe-track" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-error-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" edge="1" source="caller-error" target="safe-track" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Vercel Telemetry (separate) -->
-        <mxCell id="vercel-note" value="Vercel Analytics + Speed Insights&#xa;(separate, NOT consent-gated)&#xa;Controlled by enableRuntimeTelemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="890" width="320" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- Google Analytics external -->
-        <mxCell id="ga-external" value="Google Analytics&#xa;(external)" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
-          <mxGeometry x="940" y="890" width="140" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="e-event-ga" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="event-fn" target="ga-external" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e">
+    <diagram id="consent-flow" name="Analytics Consent Flow">
+        <mxGraphModel dx="845" dy="535" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Analytics Consent Flow" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="300" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Consent state management, Google Analytics bootstrap, and event tracking pipeline. Vercel runtime telemetry is separate and not consent-gated." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="20" width="580" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-state" value="Consent State (lib/utils/google-analytics.ts)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="1080" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="storage" value="localStorage&#xa;anicards:analytics-consent:v1&#xa;&#xa;Values: unset | granted | denied" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-state" vertex="1">
+                    <mxGeometry x="30" y="40" width="240" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="get-consent" value="getAnalyticsConsentState()&#xa;reads + caches consent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-state" vertex="1">
+                    <mxGeometry x="320" y="50" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="set-consent" value="setAnalyticsConsentState()&#xa;persist + update mode&#xa;+ dispatch event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-state" vertex="1">
+                    <mxGeometry x="590" y="50" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="consent-event" value="Custom Event&#xa;anicards:analytics-consent-changed&#xa;(cross-tab sync via storage event)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-state" vertex="1">
+                    <mxGeometry x="860" y="40" width="200" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-storage-get" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="storage" target="get-consent" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-set-storage" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="set-consent" target="storage" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="740" y="210"/>
+                            <mxPoint x="190" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-set-event" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="set-consent" target="consent-event" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-ui" value="Consent UI (components/AnalyticsProvider.tsx)" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="250" width="1080" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="provider-mount" value="AnalyticsProvider mount&#xa;syncConsentState()&#xa;subscribe to storage + custom events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-ui" vertex="1">
+                    <mxGeometry x="30" y="40" width="250" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="banner-decision" value="consentState === unset?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-ui" vertex="1">
+                    <mxGeometry x="340" y="35" width="200" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="banner" value="Consent Banner&#xa;Accept / Deny" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-ui" vertex="1">
+                    <mxGeometry x="610" y="35" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="manager" value="Consent Manager&#xa;(existing preference)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-ui" vertex="1">
+                    <mxGeometry x="610" y="95" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="update-fn" value="updateConsent(true|false)&#xa;calls setAnalyticsConsentState()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-ui" vertex="1">
+                    <mxGeometry x="840" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-mount-decision" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="provider-mount" target="banner-decision" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-decision-banner" value="Yes" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="banner-decision" target="banner" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-decision-manager" value="No" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="banner-decision" target="manager" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-banner-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="banner" target="update-fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-manager-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="manager" target="update-fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-update-setconsent" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="update-fn" target="set-consent" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="990" y="240"/>
+                            <mxPoint x="740" y="240"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-event-provider" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="consent-event" target="provider-mount" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1000" y="230"/>
+                            <mxPoint x="195" y="230"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="lane-ga" value="Google Analytics Bootstrap (components/GoogleAnalytics.tsx)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="420" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga-init" value="Bootstrap script&#xa;window.dataLayer&#xa;window.gtag&#xa;gtag(&#39;consent&#39;, &#39;default&#39;, denied)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-ga" vertex="1">
+                    <mxGeometry x="30" y="40" width="250" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga-consent-update" value="useEffect&#xa;updateAnalyticsConsentMode()&#xa;when consentGranted changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-ga" vertex="1">
+                    <mxGeometry x="330" y="40" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga-script" value="gtag.js loader &lt;Script&gt;&#xa;renders only when&#xa;consentGranted === true" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-ga" vertex="1">
+                    <mxGeometry x="620" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga-config" value="gtag(&#39;config&#39;, trackingId)&#xa;send_page_view: false" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-ga" vertex="1">
+                    <mxGeometry x="890" y="45" width="170" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-ga-init-update" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ga-init" target="ga-consent-update" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-ga-update-script" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ga-consent-update" target="ga-script" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-ga-script-config" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ga-script" target="ga-config" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-tracking" value="Event Tracking (hooks/useGoogleAnalytics.ts + lib/utils/google-analytics.ts)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="580" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="pageview-hook" value="useGoogleAnalytics()&#xa;listens to pathname changes&#xa;calls pageview()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-tracking" vertex="1">
+                    <mxGeometry x="30" y="40" width="210" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="pageview-fn" value="pageview()&#xa;normalizeAnalyticsPage()&#xa;sends page_view event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-tracking" vertex="1">
+                    <mxGeometry x="290" y="40" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="event-fn" value="event()&#xa;normalizeAnalyticsLabel()&#xa;action / category / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-tracking" vertex="1">
+                    <mxGeometry x="540" y="40" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="safe-track" value="safeTrack(fn)&#xa;consent gate&#xa;catches shim failures" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-tracking" vertex="1">
+                    <mxGeometry x="790" y="40" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-pv-hook-fn" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="pageview-hook" target="pageview-fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-pv-fn-event" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="pageview-fn" target="event-fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-callers" value="Tracking Callers (components throughout the app)" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="740" width="1080" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="caller-nav" value="trackNavigation()&#xa;Footer, Header, Privacy links" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-callers" vertex="1">
+                    <mxGeometry x="30" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="caller-btn" value="trackButtonClick()&#xa;DarkModeToggle, HomeCTA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-callers" vertex="1">
+                    <mxGeometry x="260" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="caller-settings" value="trackSettingsChanged()&#xa;trackColorPresetSelection()&#xa;Editor interactions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-callers" vertex="1">
+                    <mxGeometry x="490" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="caller-error" value="trackError()&#xa;ErrorBoundary, error.tsx&#xa;global-error.tsx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-callers" vertex="1">
+                    <mxGeometry x="740" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-nav-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="caller-nav" target="safe-track" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="290" y="810"/>
+                            <mxPoint x="290" y="710"/>
+                            <mxPoint x="920" y="710"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-btn-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="caller-btn" target="safe-track" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="510" y="810"/>
+                            <mxPoint x="510" y="730"/>
+                            <mxPoint x="920" y="730"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-settings-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="caller-settings" target="safe-track" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="770" y="810"/>
+                            <mxPoint x="770" y="730"/>
+                            <mxPoint x="920" y="730"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-error-safe" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" source="caller-error" target="safe-track" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-note" value="Vercel Analytics + Speed Insights&#xa;(separate, NOT consent-gated)&#xa;Controlled by enableRuntimeTelemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="890" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga-external" value="Google Analytics&#xa;(external)" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="890" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-event-ga" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="event-fn" target="ga-external" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="680" y="720"/>
+                            <mxPoint x="1010" y="720"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
