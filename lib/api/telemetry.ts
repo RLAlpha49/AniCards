@@ -23,7 +23,10 @@ const pendingTelemetryTasks = new Set<Promise<void>>();
 export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 
 function shouldTrackTelemetryTasksForTests(): boolean {
-  return process.env[TELEMETRY_TEST_ENV_FLAG] === "true";
+  return (
+    process.env[TELEMETRY_TEST_ENV_FLAG] === "true" ||
+    process.env.NODE_ENV === "test"
+  );
 }
 
 function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
