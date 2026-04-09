@@ -1413,6 +1413,7 @@ export function UserPageEditor({
 }>) {
   const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();
+  const currentSearch = searchParams.toString();
   const { prefersReducedMotion, prefersReducedData, prefersSimplifiedMotion } =
     useMotionPreferences();
   const scrollBehavior = useMemo(
@@ -1655,7 +1656,7 @@ export function UserPageEditor({
 
   useEffect(() => {
     setIsHelpDialogOpen(false);
-  }, [searchParams]);
+  }, [currentSearch]);
 
   useEffect(() => {
     syncFiltersFromSearchParams({
@@ -1828,7 +1829,6 @@ export function UserPageEditor({
 
   const router = useRouter();
   const pathname = usePathname();
-  const currentSearch = searchParams.toString();
 
   useDebouncedEditorUrlSync({
     pathname,
@@ -2142,6 +2142,7 @@ export function UserPageEditor({
                           onPointerEnter={prefetchHelpDialog}
                           onFocus={prefetchHelpDialog}
                           aria-haspopup="dialog"
+                          aria-label="Help"
                           aria-keyshortcuts="Control+H Meta+H"
                           data-tour="help-button"
                         >
@@ -2176,6 +2177,7 @@ export function UserPageEditor({
                             <Button
                               type="button"
                               size="sm"
+                              aria-label="Global settings"
                               className="
                                 h-8 bg-linear-to-r from-gold via-amber-500 to-gold-dim px-2 text-xs
                                 font-semibold text-primary-foreground shadow-sm shadow-gold/20
