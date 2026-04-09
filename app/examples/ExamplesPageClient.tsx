@@ -80,6 +80,7 @@ export default function ExamplesPageClient({
 }: Readonly<ExamplesPageClientProps>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [hasMounted, setHasMounted] = useState(false);
   const categorySet = useMemo(
     () => new Set<ExampleCategory>(catalog.categories),
     [catalog.categories],
@@ -93,6 +94,10 @@ export default function ExamplesPageClient({
   );
   const [showAllCollections, setShowAllCollections] = useState(false);
   const previewColorPreset = usePreviewColorPreset();
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const replaceQueryString = useCallback(
     (nextQueryString: string) => {
@@ -223,7 +228,10 @@ export default function ExamplesPageClient({
       resetKeys={[searchQuery, activeCategory ?? ""]}
       onReset={handleClearFilters}
     >
-      <div className="relative min-h-screen">
+      <div
+        className="relative min-h-screen"
+        data-ui-ready={hasMounted ? "true" : "false"}
+      >
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.5 }}
