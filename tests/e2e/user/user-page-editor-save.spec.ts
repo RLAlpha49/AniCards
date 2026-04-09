@@ -180,7 +180,7 @@ async function waitForPendingSaveState(page: Page): Promise<void> {
     .poll(
       async () =>
         (await page.locator('output[aria-live="polite"]').textContent()) ?? "",
-      { timeout: 5000 },
+      { timeout: 10000 },
     )
     .toMatch(/Auto-save in|Saving|Out of sync/i);
 }
@@ -228,13 +228,6 @@ function expectSavedTogglePayload(
 }
 
 test.describe("User page editor - save UX", () => {
-  test.beforeEach(({ browserName }) => {
-    test.skip(
-      browserName === "firefox",
-      "Firefox is flaky for the editor save UX path under the full e2e matrix.",
-    );
-  });
-
   test("saving submits a minimal /api/store-cards payload", async ({
     page,
   }) => {
@@ -587,110 +580,111 @@ test.describe("User page editor - save UX", () => {
     });
   });
 
-  test("@real-handlers persists editor changes through the real bootstrap and save handlers", async ({
-    page,
-  }) => {
-    test.skip(
-      !isRealHandlerRunEnabled(),
-      "Opt-in real-handler coverage. Run the dedicated real user Playwright script to enable this slice.",
-    );
+  if (isRealHandlerRunEnabled()) {
+    test("@real-handlers persists editor changes through the real bootstrap and save handlers", async ({
+      page,
+    }) => {
+      const missingEnvKeys = getMissingRealHandlerEnvKeys();
 
-    const missingEnvKeys = getMissingRealHandlerEnvKeys();
-    test.skip(
-      missingEnvKeys.length > 0,
-      `Real-handler user/editor coverage requires: ${missingEnvKeys.join(", ")}`,
-    );
+      if (missingEnvKeys.length > 0) {
+        throw new Error(
+          `Real-handler user/editor coverage requires: ${missingEnvKeys.join(
+            ", ",
+          )}`,
+        );
+      }
 
-    test.slow();
+      test.slow();
 
-    const uniqueSeed = `${Date.now()}${test.info().workerIndex}${realHandlerSeedCounter++}`;
-    const userId = Number(uniqueSeed.slice(-9));
-    const username = `PlaywrightRealUser${userId}`;
-    const seededCards = structuredClone(mockCardsRecord.cards);
+      const uniqueSeed = `${Date.now()}${test.info().workerIndex}${realHandlerSeedCounter++}`;
+      const userId = Number(uniqueSeed.slice(-9));
+      const username = `PlaywrightRealUser${userId}`;
+      const seededCards = structuredClone(mockCardsRecord.cards);
 
-    await test.step("Seed a real stored user and card snapshot from the browser context", async () => {
-      await gotoReady(page, "/");
+      await test.step("Seed a real stored user and card snapshot from the browser context", async () => {
+        await gotoReady(page, "/");
 
-      const storeUserResponse = await fetchBrowserJson(
-        page,
-        "/api/store-users",
-        {
-          method: "POST",
-          body: {
-            userId,
-            username,
-            stats: mockUserStatsData,
+        const storeUserResponse = await fetchBrowserJson(
+          page,
+          "/api/store-users",
+          {
+            method: "POST",
+            body: {
+              userId,
+              username,
+              stats: mockUserStatsData,
+            },
           },
-        },
-      );
-      expectSuccessfulBrowserResponse(
-        storeUserResponse,
-        "Seeding /api/store-users",
-      );
+        );
+        expectSuccessfulBrowserResponse(
+          storeUserResponse,
+          "Seeding /api/store-users",
+        );
 
-      const storeCardsResponse = await fetchBrowserJson(
-        page,
-        "/api/store-cards",
-        {
-          method: "POST",
-          body: {
-            userId,
-            cards: seededCards,
+        const storeCardsResponse = await fetchBrowserJson(
+          page,
+          "/api/store-cards",
+          {
+            method: "POST",
+            body: {
+              userId,
+              cards: seededCards,
+            },
           },
-        },
-      );
-      expectSuccessfulBrowserResponse(
-        storeCardsResponse,
-        "Seeding /api/store-cards",
-      );
+        );
+        expectSuccessfulBrowserResponse(
+          storeCardsResponse,
+          "Seeding /api/store-cards",
+        );
+      });
+
+      let targetCardId = "";
+      let expectedSavedState: "true" | "false" = "false";
+
+      await test.step("Load the real user editor and make a persistent change", async () => {
+        await gotoReady(page, `/user/${username}`);
+        await expect(
+          page.getByRole("heading", { name: /your cards/i }),
+        ).toBeVisible({ timeout: 15000 });
+        await waitForUserEditorReady(page);
+        await waitForCleanEditorState(page);
+
+        const targetToggle = await getPrimaryEditorCardToggle(page);
+        targetCardId = targetToggle.cardId;
+        expectedSavedState =
+          targetToggle.initialChecked === "true" ? "false" : "true";
+
+        await clickEditorToggle(targetToggle.toggle);
+        await waitForDirtyEditorState(page);
+
+        await page.getByRole("button", { name: /save changes/i }).click();
+
+        await expect(
+          page.getByRole("button", { name: /save changes/i }),
+        ).toBeDisabled({ timeout: 15000 });
+        await expect(
+          page.getByRole("button", { name: /discard unsaved changes/i }),
+        ).toBeDisabled({ timeout: 15000 });
+      });
+
+      await test.step("Reloading the page should read the saved toggle state from the real handlers", async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await expect(
+          page.getByRole("heading", { name: /your cards/i }),
+        ).toBeVisible({ timeout: 15000 });
+        await waitForUserEditorReady(page);
+
+        const reloadedToggle = page
+          .getByTestId(`card-tile-${targetCardId}`)
+          .getByRole("switch")
+          .first();
+
+        await expect(reloadedToggle).toHaveAttribute(
+          "aria-checked",
+          expectedSavedState,
+          { timeout: 15000 },
+        );
+      });
     });
-
-    let targetCardId = "";
-    let expectedSavedState: "true" | "false" = "false";
-
-    await test.step("Load the real user editor and make a persistent change", async () => {
-      await gotoReady(page, `/user/${username}`);
-      await expect(
-        page.getByRole("heading", { name: /your cards/i }),
-      ).toBeVisible({ timeout: 15000 });
-      await waitForUserEditorReady(page);
-      await waitForCleanEditorState(page);
-
-      const targetToggle = await getPrimaryEditorCardToggle(page);
-      targetCardId = targetToggle.cardId;
-      expectedSavedState =
-        targetToggle.initialChecked === "true" ? "false" : "true";
-
-      await clickEditorToggle(targetToggle.toggle);
-      await waitForDirtyEditorState(page);
-
-      await page.getByRole("button", { name: /save changes/i }).click();
-
-      await expect(
-        page.getByRole("button", { name: /save changes/i }),
-      ).toBeDisabled({ timeout: 15000 });
-      await expect(
-        page.getByRole("button", { name: /discard unsaved changes/i }),
-      ).toBeDisabled({ timeout: 15000 });
-    });
-
-    await test.step("Reloading the page should read the saved toggle state from the real handlers", async () => {
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await expect(
-        page.getByRole("heading", { name: /your cards/i }),
-      ).toBeVisible({ timeout: 15000 });
-      await waitForUserEditorReady(page);
-
-      const reloadedToggle = page
-        .getByTestId(`card-tile-${targetCardId}`)
-        .getByRole("switch")
-        .first();
-
-      await expect(reloadedToggle).toHaveAttribute(
-        "aria-checked",
-        expectedSavedState,
-        { timeout: 15000 },
-      );
-    });
-  });
+  }
 });

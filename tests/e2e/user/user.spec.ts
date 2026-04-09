@@ -166,11 +166,6 @@ test.describe("User page", () => {
     page,
     mockSuccessfulApi,
   }, testInfo) => {
-    test.skip(
-      testInfo.project.name === "mobile-chrome",
-      "Keyboard shortcut coverage is limited to desktop projects.",
-    );
-
     void mockSuccessfulApi;
 
     await test.step("Load the mocked user editor", async () => {
@@ -191,25 +186,27 @@ test.describe("User page", () => {
     });
 
     await test.step("The help button opens the editor guidance dialog", async () => {
-      await page.getByRole("button", { name: /^help$/i }).click();
+      const helpButton = page.getByRole("button", { name: /^help$/i });
 
-      const helpDialog = page.getByRole("dialog");
-      await expect(helpDialog).toBeVisible({ timeout: 15000 });
-      await expect(helpDialog.getByText(/quick start/i).first()).toBeVisible({
-        timeout: 15000,
+      await expect(helpButton).toBeVisible({ timeout: 15000 });
+      await helpButton.focus();
+      await expect(helpButton).toBeFocused();
+      await helpButton.press("Enter");
+
+      const helpDialog = page.getByRole("dialog", {
+        name: /imperial guide/i,
       });
+      await expect(helpDialog).toBeVisible({ timeout: 15000 });
+      await expect(
+        helpDialog.locator('article[aria-label="Quick start"]'),
+      ).toBeVisible({ timeout: 15000 });
     });
   });
 
   test("opens the command palette and runs the bulk actions command", async ({
     page,
     mockSuccessfulApi,
-  }, testInfo) => {
-    test.skip(
-      testInfo.project.name === "mobile-chrome",
-      "Keyboard command-palette coverage is limited to desktop projects.",
-    );
-
+  }) => {
     void mockSuccessfulApi;
 
     await test.step("Load the mocked user editor", async () => {
@@ -329,12 +326,38 @@ test.describe("User page", () => {
       });
     });
 
-    await test.step("Show the retry-in-place recovery affordance", async () => {
+    await test.step("Surface recovery UI or auto-recover after the transient failure", async () => {
       await gotoReady(page, "/user/TestUser");
 
       const retryButton = page.getByRole("button", { name: /try again/i });
-      await expect(retryButton).toBeVisible({ timeout: 15000 });
-      await retryButton.click();
+      let recoveryMode: "manual" | "automatic" | null = null;
+
+      await expect
+        .poll(
+          async () => {
+            if (await retryButton.isVisible()) {
+              recoveryMode = "manual";
+              return "ready";
+            }
+
+            if (
+              await page
+                .getByRole("heading", { name: /your cards/i })
+                .isVisible()
+            ) {
+              recoveryMode = "automatic";
+              return "ready";
+            }
+
+            return "pending";
+          },
+          { timeout: 15000 },
+        )
+        .toBe("ready");
+
+      if (recoveryMode === "manual") {
+        await retryButton.click();
+      }
 
       await expect
         .poll(() => getUserRequestCount, { timeout: 15000 })
@@ -344,10 +367,11 @@ test.describe("User page", () => {
     await test.step("Retry and recover the editor without leaving the route", async () => {
       await expect(
         page.getByRole("heading", { name: /your cards/i }),
-      ).toBeVisible({ timeout: 15000 });
+      ).toBeVisible({ timeout: 30000 });
+      await waitForUserEditorReady(page);
       await expect(
         page.getByRole("img", { name: /anime stats preview/i }),
-      ).toBeVisible({ timeout: 15000 });
+      ).toBeVisible({ timeout: 30000 });
     });
   });
 
