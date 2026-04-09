@@ -52,7 +52,7 @@ export default function GoogleAnalytics({
   }, [consentGranted]);
 
   const handleLoaderError = (error: Error) => {
-    reportAnalyticsInstrumentationFailure({
+    return reportAnalyticsInstrumentationFailure({
       userAction: "analytics_script_load",
       error,
       category: "network_error",

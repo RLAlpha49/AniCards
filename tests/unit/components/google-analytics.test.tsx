@@ -97,20 +97,6 @@ function createStorageMock(): Storage {
   };
 }
 
-async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
-  for (let index = 0; index < cycles; index++) {
-    await Promise.resolve();
-  }
-
-  await new Promise<void>((resolve) => {
-    globalThis.setTimeout(resolve, 0);
-  });
-
-  for (let index = 0; index < cycles; index++) {
-    await Promise.resolve();
-  }
-}
-
 describe("GoogleAnalytics", () => {
   beforeEach(() => {
     capturedScripts.length = 0;
@@ -198,8 +184,7 @@ describe("GoogleAnalytics", () => {
 
     expect(loaderScript?.onError).toBeDefined();
 
-    loaderScript?.onError?.(new TypeError("Failed to load script"));
-    await flushAnalyticsTelemetry();
+    await loaderScript?.onError?.(new TypeError("Failed to load script"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getReportedErrorPayload(0)).toMatchObject({

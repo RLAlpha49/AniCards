@@ -402,9 +402,9 @@ const reserveAnalyticsFailureReport = (options: {
 
 export const reportAnalyticsInstrumentationFailure = (
   options: AnalyticsInstrumentationFailureOptions,
-): void => {
+): Promise<void> => {
   if (globalThis.window === undefined) {
-    return;
+    return Promise.resolve();
   }
 
   const normalizedError = normalizeAnalyticsFailureError(
@@ -421,7 +421,7 @@ export const reportAnalyticsInstrumentationFailure = (
   });
 
   if (!rateLimitState) {
-    return;
+    return Promise.resolve();
   }
 
   const metadata = sanitizeAnalyticsTelemetryMetadata({
@@ -434,9 +434,9 @@ export const reportAnalyticsInstrumentationFailure = (
     ...options.metadata,
   });
 
-  void import("@/lib/error-tracking")
-    .then(({ reportStructuredError }) => {
-      return reportStructuredError({
+  return import("@/lib/error-tracking")
+    .then(async ({ reportStructuredError }) => {
+      await reportStructuredError({
         source: "analytics_instrumentation",
         userAction: options.userAction,
         error: normalizedError,
@@ -567,7 +567,7 @@ export function updateAnalyticsConsentMode(granted: boolean): void {
   try {
     gtag("consent", "update", buildAnalyticsConsentMode(granted));
   } catch (error) {
-    reportAnalyticsInstrumentationFailure({
+    void reportAnalyticsInstrumentationFailure({
       userAction: "analytics_consent_update",
       error,
       metadata: {
@@ -673,7 +673,7 @@ export const pageview = ({
         page_location: pageLocation,
       });
     } catch (error) {
-      reportAnalyticsInstrumentationFailure({
+      void reportAnalyticsInstrumentationFailure({
         userAction: "analytics_pageview_dispatch",
         error,
         metadata: {
@@ -726,7 +726,7 @@ export const event = ({
             : undefined,
       });
     } catch (error) {
-      reportAnalyticsInstrumentationFailure({
+      void reportAnalyticsInstrumentationFailure({
         userAction: "analytics_event_dispatch",
         error,
         metadata: {
@@ -749,7 +749,7 @@ export const safeTrack = (fn: () => void, options?: SafeTrackOptions) => {
   try {
     fn();
   } catch (error) {
-    reportAnalyticsInstrumentationFailure({
+    void reportAnalyticsInstrumentationFailure({
       userAction: options?.userAction ?? "analytics_safe_track",
       error,
       metadata: options?.metadata,
