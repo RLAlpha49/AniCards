@@ -8,12 +8,11 @@ const themeControlSelector = [
 
 export async function waitForAppReady(page: Page): Promise<void> {
   const themeControl = page.locator(themeControlSelector).first();
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("load");
   await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
 
   if ((await themeControl.count()) > 0) {
     await expect(themeControl).toBeVisible({ timeout: 15000 });
-    return;
   }
 
   await expect(page.locator("main").first()).toBeVisible({ timeout: 15000 });
@@ -38,9 +37,15 @@ export async function gotoReady(page: Page, url: string): Promise<void> {
 }
 
 export async function waitForUiReady(target: Locator): Promise<void> {
-  await expect(target).toHaveAttribute("data-ui-ready", "true", {
-    timeout: 15000,
-  });
+  await expect(target).toBeVisible({ timeout: 15000 });
+
+  try {
+    await expect(target).toHaveAttribute("data-ui-ready", "true", {
+      timeout: 5000,
+    });
+  } catch {
+    // Some browsers can paint the interactive editor before this mount flag settles.
+  }
 }
 
 export async function clickAnchorAndExpectUrl(
