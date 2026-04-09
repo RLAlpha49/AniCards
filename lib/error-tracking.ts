@@ -6,6 +6,8 @@
  * @source
  */
 
+import { redisClient } from "@/lib/api/clients";
+import { logPrivacySafe } from "@/lib/api/logging";
 import {
   type ErrorCategory,
   getErrorDetails,
@@ -2155,8 +2157,6 @@ async function updateEvictedErrorReportTriageSummary(
 async function persistStructuredErrorBufferEntry(
   report: StructuredErrorReport,
 ): Promise<void> {
-  const { logPrivacySafe, redisClient } = await import("@/lib/api-utils");
-
   const persistedLength = await redisClient.rpush(
     ERROR_REPORTS_KEY,
     JSON.stringify(report),
