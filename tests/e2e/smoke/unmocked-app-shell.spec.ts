@@ -1,5 +1,7 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
 
+import { getSiteUrl } from "@/lib/site-config";
+
 import {
   dismissAnalyticsPromptIfVisible,
   gotoReady,
@@ -150,7 +152,7 @@ test.describe("Unmocked app shell smoke", () => {
     expect(response.ok()).toBe(true);
 
     const robotsText = await response.text();
-    const origin = new URL(response.url()).origin;
+    const origin = getSiteUrl();
     const sitemapUrl = `${origin}/sitemap.xml`;
 
     expect(robotsText).toMatch(/user-agent:\s*\*/i);

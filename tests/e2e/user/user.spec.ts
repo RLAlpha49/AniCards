@@ -332,6 +332,10 @@ test.describe("User page", () => {
     await test.step("Show the retry-in-place recovery affordance", async () => {
       await gotoReady(page, "/user/TestUser");
 
+      const retryButton = page.getByRole("button", { name: /try again/i });
+      await expect(retryButton).toBeVisible({ timeout: 15000 });
+      await retryButton.click();
+
       await expect
         .poll(() => getUserRequestCount, { timeout: 15000 })
         .toBeGreaterThanOrEqual(2);

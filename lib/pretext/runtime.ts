@@ -4,6 +4,7 @@ const DEFAULT_TITLE_INITIAL_FONT_SIZE = 18;
 const DEFAULT_TITLE_MIN_FONT_SIZE = 8;
 const DEFAULT_SHRINK_THRESHOLD = 0.25;
 const DEFAULT_FONT_FAMILY = '"Segoe UI", Ubuntu, Sans-Serif';
+const TITLE_FIT_BROWSER_SAFETY_FACTOR = 0.85;
 
 // This singleton is intentionally client-only. It is not safe for SSR/edge reuse,
 // and the reset helpers split production cleanup from test-only cache resets.
@@ -137,11 +138,16 @@ export interface ResolveSvgTitleTextFitOptions {
 export function resolveSvgTitleTextFit(
   options: ResolveSvgTitleTextFitOptions,
 ): ResolvedSvgTitleTextFit {
+  const effectiveMaxWidth = Math.max(
+    1,
+    Math.floor(options.maxWidth * TITLE_FIT_BROWSER_SAFETY_FACTOR),
+  );
+
   const fit = fitSvgSingleLineText({
     fontFamily: options.fontFamily ?? DEFAULT_FONT_FAMILY,
     fontWeight: options.fontWeight ?? 600,
     initialFontSize: options.initialFontSize ?? DEFAULT_TITLE_INITIAL_FONT_SIZE,
-    maxWidth: options.maxWidth,
+    maxWidth: effectiveMaxWidth,
     minFontSize: options.minFontSize ?? DEFAULT_TITLE_MIN_FONT_SIZE,
     mode: "shrink-then-truncate",
     text: options.text,
@@ -163,7 +169,7 @@ export function resolveSvgTitleTextFit(
     fontSize: textFit.calculateHeuristicDynamicFontSizeValue(
       options.text,
       options.initialFontSize ?? DEFAULT_TITLE_INITIAL_FONT_SIZE,
-      options.maxWidth,
+      effectiveMaxWidth,
       options.minFontSize ?? DEFAULT_TITLE_MIN_FONT_SIZE,
     ),
     naturalWidth: null,

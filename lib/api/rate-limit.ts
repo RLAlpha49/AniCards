@@ -35,6 +35,33 @@ function getRateLimitTimeoutMs(): number | undefined {
   return readPositiveIntegerEnv("UPSTASH_RATELIMIT_TIMEOUT_MS");
 }
 
+function hasUsableUpstashRedisConfig(): boolean {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+
+  if (!url || !token) {
+    return false;
+  }
+
+  try {
+    return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function createDisabledRateLimiter(limit: number): Ratelimit {
+  return {
+    limit: async () => ({
+      pending: undefined,
+      success: true,
+      limit,
+      remaining: limit,
+      reset: Date.now() + 1000,
+    }),
+  } as unknown as Ratelimit;
+}
+
 function createConfiguredRateLimiter(options?: {
   limit?: number;
   window?: Parameters<typeof Ratelimit.slidingWindow>[1];
@@ -48,6 +75,10 @@ function createConfiguredRateLimiter(options?: {
   const limit = options?.limit ?? 10;
   const window =
     options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
+  if (!options?.redis && !hasUsableUpstashRedisConfig()) {
+    return createDisabledRateLimiter(limit);
+  }
+
   const redis = options?.redis ?? createRealRedisClient();
   const analytics = (() => {
     if (typeof options?.analytics === "boolean") {

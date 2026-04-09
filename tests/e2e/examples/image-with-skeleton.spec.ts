@@ -11,6 +11,15 @@ const SVG_IMAGE_RESPONSE = `
 
 const CARD_PREVIEW_ROUTE = /\/(?:api\/card|card\.svg)(?:\?.*)?$/;
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return { promise, resolve };
+}
+
 async function preferDarkColorScheme(page: Page): Promise<void> {
   await page.emulateMedia({ colorScheme: "dark" });
 }
@@ -44,7 +53,7 @@ test.describe("ImageWithSkeleton", () => {
   test("keeps skeletons visible during slow image loads until a real response completes", async ({
     page,
   }) => {
-    const imageGate = Promise.withResolvers<void>();
+    const imageGate = createDeferred<void>();
 
     await preferDarkColorScheme(page);
     await mockExamplePreviewResponses(page, { delay: imageGate.promise });
