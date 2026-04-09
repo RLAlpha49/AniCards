@@ -87,7 +87,12 @@ test.describe("Examples gallery", () => {
     await page.goto("/privacy", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/privacy(?:\?|$)/, { timeout: 15000 });
     await waitForAppReady(page);
-    await page.goBack({ waitUntil: "domcontentloaded" });
+
+    await page.evaluate(() => {
+      globalThis.history.back();
+    });
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/, { timeout: 15000 });
+
     await dismissAnalyticsPromptIfVisible(page);
     await waitForAppReady(page);
 

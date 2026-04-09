@@ -8,7 +8,15 @@ const themeControlSelector = [
 
 export async function waitForAppReady(page: Page): Promise<void> {
   const themeControl = page.locator(themeControlSelector).first();
-  await page.waitForLoadState("load");
+  await page.waitForLoadState("domcontentloaded");
+
+  try {
+    await page.waitForLoadState("load", { timeout: 10000 });
+  } catch {
+    // Some Firefox/dev-server navigations keep a late resource pending even though
+    // the app shell is already rendered and interactive.
+  }
+
   await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
 
   if ((await themeControl.count()) > 0) {
@@ -53,8 +61,27 @@ export async function clickAnchorAndExpectUrl(
   locator: Locator,
   urlPattern: RegExp,
 ): Promise<void> {
-  await locator.scrollIntoViewIfNeeded();
-  await expect(locator).toBeVisible({ timeout: 15000 });
-  await locator.click();
+  const clickAnchor = async () => {
+    await dismissAnalyticsPromptIfVisible(page);
+    await locator.scrollIntoViewIfNeeded();
+    await expect(locator).toBeVisible({ timeout: 15000 });
+    await locator.click();
+  };
+
+  try {
+    await clickAnchor();
+  } catch (error) {
+    const dismissButton = page.getByRole("button", {
+      name: /keep it off/i,
+    });
+
+    if (!(await dismissButton.isVisible())) {
+      throw error;
+    }
+
+    await dismissButton.click();
+    await clickAnchor();
+  }
+
   await expect(page).toHaveURL(urlPattern, { timeout: 15000 });
 }
