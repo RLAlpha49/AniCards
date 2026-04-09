@@ -43,6 +43,15 @@ export function SearchJourney() {
           YOUR PATH
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
+        <p className="
+          mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/45
+          sm:text-base/relaxed
+        ">
+          AniCards keeps the lookup flow intentionally lightweight: start with a
+          public username or user ID, let the app assemble a stable profile
+          snapshot, then move straight into layouts and color choices without
+          creating an account or exposing anything private.
+        </p>
       </motion.div>
 
       <div className="mx-auto max-w-5xl">

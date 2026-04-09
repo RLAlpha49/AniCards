@@ -41,6 +41,15 @@ export function SearchCapabilities() {
           ASSEMBLE YOUR SET
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
+        <p className="
+          mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/45
+          sm:text-base/relaxed
+        ">
+          From quick summaries to more obsessive breakdowns, the builder is
+          designed to answer both “what does this AniList profile look like at a
+          glance?” and “which patterns keep showing up when I zoom out across
+          the whole library?”
+        </p>
       </motion.div>
 
       <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3 md:gap-6">
