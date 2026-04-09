@@ -431,12 +431,29 @@ function extractBearerToken(
     return null;
   }
 
-  const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader.trim());
-  if (!match) {
+  const trimmed = authorizationHeader.trim();
+  if (trimmed.length < 7 || trimmed.slice(0, 6).toLowerCase() !== "bearer") {
     return null;
   }
 
-  const token = match[1]?.trim();
+  let separatorIndex = 6;
+  while (separatorIndex < trimmed.length) {
+    const code = trimmed.charCodeAt(separatorIndex);
+    const isWhitespace =
+      code === 9 || code === 10 || code === 12 || code === 13 || code === 32;
+
+    if (!isWhitespace) {
+      break;
+    }
+
+    separatorIndex += 1;
+  }
+
+  if (separatorIndex === 6) {
+    return null;
+  }
+
+  const token = trimmed.slice(separatorIndex).trim();
   return token && token.length > 0 ? token : null;
 }
 

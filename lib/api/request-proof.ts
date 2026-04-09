@@ -244,10 +244,13 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 function base64urlEncodeBytes(bytes: Uint8Array): string {
-  return bytesToBase64(bytes)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+  let encoded = bytesToBase64(bytes).replaceAll("+", "-").replaceAll("/", "_");
+
+  while (encoded.endsWith("=")) {
+    encoded = encoded.slice(0, -1);
+  }
+
+  return encoded;
 }
 
 function base64urlEncodeText(value: string): string {
