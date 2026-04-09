@@ -2,7 +2,7 @@ import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 
 export default function Loading() {
   return (
-    <main className="relative isolate overflow-hidden">
+    <div className="relative isolate overflow-hidden">
       <MarketingBackdrop lightOpacity={0.25} darkOpacity={0.15} />
 
       <output aria-live="polite" aria-busy="true" className="block">
@@ -188,6 +188,6 @@ export default function Loading() {
           </div>
         </div>
       </output>
-    </main>
+    </div>
   );
 }

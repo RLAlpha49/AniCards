@@ -92,7 +92,7 @@ export default async function PrivacyPage() {
         nonce={nonce}
       />
 
-      <main className="relative isolate overflow-hidden">
+      <div className="relative isolate overflow-hidden">
         <MarketingBackdrop />
 
         {/* ── Hero ── */}
@@ -154,19 +154,8 @@ export default async function PrivacyPage() {
               ">
                 This is a plain-language disclosure, not a legal privacy policy.
                 <br className="hidden sm:block" />
-                If you want the full technical picture, see{" "}
-                <Link
-                  href="https://github.com/RLAlpha49/AniCards/blob/main/docs/PRIVACY.md"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="
-                    font-medium text-gold underline decoration-gold/30 underline-offset-4
-                    transition-colors
-                    hover:decoration-gold/70
-                  "
-                >
-                  docs/PRIVACY.md
-                </Link>
+                The sections below cover the current storage, telemetry,
+                retention, and deletion behavior in one place.
               </p>
             </SectionReveal>
           </div>
@@ -389,7 +378,7 @@ export default async function PrivacyPage() {
             </div>
           </div>
         </SectionReveal>
-      </main>
+      </div>
     </>
   );
 }
