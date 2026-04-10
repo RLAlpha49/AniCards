@@ -39,7 +39,7 @@ import {
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 const originalApiSecretToken = process.env.API_SECRET_TOKEN;
-process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
+const TEST_APP_URL = "http://localhost";
 
 let POST: typeof import("@/app/api/store-users/route").POST;
 let OPTIONS: typeof import("@/app/api/store-users/route").OPTIONS;
@@ -126,6 +126,7 @@ describe("Store Users API", () => {
     allowConsoleWarningsAndErrors();
     process.env = {
       ...process.env,
+      NEXT_PUBLIC_APP_URL: TEST_APP_URL,
       NODE_ENV: "test",
     };
   });
@@ -175,7 +176,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject cross-origin requests in production when origin differs", async () => {
-      const originalEnv = process.env;
+      const originalEnv = { ...process.env };
       const capturedIncr = captureSharedRedisIncrCalls();
       process.env = {
         ...process.env,

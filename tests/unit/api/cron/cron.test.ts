@@ -481,12 +481,14 @@ describe("Cron API Route", () => {
   it("aborts the overlapping AniList refresh when bootstrap metadata loading fails", async () => {
     mockUserRecords(["123"]);
     const capturedRpush = captureSharedRedisRpushCalls();
+    const fetchStarted = createDeferredPromise<void>();
     let fetchSignal: AbortSignal | undefined;
 
     globalThis.fetch = mock(
       (_url: RequestInfo | URL, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           fetchSignal = init?.signal ?? undefined;
+          fetchStarted.resolve();
           fetchSignal?.addEventListener(
             "abort",
             () => {
@@ -505,7 +507,11 @@ describe("Cron API Route", () => {
         new Error("Part fetch exploded"),
       );
 
-      const response = await POST(createCronRequest());
+      const responsePromise = POST(createCronRequest());
+
+      await fetchStarted.promise;
+
+      const response = await responsePromise;
 
       expect(response.status).toBe(200);
       expect(await response.text()).toContain(

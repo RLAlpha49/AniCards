@@ -19,8 +19,6 @@ import {
   sharedRedisMockRpush,
 } from "@/tests/unit/__setup__";
 
-process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
-
 const BASE_URL = "http://localhost/api/anilist";
 
 function createAniListRequest(options?: {
@@ -83,7 +81,7 @@ function mockJsonFetch(
 }
 
 describe("AniList API Route", () => {
-  const originalEnv = process.env;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();

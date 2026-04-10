@@ -629,7 +629,6 @@ function captureSharedRedisCalls(options: {
   release: () => void;
 } {
   const calls: unknown[][] = [];
-  const mockCallStartIndex = options.getMockCalls().length;
   const observer: SharedRedisCallObserver = (args) => {
     calls.push(args);
   };
@@ -638,15 +637,7 @@ function captureSharedRedisCalls(options: {
 
   return {
     get calls() {
-      const observedCalls = calls.map((args) => [...args]);
-      if (observedCalls.length > 0) {
-        return observedCalls;
-      }
-
-      return options
-        .getMockCalls()
-        .slice(mockCallStartIndex)
-        .map((args) => [...args]);
+      return calls.map((args) => [...args]);
     },
     release: () => {
       options.observers.delete(observer);
