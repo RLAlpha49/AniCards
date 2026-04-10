@@ -46,7 +46,8 @@ function installRedisCircuitStore() {
     return Promise.resolve(deleted);
   });
   sharedRedisMockIncr.mockImplementation((...args: unknown[]) => {
-    const storageKey = String(args[0] ?? "");
+    const [key] = args;
+    const storageKey = typeof key === "string" ? key : "";
     const nextValue = Number.parseInt(store.get(storageKey) ?? "0", 10) + 1;
     store.set(storageKey, String(nextValue));
     return Promise.resolve(nextValue);
