@@ -168,6 +168,37 @@ export function findActiveStepIndex(
   });
 }
 
+type TourStepDefinition = Readonly<{
+  id: string;
+  title: string;
+  description: string;
+  side: NonNullable<NonNullable<DriveStep["popover"]>["side"]>;
+  align: NonNullable<NonNullable<DriveStep["popover"]>["align"]>;
+  element?: string;
+}>;
+
+type IdentifiedDriveStep = DriveStep & { id: string };
+
+function createTourStep({
+  id,
+  title,
+  description,
+  side,
+  align,
+  element,
+}: TourStepDefinition): IdentifiedDriveStep {
+  return {
+    id,
+    ...(element ? { element } : {}),
+    popover: {
+      title,
+      description,
+      side,
+      align,
+    },
+  } as IdentifiedDriveStep;
+}
+
 type UseEditorTourArgs = Readonly<{
   userId: string | null;
   isNewUser: boolean;
@@ -194,202 +225,166 @@ export function useEditorTour({
 
   const tourSteps = useMemo<DriveStep[]>(
     () => [
-      {
+      createTourStep({
         id: "welcome",
-        popover: {
-          title: "Welcome",
-          description:
-            "This quick tour highlights the key controls for enabling, styling, and sharing your cards.",
-          side: "bottom",
-          align: "center",
-        },
-      },
-      {
+        title: "Welcome",
+        description:
+          "This quick tour highlights the key controls for enabling, styling, and sharing your cards.",
+        side: "bottom",
+        align: "center",
+      }),
+      createTourStep({
         id: "help",
         element: '[data-tour="help-button"]',
-        popover: {
-          title: "Help",
-          description:
-            "Open Help anytime for searchable docs, shortcuts, and to restart this tour.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
+        title: "Help",
+        description:
+          "Open Help anytime for searchable docs, shortcuts, and to restart this tour.",
+        side: "bottom",
+        align: "start",
+      }),
+      createTourStep({
         id: "search",
         element: '[data-tour="card-search"]',
-        popover: {
-          title: "Search",
-          description:
-            "Search cards by name. Tip: Ctrl/Cmd+F focuses this input from anywhere.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
+        title: "Search",
+        description:
+          "Search cards by name. Tip: Ctrl/Cmd+F focuses this input from anywhere.",
+        side: "bottom",
+        align: "start",
+      }),
+      createTourStep({
         id: "visibility",
         element: '[data-tour="visibility-toggle"]',
-        popover: {
-          title: "Visibility",
-          description:
-            "Switch between All, Enabled, and Disabled cards to focus on what you need.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Visibility",
+        description:
+          "Switch between All, Enabled, and Disabled cards to focus on what you need.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "customization-filter",
         element: '[data-tour="customization-toggle"]',
-        popover: {
-          title: "Customization filter",
-          description:
-            "Filter cards by whether they have per-card overrides. Handy for auditing which cards use custom settings vs. the global defaults.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Customization filter",
+        description:
+          "Filter cards by whether they have per-card overrides. Handy for auditing which cards use custom settings vs. the global defaults.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "global-settings",
         element: '[data-tour="global-settings"]',
-        popover: {
-          title: "Global Settings",
-          description:
-            "Set your default style (colors, borders, and more). Cards can still be customized individually.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
+        title: "Global Settings",
+        description:
+          "Set your default style (colors, borders, and more). Cards can still be customized individually.",
+        side: "bottom",
+        align: "start",
+      }),
+      createTourStep({
         id: "reorder",
         element: '[data-tour="reorder-toggle"]',
-        popover: {
-          title: "Reorder",
-          description:
-            "Turn on Reorder mode to drag cards within each category using the grip handle.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Reorder",
+        description:
+          "Turn on Reorder mode to drag cards within each category using the grip handle.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "cards",
         element: '[data-tour="card-groups"]',
-        popover: {
-          title: "Cards",
-          description:
-            "Toggle cards on/off and open each card to configure variations and actions.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Cards",
+        description:
+          "Toggle cards on/off and open each card to configure variations and actions.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "card-tiles",
         element: '[data-tour="card-tile"]',
-        popover: {
-          title: "Card tiles",
-          description:
-            "Each tile is one card. You can enable it, customize settings, and use the preview actions to share or download.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Card tiles",
+        description:
+          "Each tile is one card. You can enable it, customize settings, and use the preview actions to share or download.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "enable-card",
         element: '[data-tour="card-enable-toggle"]',
-        popover: {
-          title: "Enable a card",
-          description:
-            "Flip the switch to enable a card. When enabled, you'll get more controls like card settings, variants, and preview actions.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Enable a card",
+        description:
+          "Flip the switch to enable a card. When enabled, you'll get more controls like card settings, variants, and preview actions.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "card-info",
         element: '[data-tour="card-info"]',
-        popover: {
-          title: "Card info",
-          description:
-            "Hover the ℹ icon to see what data a card tracks and how its stats are calculated.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Card info",
+        description:
+          "Hover the ℹ icon to see what data a card tracks and how its stats are calculated.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "card-settings",
         element: '[data-tour="card-settings"]',
-        popover: {
-          title: "Card settings",
-          description:
-            "Fine-tune a specific card (override colors, borders, advanced options, etc.).",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
+        title: "Card settings",
+        description:
+          "Fine-tune a specific card (override colors, borders, advanced options, etc.).",
+        side: "bottom",
+        align: "start",
+      }),
+      createTourStep({
         id: "card-select",
         element: '[data-tour="card-select"]',
-        popover: {
-          title: "Select cards",
-          description:
-            "Check the box to select cards for bulk actions — enable, disable, reset, copy links, or download them all at once.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Select cards",
+        description:
+          "Check the box to select cards for bulk actions — enable, disable, reset, copy links, or download them all at once.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "variants",
         element: '[data-tour="card-variant"]',
-        popover: {
-          title: "Variants",
-          description:
-            "Some cards support multiple layouts (variants). Choose the one you prefer here.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Variants",
+        description:
+          "Some cards support multiple layouts (variants). Choose the one you prefer here.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "preview-actions",
         element: '[data-tour="card-preview"]',
-        popover: {
-          title: "Preview actions",
-          description:
-            "Hover (desktop) or tap the ⋯ actions button (mobile) to reveal actions like Open, Refresh, Copy, and Download.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Preview actions",
+        description:
+          "Hover (desktop) or tap the ⋯ actions button (mobile) to reveal actions like Open, Refresh, Copy, and Download.",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "expand-preview",
         element: '[data-tour="card-expand"]',
-        popover: {
-          title: "Expand preview",
-          description:
-            "Open a larger preview to inspect details (and access any extra preview-only actions).",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
+        title: "Expand preview",
+        description:
+          "Open a larger preview to inspect details (and access any extra preview-only actions).",
+        side: "top",
+        align: "start",
+      }),
+      createTourStep({
         id: "command-palette",
-        popover: {
-          title: "Command palette",
-          description:
-            "Press Ctrl/Cmd+K to open the command palette — a quick way to jump to any action (save, toggle cards, open settings, and more).",
-          side: "bottom",
-          align: "center",
-        },
-      },
-      {
+        title: "Command palette",
+        description:
+          "Press Ctrl/Cmd+K to open the command palette — a quick way to jump to any action (save, toggle cards, open settings, and more).",
+        side: "bottom",
+        align: "center",
+      }),
+      createTourStep({
         id: "save",
         element: '[data-tour="save-button"]',
-        popover: {
-          title: "Save",
-          description:
-            "Autosave runs automatically, but you can always save manually (Ctrl/Cmd+S).",
-          side: "bottom",
-          align: "start",
-        },
-      },
+        title: "Save",
+        description:
+          "Autosave runs automatically, but you can always save manually (Ctrl/Cmd+S).",
+        side: "bottom",
+        align: "start",
+      }),
     ],
     [],
   );
