@@ -253,8 +253,7 @@ function installCanvasColorParserStub() {
   }) as typeof document.createElement;
 
   return () => {
-    document.createElement =
-      originalCreateElement as typeof document.createElement;
+    document.createElement = originalCreateElement;
   };
 }
 

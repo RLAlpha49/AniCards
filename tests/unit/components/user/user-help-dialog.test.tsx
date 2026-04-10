@@ -255,7 +255,7 @@ describe("UserHelpDialog topic semantics", () => {
       expect(controlsId).not.toBeNull();
     }
 
-    fireEvent.click(guidedTourButtons[0]!);
+    fireEvent.click(guidedTourButtons[0]);
 
     await waitFor(() => {
       for (const button of guidedTourButtons) {
