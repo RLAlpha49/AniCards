@@ -20,9 +20,18 @@ type NextRequestContext = {
 const TELEMETRY_TEST_ENV_FLAG = "ANICARDS_UNIT_TEST";
 const pendingTelemetryTasks = new Set<Promise<void>>();
 
+type UnitTestTelemetryGlobals = typeof globalThis & {
+  ANICARDS_UNIT_TEST?: boolean;
+};
+
 export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 
 function shouldTrackTelemetryTasksForTests(): boolean {
+  const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
+  if (typeof unitTestGlobals.ANICARDS_UNIT_TEST === "boolean") {
+    return unitTestGlobals.ANICARDS_UNIT_TEST;
+  }
+
   return (
     process.env[TELEMETRY_TEST_ENV_FLAG] === "true" ||
     process.env.NODE_ENV === "test"

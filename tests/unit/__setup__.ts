@@ -12,6 +12,9 @@ console.debug = mock(() => {});
 console.log = mock(() => {});
 console.info = mock(() => {});
 process.env.ANICARDS_UNIT_TEST = "true";
+(
+  globalThis as typeof globalThis & { ANICARDS_UNIT_TEST?: boolean }
+).ANICARDS_UNIT_TEST = true;
 
 const formatConsoleArgs = (args: unknown[]): string =>
   args
@@ -133,6 +136,9 @@ beforeEach(() => {
   console.warn = unexpectedConsoleWarn as typeof console.warn;
   console.error = unexpectedConsoleError as typeof console.error;
   (process.env as Record<string, string | undefined>)["NODE_ENV"] = "test";
+  (
+    globalThis as typeof globalThis & { ANICARDS_UNIT_TEST?: boolean }
+  ).ANICARDS_UNIT_TEST = true;
   for (const key of TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH) {
     delete process.env[key];
   }
