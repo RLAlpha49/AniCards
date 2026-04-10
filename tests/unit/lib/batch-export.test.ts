@@ -41,7 +41,10 @@ const originalRevokeObjectURL = URL.revokeObjectURL;
 
 const anchorClick = mock(() => {});
 const createObjectURL = mock((blob: Blob | MediaSource) => {
-  void blob;
+  if (!blob) {
+    throw new Error("Expected ZIP blob");
+  }
+
   return "blob:zip-download";
 });
 const revokeObjectURL = mock(() => {});
