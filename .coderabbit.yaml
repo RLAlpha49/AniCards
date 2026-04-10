@@ -61,9 +61,9 @@ reviews:
       instructions: |
         Flag repo-wide anti-patterns that cut across modules: SELECT * in DB queries, blocking I/O on request threads (sync fs, heavy CPU, network calls), and unsafe global variables or other side-effectful module scope.
         Input validation and same-origin concerns are already covered by more specific path instructions elsewhere, so keep this catch-all focused on these cross-cutting runtime risks.
-    - path: "lib/api-utils.ts"
+    - path: "lib/api/**"
       instructions: |
-        Treat this as the shared API protection seam for request IDs, same-origin enforcement, privacy-safe logging, and shared rate limiting.
+        Treat this as the shared API protection seam for request IDs, same-origin enforcement, privacy-safe logging, shared rate limiting, and production env validation.
         Review changes here as security-sensitive and make sure route-level guidance in docs and handlers still matches the implementation.
     - path: "tests/**/*.{ts,tsx}"
       instructions: |

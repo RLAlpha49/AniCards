@@ -43,7 +43,7 @@ Non-API page requests follow this path:
 
 ### API requests
 
-Most route handlers call `initializeApiRequest()` from `lib/api-utils.ts` — that's the centralized point for shared protections. It covers:
+Most route handlers call `initializeApiRequest()` from `lib/api/request-guards.ts` — that's the centralized point for shared protections. It covers:
 
 - request ID setup
 - privacy-safe request logging

@@ -136,7 +136,7 @@ jobs:
           API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
           bun --eval '
-            const { assertRequiredProductionEnv } = await import("./lib/api-utils.ts");
+            const { assertRequiredProductionEnv } = await import("./lib/api/production-env.ts");
             assertRequiredProductionEnv();
             console.log("[INFO] Production env contract is valid.");
           '

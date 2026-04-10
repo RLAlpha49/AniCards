@@ -62,7 +62,7 @@ CSP is excluded here — middleware generates it dynamically.
 
 ### Shared API protections
 
-`lib/api-utils.ts` centralizes the common API protections:
+The `lib/api/*` modules centralize the common API protections:
 
 - shared rate limiting
 - request ID creation and propagation
