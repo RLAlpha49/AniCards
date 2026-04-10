@@ -33,7 +33,7 @@ export default function Loading() {
           {/* Hero */}
           <div
             className="max-w-3xl space-y-5 motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "0ms" }}
+            data-skel-delay="0"
           >
             <div className="skel-bone h-5 w-32" aria-hidden="true" />
             <div className="space-y-3">
@@ -55,14 +55,14 @@ export default function Loading() {
           {/* Divider */}
           <div
             className="gold-line w-full motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "80ms" }}
+            data-skel-delay="80"
             aria-hidden="true"
           />
 
           {/* Diamond divider */}
           <div
             className="motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "120ms" }}
+            data-skel-delay="120"
           >
             <DiamondDivider />
           </div>
@@ -77,7 +77,7 @@ export default function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${160 + i * 60}ms` }}
+                data-skel-delay={String(160 + i * 60)}
               >
                 <div className="skel-bone-rect size-10" aria-hidden="true" />
                 <div className="skel-bone h-4 w-24" aria-hidden="true" />
@@ -105,7 +105,7 @@ export default function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${420 + i * 60}ms` }}
+                data-skel-delay={String(420 + i * 60)}
               >
                 <div className="skel-bone h-5 w-36" aria-hidden="true" />
                 <div className="skel-bone h-3 w-full" aria-hidden="true" />
@@ -121,7 +121,7 @@ export default function Loading() {
               motion-safe:skel-reveal
               motion-reduce:animate-none
             "
-            style={{ animationDelay: "680ms" }}
+            data-skel-delay="680"
           >
             <div className="skel-bone h-4 w-48" aria-hidden="true" />
             <div className="skel-bone-rect h-12 w-44" aria-hidden="true" />

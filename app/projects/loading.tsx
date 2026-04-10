@@ -33,7 +33,7 @@ export default function Loading() {
           {/* Hero */}
           <div
             className="space-y-5 motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "0ms" }}
+            data-skel-delay="0"
           >
             <div className="skel-bone h-5 w-28" aria-hidden="true" />
             <div
@@ -58,7 +58,7 @@ export default function Loading() {
           {/* Divider */}
           <div
             className="motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "80ms" }}
+            data-skel-delay="80"
           >
             <DiamondDivider />
           </div>
@@ -70,7 +70,7 @@ export default function Loading() {
               motion-safe:skel-reveal
               motion-reduce:animate-none
             "
-            style={{ animationDelay: "120ms" }}
+            data-skel-delay="120"
           >
             <div
               className="skel-bone-rect h-56 w-full rounded-none sm:h-72"
@@ -89,7 +89,7 @@ export default function Loading() {
           {/* Gold line divider */}
           <div
             className="gold-line w-full motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "180ms" }}
+            data-skel-delay="180"
             aria-hidden="true"
           />
 
@@ -98,7 +98,7 @@ export default function Loading() {
             {/* Big card */}
             <div
               className="skel-card space-y-4 p-6 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "240ms" }}
+              data-skel-delay="240"
             >
               <div className="skel-bone-rect h-44 w-full" aria-hidden="true" />
               <div className="skel-bone h-5 w-40" aria-hidden="true" />
@@ -116,7 +116,7 @@ export default function Loading() {
                     motion-safe:skel-reveal
                     motion-reduce:animate-none
                   "
-                  style={{ animationDelay: `${300 + i * 60}ms` }}
+                  data-skel-delay={String(300 + i * 60)}
                 >
                   <div className="skel-bone h-4 w-32" aria-hidden="true" />
                   <div className="skel-bone h-3 w-full" aria-hidden="true" />
@@ -129,7 +129,7 @@ export default function Loading() {
           {/* Divider */}
           <div
             className="motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "500ms" }}
+            data-skel-delay="500"
           >
             <DiamondDivider />
           </div>
@@ -144,7 +144,7 @@ export default function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${540 + i * 60}ms` }}
+                data-skel-delay={String(540 + i * 60)}
               >
                 <div className="skel-bone-rect size-11" aria-hidden="true" />
                 <div className="skel-bone h-4 w-28" aria-hidden="true" />
@@ -169,7 +169,7 @@ export default function Loading() {
               motion-safe:skel-reveal
               motion-reduce:animate-none
             "
-            style={{ animationDelay: "720ms" }}
+            data-skel-delay="720"
           >
             <div className="skel-bone h-4 w-52" aria-hidden="true" />
             <div className="skel-bone-rect h-12 w-44" aria-hidden="true" />

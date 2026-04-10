@@ -14,7 +14,7 @@ describe("CSP header builder", () => {
     expect(header).toContain("'nonce-abc123'");
   });
 
-  it("uses nonce-backed style-src in production while isolating inline style attributes", () => {
+  it("uses nonce-backed style-src in strict mode without a style-src-attr carve-out", () => {
     const header = buildCSPHeader("abc123");
     const styleSrcDirective = header
       .split("; ")
@@ -27,9 +27,7 @@ describe("CSP header builder", () => {
     expect(styleSrcDirective).toContain("'nonce-abc123'");
     expect(styleSrcDirective).toContain("https://fonts.googleapis.com");
     expect(styleSrcDirective).not.toContain("'unsafe-inline'");
-
-    expect(styleSrcAttrDirective).toBeTruthy();
-    expect(styleSrcAttrDirective).toBe("style-src-attr 'unsafe-inline'");
+    expect(styleSrcAttrDirective).toBeUndefined();
   });
 
   it("allows unsafe-eval only when explicitly enabled", () => {
@@ -59,6 +57,23 @@ describe("CSP header builder", () => {
     expect(developmentStyleSrcDirective).toContain("'unsafe-inline'");
     expect(productionStyleSrcDirective).toBeTruthy();
     expect(productionStyleSrcDirective).not.toContain("'unsafe-inline'");
+  });
+
+  it("allows inline style attributes only when explicitly enabled", () => {
+    const compatibilityHeader = buildCSPHeader("abc123", {
+      allowUnsafeInlineStyleAttributes: true,
+    });
+    const strictHeader = buildCSPHeader("abc123");
+
+    const compatibilityDirective = compatibilityHeader
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src-attr "));
+    const strictDirective = strictHeader
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src-attr "));
+
+    expect(compatibilityDirective).toBe("style-src-attr 'unsafe-inline'");
+    expect(strictDirective).toBeUndefined();
   });
 
   it("blocks object embeds and restricts image sources to explicit origins", () => {

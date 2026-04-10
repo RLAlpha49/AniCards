@@ -39,12 +39,11 @@ export function ProjectsCTA() {
     <section className="relative overflow-hidden px-6 py-28 sm:px-12 md:py-36">
       {/* Radial spotlight glow */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className="
+          pointer-events-none absolute inset-0
+          bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,hsl(var(--gold)/0.07),transparent)]
+        "
         aria-hidden="true"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 50% at 50% 50%, hsl(var(--gold) / 0.07), transparent)",
-        }}
       />
 
       <motion.div
@@ -57,11 +56,10 @@ export function ProjectsCTA() {
         {/* Top ornamental line */}
         <motion.div
           variants={lineExpand}
-          className="mx-auto mb-12 h-px max-w-20 origin-center"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.6), transparent)",
-          }}
+          className="
+            mx-auto mb-12 h-px max-w-20 origin-center bg-linear-to-r from-transparent via-gold/60
+            to-transparent
+          "
         />
 
         <motion.p
@@ -86,11 +84,10 @@ export function ProjectsCTA() {
 
         <motion.div
           variants={lineExpand}
-          className="mx-auto mb-8 h-0.5 max-w-10 origin-center"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent, hsl(var(--gold)), transparent)",
-          }}
+          className="
+            mx-auto mb-8 h-0.5 max-w-10 origin-center bg-linear-to-r from-transparent via-gold
+            to-transparent
+          "
         />
 
         <motion.p
@@ -175,11 +172,10 @@ export function ProjectsCTA() {
         {/* Bottom ornamental line */}
         <motion.div
           variants={lineExpand}
-          className="mx-auto mt-12 h-px max-w-20 origin-center"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.4), transparent)",
-          }}
+          className="
+            mx-auto mt-12 h-px max-w-20 origin-center bg-linear-to-r from-transparent via-gold/40
+            to-transparent
+          "
         />
       </motion.div>
     </section>

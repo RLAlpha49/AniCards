@@ -43,21 +43,11 @@ export default function NotFound() {
     <main className="relative isolate overflow-hidden">
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-80"
-        style={{
-          background: `
-            radial-gradient(circle at top, hsl(var(--gold) / 0.08), transparent 40%),
-            linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background)) 100%)
-          `,
-        }}
+        className="absolute inset-0 opacity-80 not-found-backdrop"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-30 dark:opacity-20"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg width='72' height='72' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M36 4L68 36L36 68L4 36Z' fill='none' stroke='%23b58a1e22' stroke-width='1'/%3E%3C/svg%3E\")",
-        }}
+        className="absolute inset-0 not-found-diamond-pattern opacity-30 dark:opacity-20"
       />
 
       <section className="

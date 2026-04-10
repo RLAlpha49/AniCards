@@ -16,7 +16,7 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "0ms" }}
+              data-skel-delay="0"
             >
               <div className="h-px flex-1 bg-gold/10" />
               <div className="flex items-center gap-3">
@@ -34,7 +34,7 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "80ms" }}
+              data-skel-delay="80"
             >
               <div className="skel-bone-rect h-20 w-48 sm:h-28 sm:w-72 md:h-32 md:w-80" />
               <div className="skel-bone-rect h-20 w-40 sm:h-28 sm:w-60 md:h-32 md:w-72" />
@@ -47,7 +47,7 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "160ms" }}
+              data-skel-delay="160"
             >
               <div className="h-0.5 w-8 bg-gold/10" />
               <div className="size-1.5 rotate-45 border border-gold/25 bg-gold/5" />
@@ -61,7 +61,7 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "220ms" }}
+              data-skel-delay="220"
             >
               <div className="skel-bone mx-auto h-4 w-full max-w-md" />
               <div className="skel-bone mx-auto h-4 w-4/5 max-w-sm" />
@@ -72,7 +72,7 @@ export default function Loading() {
         {/* ── Divider ── */}
         <div
           className="motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "280ms" }}
+          data-skel-delay="280"
         >
           <div className="mx-auto flex max-w-[min(90%,72rem)] items-center gap-3">
             <div className="h-px flex-1 bg-linear-to-r from-transparent to-gold/20" />
@@ -90,14 +90,19 @@ export default function Loading() {
           {/* TOC skeleton (desktop only) */}
           <div
             className="hidden motion-safe:skel-reveal motion-reduce:animate-none lg:block"
-            style={{ animationDelay: "340ms" }}
+            data-skel-delay="340"
           >
             <div className="skel-bone mb-5 h-2.5 w-16" />
             <div className="space-y-4 border-l-2 border-gold/10 pl-5">
-              {[65, 72, 80, 60].map((w) => (
-                <div key={w} className="flex items-baseline gap-3">
+              {[
+                { widthClass: "w-[65%]", widthKey: "65" },
+                { widthClass: "w-[72%]", widthKey: "72" },
+                { widthClass: "w-[80%]", widthKey: "80" },
+                { widthClass: "w-[60%]", widthKey: "60" },
+              ].map(({ widthClass, widthKey }) => (
+                <div key={widthKey} className="flex items-baseline gap-3">
                   <div className="skel-bone h-2 w-5" />
-                  <div className="skel-bone h-3.5" style={{ width: `${w}%` }} />
+                  <div className={`skel-bone h-3.5 ${widthClass}`} />
                 </div>
               ))}
             </div>
@@ -110,7 +115,7 @@ export default function Loading() {
                 <div
                   key={id}
                   className="space-y-6 motion-safe:skel-reveal motion-reduce:animate-none"
-                  style={{ animationDelay: `${400 + i * 100}ms` }}
+                  data-skel-delay={String(400 + i * 100)}
                 >
                   {/* Ordinal + heading group */}
                   <div className="flex items-start gap-6">
@@ -175,7 +180,7 @@ export default function Loading() {
             motion-reduce:animate-none
             sm:px-12
           "
-          style={{ animationDelay: "900ms" }}
+          data-skel-delay="900"
         >
           <div className="skel-card imperial-card p-8 sm:p-10">
             <div className="flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">

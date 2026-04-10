@@ -57,16 +57,11 @@ export function ProjectCard({
         "
       >
         {/* Gold top accent */}
-        <div
-          className="
-            h-1 origin-top scale-y-50 transition-transform duration-500
-            group-hover:scale-y-100
-          "
-          style={{
-            background:
-              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.3) 70%, transparent)",
-          }}
-        />
+        <div className="
+          h-1 origin-top scale-y-50 bg-linear-to-r from-gold via-gold/30 to-transparent
+          transition-transform duration-500
+          group-hover:scale-y-100
+        " />
 
         <div className="relative flex flex-1 flex-col p-7 sm:p-8">
           {/* Watermark number */}
@@ -95,13 +90,7 @@ export function ProjectCard({
               ">
                 {num}
               </span>
-              <div
-                className="h-px w-6"
-                style={{
-                  background:
-                    "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-                }}
-              />
+              <div className="h-px w-6 bg-linear-to-r from-gold/30 to-transparent" />
             </div>
             <motion.div
               whileHover={{ scale: 1.12 }}

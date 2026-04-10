@@ -67,15 +67,11 @@ export default function DarkModeToggle() {
       <span
         aria-hidden
         className="
-          pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity
-          duration-300
+          pointer-events-none absolute inset-0 rounded-full opacity-0 theme-toggle-glow
+          transition-opacity duration-300
           group-hover:opacity-100
           motion-reduce:transition-none
         "
-        style={{
-          boxShadow:
-            "0 0 14px 2px hsl(var(--gold) / 0.25), inset 0 0 8px hsl(var(--gold) / 0.08)",
-        }}
       />
 
       {/* Radial bloom on theme change */}
@@ -84,13 +80,10 @@ export default function DarkModeToggle() {
           key={bloomKey}
           aria-hidden
           className="
-            pointer-events-none absolute inset-0 rounded-full
+            pointer-events-none absolute inset-0 rounded-full theme-toggle-bloom
             motion-safe:animate-ping motion-safe:animation-duration-[600ms]
             motion-reduce:animate-none
           "
-          style={{
-            background: `radial-gradient(circle, hsl(var(--gold) / 0.3) 0%, transparent 70%)`,
-          }}
         />
       )}
 

@@ -55,11 +55,7 @@ export function ProjectCollection() {
           </motion.span>
           <motion.span
             variants={headerChild}
-            className="inline-block h-px max-w-16 flex-1"
-            style={{
-              background:
-                "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-            }}
+            className="inline-block h-px max-w-16 flex-1 bg-linear-to-r from-gold/30 to-transparent"
           />
           <motion.span variants={headerChild} className="text-foreground/30">
             Collection

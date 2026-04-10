@@ -14,6 +14,11 @@ import {
   mock,
 } from "bun:test";
 
+import { createProtectedWriteGrantCookie } from "@/lib/api/protected-write-grants";
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
 import { displayNames } from "@/lib/card-data/validation";
 import {
   allowConsoleWarningsAndErrors,
@@ -43,17 +48,51 @@ function createRequest(
   body?: Record<string, unknown>,
   method: string = "POST",
   origin: string = "http://localhost",
+  extraHeaders?: Record<string, string>,
 ) {
   return new Request("http://localhost/api/store-cards", {
     method,
     headers: {
       "x-forwarded-for": "127.0.0.1",
       "x-vercel-forwarded-for": "127.0.0.1",
+      "x-vercel-id": "iad1::test-request",
       origin,
       "Content-Type": "application/json",
+      ...extraHeaders,
     },
     body: method === "POST" && body ? JSON.stringify(body) : undefined,
   });
+}
+
+async function createRequestProofCookieHeader(): Promise<string> {
+  const requestProofToken = await createRequestProofToken({
+    ip: "127.0.0.1",
+  });
+  if (!requestProofToken) {
+    throw new Error("Expected request proof token to be generated");
+  }
+
+  return `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`;
+}
+
+async function createProtectedWriteGrantCookieHeader(options: {
+  userId: number;
+  username?: string;
+}): Promise<string> {
+  const cookie = await createProtectedWriteGrantCookie({
+    source: "stored_user",
+    userId: options.userId,
+    username: options.username,
+  });
+  if (!cookie) {
+    throw new Error("Expected protected write grant cookie to be generated");
+  }
+
+  return `${cookie.name}=${cookie.value}`;
+}
+
+function joinCookieHeader(...cookies: Array<string | undefined>): string {
+  return cookies.filter(Boolean).join("; ");
 }
 
 function getStoredCard(
@@ -190,6 +229,60 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(401);
       const data = await res.json();
       expect(data.error).toBe("Unauthorized");
+    });
+
+    it("should reject protected writes when the browser grant is bound to another user", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        userId: 2,
+        username: "BoundUser",
+      });
+
+      const res = await POST(
+        createRequest(
+          { userId: 1, statsData: {}, cards: [] },
+          "POST",
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("Forbidden");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should accept protected writes when the browser grant matches the requested user", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        userId: 1,
+        username: "BoundUser",
+      });
+
+      const res = await POST(
+        createRequest(
+          { userId: 1, statsData: {}, cards: [] },
+          "POST",
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Set-Cookie")).toContain(
+        "anicards_write_grant_1=",
+      );
     });
   });
 

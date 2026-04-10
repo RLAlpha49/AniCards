@@ -28,6 +28,24 @@ At the moment, the contract covers these public route families:
 - `telemetry` — structured client error-report ingestion via `/api/error-reports`
 - `user` — stored user lookup routes
 
+## Browser-only stored-write gate
+
+The two `store` mutations are intentionally **not** generic public write APIs.
+
+- `/api/store-users`
+- `/api/store-cards`
+
+In production, both routes expect the full browser-only chain to be present:
+
+- same-origin request validation
+- verified client IP resolution
+- the shared request-proof cookie
+- a short-lived **per-user protected write grant** minted by a trusted AniCards response for that same user
+
+Right now those grants are refreshed by successful stored-user reads (`/api/get-user`) and by the trusted AniList proxy when it returns `GetUserStats` data (`/api/anilist`).
+
+One extra gotcha for `/api/store-users`: the server only persists the bound AniList snapshot that was just approved for that browser/user flow. A client can still send `username` in the JSON body for compatibility, but the authoritative username comes from the bound snapshot/write grant, not from whatever the browser claims in that field.
+
 ## Canonical, alias, and legacy compatibility entrypoints
 
 Four paths matter here. Keep them straight — especially in docs and code reviews where inconsistency tends to quietly accumulate:

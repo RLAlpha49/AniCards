@@ -36,26 +36,7 @@ export function SearchHeroSection({
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-36 md:pb-32">
       {/* Concentric ring background — sonar/radar motif */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(circle at 50% 42%,
-              transparent 8%,
-              hsl(var(--gold) / 0.04) 8.3%, transparent 8.6%,
-              transparent 16%,
-              hsl(var(--gold) / 0.03) 16.3%, transparent 16.6%,
-              transparent 24%,
-              hsl(var(--gold) / 0.025) 24.3%, transparent 24.6%,
-              transparent 32%,
-              hsl(var(--gold) / 0.02) 32.3%, transparent 32.6%,
-              transparent 40%,
-              hsl(var(--gold) / 0.015) 40.3%, transparent 40.6%,
-              transparent 48%,
-              hsl(var(--gold) / 0.01) 48.3%, transparent 48.6%)
-          `,
-        }}
-      />
+      <div className="pointer-events-none absolute inset-0 search-hero-radar" />
 
       {/* Central gold glow */}
       <div className="

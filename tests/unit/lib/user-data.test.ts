@@ -5,6 +5,7 @@ import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,
   sharedRedisMockDel,
+  sharedRedisMockEval,
   sharedRedisMockGet,
   sharedRedisMockLtrim,
   sharedRedisMockMget,
@@ -30,6 +31,7 @@ const {
   saveUserRecord,
   splitUserRecord,
   UserDataIntegrityError,
+  UserRecordUsernameConflictError,
 } = await import("@/lib/server/user-data");
 
 function createPersistedUserRecord(
@@ -321,6 +323,28 @@ describe("user-data persistence", () => {
       triggerSource: "user_data_save",
       userId: "5",
     });
+  });
+
+  it("throws a username conflict error when the canonical alias is already owned by another user", async () => {
+    sharedRedisMockEval.mockResolvedValueOnce([2, "88"]);
+
+    let error: unknown;
+    try {
+      await saveUserRecord(
+        createPersistedUserRecord({
+          userId: "5",
+          username: "TakenName",
+        }),
+      );
+    } catch (error_) {
+      error = error_;
+    }
+
+    expect(error).toBeInstanceOf(UserRecordUsernameConflictError);
+    const usernameConflictError = error as InstanceType<
+      typeof UserRecordUsernameConflictError
+    >;
+    expect(usernameConflictError.conflictingUserId).toBe("88");
   });
 
   it("roundtrips split records back into the persisted user shape", () => {

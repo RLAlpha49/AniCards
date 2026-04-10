@@ -15,6 +15,7 @@ import {
   mock,
 } from "bun:test";
 
+import { createProtectedWriteGrantCookie } from "@/lib/api/protected-write-grants";
 import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
@@ -71,6 +72,7 @@ function createTestRequest(reqBody: object, origin?: string): Request {
     headers: {
       "x-forwarded-for": "127.0.0.1",
       "x-vercel-forwarded-for": "127.0.0.1",
+      "x-vercel-id": "iad1::test-request",
       ...(origin && { origin }),
       "Content-Type": "application/json",
     },
@@ -88,6 +90,7 @@ function createTestRequestWithHeaders(
     headers: {
       "x-forwarded-for": "127.0.0.1",
       "x-vercel-forwarded-for": "127.0.0.1",
+      "x-vercel-id": "iad1::test-request",
       ...(origin && { origin }),
       "Content-Type": "application/json",
       ...extraHeaders,
@@ -112,6 +115,35 @@ function parseJsonSetCall(key: string) {
 
 function cloneMockUserStatsData() {
   return structuredClone(mockUserStatsData);
+}
+
+async function createRequestProofCookieHeader(): Promise<string> {
+  const requestProofToken = await createRequestProofToken({
+    ip: "127.0.0.1",
+  });
+  if (!requestProofToken) {
+    throw new Error("Expected request proof token to be generated");
+  }
+
+  return `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`;
+}
+
+async function createProtectedWriteGrantCookieHeader(options: {
+  source: "anilist_stats" | "stored_user";
+  statsPayload?: unknown;
+  userId: number;
+  username?: string;
+}): Promise<string> {
+  const cookie = await createProtectedWriteGrantCookie(options);
+  if (!cookie) {
+    throw new Error("Expected protected write grant cookie to be generated");
+  }
+
+  return `${cookie.name}=${cookie.value}`;
+}
+
+function joinCookieHeader(...cookies: Array<string | undefined>): string {
+  return cookies.filter(Boolean).join("; ");
 }
 
 /**
@@ -413,6 +445,73 @@ describe("Store Users API", () => {
       const data = await getJsonResponse(res);
       expect(data.error).toBe("Unauthorized");
     });
+
+    it("should reject protected writes when the browser grant is bound to another user", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const statsPayload = cloneMockUserStatsData();
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        source: "anilist_stats",
+        statsPayload,
+        userId: 2,
+        username: "BoundUser",
+      });
+
+      const req = createTestRequestWithHeaders(
+        {
+          userId: 1,
+          username: "BoundUser",
+          stats: statsPayload,
+        },
+        "http://localhost",
+        {
+          cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+        },
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Forbidden");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject store-users writes when the stats payload no longer matches the bound AniList snapshot", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const originalStats = cloneMockUserStatsData();
+      const tamperedStats = cloneMockUserStatsData();
+      tamperedStats.User.name = "Mallory";
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        source: "anilist_stats",
+        statsPayload: originalStats,
+        userId: 1,
+        username: "UserOne",
+      });
+
+      const req = createTestRequestWithHeaders(
+        {
+          userId: 1,
+          username: "UserOne",
+          stats: tamperedStats,
+        },
+        "http://localhost",
+        {
+          cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+        },
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Forbidden");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
   });
 
   describe("POST - Successful User Creation & Updates", () => {
@@ -472,6 +571,50 @@ describe("Store Users API", () => {
 
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:successful_requests",
+      );
+    });
+
+    it("should persist the server-bound username instead of a client-supplied username when a protected write grant is enforced", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.User.name = "AuthoritativeUser";
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        source: "anilist_stats",
+        statsPayload,
+        userId: 1,
+        username: "AuthoritativeUser",
+      });
+
+      const res = await POST(
+        createTestRequestWithHeaders(
+          {
+            userId: 1,
+            username: "Mallory",
+            stats: statsPayload,
+          },
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const metaValue = parseJsonSetCall("user:1:meta");
+      expect(metaValue.username).toBe("AuthoritativeUser");
+      expect(findSetCall("username:authoritativeuser")[1]).toBe("1");
+      expect(
+        sharedRedisMockSet.mock.calls.some(
+          (call) => call[0] === "username:mallory",
+        ),
+      ).toBe(false);
+      expect(res.headers.get("Set-Cookie")).toContain(
+        "anicards_write_grant_1=",
       );
     });
 
@@ -1114,6 +1257,28 @@ describe("Store Users API", () => {
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
+    });
+
+    it("should return 409 when the canonical username is already owned by another stored user", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockEval.mockResolvedValueOnce([2, "999"]);
+
+      const req = createTestRequest(
+        {
+          userId: 11,
+          username: "TakenName",
+          stats: cloneMockUserStatsData(),
+        },
+        "http://localhost",
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(409);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe(
+        "Conflict: username is already bound to another stored user.",
+      );
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should return 500 error if redis get fails", async () => {

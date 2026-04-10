@@ -68,13 +68,9 @@ export function FeaturedProject() {
           "
         >
           <span className="text-gold/60">01</span>
-          <span
-            className="inline-block h-px max-w-16 flex-1"
-            style={{
-              background:
-                "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-            }}
-          />
+          <span className="
+            inline-block h-px max-w-16 flex-1 bg-linear-to-r from-gold/30 to-transparent
+          " />
           <span className="text-foreground/30">Flagship</span>
         </motion.div>
 
@@ -89,20 +85,18 @@ export function FeaturedProject() {
           {/* Geometric frame — gold corner brackets */}
           <div
             className="
-              pointer-events-none absolute -top-3 -left-3 size-12 border-t-2 border-l-2 opacity-40
-              transition-opacity duration-500
+              pointer-events-none absolute -top-3 -left-3 size-12 border-t-2 border-l-2 border-gold
+              opacity-40 transition-opacity duration-500
               group-hover:opacity-80
             "
-            style={{ borderColor: "hsl(var(--gold))" }}
             aria-hidden="true"
           />
           <div
             className="
               pointer-events-none absolute -right-3 -bottom-3 size-12 border-r-2 border-b-2
-              opacity-40 transition-opacity duration-500
+              border-gold opacity-40 transition-opacity duration-500
               group-hover:opacity-80
             "
-            style={{ borderColor: "hsl(var(--gold))" }}
             aria-hidden="true"
           />
 
@@ -112,13 +106,7 @@ export function FeaturedProject() {
             hover:border-gold/30
           ">
             {/* Gold accent bar at top */}
-            <div
-              className="h-1"
-              style={{
-                background:
-                  "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.4) 60%, transparent)",
-              }}
-            />
+            <div className="h-1 bg-linear-to-r from-gold via-gold/40 to-transparent" />
 
             <motion.div
               variants={stagger}
@@ -257,13 +245,7 @@ export function FeaturedProject() {
                   ">
                     01
                   </span>
-                  <div
-                    className="mt-4 h-px max-w-16"
-                    style={{
-                      background:
-                        "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-                    }}
-                  />
+                  <div className="mt-4 h-px max-w-16 bg-linear-to-r from-gold/30 to-transparent" />
                   <p className="
                     mt-4 font-mono text-[0.55rem] tracking-[0.3em] text-foreground/20 uppercase
                   ">
@@ -281,11 +263,7 @@ export function FeaturedProject() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true }}
-              className="h-px origin-left"
-              style={{
-                background:
-                  "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent 80%)",
-              }}
+              className="h-px origin-left bg-linear-to-r from-gold/30 to-transparent"
             />
           </div>
         </motion.div>

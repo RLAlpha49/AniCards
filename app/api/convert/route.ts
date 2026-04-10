@@ -10,13 +10,10 @@ import type { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
-import {
-  apiErrorResponse,
-  handleError,
-  invalidJsonResponse,
-} from "@/lib/api/errors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { createRateLimiter } from "@/lib/api/rate-limit";
+import { readJsonRequestBody } from "@/lib/api/request-body";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import { incrementAnalytics } from "@/lib/api/telemetry";
 import {
@@ -30,6 +27,7 @@ const ratelimit = createRateLimiter({
   window: "1 m",
   hotPath: true,
 });
+const CONVERT_JSON_BODY_LIMIT_BYTES = 1_250_000;
 const SVG_FETCH_TIMEOUT_MS = 5_000;
 const SVG_MAX_BYTES = 1_000_000;
 const SVG_MAX_DIMENSION_PX = 4_096;
@@ -1203,17 +1201,19 @@ export async function POST(request: NextRequest) {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, endpoint, ip } = init;
+  const { startTime, endpoint, endpointKey, ip } = init;
 
   logPrivacySafe("log", endpoint, "Request received", { ip }, request);
 
   try {
-    let requestBody: unknown;
-    try {
-      requestBody = await request.json();
-    } catch {
-      return invalidJsonResponse(request);
-    }
+    const bodyResult = await readJsonRequestBody<unknown>(request, {
+      endpointName: endpoint,
+      endpointKey,
+      maxBytes: CONVERT_JSON_BODY_LIMIT_BYTES,
+    });
+    if (!bodyResult.success) return bodyResult.errorResponse;
+
+    const requestBody = bodyResult.data;
 
     const { requestedFormat, responseMode, svgContent, svgUrl } =
       parseSvgRequestBody(requestBody);

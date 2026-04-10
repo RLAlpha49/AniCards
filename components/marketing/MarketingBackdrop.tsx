@@ -1,6 +1,22 @@
+import { cn } from "@/lib/utils";
+
 interface MarketingBackdropProps {
   lightOpacity?: number;
   darkOpacity?: number;
+}
+
+function getLightOpacityClass(value: number): string {
+  if (value === 0.25) return "opacity-[0.25]";
+  if (value === 0.35) return "opacity-[0.35]";
+  if (value === 0.45) return "opacity-[0.45]";
+  return "opacity-50";
+}
+
+function getDarkOpacityClass(value: number): string {
+  if (value === 0.15) return "opacity-[0.15]";
+  if (value === 0.22) return "opacity-[0.22]";
+  if (value === 0.25) return "opacity-[0.25]";
+  return "opacity-[0.3]";
 }
 
 export function MarketingBackdrop({
@@ -10,26 +26,24 @@ export function MarketingBackdrop({
   return (
     <>
       <div
-        className="
-          pointer-events-none absolute inset-0 opacity-30
-          motion-safe:animate-in motion-safe:duration-1000 motion-safe:fade-in-0
-          dark:hidden
-        "
-        style={{
-          opacity: lightOpacity,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23a67c1a2e' stroke-width='1'/%3E%3C/svg%3E")`,
-        }}
+        className={cn(
+          `
+            pointer-events-none absolute inset-0 marketing-backdrop-light
+            motion-safe:animate-in motion-safe:duration-1000 motion-safe:fade-in-0
+            dark:hidden
+          `,
+          getLightOpacityClass(lightOpacity),
+        )}
       />
       <div
-        className="
-          pointer-events-none absolute inset-0 hidden opacity-20
-          motion-safe:animate-in motion-safe:duration-1000 motion-safe:fade-in-0
-          dark:block
-        "
-        style={{
-          opacity: darkOpacity,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
-        }}
+        className={cn(
+          `
+            pointer-events-none absolute inset-0 hidden marketing-backdrop-dark
+            motion-safe:animate-in motion-safe:duration-1000 motion-safe:fade-in-0
+            dark:block
+          `,
+          getDarkOpacityClass(darkOpacity),
+        )}
       />
     </>
   );

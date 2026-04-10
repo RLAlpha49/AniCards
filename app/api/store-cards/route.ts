@@ -13,8 +13,12 @@ import { redisClient } from "@/lib/api/clients";
 import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
 import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import { logPrivacySafe, logSuccess } from "@/lib/api/logging";
+import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write-grants";
 import { readJsonRequestBody } from "@/lib/api/request-body";
-import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
+  initializeApiRequest,
+  validateProtectedWriteGrant,
+} from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
@@ -1248,6 +1252,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     if (validateErrorResponse) return validateErrorResponse;
 
+    const protectedWriteGrantResult = await validateProtectedWriteGrant({
+      endpointKey,
+      endpointName: endpoint,
+      request,
+      userId,
+    });
+    if ("errorResponse" in protectedWriteGrantResult) {
+      return protectedWriteGrantResult.errorResponse;
+    }
+
     const incomingCardsTyped = validated.success ? validated.cards : [];
 
     const cardsKey = `cards:${userId}`;
@@ -1343,9 +1357,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
+    const protectedWriteGrantHeader =
+      await createProtectedWriteGrantCookieHeader({
+        source: "stored_user",
+        userId,
+        username: persistedUserState?.username,
+      });
+
     return jsonWithCors(
       { success: true, userId, updatedAt: cardData.updatedAt },
       request,
+      undefined,
+      protectedWriteGrantHeader
+        ? {
+            "Set-Cookie": protectedWriteGrantHeader,
+          }
+        : undefined,
     );
   } catch (error) {
     return handleError(

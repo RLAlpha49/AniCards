@@ -34,7 +34,7 @@ export default function Loading() {
             {/* "Profile Lookup" label bone */}
             <div
               className="mx-auto mb-5 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "0ms" }}
+              data-skel-delay="0"
             >
               <div className="skel-bone mx-auto h-3 w-36 sm:h-3.5 sm:w-44" />
             </div>
@@ -42,7 +42,7 @@ export default function Loading() {
             {/* Large title bones (two lines) */}
             <div
               className="space-y-3 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "80ms" }}
+              data-skel-delay="80"
             >
               <div className="skel-bone mx-auto h-9 w-72 sm:h-11 sm:w-96" />
               <div className="skel-bone mx-auto h-9 w-48 sm:h-11 sm:w-64" />
@@ -51,7 +51,7 @@ export default function Loading() {
             {/* Diamond divider ornament */}
             <div
               className="my-8 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "140ms" }}
+              data-skel-delay="140"
             >
               <DiamondDivider />
             </div>
@@ -59,7 +59,7 @@ export default function Loading() {
             {/* Search bar bone - sharp corners */}
             <div
               className="motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "200ms" }}
+              data-skel-delay="200"
             >
               <div className="
                 skel-bone-rect mx-auto flex h-14 max-w-2xl items-center gap-3 px-6
@@ -78,14 +78,14 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "280ms" }}
+              data-skel-delay="280"
             >
-              {[96, 80, 108].map((w) => (
-                <div
-                  key={w}
-                  className="skel-bone h-8"
-                  style={{ width: `${String(w)}px` }}
-                />
+              {[
+                { widthClass: "w-24", widthKey: "96" },
+                { widthClass: "w-20", widthKey: "80" },
+                { widthClass: "w-[108px]", widthKey: "108" },
+              ].map(({ widthClass, widthKey }) => (
+                <div key={widthKey} className={`skel-bone h-8 ${widthClass}`} />
               ))}
             </div>
           </div>
@@ -94,7 +94,7 @@ export default function Loading() {
         {/* -- Divider -- */}
         <div
           className="motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "340ms" }}
+          data-skel-delay="340"
         >
           <div className="gold-line-thick mx-auto max-w-[60%]" />
         </div>
@@ -104,7 +104,7 @@ export default function Loading() {
           {/* Section header bones */}
           <div
             className="mb-16 text-center motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "400ms" }}
+            data-skel-delay="400"
           >
             <div className="skel-bone mx-auto mb-4 h-3 w-28" />
             <div className="skel-bone mx-auto mb-4 h-8 w-44 sm:h-10 sm:w-56" />
@@ -121,7 +121,7 @@ export default function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${String(460 + i * 80)}ms` }}
+                data-skel-delay={String(460 + i * 80)}
               >
                 {/* Numbered circle */}
                 <div className="
@@ -142,7 +142,7 @@ export default function Loading() {
         {/* -- Divider -- */}
         <div
           className="motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "700ms" }}
+          data-skel-delay="700"
         >
           <div className="gold-line mx-auto max-w-[40%]" />
         </div>
@@ -152,7 +152,7 @@ export default function Loading() {
           {/* Section header bones */}
           <div
             className="mb-16 text-center motion-safe:skel-reveal motion-reduce:animate-none"
-            style={{ animationDelay: "760ms" }}
+            data-skel-delay="760"
           >
             <div className="skel-bone mx-auto mb-4 h-3 w-24" />
             <div className="skel-bone mx-auto mb-4 h-8 w-56 sm:h-10 sm:w-72" />
@@ -168,7 +168,7 @@ export default function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${String(820 + i * 80)}ms` }}
+                data-skel-delay={String(820 + i * 80)}
               >
                 {/* Icon placeholder */}
                 <div className="mx-auto mb-6 size-12 bg-[hsl(var(--gold)/0.08)]" />
@@ -192,7 +192,7 @@ export default function Loading() {
             sm:px-12
             md:py-24
           "
-          style={{ animationDelay: "1060ms" }}
+          data-skel-delay="1060"
         >
           <div className="mx-auto max-w-2xl">
             <div className="skel-bone mx-auto mb-8 h-5 w-10" />

@@ -20,6 +20,7 @@ import {
 } from "@/tests/unit/__setup__";
 
 const BASE_URL = "http://localhost/api/anilist";
+const ANILIST_JSON_BODY_LIMIT_BYTES = 32 * 1024;
 
 function createAniListRequest(options?: {
   body?: Record<string, unknown>;
@@ -32,6 +33,7 @@ function createAniListRequest(options?: {
       "Content-Type": "application/json",
       origin: "http://localhost",
       "x-vercel-forwarded-for": "127.0.0.1",
+      "x-vercel-id": "iad1::test-request",
       ...extraHeaders,
     }),
     body: JSON.stringify(options?.body ?? {}),
@@ -137,7 +139,7 @@ describe("AniList API Route", () => {
   it("accepts the explicit GetUserStats contract and forwards the canonical query", async () => {
     setEnvironment("test", true);
     const capturedIncr = captureSharedRedisIncrCalls();
-    mockJsonFetch({ data: { User: { id: 123 } } });
+    mockJsonFetch({ data: { User: { id: 123, name: "AniStatsUser" } } });
 
     try {
       const response = await POST(
@@ -150,7 +152,13 @@ describe("AniList API Route", () => {
       );
 
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ User: { id: 123 } });
+      expect(await response.json()).toEqual({
+        User: { id: 123, name: "AniStatsUser" },
+      });
+      expect(response.headers.get("Set-Cookie")).toContain(
+        "anicards_write_grant_123=",
+      );
+      expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
 
       const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
         .mock.calls[0] as [string, RequestInit];
@@ -504,6 +512,35 @@ describe("AniList API Route", () => {
     expect(response.status).toBe(400);
     expect(payload.error).toBe("Invalid JSON body");
     expect(payload.category).toBe("invalid_data");
+  });
+
+  it("rejects oversized JSON request bodies with 413", async () => {
+    setEnvironment("test");
+    const capturedIncr = captureSharedRedisIncrCalls();
+
+    try {
+      const response = await POST(
+        createAniListRequest({
+          body: {
+            query: `${USER_ID_QUERY}${" ".repeat(ANILIST_JSON_BODY_LIMIT_BYTES)}`,
+            variables: { userName: "testUser" },
+          },
+        }),
+      );
+
+      const payload = await response.json();
+      expect(response.status).toBe(413);
+      expect(payload.error).toBe("Request body too large");
+      expect(payload.category).toBe("invalid_data");
+      expect(payload.maxBytes).toBe(ANILIST_JSON_BODY_LIMIT_BYTES);
+
+      await flushScheduledTelemetryTasksForTests();
+      expect(capturedIncr.calls).toContainEqual([
+        "analytics:anilist_api:failed_requests",
+      ]);
+    } finally {
+      capturedIncr.release();
+    }
   });
 
   it("returns CORS headers on OPTIONS", () => {

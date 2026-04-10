@@ -206,6 +206,28 @@ export class UserRecordConflictError extends Error {
   }
 }
 
+export class UserRecordUsernameConflictError extends Error {
+  readonly kind = "username_conflict" as const;
+  readonly userId: string;
+  readonly statusCode = 409 as const;
+  readonly category = "invalid_data" as const;
+  readonly retryable = false;
+  readonly publicMessage =
+    "Conflict: username is already bound to another stored user.";
+  readonly conflictingUserId?: string;
+
+  constructor(
+    userId: string | number,
+    message = "Conflict: username is already bound to another stored user.",
+    options?: { conflictingUserId?: string },
+  ) {
+    super(message);
+    this.name = "UserRecordUsernameConflictError";
+    this.userId = String(userId);
+    this.conflictingUserId = options?.conflictingUserId;
+  }
+}
+
 type RedisSortedSetEntry = {
   score: number;
   member: string;
@@ -2121,6 +2143,14 @@ if expectedUpdatedAt and currentState["updatedAt"] and currentState["updatedAt"]
   return {0, currentState["updatedAt"]}
 end
 
+if normalizedUsername then
+  local canonicalAliasKey = "username:" .. normalizedUsername
+  local canonicalAliasOwner = redis.call("GET", canonicalAliasKey)
+  if canonicalAliasOwner and canonicalAliasOwner ~= payload["userId"] then
+    return {2, canonicalAliasOwner}
+  end
+end
+
 local nextRevision = (tonumber(currentState["revision"]) or 0) + 1
 local meta = payload["parts"]["meta"]
 if type(meta) ~= "table" then
@@ -2274,7 +2304,13 @@ type SaveUserRecordScriptResult =
     }
   | {
       didWrite: false;
+      reason: "updated_at_conflict";
       currentUpdatedAt?: string;
+    }
+  | {
+      conflictingUserId?: string;
+      didWrite: false;
+      reason: "username_conflict";
     };
 
 function normalizeScriptStatus(value: unknown): number | undefined {
@@ -2329,7 +2365,19 @@ function parseSaveUserRecordScriptResult(
   if (status === 0) {
     return {
       didWrite: false,
+      reason: "updated_at_conflict",
       currentUpdatedAt:
+        typeof result[1] === "string" && result[1].length > 0
+          ? result[1]
+          : undefined,
+    };
+  }
+
+  if (status === 2) {
+    return {
+      didWrite: false,
+      reason: "username_conflict",
+      conflictingUserId:
         typeof result[1] === "string" && result[1].length > 0
           ? result[1]
           : undefined,
@@ -2410,6 +2458,12 @@ export async function saveUserRecord(
   );
 
   if (!saveResult.didWrite) {
+    if (saveResult.reason === "username_conflict") {
+      throw new UserRecordUsernameConflictError(userId, undefined, {
+        conflictingUserId: saveResult.conflictingUserId,
+      });
+    }
+
     throw new UserRecordConflictError(userId, undefined, {
       currentUpdatedAt: saveResult.currentUpdatedAt,
     });

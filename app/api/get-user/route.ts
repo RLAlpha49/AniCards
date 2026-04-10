@@ -12,6 +12,7 @@ import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
 import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { parseStrictPositiveInteger } from "@/lib/api/primitives";
+import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write-grants";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import { incrementAnalytics } from "@/lib/api/telemetry";
@@ -284,7 +285,24 @@ export async function GET(request: Request) {
       request,
     );
     trackUserApiMetric(USER_API_SUCCESS_METRIC);
-    return jsonWithCors(userData, request);
+
+    const protectedWriteGrantHeader =
+      await createProtectedWriteGrantCookieHeader({
+        source: "stored_user",
+        userId: numericUserId,
+        username: canonicalUsername,
+      });
+
+    return jsonWithCors(
+      userData,
+      request,
+      undefined,
+      protectedWriteGrantHeader
+        ? {
+            "Set-Cookie": protectedWriteGrantHeader,
+          }
+        : undefined,
+    );
   } catch (error) {
     return handleError(
       error as Error,

@@ -58,12 +58,17 @@ function getFocusableMenuElements(
   );
 }
 
-function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {
+const BRAND_BAR_CLASSES = [
+  "h-3.5 opacity-100",
+  "h-[19px] opacity-75",
+  "h-6 opacity-50",
+] as const;
+
+function GoldDiamond() {
   return (
     <span
       aria-hidden
-      className="inline-block shrink-0 rotate-45 bg-gold"
-      style={{ width: size, height: size }}
+      className="inline-block size-1.25 shrink-0 rotate-45 bg-gold"
     />
   );
 }
@@ -217,12 +222,10 @@ export default function HeaderClient() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="bg-gold transition-opacity group-hover:opacity-100"
-                  style={{
-                    width: 3,
-                    height: 14 + i * 5,
-                    opacity: 1 - i * 0.25,
-                  }}
+                  className={cn(
+                    "w-[3px] bg-gold transition-opacity group-hover:opacity-100",
+                    BRAND_BAR_CLASSES[i],
+                  )}
                 />
               ))}
             </div>
@@ -233,12 +236,10 @@ export default function HeaderClient() {
               {[2, 1, 0].map((i) => (
                 <div
                   key={i}
-                  className="bg-gold transition-opacity group-hover:opacity-100"
-                  style={{
-                    width: 3,
-                    height: 14 + i * 5,
-                    opacity: 1 - i * 0.25,
-                  }}
+                  className={cn(
+                    "w-[3px] bg-gold transition-opacity group-hover:opacity-100",
+                    BRAND_BAR_CLASSES[i],
+                  )}
                 />
               ))}
             </div>

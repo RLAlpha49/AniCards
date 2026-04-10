@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
-import { apiErrorResponse, invalidJsonResponse } from "@/lib/api/errors";
+import { apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
+import {
+  createProtectedWriteGrantCookieHeader,
+  getAuthoritativeUsernameFromUserStats,
+} from "@/lib/api/protected-write-grants";
+import { readJsonRequestBody } from "@/lib/api/request-body";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
@@ -32,6 +37,8 @@ interface GraphQLRequest {
 }
 
 type AllowedAniListOperationName = "GetUserId" | "GetUserStats";
+
+const ANILIST_JSON_BODY_LIMIT_BYTES = 32 * 1024;
 
 interface ResolvedAniListRequest {
   operationName: AllowedAniListOperationName;
@@ -414,23 +421,21 @@ export async function POST(request: Request) {
     return testResponse;
   }
 
-  const { startTime } = init;
+  const { startTime, endpoint, endpointKey } = init;
   let operationInfo: OperationInfo = {
     name: "unknown",
     userIdentifier: "not_provided",
   };
 
   try {
-    let requestData: GraphQLRequest;
-    try {
-      requestData = (await request.json()) as GraphQLRequest;
-    } catch {
-      trackAnalytics(
-        buildAnalyticsMetricKey("anilist_api", "failed_requests"),
-        request,
-      );
-      return invalidJsonResponse(request);
-    }
+    const bodyResult = await readJsonRequestBody<GraphQLRequest>(request, {
+      endpointName: endpoint,
+      endpointKey,
+      maxBytes: ANILIST_JSON_BODY_LIMIT_BYTES,
+    });
+    if (!bodyResult.success) return bodyResult.errorResponse;
+
+    const requestData = bodyResult.data;
 
     const result = await executeAniListRequest(requestData, request, startTime);
     operationInfo = result.operationInfo;
@@ -439,7 +444,27 @@ export async function POST(request: Request) {
       buildAnalyticsMetricKey("anilist_api", "successful_requests"),
       request,
     );
-    return jsonWithCors(result.data, request);
+
+    const protectedWriteGrantHeader =
+      operationInfo.name === "GetUserStats"
+        ? await createProtectedWriteGrantCookieHeader({
+            source: "anilist_stats",
+            statsPayload: result.data,
+            userId: operationInfo.userIdentifier,
+            username: getAuthoritativeUsernameFromUserStats(result.data),
+          })
+        : null;
+
+    return jsonWithCors(
+      result.data,
+      request,
+      undefined,
+      protectedWriteGrantHeader
+        ? {
+            "Set-Cookie": protectedWriteGrantHeader,
+          }
+        : undefined,
+    );
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     const errorMessage =

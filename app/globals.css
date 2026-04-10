@@ -235,6 +235,89 @@ button {
   touch-action: manipulation;
 }
 
+@utility font-ui-mono {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+@utility theme-toggle-glow {
+  box-shadow:
+    0 0 14px 2px hsl(var(--gold) / 0.25),
+    inset 0 0 8px hsl(var(--gold) / 0.08);
+}
+
+@utility theme-toggle-bloom {
+  background: radial-gradient(
+    circle,
+    hsl(var(--gold) / 0.3) 0%,
+    transparent 70%
+  );
+}
+
+@utility marketing-backdrop-light {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23a67c1a2e' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+@utility marketing-backdrop-dark {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+@utility search-hero-radar {
+  background: radial-gradient(
+    circle at 50% 42%,
+    transparent 8%,
+    hsl(var(--gold) / 0.04) 8.3%,
+    transparent 8.6%,
+    transparent 16%,
+    hsl(var(--gold) / 0.03) 16.3%,
+    transparent 16.6%,
+    transparent 24%,
+    hsl(var(--gold) / 0.025) 24.3%,
+    transparent 24.6%,
+    transparent 32%,
+    hsl(var(--gold) / 0.02) 32.3%,
+    transparent 32.6%,
+    transparent 40%,
+    hsl(var(--gold) / 0.015) 40.3%,
+    transparent 40.6%,
+    transparent 48%,
+    hsl(var(--gold) / 0.01) 48.3%,
+    transparent 48.6%
+  );
+}
+
+@utility not-found-backdrop {
+  background:
+    radial-gradient(circle at top, hsl(var(--gold) / 0.08), transparent 40%),
+    linear-gradient(
+      180deg,
+      hsl(var(--background)) 0%,
+      hsl(var(--background)) 100%
+    );
+}
+
+@utility not-found-diamond-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='72' height='72' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M36 4L68 36L36 68L4 36Z' fill='none' stroke='%23b58a1e22' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+@utility examples-dot-pattern {
+  background-image: radial-gradient(
+    circle,
+    hsl(var(--foreground)) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 20px 20px;
+}
+
+@utility svg-spin-origin-center {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@utility svg-rotate-start {
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
 @utility gold-line {
   height: 1px;
   background: linear-gradient(
@@ -890,4 +973,137 @@ button {
 
 @utility skel-breathe {
   animation: skel-breathe 2.8s ease-in-out infinite;
+}
+
+[data-skel-delay="0"] {
+  animation-delay: 0ms;
+}
+
+[data-skel-delay="80"] {
+  animation-delay: 80ms;
+}
+
+[data-skel-delay="120"] {
+  animation-delay: 120ms;
+}
+
+[data-skel-delay="140"] {
+  animation-delay: 140ms;
+}
+
+[data-skel-delay="160"] {
+  animation-delay: 160ms;
+}
+
+[data-skel-delay="180"] {
+  animation-delay: 180ms;
+}
+
+[data-skel-delay="200"] {
+  animation-delay: 200ms;
+}
+
+[data-skel-delay="220"] {
+  animation-delay: 220ms;
+}
+
+[data-skel-delay="240"] {
+  animation-delay: 240ms;
+}
+
+[data-skel-delay="280"] {
+  animation-delay: 280ms;
+}
+
+[data-skel-delay="300"] {
+  animation-delay: 300ms;
+}
+
+[data-skel-delay="340"] {
+  animation-delay: 340ms;
+}
+
+[data-skel-delay="360"] {
+  animation-delay: 360ms;
+}
+
+[data-skel-delay="400"] {
+  animation-delay: 400ms;
+}
+
+[data-skel-delay="420"] {
+  animation-delay: 420ms;
+}
+
+[data-skel-delay="460"] {
+  animation-delay: 460ms;
+}
+
+[data-skel-delay="480"] {
+  animation-delay: 480ms;
+}
+
+[data-skel-delay="500"] {
+  animation-delay: 500ms;
+}
+
+[data-skel-delay="540"] {
+  animation-delay: 540ms;
+}
+
+[data-skel-delay="600"] {
+  animation-delay: 600ms;
+}
+
+[data-skel-delay="620"] {
+  animation-delay: 620ms;
+}
+
+[data-skel-delay="660"] {
+  animation-delay: 660ms;
+}
+
+[data-skel-delay="680"] {
+  animation-delay: 680ms;
+}
+
+[data-skel-delay="700"] {
+  animation-delay: 700ms;
+}
+
+[data-skel-delay="720"] {
+  animation-delay: 720ms;
+}
+
+[data-skel-delay="760"] {
+  animation-delay: 760ms;
+}
+
+[data-skel-delay="820"] {
+  animation-delay: 820ms;
+}
+
+[data-skel-delay="900"] {
+  animation-delay: 900ms;
+}
+
+[data-skel-delay="980"] {
+  animation-delay: 980ms;
+}
+
+[data-skel-delay="1060"] {
+  animation-delay: 1060ms;
+}
+
+[data-marquee-duration="78000"] {
+  animation-duration: 78000ms;
+}
+
+[data-marquee-duration="79000"] {
+  animation-duration: 79000ms;
+}
+
+html.loading-overlay-open,
+body.loading-overlay-open {
+  overflow: hidden;
 }

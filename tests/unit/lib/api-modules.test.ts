@@ -6,10 +6,13 @@ import {
   handleError,
   invalidJsonResponse,
 } from "@/lib/api/errors";
-import { checkRateLimit, createRateLimiter } from "@/lib/api/rate-limit";
+import {
+  checkRateLimit,
+  createRateLimiter,
+  getRateLimitIdentity,
+} from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
 import {
-  getRequestIp,
   initializeApiRequest,
   validateSameOrigin,
 } from "@/lib/api/request-guards";
@@ -44,6 +47,23 @@ function createApiRequest(headers?: Record<string, string>): Request {
       ...headers,
     },
   });
+}
+
+function disableUnitTestRuntimeForThisTest(): void {
+  process.env.ANICARDS_UNIT_TEST = "false";
+
+  (
+    globalThis as typeof globalThis & {
+      ANICARDS_UNIT_TEST?: boolean;
+      ANICARDS_UNIT_TEST_RUNTIME?: boolean;
+    }
+  ).ANICARDS_UNIT_TEST = false;
+  (
+    globalThis as typeof globalThis & {
+      ANICARDS_UNIT_TEST?: boolean;
+      ANICARDS_UNIT_TEST_RUNTIME?: boolean;
+    }
+  ).ANICARDS_UNIT_TEST_RUNTIME = false;
 }
 
 function getLastRatelimitConstructorOptions(): Record<string, unknown> {
@@ -113,7 +133,7 @@ describe("api module hardening", () => {
     expect(response).toBeNull();
   });
 
-  it("prefers trusted deployment IP headers over spoofable forwarded headers", () => {
+  it("prefers trusted deployment IP headers when resolving rate-limit identities", () => {
     const request = new Request("http://localhost/api/test", {
       headers: {
         "x-forwarded-for": "203.0.113.99",
@@ -121,20 +141,87 @@ describe("api module hardening", () => {
       },
     });
 
-    expect(getRequestIp(request)).toBe("198.51.100.24");
+    expect(getRateLimitIdentity(request).ip).toBe("198.51.100.24");
   });
 
-  it("ignores spoofable x-forwarded-for when no trusted proxy header is present", () => {
+  it("ignores spoofable x-forwarded-for when resolving rate-limit identities", () => {
     const request = new Request("http://localhost/api/test", {
       headers: {
         "x-forwarded-for": "203.0.113.99",
       },
     });
 
-    expect(getRequestIp(request)).toBe("127.0.0.1");
+    expect(getRateLimitIdentity(request).ip).toBe("127.0.0.1");
   });
 
-  it("resolves verified client IPs from configurable trusted headers", () => {
+  it("requires proxy provenance before trusting deployment IP headers in production", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "198.51.100.24",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "missing_proxy_provenance",
+    });
+  });
+
+  it("accepts deployment IP headers in production when proxy provenance is present", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "198.51.100.24",
+          "x-vercel-id": "cle1::abc123",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: true,
+      ip: "198.51.100.24",
+      source: "x-vercel-forwarded-for",
+    });
+  });
+
+  it("rejects geo-only Vercel provenance in production", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "198.51.100.24",
+          "x-vercel-ip-country": "US",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "missing_proxy_provenance",
+    });
+  });
+
+  it("rejects custom trusted IP headers in production without an explicit provenance rule", () => {
     process.env = {
       ...process.env,
       NODE_ENV: "production",
@@ -150,13 +237,37 @@ describe("api module hardening", () => {
     );
 
     expect(result).toEqual({
-      verified: true,
-      ip: "198.51.100.24",
-      source: "x-real-ip",
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "missing_proxy_provenance",
     });
   });
 
-  it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior", async () => {
+  it("allows the Playwright client IP header during explicit real-handler automation", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      PLAYWRIGHT_REAL_USER_E2E: "1",
+      TRUSTED_CLIENT_IP_HEADERS: "x-playwright-client-ip",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-playwright-client-ip": "198.51.100.24",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: true,
+      ip: "198.51.100.24",
+      source: "x-playwright-client-ip",
+    });
+  });
+
+  it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior outside production", async () => {
     const limiter = {
       limit: mock().mockResolvedValue({
         success: true,
@@ -170,7 +281,7 @@ describe("api module hardening", () => {
 
     const response = await checkRateLimit(
       new Request("http://localhost/api/test"),
-      "127.0.0.1",
+      { ip: "127.0.0.1" },
       "Test API",
       "test_api",
       limiter,
@@ -181,6 +292,51 @@ describe("api module hardening", () => {
     expect(response).toBeNull();
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:rate_limit_timeouts",
+    );
+  });
+
+  it("fails closed on rate-limit timeouts in production", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const limiter = {
+      limit: mock().mockResolvedValue({
+        success: true,
+        reason: "timeout",
+        limit: 10,
+        remaining: 9,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      }),
+    } as never;
+
+    const response = await checkRateLimit(
+      createApiRequest(),
+      {
+        ip: "198.51.100.24",
+        source: "x-vercel-forwarded-for",
+        verified: true,
+      },
+      "Test API",
+      "test_api",
+      limiter,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response?.status).toBe(503);
+    expect(await response?.json()).toMatchObject({
+      error: "Rate limiting is temporarily unavailable",
+      retryable: true,
+      status: 503,
+    });
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:rate_limit_timeouts",
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests",
     );
   });
 
@@ -442,6 +598,41 @@ describe("api module hardening", () => {
     });
   });
 
+  it("fails closed when production rate limiting is not configured", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    disableUnitTestRuntimeForThisTest();
+
+    const limiter = createRateLimiter({ limit: 12, window: "30 s" });
+    const response = await checkRateLimit(
+      createApiRequest({
+        "x-vercel-forwarded-for": "198.51.100.24",
+        "x-vercel-id": "cle1::abc123",
+      }),
+      {
+        ip: "198.51.100.24",
+        source: "x-vercel-forwarded-for",
+        verified: true,
+      },
+      "Test API",
+      "test_api",
+      limiter,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response?.status).toBe(503);
+    expect(await response?.json()).toMatchObject({
+      error: "Rate limiting is temporarily unavailable",
+      status: 503,
+    });
+    expect(sharedRatelimitMockSlidingWindow).not.toHaveBeenCalled();
+  });
+
   it("disables rate-limit analytics by default for hot-path limiters", () => {
     process.env.UPSTASH_RATELIMIT_ANALYTICS = "true";
 
@@ -471,7 +662,7 @@ describe("api module hardening", () => {
 
     const response = await checkRateLimit(
       request,
-      "198.51.100.24",
+      { ip: "198.51.100.24" },
       "Test API",
       "test_api",
       limiter as never,
@@ -482,6 +673,31 @@ describe("api module hardening", () => {
       ip: "198.51.100.24",
       userAgent: "AniCardsTest/1.0",
       country: "GB",
+    });
+  });
+
+  it("allows direct rate-limit identities outside production when request context is unavailable", async () => {
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await checkRateLimit(
+      undefined,
+      { ip: "127.0.0.1" },
+      "Test API",
+      "test_api",
+      { limit } as never,
+    );
+
+    expect(response).toBeNull();
+    expect(limit).toHaveBeenCalledWith("127.0.0.1", {
+      ip: "127.0.0.1",
+      userAgent: undefined,
+      country: undefined,
     });
   });
 
@@ -506,7 +722,7 @@ describe("api module hardening", () => {
 
     const response = await checkRateLimit(
       request,
-      "198.51.100.24",
+      { ip: "198.51.100.24" },
       "Test API",
       "test_api",
       limiter as never,
@@ -565,6 +781,43 @@ describe("api module hardening", () => {
     );
   });
 
+  it("fails closed for unverified rate-limit identities in production", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await checkRateLimit(
+      createApiRequest(),
+      {
+        ip: "unknown",
+        reason: "missing_proxy_provenance",
+        verified: false,
+      },
+      "Test API",
+      "test_api",
+      { limit } as never,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response?.status).toBe(503);
+    expect(limit).not.toHaveBeenCalled();
+    expect(await response?.json()).toMatchObject({
+      error: "Client IP could not be verified",
+      retryable: true,
+      status: 503,
+    });
+  });
+
   it("records dedicated analytics when the rate-limit provider throws", async () => {
     const limiter = {
       limit: mock().mockRejectedValue(new Error("Upstash exploded")),
@@ -573,7 +826,7 @@ describe("api module hardening", () => {
     await expect(
       checkRateLimit(
         createApiRequest(),
-        "127.0.0.1",
+        { ip: "127.0.0.1" },
         "Test API",
         "test_api",
         limiter,
@@ -584,6 +837,44 @@ describe("api module hardening", () => {
 
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:rate_limit_errors",
+    );
+  });
+
+  it("fails closed when the rate-limit provider throws in production", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const limiter = {
+      limit: mock().mockRejectedValue(new Error("Upstash exploded")),
+    } as never;
+
+    const response = await checkRateLimit(
+      createApiRequest(),
+      {
+        ip: "198.51.100.24",
+        source: "x-vercel-forwarded-for",
+        verified: true,
+      },
+      "Test API",
+      "test_api",
+      limiter,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response?.status).toBe(503);
+    expect(await response?.json()).toMatchObject({
+      error: "Rate limiting is temporarily unavailable",
+      retryable: true,
+      status: 503,
+    });
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:rate_limit_errors",
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests",
     );
   });
 
@@ -649,6 +940,38 @@ describe("api module hardening", () => {
     expect(result.errorResponse?.headers.get("X-Request-Id")).toBe(
       "req-init-limited-12345",
     );
+  });
+
+  it("fails closed in production when initializeApiRequest cannot verify the client IP for shared rate limiting", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
+
+    const result = await initializeApiRequest(
+      createApiRequest(),
+      "Test API",
+      "test_api",
+      { limit } as never,
+      { skipSameOrigin: true },
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(result.errorResponse?.status).toBe(503);
+    expect(limit).not.toHaveBeenCalled();
+    expect(await result.errorResponse?.json()).toMatchObject({
+      error: "Client IP could not be verified",
+      status: 503,
+    });
   });
 
   it("rejects initializeApiRequest when request proof is missing for protected routes", async () => {

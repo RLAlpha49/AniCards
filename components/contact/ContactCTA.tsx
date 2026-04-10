@@ -98,8 +98,7 @@ export function ContactCTA() {
 
         <motion.p
           variants={ctaChild}
-          className="mt-8 text-[10px] tracking-[0.3em] text-foreground/20 uppercase"
-          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          className="mt-8 font-ui-mono text-[10px] tracking-[0.3em] text-foreground/20 uppercase"
         >
           I usually reply within a day or two
         </motion.p>

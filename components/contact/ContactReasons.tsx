@@ -82,13 +82,7 @@ export function ContactReasons() {
       <div className="mx-auto max-w-5xl">
         {/* Section heading */}
         <div className="mb-14 text-center">
-          <span
-            className="text-[10px] tracking-[0.5em] uppercase"
-            style={{
-              fontFamily: "var(--font-geist-mono), monospace",
-              color: "hsl(var(--gold) / 0.4)",
-            }}
-          >
+          <span className="font-ui-mono text-[10px] tracking-[0.5em] text-gold/40 uppercase">
             What Brings You Here
           </span>
           <h2 className="
@@ -142,13 +136,9 @@ export function ContactReasons() {
                 "
               >
                 {/* Numbered corner */}
-                <span
-                  className="absolute top-4 right-5 text-[10px] tracking-wider"
-                  style={{
-                    fontFamily: "var(--font-geist-mono), monospace",
-                    color: "hsl(var(--gold) / 0.15)",
-                  }}
-                >
+                <span className="
+                  absolute top-4 right-5 font-ui-mono text-[10px] tracking-wider text-gold/15
+                ">
                   {String(i + 1).padStart(2, "0")}
                 </span>
 

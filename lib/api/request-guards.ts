@@ -4,7 +4,12 @@ import type { NextResponse } from "next/server";
 import { normalizeOrigin } from "@/lib/api/cors";
 import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe, logRequest } from "@/lib/api/logging";
-import { checkRateLimit } from "@/lib/api/rate-limit";
+import {
+  getProtectedWriteGrantCookie,
+  type ProtectedWriteGrant,
+  verifyProtectedWriteGrantToken,
+} from "@/lib/api/protected-write-grants";
+import { checkRateLimit, createRateLimitIdentity } from "@/lib/api/rate-limit";
 import { ensureRequestContext } from "@/lib/api/request-context";
 import {
   getRequestProofCookie,
@@ -17,14 +22,6 @@ import {
   incrementAnalytics,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
-
-/**
- * Extracts the client IP address from trusted deployment headers only.
- */
-export function getRequestIp(request?: Request): string {
-  const clientIp = resolveVerifiedClientIp(request);
-  return clientIp.verified ? clientIp.ip : "unknown";
-}
 
 function incrementFailedRequestMetric(
   endpointName: string,
@@ -186,6 +183,114 @@ export function validateSameOrigin(
   return null;
 }
 
+function createProtectedWriteGrantResponse(
+  request: Request,
+  endpointName: string,
+  endpointKey: string,
+  reason:
+    | "expired"
+    | "invalid_payload"
+    | "invalid_signature"
+    | "malformed_token"
+    | "missing_secret"
+    | "missing_stats_hash"
+    | "missing_token"
+    | "stats_hash_mismatch"
+    | "user_id_mismatch",
+  context?: Record<string, unknown>,
+): NextResponse<ApiError> {
+  logPrivacySafe(
+    reason === "missing_secret" ? "error" : "warn",
+    endpointName,
+    "Rejected protected write because the browser was not bound to the requested user.",
+    {
+      reason,
+      ...context,
+    },
+    request,
+  );
+  incrementFailedRequestMetric(endpointName, endpointKey, request);
+
+  return apiErrorResponse(
+    request,
+    reason === "missing_secret" ? 503 : 403,
+    reason === "missing_secret" ? "Server misconfigured" : "Forbidden",
+    {
+      category: reason === "missing_secret" ? "server_error" : "authentication",
+      retryable: reason === "missing_secret",
+    },
+  );
+}
+
+export async function validateProtectedWriteGrant(params: {
+  endpointKey: string;
+  endpointName: string;
+  request: Request;
+  requireStatsHash?: boolean;
+  statsPayload?: unknown;
+  userId: number | string;
+}): Promise<
+  | {
+      grant: ProtectedWriteGrant;
+    }
+  | {
+      errorResponse: NextResponse<ApiError>;
+    }
+> {
+  const token = getProtectedWriteGrantCookie(params.request, params.userId);
+  const verification = await verifyProtectedWriteGrantToken(token, {
+    expectedUserId: params.userId,
+    expectedStatsPayload: params.statsPayload,
+    requireStatsHash: params.requireStatsHash,
+  });
+
+  if (!verification.valid) {
+    return {
+      errorResponse: createProtectedWriteGrantResponse(
+        params.request,
+        params.endpointName,
+        params.endpointKey,
+        verification.reason,
+        { userId: String(params.userId) },
+      ),
+    };
+  }
+
+  if (verification.reason === "test_bypass") {
+    return {
+      grant: {
+        source: "test_bypass",
+        userId: String(params.userId),
+      },
+    };
+  }
+
+  const payload = verification.payload;
+  if (!payload) {
+    return {
+      errorResponse: createProtectedWriteGrantResponse(
+        params.request,
+        params.endpointName,
+        params.endpointKey,
+        "invalid_payload",
+        { userId: String(params.userId) },
+      ),
+    };
+  }
+
+  return {
+    grant: {
+      source: payload.source,
+      statsHash: payload.statsHash,
+      userId: payload.userId,
+      ...(payload.username ? { username: payload.username } : {}),
+      ...(payload.usernameNormalized
+        ? { usernameNormalized: payload.usernameNormalized }
+        : {}),
+    },
+  };
+}
+
 export interface ApiInitResult {
   startTime: number;
   ip: string;
@@ -211,7 +316,8 @@ export async function initializeApiRequest(
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
   const clientIp = resolveVerifiedClientIp(request);
-  const ip = clientIp.verified ? clientIp.ip : "unknown";
+  const rateLimitIdentity = createRateLimitIdentity(clientIp);
+  const ip = rateLimitIdentity.ip;
   const endpoint = endpointName;
   const requireVerifiedClientIp =
     options?.requireVerifiedClientIp ?? options?.requireRequestProof ?? false;
@@ -243,11 +349,7 @@ export async function initializeApiRequest(
   if (!options?.skipRateLimit) {
     const rateLimitResponse = await checkRateLimit(
       request,
-      {
-        ip,
-        verified: clientIp.verified,
-        ...(clientIp.verified ? { source: clientIp.source } : {}),
-      },
+      rateLimitIdentity,
       endpoint,
       endpointKey,
       limiter,

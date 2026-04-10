@@ -16,8 +16,15 @@ import {
   logPrivacySafe,
   logSuccess,
 } from "@/lib/api/logging";
+import {
+  createProtectedWriteGrantCookieHeader,
+  getAuthoritativeUsernameFromUserStats,
+} from "@/lib/api/protected-write-grants";
 import { readJsonRequestBody } from "@/lib/api/request-body";
-import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
+  initializeApiRequest,
+  validateProtectedWriteGrant,
+} from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
@@ -34,6 +41,7 @@ import {
   saveUserRecord,
   UserDataIntegrityError,
   UserRecordConflictError,
+  UserRecordUsernameConflictError,
 } from "@/lib/server/user-data";
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
@@ -112,6 +120,29 @@ function createStoreUsersConflictResponse(params: {
   );
 }
 
+function createStoreUsersUsernameConflictResponse(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+}): NextResponse {
+  scheduleStoreUsersMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+  );
+
+  return apiErrorResponse(
+    params.request,
+    409,
+    "Conflict: username is already bound to another stored user.",
+    {
+      category: "invalid_data",
+      retryable: false,
+    },
+  );
+}
+
 async function persistPreparedUserRecord(params: {
   endpoint: string;
   endpointKey: string;
@@ -144,6 +175,16 @@ async function persistPreparedUserRecord(params: {
           endpointKey: params.endpointKey,
           request: params.request,
           currentUpdatedAt: error.currentUpdatedAt,
+        }),
+      };
+    }
+
+    if (error instanceof UserRecordUsernameConflictError) {
+      return {
+        errorResponse: createStoreUsersUsernameConflictResponse({
+          endpoint: params.endpoint,
+          endpointKey: params.endpointKey,
+          request: params.request,
         }),
       };
     }
@@ -280,6 +321,46 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const { userId, username, stats, ifMatchUpdatedAt } = validationResult.data;
+
+    const protectedWriteGrantResult = await validateProtectedWriteGrant({
+      endpointKey,
+      endpointName: endpoint,
+      request,
+      requireStatsHash: true,
+      statsPayload: stats,
+      userId,
+    });
+    if ("errorResponse" in protectedWriteGrantResult) {
+      return protectedWriteGrantResult.errorResponse;
+    }
+
+    const grant = protectedWriteGrantResult.grant;
+    const authoritativeUsernameFromStats =
+      getAuthoritativeUsernameFromUserStats(stats);
+    const authoritativeUsername =
+      grant.source === "test_bypass"
+        ? (authoritativeUsernameFromStats ?? username)
+        : (grant.username ?? authoritativeUsernameFromStats);
+
+    if (
+      username &&
+      authoritativeUsername &&
+      username.trim().toLowerCase() !==
+        authoritativeUsername.trim().toLowerCase()
+    ) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Ignoring client-supplied username that did not match the bound AniList snapshot",
+        {
+          authoritativeUsername,
+          requestedUserId: userId,
+          suppliedUsername: username,
+        },
+        request,
+      );
+    }
+
     const requestMetadata = buildPersistedRequestMetadata(ip);
 
     const now = new Date().toISOString();
@@ -324,7 +405,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const userData: UserRecord = {
       userId: String(userId),
-      username,
+      username: authoritativeUsername,
       stats: stats as unknown as UserRecord["stats"],
       ...(requestMetadata ? { requestMetadata } : {}),
       createdAt,
@@ -374,9 +455,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
+    const protectedWriteGrantHeader =
+      await createProtectedWriteGrantCookieHeader({
+        source: "stored_user",
+        userId,
+        username: preparedRecord.persistedUserData.username,
+      });
+
     return jsonWithCors(
       { success: true, userId, updatedAt: persistResult.saveResult.updatedAt },
       request,
+      undefined,
+      protectedWriteGrantHeader
+        ? {
+            "Set-Cookie": protectedWriteGrantHeader,
+          }
+        : undefined,
     );
   } catch (error) {
     return handleError(

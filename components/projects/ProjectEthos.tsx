@@ -80,13 +80,9 @@ export function ProjectEthos() {
           "
         >
           <span className="text-gold/60">03</span>
-          <span
-            className="inline-block h-px max-w-16 flex-1"
-            style={{
-              background:
-                "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-            }}
-          />
+          <span className="
+            inline-block h-px max-w-16 flex-1 bg-linear-to-r from-gold/30 to-transparent
+          " />
           <span className="text-foreground/30">Principles</span>
         </motion.div>
 
@@ -96,11 +92,10 @@ export function ProjectEthos() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
-          className="mb-12 hidden h-px origin-left md:block"
-          style={{
-            background:
-              "linear-gradient(90deg, hsl(var(--gold) / 0.5), hsl(var(--gold) / 0.15) 50%, hsl(var(--gold) / 0.5))",
-          }}
+          className="
+            mb-12 hidden h-px origin-left bg-linear-to-r from-gold/50 via-gold/15 to-gold/50
+            md:block
+          "
         />
 
         {/* Principles grid */}
@@ -121,14 +116,11 @@ export function ProjectEthos() {
               <motion.div
                 variants={dotScale}
                 className="
-                  absolute -top-[3.35rem] left-1/2 hidden size-3 -translate-x-1/2 border
+                  absolute -top-[3.35rem] left-1/2 hidden size-3 -translate-x-1/2 rotate-45 border
                   border-gold/40 bg-background
                   md:block
                 "
                 aria-hidden="true"
-                style={{
-                  transform: "translateX(-50%) rotate(45deg)",
-                }}
               />
 
               <div className="relative text-center md:text-left">
@@ -155,13 +147,7 @@ export function ProjectEthos() {
                   <span className="font-mono text-xs tracking-[0.3em] text-gold/30">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <div
-                    className="h-px w-4"
-                    style={{
-                      background:
-                        "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
-                    }}
-                  />
+                  <div className="h-px w-4 bg-linear-to-r from-gold/30 to-transparent" />
                 </motion.div>
 
                 <motion.h3

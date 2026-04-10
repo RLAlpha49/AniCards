@@ -39,13 +39,7 @@ export function ContactHeroSection() {
           <div className="h-px flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.2)]" />
           <div className="flex items-center gap-3">
             <span className="block size-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
-            <span
-              className="text-[10px] tracking-[0.5em] uppercase"
-              style={{
-                fontFamily: "var(--font-geist-mono), monospace",
-                color: "hsl(var(--gold) / 0.45)",
-              }}
-            >
+            <span className="font-ui-mono text-[10px] tracking-[0.5em] text-gold/45 uppercase">
               Say Hello
             </span>
             <span className="block size-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />

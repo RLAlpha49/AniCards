@@ -12,12 +12,15 @@ import { getAllowedCardSvgOrigin } from "@/lib/api/cors";
 import { isRedisBackplaneUnavailable } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { parseStrictPositiveInteger } from "@/lib/api/primitives";
-import { checkRateLimit, createRateLimiter } from "@/lib/api/rate-limit";
+import {
+  checkRateLimit,
+  createRateLimiter,
+  getRateLimitIdentity,
+} from "@/lib/api/rate-limit";
 import {
   ensureRequestContext,
   withRequestIdHeaders,
 } from "@/lib/api/request-context";
-import { getRequestIp } from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
   incrementAnalyticsBatch,
@@ -904,7 +907,8 @@ function createInternalErrorResponse(request: Request): Response {
  */
 export async function GET(request: Request) {
   const startTime = Date.now();
-  const ip = getRequestIp(request);
+  const rateLimitIdentity = getRateLimitIdentity(request);
+  const ip = rateLimitIdentity.ip;
   ensureRequestContext(request, {
     endpoint: "Card SVG",
     endpointKey: "card_svg",
@@ -913,7 +917,7 @@ export async function GET(request: Request) {
 
   const rateLimitResponse = await checkRateLimit(
     request,
-    ip,
+    rateLimitIdentity,
     "Card SVG",
     "card_svg",
     ratelimit,

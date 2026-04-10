@@ -55,7 +55,9 @@ paths:
         unwrapped. Supplying `operation` is the preferred contract. Deprecated
         query-text compatibility remains available only for the server-approved
         documents and rejects arbitrary custom GraphQL operations with `400`.
-        In production this route also enforces verified-client-IP,
+        JSON request bodies larger than `32768` bytes are rejected with `413`,
+        while malformed JSON bodies return `400`. In production this route also
+        enforces verified-client-IP,
         request-proof, same-origin, and shared rate-limit guards.
       parameters:
         - in: header
@@ -159,6 +161,21 @@ paths:
                     retryable: false
                     status: 400
                     recoverySuggestions: []
+        "413":
+          description: "JSON request body exceeded the 32768-byte AniList proxy limit"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                bodyTooLarge:
+                  value:
+                    error: "Request body too large"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 413
+                    recoverySuggestions: []
+                    maxBytes: 32768
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "429":
@@ -789,13 +806,15 @@ paths:
         - "store"
       summary: "Store or merge a user's card configuration"
       description: >-
-        Stores card editor state in Redis using partial-update semantics. In
-        production this route also enforces same-origin validation and shared
-        rate limiting. The current repository does not expose a public self-serve
-        deletion or export endpoint for this stored server-side data. Reads may
-        still return legacy unsupported card IDs, but writes only accept current
-        `CardType` values and strip unsupported legacy entries from the merged
-        record before persisting.
+        Stores card editor state in Redis using partial-update semantics. This
+        is a browser-only mutation route: in production it requires same-origin
+        requests, a verified client IP, the shared request-proof cookie, and a
+        short-lived per-user protected write grant minted by a trusted AniCards
+        read/proxy response for the same user. The current repository does not
+        expose a public self-serve deletion or export endpoint for this stored
+        server-side data. Reads may still return legacy unsupported card IDs,
+        but writes only accept current `CardType` values and strip unsupported
+        legacy entries from the merged record before persisting.
       requestBody:
         required: true
         content:
@@ -889,6 +908,20 @@ paths:
                     recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
+        "403":
+          description: "Missing, expired, or user-mismatched protected write grant"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                forbidden:
+                  value:
+                    error: "Forbidden"
+                    category: "authentication"
+                    retryable: false
+                    status: 403
+                    recoverySuggestions: []
         "409":
           description: "Optimistic concurrency conflict"
           content:
@@ -956,9 +989,14 @@ paths:
         Persists a versioned split user record, atomically flips the active
         commit pointer, maintains the normalized username alias and stale-user
         refresh index, and optionally enforces optimistic concurrency via
-        `ifMatchUpdatedAt`. In production this route also enforces same-origin
-        validation and shared rate limiting. Public reads later return a bounded
-        DTO that excludes request metadata such as redacted IP buckets.
+        `ifMatchUpdatedAt`. This is a browser-only mutation route: in
+        production it requires same-origin requests, a verified client IP, the
+        shared request-proof cookie, and a short-lived per-user protected write
+        grant minted by `/api/anilist` `GetUserStats` or `/api/get-user` for
+        the same user. The server only persists the bound AniList snapshot for
+        that subject and does not treat the client-supplied username as
+        authoritative. Public reads later return a bounded DTO that excludes
+        request metadata such as redacted IP buckets.
       requestBody:
         required: true
         content:
@@ -1057,12 +1095,28 @@ paths:
                     recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
-        "409":
-          description: "Optimistic concurrency conflict"
+        "403":
+          description: "Missing, expired, mismatched, or stale protected write grant"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConflictError"
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                forbidden:
+                  value:
+                    error: "Forbidden"
+                    category: "authentication"
+                    retryable: false
+                    status: 403
+                    recoverySuggestions: []
+        "409":
+          description: "Optimistic concurrency or canonical username ownership conflict"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ConflictError"
+                  - $ref: "#/components/schemas/ApiError"
               examples:
                 conflict:
                   value:
@@ -1072,6 +1126,13 @@ paths:
                     status: 409
                     recoverySuggestions: []
                     currentUpdatedAt: "2026-03-21T10:15:00.000Z"
+                usernameConflict:
+                  value:
+                    error: "Conflict: username is already bound to another stored user."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "503":
@@ -1244,7 +1305,11 @@ paths:
         responses return a format-agnostic data URL payload, while
         `responseType: "binary"` or an omitted `responseType` streams the
         converted image directly. SSRF protections reject unsafe protocols, IP
-        literals, redirects, and hosts outside the configured AniCards allow-list.
+        literals, redirects, and hosts outside the configured AniCards
+        allow-list. JSON request bodies larger than `1250000` bytes are
+        rejected with `413` before SVG parsing. This JSON envelope limit is
+        separate from the later `1000000`-byte inline/fetched SVG cap and the
+        raster dimension/pixel limits.
       requestBody:
         required: true
         content:
@@ -1300,7 +1365,7 @@ paths:
                 type: string
                 format: binary
         "400":
-          description: "Missing `svgUrl`, invalid URL, or invalid format"
+          description: "Malformed JSON, missing `svgUrl`, invalid URL, or invalid format"
           content:
             application/json:
               schema:
@@ -1350,12 +1415,20 @@ paths:
                   value:
                     error: "Failed to fetch SVG"
         "413":
-          description: "SVG payload or rasterized output exceeded size limits"
+          description: "JSON request body exceeded 1250000 bytes, inline/fetched SVG exceeded 1000000 bytes, or rasterized output exceeded dimension/pixel limits"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
+                jsonBodyTooLarge:
+                  value:
+                    error: "Request body too large"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 413
+                    recoverySuggestions: []
+                    maxBytes: 1250000
                 responseTooLarge:
                   value:
                     error: "SVG response too large"
@@ -2353,7 +2426,9 @@ components:
         and forwards the canonical server-side GraphQL document for the
         selected operation. Query-text mode is deprecated compatibility only
         and accepts only the built-in AniCards `GetUserId` and `GetUserStats`
-        documents after server-side whitespace normalization.
+        documents after server-side whitespace normalization. The full JSON
+        request body is capped at `32768` bytes; malformed JSON returns `400`
+        and oversized bodies return `413`.
 
     AniListUsername:
       type: string
@@ -2784,9 +2859,11 @@ components:
         Partial-update payload for `/api/store-cards`. The route merges incoming
         card entries and global settings into the existing Redis record,
         preserves omitted card settings, and backfills any newly supported base
-        card types as disabled records before persisting. Optional `statsData`
-        must either be `{}` or a full normalized AniList stats snapshot; other
-        malformed non-empty objects are rejected.
+        card types as disabled records before persisting. Production writes are
+        accepted only when the browser also presents a matching per-user
+        protected write grant. Optional `statsData` must either be `{}` or a
+        full normalized AniList stats snapshot; other malformed non-empty
+        objects are rejected.
       properties:
         userId:
           type: integer
@@ -2837,7 +2914,9 @@ components:
       description: >-
         Explicit minimized persistence input. Top-level fields are allow-listed,
         and `stats` must match the normalized AniList-derived snapshot shape
-        that the server validates and persists.
+        that the server validates and persists. Production writes are accepted
+        only when the browser presents a matching per-user protected write
+        grant from a recent trusted AniCards read/proxy response.
       properties:
         userId:
           type: integer
@@ -2848,7 +2927,10 @@ components:
           nullable: true
           description: >-
             Optional AniList username alias. Explicit `null` is accepted and is
-            treated the same as omitting the field before normalization.
+            treated the same as omitting the field before normalization. When a
+            protected write grant is enforced, the server persists the bound
+            username from the approved snapshot instead of treating this field
+            as authoritative.
         ifMatchUpdatedAt:
           type: string
           format: date-time
@@ -2860,7 +2942,9 @@ components:
           $ref: "#/components/schemas/UserStatsData"
           description: >-
             Normalized AniList-derived snapshot. Arrays or partial placeholder
-            objects are rejected.
+            objects are rejected. In production this payload must match the
+            recent server-approved `/api/anilist` `GetUserStats` snapshot bound
+            to the browser's protected write grant.
       required:
         - userId
         - stats
@@ -2885,6 +2969,10 @@ components:
     ConvertRequest:
       type: object
       additionalProperties: false
+      description: >-
+        JSON envelope for `/api/convert`. The full request body is capped at
+        `1250000` bytes; malformed JSON returns `400` and oversized bodies
+        return `413` before route-specific SVG validation runs.
       properties:
         svgUrl:
           type: string
@@ -2896,7 +2984,8 @@ components:
           description: >-
             Inline SVG markup to convert directly without refetching a remote
             URL. When both `svgContent` and `svgUrl` are supplied, this inline
-            markup takes precedence.
+            markup takes precedence. The inline SVG itself is capped at
+            `1000000` bytes after the outer JSON envelope has been validated.
         format:
           type: string
           enum:

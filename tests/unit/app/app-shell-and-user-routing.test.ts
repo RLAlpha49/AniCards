@@ -57,12 +57,27 @@ describe("App shell server coverage", () => {
     expect(cspHeader).toBeTruthy();
     expect(cspHeader).toContain(`'nonce-${nonce}'`);
     expect(cspHeader).toContain("script-src 'self'");
+    expect(cspHeader).not.toContain("'unsafe-inline'");
     expect(imgSrcDirective).toBeTruthy();
     expect(cspHeader).toContain("object-src 'none'");
     expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
     expect(setCookieHeader).toContain(`${REQUEST_PROOF_COOKIE_NAME}=`);
     expect(setCookieHeader).toContain("HttpOnly");
     expect(setCookieHeader).toMatch(/SameSite=strict/i);
+  });
+
+  it("keeps the inline-style compatibility carve-out on exempt HTML routes", async () => {
+    const request = new Request("http://localhost/examples", {
+      headers: {
+        "user-agent": "bun-test",
+        "x-vercel-forwarded-for": "127.0.0.1",
+      },
+    }) as unknown as NextRequest;
+
+    const response = await proxy(request);
+    const cspHeader = response.headers.get("content-security-policy");
+
+    expect(cspHeader).toContain("style-src-attr 'unsafe-inline'");
   });
 
   it("covers API routes in the proxy matcher so request IDs are injected consistently", () => {

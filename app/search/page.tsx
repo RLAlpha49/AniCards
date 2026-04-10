@@ -55,8 +55,7 @@ export default async function UserSearchPage({
 
         <SectionReveal
           variant="lineExpand"
-          style={{ originX: 0.5 }}
-          className="gold-line-thick mx-auto max-w-[60%]"
+          className="gold-line-thick mx-auto max-w-[60%] origin-center"
         />
 
         <SectionReveal>
@@ -65,8 +64,7 @@ export default async function UserSearchPage({
 
         <SectionReveal
           variant="lineExpand"
-          style={{ originX: 0.5 }}
-          className="gold-line mx-auto max-w-[40%]"
+          className="gold-line mx-auto max-w-[40%] origin-center"
         />
 
         <SectionReveal>

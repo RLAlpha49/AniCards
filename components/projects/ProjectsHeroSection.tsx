@@ -40,12 +40,11 @@ export function ProjectsHeroSection() {
     <section className="relative overflow-hidden px-6 pt-32 pb-24 sm:px-12 md:pt-44 md:pb-36">
       {/* Radial spotlight */}
       <div
-        className="pointer-events-none absolute inset-0"
         aria-hidden="true"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 50% at 25% 40%, hsl(var(--gold) / 0.06), transparent)",
-        }}
+        className="
+          pointer-events-none absolute inset-0
+          bg-[radial-gradient(ellipse_70%_50%_at_25%_40%,hsl(var(--gold)/0.06),transparent)]
+        "
       />
 
       <motion.div
@@ -62,13 +61,9 @@ export function ProjectsHeroSection() {
           <span className="font-mono text-[0.6rem] tracking-[0.5em] text-gold uppercase sm:text-xs">
             ◆ Portfolio
           </span>
-          <span
-            className="inline-block h-px max-w-32 flex-1"
-            style={{
-              background:
-                "linear-gradient(90deg, hsl(var(--gold) / 0.4), transparent)",
-            }}
-          />
+          <span className="
+            inline-block h-px max-w-32 flex-1 bg-linear-to-r from-gold/40 to-transparent
+          " />
         </motion.div>
 
         {/* Headline stack — massive scale contrast */}
@@ -90,11 +85,10 @@ export function ProjectsHeroSection() {
         {/* Gold ruled divider */}
         <motion.div
           variants={revealLine}
-          className="mb-10 h-0.75 max-w-24 origin-left sm:mb-12 sm:max-w-32"
-          style={{
-            background:
-              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.2))",
-          }}
+          className="
+            mb-10 h-0.75 max-w-24 origin-left bg-linear-to-r from-gold to-gold/20
+            sm:mb-12 sm:max-w-32
+          "
         />
 
         {/* Two-column intro with stats ribbon */}

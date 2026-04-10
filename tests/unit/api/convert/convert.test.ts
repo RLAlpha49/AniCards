@@ -98,6 +98,8 @@ function createSharpInstance(buf?: Buffer) {
 
 process.env.NEXT_PUBLIC_API_URL = "http://localhost";
 
+const CONVERT_JSON_BODY_LIMIT_BYTES = 1_250_000;
+
 const sharpConstructorMock = mock(createSharpInstance);
 
 mock.module("sharp", () => ({
@@ -164,6 +166,28 @@ describe("Convert API POST Endpoint", () => {
       const data = await res.json();
       expect(data.error).toBe("Invalid JSON body");
       expect(data.category).toBe("invalid_data");
+    });
+
+    it("should return 413 for oversized JSON request bodies before SVG parsing", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: "<svg></svg>",
+          padding: "x".repeat(CONVERT_JSON_BODY_LIMIT_BYTES),
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(413);
+      const data = await res.json();
+      expect(data.error).toBe("Request body too large");
+      expect(data.category).toBe("invalid_data");
+      expect(data.maxBytes).toBe(CONVERT_JSON_BODY_LIMIT_BYTES);
+      expect(sharpConstructorMock).not.toHaveBeenCalled();
     });
 
     it("should return 400 error if svgUrl parameter is missing", async () => {

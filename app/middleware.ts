@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { logPrivacySafe } from "@/lib/api/logging";
 import {
   createRequestProofCookie,
   getRequestProofCookie,
@@ -14,6 +15,11 @@ import { generateSecureId } from "@/lib/utils";
 const REQUEST_ID_HEADER = "x-request-id";
 const REQUEST_ID_MIDDLEWARE_MATCHER =
   "/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)";
+const INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES = [
+  "/examples",
+  "/user",
+  "/StatCards",
+] as const;
 
 function isSafeRequestId(value: string): boolean {
   return /^[A-Za-z0-9._:-]{8,120}$/.test(value);
@@ -40,6 +46,16 @@ function getRequestPathname(request: Pick<Request, "url">): string {
   }
 }
 
+function shouldAllowInlineStyleAttributes(pathname: string): boolean {
+  if (pathname === "/") {
+    return true;
+  }
+
+  return INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 /**
  * Generates a cryptographically secure random nonce for CSP
  *
@@ -64,6 +80,18 @@ async function maybeRefreshRequestProof(
   const existingProofCookie = getRequestProofCookie(request);
 
   if (!clientIp.verified) {
+    if (process.env.NODE_ENV === "production") {
+      logPrivacySafe(
+        "error",
+        "App Middleware",
+        "Skipped request-proof refresh because the client IP could not be verified.",
+        {
+          reason: clientIp.reason,
+        },
+        request,
+      );
+    }
+
     if (existingProofCookie) {
       response.cookies.set({
         name: REQUEST_PROOF_COOKIE_NAME,
@@ -130,9 +158,11 @@ async function maybeRefreshRequestProof(
  */
 export async function middleware(request: NextRequest) {
   const requestId = getOrCreateRequestId(request);
-  const isApiRequest = getRequestPathname(request).startsWith("/api/");
+  const pathname = getRequestPathname(request);
+  const isApiRequest = pathname.startsWith("/api/");
   const nonce = isApiRequest ? undefined : generateNonce();
-  const isDevelopment = process.env.NODE_ENV !== "production";
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const allowInlineStyleAttributes = shouldAllowInlineStyleAttributes(pathname);
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
@@ -141,6 +171,8 @@ export async function middleware(request: NextRequest) {
     ? buildCSPHeader(nonce, {
         allowUnsafeEval: isDevelopment,
         allowUnsafeInlineStyles: isDevelopment,
+        allowUnsafeInlineStyleAttributes:
+          isDevelopment || allowInlineStyleAttributes,
       })
     : undefined;
 

@@ -146,13 +146,6 @@ export const CSP_DIRECTIVES = {
   styleSrc: [CSP_KEYWORDS.SELF, "https://fonts.googleapis.com"],
 
   /**
-   * Inline style attributes remain explicitly allowed for now because the app
-   * still relies on dynamic `style={...}` props across loading states and UI
-   * layout surfaces.
-   */
-  styleSrcAttr: [CSP_KEYWORDS.UNSAFE_INLINE],
-
-  /**
    * Image sources - controls which images can be loaded
    * Allows same-origin images, generated data/blob URLs, AniCards preview origins,
    * and explicit AniList image hosts used by the application.
@@ -216,6 +209,7 @@ export function buildCSPHeader(
   options: {
     allowUnsafeEval?: boolean;
     allowUnsafeInlineStyles?: boolean;
+    allowUnsafeInlineStyleAttributes?: boolean;
   } = {},
 ): string {
   const scriptSrcValues = [
@@ -241,7 +235,9 @@ export function buildCSPHeader(
     `default-src ${CSP_DIRECTIVES.defaultSrc.join(" ")}`,
     `script-src ${scriptSrcValues.join(" ")}`,
     `style-src ${styleSrcValues.join(" ")}`,
-    `style-src-attr ${CSP_DIRECTIVES.styleSrcAttr.join(" ")}`,
+    ...(options.allowUnsafeInlineStyleAttributes
+      ? [`style-src-attr ${CSP_KEYWORDS.UNSAFE_INLINE}`]
+      : []),
     `img-src ${CSP_DIRECTIVES.imgSrc.join(" ")}`,
     `font-src ${CSP_DIRECTIVES.fontSrc.join(" ")}`,
     `connect-src ${CSP_DIRECTIVES.connectSrc.join(" ")}`,

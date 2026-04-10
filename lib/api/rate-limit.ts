@@ -7,6 +7,10 @@ import { readBooleanEnv, readPositiveIntegerEnv } from "@/lib/api/config";
 import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
+  resolveVerifiedClientIp,
+  type VerifiedClientIpResult,
+} from "@/lib/api/request-proof";
+import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
   isUnitTestRuntime,
@@ -15,8 +19,46 @@ import {
 
 export interface RateLimitIdentity {
   ip: string;
+  reason?: string;
   source?: string;
   verified?: boolean;
+}
+
+export function createRateLimitIdentity(
+  clientIp: VerifiedClientIpResult,
+): RateLimitIdentity {
+  return clientIp.verified
+    ? {
+        ip: clientIp.ip,
+        source: clientIp.source,
+        verified: true,
+      }
+    : {
+        ip: "unknown",
+        reason: clientIp.reason,
+        verified: false,
+      };
+}
+
+export function getRateLimitIdentity(request?: Request): RateLimitIdentity {
+  return createRateLimitIdentity(resolveVerifiedClientIp(request));
+}
+
+type RateLimiterRuntimeState =
+  | {
+      mode: "active";
+    }
+  | {
+      mode: "blocked" | "bypass";
+      reason: "missing_or_invalid_upstash_config";
+    };
+
+const RATE_LIMITER_RUNTIME_STATE = Symbol.for(
+  "anicards.rate-limiter-runtime-state",
+);
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
 }
 
 function shouldEnableRateLimitAnalytics(): boolean {
@@ -36,6 +78,45 @@ function getRateLimitTimeoutMs(): number | undefined {
   return readPositiveIntegerEnv("UPSTASH_RATELIMIT_TIMEOUT_MS");
 }
 
+function isRateLimiterRuntimeState(
+  value: unknown,
+): value is RateLimiterRuntimeState {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<RateLimiterRuntimeState>;
+  return (
+    candidate.mode === "active" ||
+    candidate.mode === "blocked" ||
+    candidate.mode === "bypass"
+  );
+}
+
+function withRateLimiterRuntimeState(
+  limiter: Ratelimit,
+  state: RateLimiterRuntimeState,
+): Ratelimit {
+  Object.defineProperty(limiter, RATE_LIMITER_RUNTIME_STATE, {
+    value: state,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
+  return limiter;
+}
+
+function getRateLimiterRuntimeState(
+  limiter: Ratelimit,
+): RateLimiterRuntimeState | undefined {
+  const candidate = (limiter as unknown as Record<string | symbol, unknown>)[
+    RATE_LIMITER_RUNTIME_STATE
+  ];
+
+  return isRateLimiterRuntimeState(candidate) ? candidate : undefined;
+}
+
 function hasUsableUpstashRedisConfig(): boolean {
   const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
@@ -51,16 +132,22 @@ function hasUsableUpstashRedisConfig(): boolean {
   }
 }
 
-function createDisabledRateLimiter(limit: number): Ratelimit {
-  return {
-    limit: async () => ({
-      pending: undefined,
-      success: true,
-      limit,
-      remaining: limit,
-      reset: Date.now() + 1000,
-    }),
-  } as unknown as Ratelimit;
+function createDisabledRateLimiter(
+  limit: number,
+  state: Extract<RateLimiterRuntimeState, { mode: "blocked" | "bypass" }>,
+): Ratelimit {
+  return withRateLimiterRuntimeState(
+    {
+      limit: async () => ({
+        pending: undefined,
+        success: true,
+        limit,
+        remaining: limit,
+        reset: Date.now() + 1000,
+      }),
+    } as unknown as Ratelimit,
+    state,
+  );
 }
 
 function createConfiguredRateLimiter(options?: {
@@ -79,7 +166,10 @@ function createConfiguredRateLimiter(options?: {
   const isUnitTestEnv = isUnitTestRuntime();
 
   if (!options?.redis && !hasUsableUpstashRedisConfig() && !isUnitTestEnv) {
-    return createDisabledRateLimiter(limit);
+    return createDisabledRateLimiter(limit, {
+      mode: isProduction() ? "blocked" : "bypass",
+      reason: "missing_or_invalid_upstash_config",
+    });
   }
 
   const redis = options?.redis ?? createRealRedisClient();
@@ -99,14 +189,17 @@ function createConfiguredRateLimiter(options?: {
   const prefix = options?.prefix ?? getRateLimitPrefix();
   const timeout = options?.timeout ?? getRateLimitTimeoutMs();
 
-  return new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(limit, window),
-    analytics,
-    enableProtection,
-    ...(prefix ? { prefix } : {}),
-    ...(typeof timeout === "number" ? { timeout } : {}),
-  });
+  return withRateLimiterRuntimeState(
+    new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(limit, window),
+      analytics,
+      enableProtection,
+      ...(prefix ? { prefix } : {}),
+      ...(typeof timeout === "number" ? { timeout } : {}),
+    }),
+    { mode: "active" },
+  );
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
@@ -198,9 +291,60 @@ function createRateLimitHeaders(options: {
   };
 }
 
+function createRateLimitUnavailableResponse(
+  request: Request | undefined,
+  endpointName: string,
+  endpointKey: string,
+  ip: string,
+  options: {
+    context?: Record<string, unknown>;
+    logMessage: string;
+    metricSuffix: "rate_limit_errors" | "rate_limit_timeouts";
+  },
+): NextResponse<ApiError> {
+  logPrivacySafe(
+    "error",
+    endpointName,
+    options.logMessage,
+    {
+      ip,
+      ...options.context,
+    },
+    request,
+  );
+
+  const failureMetric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+  scheduleTelemetryTask(() => incrementAnalytics(failureMetric), {
+    endpoint: endpointName,
+    taskName: failureMetric,
+    request,
+  });
+
+  const availabilityMetric = buildAnalyticsMetricKey(
+    endpointKey,
+    options.metricSuffix,
+  );
+  scheduleTelemetryTask(() => incrementAnalytics(availabilityMetric), {
+    endpoint: endpointName,
+    taskName: availabilityMetric,
+    request,
+  });
+
+  return apiErrorResponse(
+    request,
+    503,
+    "Rate limiting is temporarily unavailable",
+    {
+      headers: { "Retry-After": "1" },
+      category: "server_error",
+      retryable: true,
+    },
+  );
+}
+
 export async function checkRateLimit(
   request: Request | undefined,
-  identity: string | RateLimitIdentity,
+  identity: RateLimitIdentity,
   endpointName: string,
   endpointKey: string,
   limiter?: Ratelimit,
@@ -209,18 +353,22 @@ export async function checkRateLimit(
   },
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
-  const normalizedIdentity: RateLimitIdentity =
-    typeof identity === "string" ? { ip: identity } : identity;
-  const ip = normalizedIdentity.ip;
+  const ip = identity.ip;
+  const shouldRejectUnverifiedIp =
+    identity.verified === false &&
+    (options?.requireVerifiedIp === true || isProduction());
 
-  if (options?.requireVerifiedIp && !normalizedIdentity.verified) {
+  if (shouldRejectUnverifiedIp) {
     logPrivacySafe(
       "error",
       endpointName,
-      "Rejected request because rate limiting requires a verified client IP.",
+      options?.requireVerifiedIp
+        ? "Rejected request because rate limiting requires a verified client IP."
+        : "Rejected request because production rate limiting could not verify the client IP.",
       {
         ip,
-        source: normalizedIdentity.source ?? "unverified",
+        reason: identity.reason,
+        source: identity.source ?? "unverified",
       },
       request,
     );
@@ -238,6 +386,24 @@ export async function checkRateLimit(
     });
   }
 
+  const limiterRuntimeState = getRateLimiterRuntimeState(effectiveLimiter);
+  if (isProduction() && limiterRuntimeState?.mode === "blocked") {
+    return createRateLimitUnavailableResponse(
+      request,
+      endpointName,
+      endpointKey,
+      ip,
+      {
+        context: {
+          reason: limiterRuntimeState.reason,
+        },
+        logMessage:
+          "Rejected request because production rate limiting is not configured correctly.",
+        metricSuffix: "rate_limit_errors",
+      },
+    );
+  }
+
   const userAgent = request?.headers.get("user-agent") ?? undefined;
   const country =
     request?.headers.get("x-vercel-ip-country") ??
@@ -252,6 +418,23 @@ export async function checkRateLimit(
       country,
     });
   } catch (error) {
+    if (isProduction()) {
+      return createRateLimitUnavailableResponse(
+        request,
+        endpointName,
+        endpointKey,
+        ip,
+        {
+          context: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          logMessage:
+            "Rejected request because the rate-limit provider failed in production.",
+          metricSuffix: "rate_limit_errors",
+        },
+      );
+    }
+
     logPrivacySafe(
       "error",
       endpointName,
@@ -293,6 +476,20 @@ export async function checkRateLimit(
   });
 
   if (result.reason === "timeout") {
+    if (isProduction()) {
+      return createRateLimitUnavailableResponse(
+        request,
+        endpointName,
+        endpointKey,
+        ip,
+        {
+          logMessage:
+            "Rejected request because the rate-limit provider timed out in production.",
+          metricSuffix: "rate_limit_timeouts",
+        },
+      );
+    }
+
     logPrivacySafe(
       "error",
       endpointName,

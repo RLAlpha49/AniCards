@@ -3,6 +3,16 @@ const DEFAULT_TRUSTED_CLIENT_IP_HEADERS = [
   "cf-connecting-ip",
 ] as const;
 
+const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
+  "x-vercel-forwarded-for": ["x-vercel-id"],
+  "cf-connecting-ip": ["cf-ray"],
+} as const satisfies Record<
+  (typeof DEFAULT_TRUSTED_CLIENT_IP_HEADERS)[number],
+  readonly string[]
+>;
+
+const PLAYWRIGHT_TRUSTED_CLIENT_IP_HEADER = "x-playwright-client-ip";
+
 const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
 const REQUEST_PROOF_VERSION = 1;
 const REQUEST_PROOF_USER_AGENT_MAX_LENGTH = 240;
@@ -46,7 +56,10 @@ export type VerifiedClientIpResult =
     }
   | {
       ip: null;
-      reason: "invalid_trusted_header" | "missing_trusted_header";
+      reason:
+        | "invalid_trusted_header"
+        | "missing_proxy_provenance"
+        | "missing_trusted_header";
       source: null;
       verified: false;
     };
@@ -66,6 +79,15 @@ function normalizeHeaderName(value: string): string | null {
   }
 
   return /^[a-z0-9-]+$/.test(normalized) ? normalized : null;
+}
+
+function isExplicitAutomationClientIpHeaderAllowed(
+  headerName: string,
+): boolean {
+  return (
+    process.env.PLAYWRIGHT_REAL_USER_E2E === "1" &&
+    headerName === PLAYWRIGHT_TRUSTED_CLIENT_IP_HEADER
+  );
 }
 
 export function getTrustedClientIpHeaderNames(): string[] {
@@ -136,6 +158,33 @@ function normalizeIpAddress(value: string | null | undefined): string | null {
   return null;
 }
 
+function hasTrustedProxyProvenance(
+  request: Pick<Request, "headers">,
+  headerName: string,
+): boolean {
+  if (!isProduction()) {
+    return true;
+  }
+
+  if (isExplicitAutomationClientIpHeaderAllowed(headerName)) {
+    return true;
+  }
+
+  const provenanceHeaders =
+    DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS[
+      headerName as keyof typeof DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS
+    ];
+
+  if (!provenanceHeaders) {
+    return false;
+  }
+
+  return provenanceHeaders.some((provenanceHeader) => {
+    const headerValue = request.headers.get(provenanceHeader)?.trim();
+    return Boolean(headerValue);
+  });
+}
+
 export function resolveVerifiedClientIp(
   request?: Pick<Request, "headers">,
 ): VerifiedClientIpResult {
@@ -156,6 +205,7 @@ export function resolveVerifiedClientIp(
 
   const trustedHeaders = getTrustedClientIpHeaderNames();
   let sawTrustedHeader = false;
+  let sawHeaderWithoutProxyProvenance = false;
 
   for (const headerName of trustedHeaders) {
     const headerValue = request.headers.get(headerName)?.trim();
@@ -164,6 +214,12 @@ export function resolveVerifiedClientIp(
     }
 
     sawTrustedHeader = true;
+
+    if (!hasTrustedProxyProvenance(request, headerName)) {
+      sawHeaderWithoutProxyProvenance = true;
+      continue;
+    }
+
     const ip = normalizeIpAddress(headerValue);
     if (ip) {
       return { verified: true, ip, source: headerName };
@@ -182,9 +238,11 @@ export function resolveVerifiedClientIp(
     verified: false,
     ip: null,
     source: null,
-    reason: sawTrustedHeader
-      ? "invalid_trusted_header"
-      : "missing_trusted_header",
+    reason: sawHeaderWithoutProxyProvenance
+      ? "missing_proxy_provenance"
+      : sawTrustedHeader
+        ? "invalid_trusted_header"
+        : "missing_trusted_header",
   };
 }
 

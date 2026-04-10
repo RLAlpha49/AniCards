@@ -155,8 +155,11 @@ export function LoadingSpinner({
             strokeWidth="2"
             strokeLinecap="round"
             strokeDasharray={`${circumference1 * 0.3} ${circumference1 * 0.7}`}
-            className="motion-safe:animate-[spin_3.2s_linear_infinite] motion-reduce:animate-none"
-            style={{ transformBox: "fill-box", transformOrigin: "center" }}
+            className="
+              svg-spin-origin-center
+              motion-safe:animate-[spin_3.2s_linear_infinite]
+              motion-reduce:animate-none
+            "
           />
 
           {/* Middle arc — counter-rotating */}
@@ -170,10 +173,10 @@ export function LoadingSpinner({
             strokeLinecap="round"
             strokeDasharray={`${circumference2 * 0.25} ${circumference2 * 0.75}`}
             className="
+              svg-spin-origin-center
               motion-safe:animate-[spin_2.4s_linear_infinite_reverse]
               motion-reduce:animate-none
             "
-            style={{ transformBox: "fill-box", transformOrigin: "center" }}
           />
 
           {/* Inner arc — fastest, creates visual rhythm */}
@@ -186,8 +189,11 @@ export function LoadingSpinner({
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeDasharray={`${circumference3 * 0.35} ${circumference3 * 0.65}`}
-            className="motion-safe:animate-[spin_1.6s_linear_infinite] motion-reduce:animate-none"
-            style={{ transformBox: "fill-box", transformOrigin: "center" }}
+            className="
+              svg-spin-origin-center
+              motion-safe:animate-[spin_1.6s_linear_infinite]
+              motion-reduce:animate-none
+            "
           />
 
           {/* Center dot — pulsing gold */}
@@ -204,9 +210,7 @@ export function LoadingSpinner({
 
           {/* Progress ring overlay when progress is provided */}
           {hasProgress && (
-            <g
-              style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}
-            >
+            <g className="svg-rotate-start">
               <circle
                 cx={cx}
                 cy={cx}
@@ -269,15 +273,13 @@ export function LoadingOverlay({
 }: Readonly<LoadingOverlayProps>) {
   useEffect(() => {
     const { body, documentElement } = document;
-    const previousBodyOverflow = body.style.overflow;
-    const previousHtmlOverflow = documentElement.style.overflow;
 
-    body.style.overflow = "hidden";
-    documentElement.style.overflow = "hidden";
+    body.classList.add("loading-overlay-open");
+    documentElement.classList.add("loading-overlay-open");
 
     return () => {
-      body.style.overflow = previousBodyOverflow;
-      documentElement.style.overflow = previousHtmlOverflow;
+      body.classList.remove("loading-overlay-open");
+      documentElement.classList.remove("loading-overlay-open");
     };
   }, []);
 
