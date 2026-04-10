@@ -1,35 +1,42 @@
 ---
 name: "Next.js Best Practices"
 description: "Next.js Best Practices for LLMs (2025). When editing and reviewing Next.js application files, routes, API handlers, components, or configuration that affect server/client behavior and routing."
-applyTo: "app/**, components/**, pages/**, lib/**, public/**, next.config.{ts,js}"
+applyTo: "app/**, components/**, lib/**, public/**, next.config.ts"
 ---
 
 # Next.js Best Practices for LLMs (2025)
 
-_Last updated: July 2025_
-
 This document summarizes the latest, authoritative best practices for building, structuring, and maintaining Next.js applications. It is intended for use by LLMs and developers to ensure code quality, maintainability, and scalability.
+
+## Avoid Unnecessary Example Files
+
+Do not create example/demo files (like ModalExample.tsx) in the main codebase unless the user specifically requests a live example, Storybook story, or explicit documentation component. Keep the repository clean and production-focused by default.
+
+## Start from the repository's actual stack
+
+- AniCards runs on Bun + Next.js 16 App Router + React 19. Prefer `bun install` and `bun run ...` commands over npm, yarn, or pnpm examples unless the user explicitly asks otherwise.
+- Local development and builds use Turbopack through `bun run dev` and `bun run build`.
+- Unit tests run through Bun (`bun run test:unit`), while browser coverage uses Playwright (`bun run test:e2e` or `bun run test`).
+- Use current Next.js documentation when guidance is unclear, but keep recommendations compatible with this repository's actual scripts, directory layout, and runtime split.
 
 ---
 
 ## 1. Project Structure & Organization
 
 - **Use the `app/` directory** (App Router) for all new projects. Prefer it over the legacy `pages/` directory.
-- **Top-level folders:**
+- **Top-level folders in this repository:**
   - `app/` — Routing, layouts, pages, and route handlers
-  - `public/` — Static assets (images, fonts, etc.)
-  - `lib/` — Shared utilities, API clients, and logic
   - `components/` — Reusable UI components
-  - `contexts/` — React context providers
-  - `styles/` — Global and modular stylesheets
   - `hooks/` — Custom React hooks
-  - `types/` — TypeScript type definitions
+  - `lib/` — Shared utilities, API clients, and logic
+  - `public/` — Static assets (images, fonts, etc.)
+- **Request interception:** `proxy.ts` is the Next.js 16 request interception entrypoint in this repository. It delegates shared logic to `app/middleware.ts`; preserve that split instead of introducing a legacy root `middleware.ts`.
 - **Colocation:** Place files (components, styles, tests) near where they are used, but avoid deeply nested structures.
 - **Route Groups:** Use parentheses (e.g., `(admin)`) to group routes without affecting the URL path.
 - **Private Folders:** Prefix with `_` (e.g., `_internal`) to opt out of routing and signal implementation details.
 
 - **Feature Folders:** For large apps, group by feature (e.g., `app/dashboard/`, `app/auth/`).
-- **Use `src/`** (optional): Place all source code in `src/` to separate from config files.
+- **Repository Layout:** This codebase keeps source folders at the repository root, so do not assume a `src/` wrapper unless the project structure actually includes one.
 
 ## 2.1. Server and Client Component Integration (App Router)
 
@@ -120,10 +127,12 @@ Always move client-only UI into a Client Component and import it directly in you
 - **TypeScript:** Use TypeScript for all code. Enable `strict` mode in `tsconfig.json`.
 - **ESLint & Prettier:** Enforce code style and linting. Use the official Next.js ESLint config.
 - **Environment Variables:** Store secrets in `.env.local`. Never commit secrets to version control.
-- **Testing:** Use Jest, React Testing Library, or Playwright. Write tests for all critical logic and components.
+- **Testing:** Use `bun run test:unit` for unit coverage, add React Testing Library where component behavior warrants it, and use Playwright via `bun run test:e2e` or `bun run test` when browser behavior changes.
+- **Validation:** Prefer the repository scripts `bun run format:write`, `bun run typecheck`, and `bun run lint:check` rather than inventing alternate validation commands.
 - **Accessibility:** Use semantic HTML and ARIA attributes. Test with screen readers.
 - **Performance:**
-  - Use built-in Image and Font optimization.
+  - Use `next/font` where appropriate and optimize native `<img>` assets with explicit dimensions, lazy loading, and modern formats.
+  - Follow the enforced repository policy: ESLint bans `next/image`, so do not recommend or import it here.
   - Use Suspense and loading states for async data.
   - Avoid large client bundles; keep most logic in Server Components.
 - **Security:**
@@ -133,14 +142,3 @@ Always move client-only UI into a Client Component and import it directly in you
 - **Documentation:**
   - Write clear README and code comments.
   - Document public APIs and components.
-
-# Avoid Unnecessary Example Files
-
-Do not create example/demo files (like ModalExample.tsx) in the main codebase unless the user specifically requests a live example, Storybook story, or explicit documentation component. Keep the repository clean and production-focused by default.
-
-# Always use the latest documentation and guides
-
-- For every nextjs related request, begin by searching for the most current nextjs documentation, guides, and examples.
-- Use the following tools to fetch and search documentation if they are available:
-  - `resolve_library_id` to resolve the package/library name in the docs.
-  - `get_library_docs` for up to date documentation.

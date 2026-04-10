@@ -1,209 +1,314 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import {
-  ArrowLeft,
-  BarChart2,
-  BookOpen,
-  PieChart,
-  Search,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
+import { ArrowDown, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { type MouseEvent, useEffect, useRef } from "react";
+
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  buildScaleInVariants,
+  getMotionSafeScrollBehavior,
+} from "@/lib/animations";
 
 interface HeroSectionProps {
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
-  stats: {
-    coreStats: number;
-    animeDeepDive: number;
-    mangaDeepDive: number;
-    activityEngagement: number;
-    libraryProgress: number;
-    advancedAnalytics: number;
-    totalVariants: number;
-  };
+  totalCardTypes: number;
+  totalVariants: number;
+  categoryCount: number;
+  createHref: string;
 }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
+const GALLERY_SECTION_ID = "card-gallery";
+const GALLERY_HASH = `#${GALLERY_SECTION_ID}`;
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+function AnimatedNumber({ target }: Readonly<{ target: number }>) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const motionVal = useMotionValue(0);
+  const spring = useSpring(motionVal, { stiffness: 60, damping: 22 });
+  const display = useTransform(spring, (v) => Math.round(v));
 
-const STAT_CATEGORIES = [
-  {
-    key: "coreStats",
-    label: "Core Stats",
-    icon: BarChart2,
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    key: "animeDeepDive",
-    label: "Anime Deep Dive",
-    icon: PieChart,
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    text: "text-purple-600 dark:text-purple-400",
-  },
-  {
-    key: "mangaDeepDive",
-    label: "Manga Deep Dive",
-    icon: BookOpen,
-    bg: "bg-pink-100 dark:bg-pink-900/30",
-    text: "text-pink-600 dark:text-pink-400",
-  },
-  {
-    key: "activityEngagement",
-    label: "Activity & Engagement",
-    icon: Sparkles,
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-600 dark:text-amber-400",
-  },
-  {
-    key: "libraryProgress",
-    label: "Library & Progress",
-    icon: Sparkles,
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    key: "advancedAnalytics",
-    label: "Advanced Analytics",
-    icon: TrendingUp,
-    bg: "bg-indigo-100 dark:bg-indigo-900/30",
-    text: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    key: "totalVariants",
-    label: "Total Variants",
-    icon: TrendingUp,
-    bg: "bg-green-100 dark:bg-green-900/30",
-    text: "text-green-600 dark:text-green-400",
-  },
-] as const;
+  useEffect(() => {
+    motionVal.set(target);
+  }, [motionVal, target]);
+
+  useEffect(() => {
+    const unsub = display.on("change", (v) => {
+      if (ref.current) ref.current.textContent = String(v);
+    });
+    return unsub;
+  }, [display]);
+
+  return <span ref={ref}>0</span>;
+}
+
+function HeroStatNumber({
+  reducedMotion,
+  target,
+}: Readonly<{ reducedMotion: boolean; target: number }>) {
+  if (reducedMotion) {
+    return <span>{target}</span>;
+  }
+
+  return <AnimatedNumber target={target} />;
+}
 
 export function ExamplesHeroSection({
-  searchQuery,
-  onSearchChange,
-  stats,
+  totalCardTypes,
+  totalVariants,
+  categoryCount,
+  createHref,
 }: Readonly<HeroSectionProps>) {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const orchestrate = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.08,
+    delayChildren: 0.15,
+  });
+  const riseIn = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 40,
+    duration: 0.9,
+  });
+  const scaleReveal = buildScaleInVariants({
+    reducedMotion: prefersReducedMotion,
+    initialScale: 0.85,
+    y: 0,
+    duration: 1.1,
+  });
+
+  const getGalleryElement = (): HTMLElement | null => {
+    const target = document.getElementById(GALLERY_SECTION_ID);
+
+    return target instanceof HTMLElement ? target : null;
+  };
+
+  const focusGalleryElement = (target: HTMLElement) => {
+    const addedTemporaryTabIndex = !target.hasAttribute("tabindex");
+
+    if (addedTemporaryTabIndex) {
+      target.setAttribute("tabindex", "-1");
+    }
+
+    target.focus({ preventScroll: true });
+
+    if (addedTemporaryTabIndex) {
+      target.addEventListener(
+        "blur",
+        () => target.removeAttribute("tabindex"),
+        {
+          once: true,
+        },
+      );
+    }
+  };
+
+  const queueGalleryFocus = (target: HTMLElement) => {
+    globalThis.requestAnimationFrame(() => {
+      globalThis.requestAnimationFrame(() => {
+        focusGalleryElement(target);
+      });
+    });
+  };
+
+  const scrollToGallery = () => {
+    const target = getGalleryElement();
+
+    if (target) {
+      target.scrollIntoView({
+        behavior: getMotionSafeScrollBehavior(prefersReducedMotion),
+        block: "start",
+      });
+      queueGalleryFocus(target);
+    }
+  };
+
+  const updateGalleryHash = () => {
+    const nextUrl = `${globalThis.location.pathname}${globalThis.location.search}${GALLERY_HASH}`;
+    globalThis.history.pushState(null, "", nextUrl);
+  };
+
+  const handleBrowseGalleryClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+    const target = getGalleryElement();
+
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (globalThis.location.hash !== GALLERY_HASH) {
+      updateGalleryHash();
+    }
+
+    scrollToGallery();
+  };
+
   return (
-    <section className="relative w-full overflow-hidden">
-      <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="mx-auto max-w-6xl"
-        >
-          <motion.div
-            variants={itemVariants}
-            className="mb-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"
-          >
-            <Link href="/">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="group text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                Back to Home
-              </Button>
-            </Link>
-            <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search cards..."
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="h-11 rounded-full border-slate-200 bg-white/80 pl-10 dark:border-slate-700 dark:bg-slate-800/80"
-              />
-            </div>
-          </motion.div>
-
-          <motion.div variants={itemVariants} className="mb-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-purple-200/50 bg-purple-50/80 px-4 py-2 text-sm font-medium text-purple-700 shadow-sm backdrop-blur-sm dark:border-purple-700/50 dark:bg-purple-950/50 dark:text-purple-300">
-              <Sparkles className="h-4 w-4" />
-              Card Gallery
-            </span>
-          </motion.div>
-
-          <motion.h1
-            variants={itemVariants}
-            className="mb-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl"
-          >
-            Explore All{" "}
-            <span className="relative">
-              <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Card Types
-              </span>
-              <motion.span
-                className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                animate={{ opacity: [0.5, 0.8, 0.5] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-            </span>
-          </motion.h1>
-
-          <motion.p
-            variants={itemVariants}
-            className="mx-auto mb-12 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
-          >
-            Browse the complete collection of statistical visualizations. All
-            examples are generated in real-time using data from{" "}
-            <a
-              href="https://anilist.co/user/Alpha49"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              @Alpha49
-            </a>
-            {""}.
-          </motion.p>
-
-          <motion.div
-            variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
-          >
-            {STAT_CATEGORIES.map((stat) => {
-              const Icon = stat.icon;
-              const value = stats[stat.key];
-              return (
-                <motion.div
-                  key={stat.key}
-                  whileHover={{ scale: 1.02 }}
-                  className="group rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm transition-all hover:border-slate-300/50 hover:shadow-lg dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600/50"
-                >
-                  <div
-                    className={`mb-3 inline-flex rounded-xl p-2.5 ${stat.bg}`}
-                  >
-                    <Icon className={`h-5 w-5 ${stat.text}`} />
-                  </div>
-                  <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                    {value}
-                  </div>
-                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {stat.label}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+    <section className="relative px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+      <motion.div
+        variants={orchestrate}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10 mx-auto max-w-5xl"
+      >
+        {/* Overline */}
+        <motion.div variants={riseIn} className="mb-8 flex items-center gap-4">
+          <div className="
+            h-px max-w-12 flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.5)]
+          " />
+          <span className="text-[0.6rem] tracking-[0.6em] text-gold uppercase sm:text-[0.65rem]">
+            Showcase
+          </span>
+          <div className="
+            h-px max-w-12 flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.5)]
+          " />
         </motion.div>
-      </div>
+
+        {/* Large number overlay */}
+        <div className="relative">
+          <motion.div
+            variants={scaleReveal}
+            className="
+              pointer-events-none absolute -top-8 -left-2 select-none
+              sm:-top-14 sm:-left-4
+            "
+          >
+            <span className="
+              font-display text-[8rem] leading-none font-black text-[hsl(var(--gold)/0.04)]
+              sm:text-[12rem]
+              md:text-[16rem]
+            ">
+              <HeroStatNumber
+                reducedMotion={prefersReducedMotion}
+                target={totalVariants}
+              />
+            </span>
+          </motion.div>
+
+          {/* Main heading */}
+          <motion.h1
+            variants={riseIn}
+            className="
+              relative font-display text-4xl leading-[1.05] font-black tracking-tight
+              sm:text-5xl
+              md:text-6xl
+              lg:text-7xl
+            "
+          >
+            <span className="text-foreground">Every Card,</span>
+            <br />
+            <span className="text-gold">Every Variant</span>
+          </motion.h1>
+        </div>
+
+        {/* Subtitle */}
+        <motion.p
+          variants={riseIn}
+          className="mt-6 max-w-lg font-body-serif text-base/relaxed text-foreground/45 sm:text-lg"
+        >
+          Browse{" "}
+          <span className="font-semibold text-foreground/70">
+            <HeroStatNumber
+              reducedMotion={prefersReducedMotion}
+              target={totalCardTypes}
+            />{" "}
+            distinct card types
+          </span>{" "}
+          spread across{" "}
+          <span className="font-semibold text-foreground/70">
+            {categoryCount} categories
+          </span>{" "}
+          — all pulled live from{" "}
+          <a
+            href="https://anilist.co/user/Alpha49"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold transition-colors hover:text-gold/80 hover:underline"
+          >
+            @Alpha49
+          </a>
+          {"."}
+        </motion.p>
+
+        <motion.p
+          variants={riseIn}
+          className="
+            mt-5 max-w-3xl font-body-serif text-sm/relaxed text-foreground/40
+            sm:text-base/relaxed
+          "
+        >
+          Open a single collection when you want a cleaner comparison, or load
+          the full gallery when you are in full gremlin mode and need to inspect
+          every variation side by side before choosing a direction.
+        </motion.p>
+
+        {/* Stats strip */}
+        <motion.div
+          variants={riseIn}
+          className="mt-12 flex flex-wrap items-end gap-12 sm:gap-16"
+        >
+          {[
+            { value: totalCardTypes, label: "Card Types" },
+            { value: totalVariants, label: "Total Variants", suffix: "+" },
+            { value: categoryCount, label: "Categories" },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <p className="font-display text-3xl leading-none font-black text-gold sm:text-4xl">
+                <HeroStatNumber
+                  reducedMotion={prefersReducedMotion}
+                  target={stat.value}
+                />
+                {stat.suffix && (
+                  <span className="text-xl text-gold/50">{stat.suffix}</span>
+                )}
+              </p>
+              <p className="mt-1.5 text-[0.6rem] tracking-[0.2em] text-foreground/30 uppercase">
+                {stat.label}
+              </p>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* Actions */}
+        <motion.div
+          variants={riseIn}
+          className="mt-12 flex flex-wrap items-center gap-4"
+        >
+          <Link
+            href={createHref}
+            className="imperial-btn inline-flex imperial-btn-fill items-center"
+          >
+            <Sparkles className="mr-2 size-4" />
+            Create Yours
+          </Link>
+          <a
+            href="#card-gallery"
+            onClick={handleBrowseGalleryClick}
+            className="group imperial-btn inline-flex imperial-btn-ghost items-center"
+          >
+            Browse the Gallery
+            <ArrowDown className="ml-2 size-4 transition-transform group-hover:translate-y-0.5" />
+          </a>
+        </motion.div>
+      </motion.div>
     </section>
   );
 }

@@ -1,26 +1,211 @@
-import { USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { UserRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
-import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
+/**
+ * Background refresh job for cached AniList user data.
+ *
+ * The cron route updates the oldest stored users in small batches so cached
+ * profiles stay reasonably fresh without overwhelming AniList, and it removes
+ * records only after repeated 404s to distinguish deleted accounts from
+ * transient upstream failures. The repository's cron contract lives in
+ * `vercel.json`, and this route returns capacity/budget context so operators can
+ * see when the fixed cadence no longer meets the 24-hour freshness goal.
+ */
 import type { Redis as UpstashRedis } from "@upstash/redis";
-import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+
+import { USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { redisClient } from "@/lib/api/clients";
+import { apiTextHeaders } from "@/lib/api/cors";
+import { apiErrorResponse } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
+  ANILIST_GRAPHQL_CIRCUIT_BREAKER,
+  ANILIST_GRAPHQL_URL,
+  authorizeCronRequest,
+  buildAniListGraphQlRequestInit,
+  fetchUpstreamWithRetry,
+  UpstreamTransportError,
+} from "@/lib/api/upstream";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+import { categorizeError } from "@/lib/error-messages";
+import { trackUserActionError } from "@/lib/error-tracking";
+import {
+  ALL_USER_DATA_PARTS,
+  deleteUserRecord,
   fetchUserDataParts,
+  listStalestUserIds,
   reconstructUserRecord,
   saveUserRecord,
-  deleteUserRecord,
-  UserDataPart,
+  USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
+import type { UserStatsData } from "@/lib/types/records";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
  * @source
  */
-interface UpdateResult {
-  success: boolean;
-  is404Error: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  statsData?: any;
+type UpdateResult =
+  | {
+      success: true;
+      is404Error: false;
+      statsData: AniListUserStatsData;
+    }
+  | {
+      success: false;
+      is404Error: boolean;
+    };
+
+const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
+const USER_REFRESH_DEFERRED_DATA_PARTS = ALL_USER_DATA_PARTS.filter(
+  (part) => part !== "meta",
+);
+const CRON_REFRESH_BATCH_SIZE = 5;
+const CRON_REFRESH_SCHEDULE = "0 */20 * * *";
+const CRON_REFRESH_RUNS_PER_DAY = 4;
+
+type AniListUserStatsData = UserStatsData & {
+  User: UserStatsData["User"] & {
+    id: number | string;
+  };
+};
+
+type CronUserRefreshStage =
+  | "fetch_user_data_parts"
+  | "reconstruct_user_record"
+  | "refresh_user_stats"
+  | "normalize_user_record"
+  | "save_user_record"
+  | "clear_failure_tracking"
+  | "handle_failure_tracking";
+
+function normalizeCronUserRefreshError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getAniListGraphQlErrorMessage(payload: unknown): string | null {
+  if (!isRecord(payload) || !Array.isArray(payload.errors)) {
+    return null;
+  }
+
+  const messages = payload.errors
+    .map((error) => {
+      if (!isRecord(error) || typeof error.message !== "string") {
+        return "";
+      }
+
+      return error.message.trim();
+    })
+    .filter((message) => message.length > 0);
+
+  if (messages.length > 0) {
+    return messages.join("; ");
+  }
+
+  return payload.errors.length > 0 ? "AniList returned GraphQL errors" : null;
+}
+
+function isAniListUserStatsData(
+  value: unknown,
+  expectedUserId: string,
+): value is AniListUserStatsData {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const user = value.User;
+  if (!isRecord(user)) {
+    return false;
+  }
+
+  let resolvedUserId = "";
+  if (typeof user.id === "number") {
+    resolvedUserId = String(user.id);
+  } else if (typeof user.id === "string") {
+    resolvedUserId = user.id.trim();
+  }
+
+  return resolvedUserId === expectedUserId;
+}
+
+function summarizeCronRefreshBudget(totalUsers: number): {
+  dailyCapacity: number;
+  estimatedSweepHours: number;
+  note: string;
+} {
+  const dailyCapacity = CRON_REFRESH_BATCH_SIZE * CRON_REFRESH_RUNS_PER_DAY;
+  let estimatedSweepHours = 0;
+  if (totalUsers > 0) {
+    estimatedSweepHours = Math.max(
+      1,
+      Math.ceil((totalUsers / dailyCapacity) * 24),
+    );
+  }
+
+  if (totalUsers === 0) {
+    return {
+      dailyCapacity,
+      estimatedSweepHours,
+      note: "No stored users are currently queued for refresh.",
+    };
+  }
+
+  if (totalUsers <= dailyCapacity) {
+    return {
+      dailyCapacity,
+      estimatedSweepHours,
+      note: "Current footprint fits within the repo-managed 24-hour freshness budget.",
+    };
+  }
+
+  return {
+    dailyCapacity,
+    estimatedSweepHours,
+    note: `Current footprint exceeds the repo-managed 24-hour freshness budget by ${totalUsers - dailyCapacity} users; change cadence and per-run batch budget together in a follow-up instead of only increasing invocation frequency.`,
+  };
+}
+
+async function reportCronUserRefreshError(options: {
+  endpoint: string;
+  error: unknown;
+  request?: Request;
+  requestId?: string;
+  stage: CronUserRefreshStage;
+  userId: string;
+}): Promise<void> {
+  const normalizedError = normalizeCronUserRefreshError(options.error);
+
+  logPrivacySafe(
+    "error",
+    options.endpoint,
+    "Error processing scheduled user refresh",
+    {
+      userId: options.userId,
+      stage: options.stage,
+      error: normalizedError.message,
+      ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
+    },
+    options.request,
+  );
+
+  await trackUserActionError(
+    "cron_refresh_user",
+    normalizedError,
+    categorizeError(normalizedError.message),
+    {
+      executionEnvironment: "server",
+      route: "/api/cron",
+      source: "api_route",
+      stack: normalizedError.stack,
+      metadata: {
+        endpoint: "cron_job",
+        userId: options.userId,
+        stage: options.stage,
+        ...(options.requestId ? { requestId: options.requestId } : {}),
+      },
+    },
+  );
 }
 
 /**
@@ -29,123 +214,148 @@ interface UpdateResult {
  * @returns Result detailing the fetch success, 404 status, and payload if available.
  * @source
  */
-async function updateUserStats(userId: string): Promise<UpdateResult> {
-  let retries = 3;
-  let is404Error = false;
+async function updateUserStats(
+  userId: string,
+  request?: Request,
+  signal?: AbortSignal,
+): Promise<UpdateResult> {
+  try {
+    logPrivacySafe(
+      "log",
+      "Cron Job",
+      "Fetching AniList data for scheduled refresh",
+      { userId },
+      request,
+    );
 
-  while (retries > 0) {
-    try {
-      console.log(
-        `🔄 [Cron Job] User ${userId}: Attempt ${4 - retries}/3 - Fetching AniList data`,
+    const statsResponse = await fetchUpstreamWithRetry({
+      service: "AniList GraphQL",
+      url: ANILIST_GRAPHQL_URL,
+      init: buildAniListGraphQlRequestInit({
+        query: USER_STATS_QUERY,
+        request,
+        signal,
+        variables: { userId },
+      }),
+      circuitBreaker: ANILIST_GRAPHQL_CIRCUIT_BREAKER,
+    });
+
+    if (!statsResponse.ok) {
+      const is404Error = statsResponse.status === 404;
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned a non-success status during scheduled refresh",
+        { userId, statusCode: statsResponse.status },
+        request,
       );
-
-      const statsResponse = await fetch("https://graphql.anilist.co", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: USER_STATS_QUERY,
-          variables: { userId },
-        }),
-      });
-
-      if (!statsResponse.ok) {
-        is404Error = statsResponse.status === 404;
-        throw new Error(`HTTP ${statsResponse.status}`);
-      }
-
-      const statsData = await statsResponse.json();
-      return { success: true, is404Error: false, statsData };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      retries--;
-      if (error.stack) {
-        console.error(
-          `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
-        );
-      }
-      if (retries === 0) {
-        console.error(
-          `🔥 [Cron Job] User ${userId}: Final attempt failed - ${error.message}`,
-        );
-      } else {
-        console.warn(
-          `⚠️ [Cron Job] User ${userId}: Retrying (${retries} left) - ${error.message}`,
-        );
-      }
+      return { success: false, is404Error };
     }
-  }
 
-  return { success: false, is404Error };
+    const statsPayload = (await statsResponse.json()) as unknown;
+    const graphQlErrorMessage = getAniListGraphQlErrorMessage(statsPayload);
+    if (graphQlErrorMessage) {
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned GraphQL errors during scheduled refresh",
+        { userId, error: graphQlErrorMessage },
+        request,
+      );
+      return { success: false, is404Error: false };
+    }
+
+    const statsData = isRecord(statsPayload) ? statsPayload.data : undefined;
+    if (!isAniListUserStatsData(statsData, userId)) {
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned a malformed stats payload during scheduled refresh",
+        { userId },
+        request,
+      );
+      return { success: false, is404Error: false };
+    }
+
+    return { success: true, is404Error: false, statsData };
+  } catch (error) {
+    if (signal?.aborted) {
+      return { success: false, is404Error: false };
+    }
+
+    if (error instanceof UpstreamTransportError) {
+      logPrivacySafe(
+        "error",
+        "Cron Job",
+        "AniList transport error during scheduled refresh",
+        { userId, error: error.message },
+        request,
+      );
+      return { success: false, is404Error: false };
+    }
+
+    logPrivacySafe(
+      "error",
+      "Cron Job",
+      "AniList refresh failed after retries",
+      {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.stack
+          ? { stack: error.stack }
+          : {}),
+      },
+      request,
+    );
+    return { success: false, is404Error: false };
+  }
 }
 
 /**
- * Records repeated AniList 404 failures and removes stale entries after three attempts.
- * @param redisClient - Redis client used to store failure counters and related keys.
- * @param userId - AniList identifier whose failures are being tracked.
- * @param userKey - Redis key for the user's record to delete when removing.
- * @returns True when the user was removed from Redis, false otherwise.
- * @source
+ * Counts repeated AniList 404 responses before deleting a stored user.
+ *
+ * AniList can fail transiently, so a single 404 is not enough to treat an
+ * account as gone forever. The third consecutive 404 is the point where this
+ * route chooses cleanup over retrying stale data indefinitely.
  */
-async function getUsernameIndexKey(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<string | null> {
-  try {
-    const metaRaw = await redisClient.get(`user:${userId}:meta`);
-    if (!metaRaw) return null;
-
-    const parsed =
-      typeof metaRaw === "string"
-        ? safeParse<Record<string, unknown>>(metaRaw)
-        : (metaRaw as Record<string, unknown>);
-
-    const rawUsername = parsed ? parsed["username"] : undefined;
-    if (typeof rawUsername === "string" && rawUsername.trim()) {
-      return `username:${rawUsername.trim().toLowerCase()}`;
-    }
-  } catch (err) {
-    console.warn(
-      `⚠️ [Cron Job] User ${userId}: Failed to read meta for username cleanup: ${err}`,
-    );
-  }
-
-  return null;
-}
-
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
+  request?: Request,
 ): Promise<boolean> {
   const failureKey = `failed_updates:${userId}`;
   const currentFailureCount = (await redisClient.get(failureKey)) || 0;
   const newFailureCount = Number(currentFailureCount) + 1;
 
-  console.log(
-    `📋 [Cron Job] User ${userId}: Recording 404 failure (attempt ${newFailureCount}/3)`,
+  logPrivacySafe(
+    "warn",
+    "Cron Job",
+    "Recording repeated 404 failure for stored user",
+    { userId, failureCount: newFailureCount },
+    request,
   );
 
   if (newFailureCount >= 3) {
-    const cardsKey = `cards:${userId}`;
-    const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
+    const deleteResult = await deleteUserRecord(userId, {
+      triggerSource: "cron_cleanup_404",
+    });
 
-    const deletions = [
-      deleteUserRecord(userId), // Remove user data (all parts)
-      redisClient.del(failureKey), // Remove failure tracking
-      redisClient.del(cardsKey), // Remove user's card configurations
-      ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
-    ];
-
-    await Promise.all(deletions);
-
-    console.log(
-      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
-      }`,
+    logPrivacySafe(
+      "warn",
+      "Cron Job",
+      "Removed user after repeated AniList 404 responses",
+      {
+        userId,
+        removedUsernameIndexKeys: deleteResult.usernameIndexKeys.join(","),
+      },
+      request,
     );
-    return true; // User was removed
+    return true;
   } else {
-    await redisClient.set(failureKey, newFailureCount);
-    return false; // User was not removed
+    await redisClient.set(failureKey, newFailureCount, {
+      ex: FAILED_UPDATE_TTL_SECONDS,
+    });
+    return false;
   }
 }
 
@@ -165,214 +375,125 @@ async function clearFailureTracking(
 }
 
 /**
- * Computes a recommended cron expression so that all users are refreshed at least once
- * every 24 hours given the number of users and the number processed per run.
- *
- * Strategy:
- * - runsNeeded = ceil(totalUsers / batchSize)
- * - If runsNeeded <= 1 => run once per day ("0 0 * * *").
- * - If runsNeeded > 1440 => impossible with this batch size, suggest every minute ("* * * * *").
- * - Otherwise pick N = floor(1440 / runsNeeded) minutes.
- *   - If N >= 60, convert to an hourly schedule (e.g. run at minute 0 every H hours).
- *   - Else use a minute-based schedule (every N minutes).
- *
- * Returns cron expression, estimated runs/day, and approximate interval (minutes).
- */
-function computeCronForBatch(
-  totalUsers: number,
-  batchSize: number,
-): {
-  runsNeeded: number;
-  cron: string;
-  runsPerDay: number;
-  intervalMinutes: number;
-  note?: string;
-} {
-  const runsNeeded =
-    totalUsers === 0 ? 0 : Math.max(1, Math.ceil(totalUsers / batchSize));
-
-  if (totalUsers === 0) {
-    return {
-      runsNeeded: 0,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-      note: "No users",
-    };
-  }
-
-  if (runsNeeded <= 1) {
-    return {
-      runsNeeded,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-    };
-  }
-
-  if (runsNeeded > 1440) {
-    return {
-      runsNeeded,
-      cron: "* * * * *",
-      runsPerDay: 1440,
-      intervalMinutes: 1,
-      note: "Cannot satisfy with this batch size; consider increasing batch size or parallelism",
-    };
-  }
-
-  const Nmin = Math.max(1, Math.floor(1440 / runsNeeded));
-  if (Nmin >= 60) {
-    const H = Math.max(1, Math.floor(Nmin / 60));
-    if (H >= 24) {
-      return {
-        runsNeeded,
-        cron: "0 0 * * *",
-        runsPerDay: 1,
-        intervalMinutes: 1440,
-      };
-    }
-    const runsPerDay = Math.ceil(24 / H);
-    const interval = Math.round(1440 / runsPerDay);
-    return {
-      runsNeeded,
-      cron: `0 */${H} * * *`,
-      runsPerDay,
-      intervalMinutes: interval,
-    };
-  } else {
-    const cron = Nmin === 1 ? "* * * * *" : `*/${Nmin} * * * *`;
-    const runsPerHour = Math.ceil(60 / Nmin);
-    const runsPerDay = runsPerHour * 24;
-    const interval = Math.round(1440 / runsPerDay);
-    return { runsNeeded, cron, runsPerDay, intervalMinutes: interval };
-  }
-}
-
-/**
  * Executes the cron job that batches AniList stat refreshes for the oldest users.
  * @param request - Incoming request which must include the cron secret header.
  * @returns Response summarizing processed, failed, and removed users.
  * @source
  */
 export async function POST(request: Request) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
+  const init = await initializeApiRequest(
+    request,
+    "Cron Job",
+    "cron_job",
+    undefined,
+    { skipRateLimit: true, skipSameOrigin: true, requireOrigin: false },
+  );
+  if (init.errorResponse) return init.errorResponse;
 
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
-      console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: apiJsonHeaders(request),
-      });
-    }
-  } else {
-    console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
-    );
-  }
+  const { startTime, endpoint, requestId } = init;
+  const authorizationError = authorizeCronRequest(request, endpoint);
+  if (authorizationError) return authorizationError;
 
   try {
-    console.log(
-      "🛠️ [Cron Job] QStash authorized, starting background update...",
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Authorized cron request, starting background update",
+      undefined,
+      request,
     );
 
-    const allKeys = await scanAllKeys("user:*");
-    // Filter to only include numeric user IDs and avoid analytics or other keys
-    const userIds = Array.from(
-      new Set(
-        allKeys
-          .map((k) => k.split(":")[1])
-          .filter((id) => id && /^\d+$/.test(id)),
-      ),
+    // Refresh the stalest records first and keep the batch small. That trades a
+    // little peak freshness for predictable AniList load and more stable cron runs.
+    const { userIds, totalUsers } = await listStalestUserIds(
+      CRON_REFRESH_BATCH_SIZE,
     );
-    const totalUsers = userIds.length;
+    const batch = userIds.map((id) => ({ id }));
 
-    // Fetch meta for all users to sort by updatedAt
-    const metaKeys = userIds.map((id) => `user:${id}:meta`);
-    const metaResults = await Promise.all(
-      metaKeys.map((key) => redisClient.get(key)),
-    );
-
-    const missingMetaIndices: number[] = [];
-    const validUsers: { id: string; updatedAt: string | number }[] = [];
-
-    metaResults.forEach((meta, i) => {
-      if (meta) {
-        const parsed = typeof meta === "string" ? JSON.parse(meta) : meta;
-        validUsers.push({ id: userIds[i], updatedAt: parsed.updatedAt || 0 });
-      } else {
-        missingMetaIndices.push(i);
-      }
-    });
-
-    if (missingMetaIndices.length > 0) {
-      const legacyKeys = missingMetaIndices.map((i) => `user:${userIds[i]}`);
-      const legacyResults = await Promise.all(
-        legacyKeys.map((key) => redisClient.get(key)),
-      );
-
-      legacyResults.forEach((legacy, i) => {
-        if (legacy) {
-          const record = safeParse<UserRecord>(legacy as string);
-          validUsers.push({
-            id: userIds[missingMetaIndices[i]],
-            updatedAt: record?.updatedAt || 0,
-          });
-        }
-      });
-    }
-
-    // Sort by updatedAt (oldest first)
-    validUsers.sort((a, b) => {
-      const dateA = new Date(a.updatedAt || 0).getTime();
-      const dateB = new Date(b.updatedAt || 0).getTime();
-      return dateA - dateB;
-    });
-
-    // Select the 5 oldest users
-    const batch = validUsers.slice(0, 5);
-
-    console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} users (5 oldest out of ${totalUsers}).`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Starting scheduled refresh batch",
+      { batchSize: batch.length, totalUsers },
+      request,
     );
 
     let successfulUpdates = 0;
     let failedUpdates = 0;
     let removedUsers = 0;
 
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-
     await Promise.all(
       batch.map(async ({ id }) => {
-        try {
-          const partsData = await fetchUserDataParts(id, allParts);
-          const user = reconstructUserRecord(partsData);
+        let stage: CronUserRefreshStage = "fetch_user_data_parts";
+        let trackedUserId = id;
+        const updateAbortController = new AbortController();
+        const updateResultPromise = updateUserStats(
+          id,
+          request,
+          updateAbortController.signal,
+        );
 
-          console.log(
-            `👤 [Cron Job] User ${user.userId} (${
-              user.username || "no username"
-            }): Starting update`,
+        try {
+          // Meta is enough to identify the stored user and log context. The
+          // full split record is only needed when we actually have fresh stats
+          // to persist, so defer the heavier Redis read until success.
+          const metaParts = await fetchUserDataParts(
+            id,
+            [...USER_BOOTSTRAP_DATA_PARTS],
+            {
+              triggerSource: "cron_refresh",
+            },
+          );
+          const meta = metaParts.meta as
+            | { userId?: string; username?: string }
+            | undefined;
+
+          if (!meta) {
+            throw new Error("Stored user metadata is missing");
+          }
+
+          trackedUserId =
+            typeof meta.userId === "string" && meta.userId.length > 0
+              ? meta.userId
+              : id;
+
+          logPrivacySafe(
+            "log",
+            endpoint,
+            "Starting scheduled user refresh",
+            {
+              userId: trackedUserId,
+              username:
+                typeof meta.username === "string" && meta.username.length > 0
+                  ? meta.username
+                  : "no username",
+            },
+            request,
           );
 
-          const updateResult = await updateUserStats(user.userId);
+          stage = "refresh_user_stats";
+          const updateResult = await updateResultPromise;
 
           if (updateResult.success) {
-            // Update user data in Redis with the fetched stats
-            user.stats = updateResult.statsData.data;
+            stage = "fetch_user_data_parts";
+            const remainingParts = await fetchUserDataParts(
+              trackedUserId,
+              [...USER_REFRESH_DEFERRED_DATA_PARTS],
+              {
+                audit: false,
+                triggerSource: "cron_refresh",
+              },
+            );
 
-            // Normalize and prune data before saving to keep Redis size down
+            stage = "reconstruct_user_record";
+            const user = reconstructUserRecord({
+              ...remainingParts,
+              meta: metaParts.meta,
+            });
+            trackedUserId = user.userId || trackedUserId;
+            user.stats = updateResult.statsData;
+
+            stage = "normalize_user_record";
             const normalizationResult = validateAndNormalizeUserRecord(user);
             const finalUser =
               "normalized" in normalizationResult
@@ -381,74 +502,113 @@ export async function POST(request: Request) {
 
             finalUser.updatedAt = new Date().toISOString();
 
-            await saveUserRecord(finalUser);
+            stage = "save_user_record";
+            await saveUserRecord(finalUser, {
+              triggerSource: "cron_refresh",
+            });
 
-            console.log(
-              `✅ [Cron Job] User ${user.userId}: Successfully updated`,
+            logPrivacySafe(
+              "log",
+              endpoint,
+              "Successfully refreshed stored user",
+              { userId: trackedUserId },
+              request,
             );
             successfulUpdates++;
-            await clearFailureTracking(redisClient, user.userId);
+
+            stage = "clear_failure_tracking";
+            await clearFailureTracking(redisClient, trackedUserId);
           } else if (updateResult.is404Error) {
             failedUpdates++;
+
+            stage = "handle_failure_tracking";
             const wasRemoved = await handleFailureTracking(
               redisClient,
-              user.userId,
+              trackedUserId,
+              request,
             );
             if (wasRemoved) {
               removedUsers++;
             }
           }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-          console.error(
-            `🔥 [Cron Job] Error processing user ${id}: ${error.message}`,
-          );
-          if (error.stack) {
-            console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+        } catch (error) {
+          if (stage === "fetch_user_data_parts") {
+            updateAbortController.abort(
+              new Error(
+                "Aborted scheduled refresh after bootstrap metadata load failed",
+              ),
+            );
+            await updateResultPromise.catch(() => undefined);
           }
+
+          await reportCronUserRefreshError({
+            endpoint,
+            error,
+            request,
+            requestId,
+            stage,
+            userId: trackedUserId,
+          });
         }
       }),
     );
 
-    console.log(
-      `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
-      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Cron job completed",
+      {
+        durationMs: Date.now() - startTime,
+        batchSize: batch.length,
+        totalUsers,
+        successfulUpdates,
+        failedUpdates,
+        removedUsers,
+      },
+      request,
     );
 
-    // Compute recommended cron expressions for 5 and 10 users per run
-    const recFor5 = computeCronForBatch(totalUsers, 5);
-    const recFor10 = computeCronForBatch(totalUsers, 10);
+    const refreshBudget = summarizeCronRefreshBudget(totalUsers);
 
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Generated repo-managed refresh budget summary",
+      {
+        configuredBatchSize: CRON_REFRESH_BATCH_SIZE,
+        dailyCapacity: refreshBudget.dailyCapacity,
+        estimatedSweepHours: refreshBudget.estimatedSweepHours,
+        schedule: CRON_REFRESH_SCHEDULE,
+      },
+      request,
     );
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 10/users -> ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min).`,
-    );
 
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
-
-    const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
-    const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
+    const headers = apiTextHeaders(request);
 
     const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
       "",
-      `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
-      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,
-      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10Note}`,
+      `Repo-managed refresh schedule: ${CRON_REFRESH_SCHEDULE} (${CRON_REFRESH_RUNS_PER_DAY} runs/day).`,
+      `Refresh capacity budget: ${CRON_REFRESH_BATCH_SIZE} users/run, ${refreshBudget.dailyCapacity} users/day.`,
+      `Current stored users: ${totalUsers}. Estimated full-sweep window: ~${refreshBudget.estimatedSweepHours} hours.`,
+      refreshBudget.note,
     ].join("\n");
 
     return new Response(scheduleMessage, { status: 200, headers });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);
-    if (error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-    }
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
-    return new Response("Cron job failed", { status: 500, headers });
+  } catch (error: unknown) {
+    const normalizedError =
+      error instanceof Error ? error : new Error(String(error));
+
+    logPrivacySafe(
+      "error",
+      endpoint,
+      "Cron job failed",
+      {
+        error: normalizedError.message,
+        ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
+      },
+      request,
+    );
+    return apiErrorResponse(request, 500, "Cron job failed");
   }
 }

@@ -1,21 +1,25 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-import type { UserFavourites } from "@/lib/types/records";
 import {
-  calculateDynamicFontSize,
+  buildSvgTextLengthAdjustAttributes,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import type { UserFavourites } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
+import {
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
+import { generateCardBackground } from "../common/base-template-utils";
+import { generateCommonStyles } from "../common/style-generators";
 import {
   generateFavouritesSummaryBody,
   getFavouriteCounts,
   type TemplateStyles,
 } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
-import { generateCardBackground } from "../common/base-template-utils";
 
 /**
  * Renders the Favourites Summary card - a compact KPI-style card summarizing
@@ -47,7 +51,6 @@ export const favoritesSummaryTemplate = (data: {
     ],
   );
 
-  // Get counts from each category
   const counts = getFavouriteCounts(data.favourites);
   const animeCount = counts.anime;
   const mangaCount = counts.manga;
@@ -60,9 +63,21 @@ export const favoritesSummaryTemplate = (data: {
 
   const dims = getCardDimensions("favoritesSummary", "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const title = `${data.username}'s Favourites`;
   const safeTitle = escapeForXml(title);
+  const titleMaxWidth = dims.w - SPACING.CARD_PADDING * 2;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.HEADER_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   return markTrustedSvg(`
 <svg
@@ -83,10 +98,7 @@ export const favoritesSummaryTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, titleFit.fontSize, { includeAnimations: animationsEnabled })}
 
     .total-count {
       fill: ${resolvedColors.circleColor};
@@ -102,10 +114,10 @@ export const favoritesSummaryTemplate = (data: {
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
 
-  ${generateFavouritesSummaryBody(counts, resolvedColors)}
+  ${generateFavouritesSummaryBody(counts)}
 </svg>
 `);
 };

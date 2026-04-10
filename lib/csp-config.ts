@@ -13,8 +13,10 @@
 export const CSP_KEYWORDS = {
   /** Allow resources from the same origin */
   SELF: "'self'",
-  /** Allow inline styles (required for Tailwind CSS) */
+  /** Allow inline resources when a directive explicitly opts into them */
   UNSAFE_INLINE: "'unsafe-inline'",
+  /** Allow eval()-based development tooling; avoid this in production */
+  UNSAFE_EVAL: "'unsafe-eval'",
   /** Enable strict-dynamic for modern browsers - allows dynamically loaded scripts from trusted sources */
   STRICT_DYNAMIC: "'strict-dynamic'",
   /** Block all sources (used for frame-ancestors to prevent clickjacking) */
@@ -23,9 +25,92 @@ export const CSP_KEYWORDS = {
   DATA: "data:",
   /** Allow blob: URIs */
   BLOB: "blob:",
-  /** Allow any HTTPS source */
-  HTTPS: "https:",
 } as const;
+
+const STATIC_REMOTE_IMAGE_SOURCES = [
+  "https://api.anicards.alpha49.com",
+  "https://anicards.alpha49.com",
+  "https://anilist.co",
+  "https://cdn.anilist.co",
+  "https://s1.anilist.co",
+  "https://s2.anilist.co",
+  "https://s3.anilist.co",
+  "https://s4.anilist.co",
+  "https://img.anili.st",
+] as const;
+
+const DEVELOPMENT_REMOTE_IMAGE_SOURCES = [
+  "http://localhost:3000",
+  "http://lvh.me:3000",
+  "http://api.localhost:3000",
+] as const;
+
+function normalizeImageSourceOrigin(
+  urlString: string | undefined,
+): string | null {
+  if (!urlString) return null;
+
+  try {
+    const url = new URL(urlString);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCanonicalApiImageSourceOrigin(
+  urlString: string | undefined,
+): string | null {
+  if (!urlString) return null;
+
+  try {
+    const url = new URL(urlString);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    if (!url.hostname.startsWith("api.")) {
+      url.hostname = `api.${url.hostname}`;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function getImageSrcAllowlist(
+  options: {
+    apiUrl?: string;
+    siteUrl?: string;
+    nodeEnv?: string;
+  } = {},
+): string[] {
+  const apiUrl = options.apiUrl ?? process.env.NEXT_PUBLIC_API_URL;
+  const siteUrl = options.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV;
+
+  const configuredOrigins = [
+    normalizeImageSourceOrigin(apiUrl),
+    normalizeCanonicalApiImageSourceOrigin(apiUrl),
+    normalizeImageSourceOrigin(siteUrl),
+  ];
+
+  return [
+    ...new Set([
+      ...STATIC_REMOTE_IMAGE_SOURCES,
+      ...configuredOrigins.filter((origin): origin is string =>
+        Boolean(origin),
+      ),
+      ...(nodeEnv === "production" ? [] : DEVELOPMENT_REMOTE_IMAGE_SOURCES),
+    ]),
+  ];
+}
+
+const IMAGE_SRC_ALLOWLIST = getImageSrcAllowlist();
 
 /**
  * CSP Directives Configuration
@@ -44,32 +129,39 @@ export const CSP_DIRECTIVES = {
    */
   scriptSrc: [
     CSP_KEYWORDS.SELF,
-    // Nonce placeholder - actual nonce is injected at build time
     "https://www.googletagmanager.com",
     "https://va.vercel-scripts.com",
-    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
     CSP_KEYWORDS.STRICT_DYNAMIC,
   ],
 
   /**
-   * Style sources - controls which stylesheets can be applied
-   * unsafe-inline is required for Tailwind CSS's runtime styles
+   * Style sources - controls which stylesheet URLs and nonce-backed inline
+   * style blocks can be applied.
+   *
+   * Production uses a request nonce instead of a universal inline allowance so
+   * framework-generated `<style>` tags (for example, from Next.js font
+   * optimization) stay authorized without broadly permitting all inline CSS.
    */
-  styleSrc: [
-    CSP_KEYWORDS.SELF,
-    CSP_KEYWORDS.UNSAFE_INLINE,
-    "https://fonts.googleapis.com",
-  ],
+  styleSrc: [CSP_KEYWORDS.SELF, "https://fonts.googleapis.com"],
+
+  /**
+   * Inline style attributes remain explicitly allowed for now because the app
+   * still relies on dynamic `style={...}` props across loading states and UI
+   * layout surfaces.
+   */
+  styleSrcAttr: [CSP_KEYWORDS.UNSAFE_INLINE],
 
   /**
    * Image sources - controls which images can be loaded
-   * Allows data URIs for inline images, blob for generated content, and any HTTPS source
+   * Allows same-origin images, generated data/blob URLs, AniCards preview origins,
+   * and explicit AniList image hosts used by the application.
    */
   imgSrc: [
     CSP_KEYWORDS.SELF,
     CSP_KEYWORDS.DATA,
     CSP_KEYWORDS.BLOB,
-    CSP_KEYWORDS.HTTPS,
+    ...IMAGE_SRC_ALLOWLIST,
   ],
 
   /**
@@ -87,7 +179,7 @@ export const CSP_DIRECTIVES = {
     "https://graphql.anilist.co",
     "https://*.upstash.io",
     "https://va.vercel-scripts.com",
-    "https://*.vercel-insights.com",
+    "https://vitals.vercel-insights.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
   ],
@@ -97,6 +189,9 @@ export const CSP_DIRECTIVES = {
    * Set to 'none' to prevent clickjacking attacks
    */
   frameAncestors: [CSP_KEYWORDS.NONE],
+
+  /** Block legacy plugin/object/embed content entirely. */
+  objectSrc: [CSP_KEYWORDS.NONE],
 
   /** Base URI - restricts URLs that can be used in <base> element */
   baseUri: [CSP_KEYWORDS.SELF],
@@ -108,35 +203,50 @@ export const CSP_DIRECTIVES = {
   upgradeInsecureRequests: true,
 } as const;
 
-/** Type for CSP directive names. @source */
-export type CSPDirective = keyof typeof CSP_DIRECTIVES;
-
 /**
  * Build a complete CSP header string and inject the provided nonce into script-src.
  *
  * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
+ * @param options - Optional policy toggles for the current environment
  * @returns The complete Content-Security-Policy header string
  * @source
  */
-export function buildCSPHeader(nonce: string): string {
-  // script-src with nonce injection
+export function buildCSPHeader(
+  nonce: string,
+  options: {
+    allowUnsafeEval?: boolean;
+    allowUnsafeInlineStyles?: boolean;
+  } = {},
+): string {
   const scriptSrcValues = [
     CSP_KEYWORDS.SELF,
     `'nonce-${nonce}'`,
+    ...(options.allowUnsafeEval ? [CSP_KEYWORDS.UNSAFE_EVAL] : []),
     ...CSP_DIRECTIVES.scriptSrc.filter(
       (src) => src !== CSP_KEYWORDS.SELF, // Avoid duplicate 'self'
     ),
   ];
 
-  // Build all directives at once to satisfy linting rules
+  const styleSrcValues = [
+    CSP_KEYWORDS.SELF,
+    ...(options.allowUnsafeInlineStyles
+      ? [CSP_KEYWORDS.UNSAFE_INLINE]
+      : [`'nonce-${nonce}'`]),
+    ...CSP_DIRECTIVES.styleSrc.filter(
+      (src) => src !== CSP_KEYWORDS.SELF, // Avoid duplicate 'self'
+    ),
+  ];
+
   const directives = [
     `default-src ${CSP_DIRECTIVES.defaultSrc.join(" ")}`,
     `script-src ${scriptSrcValues.join(" ")}`,
-    `style-src ${CSP_DIRECTIVES.styleSrc.join(" ")}`,
+    `style-src ${styleSrcValues.join(" ")}`,
+    `style-src-attr ${CSP_DIRECTIVES.styleSrcAttr.join(" ")}`,
     `img-src ${CSP_DIRECTIVES.imgSrc.join(" ")}`,
     `font-src ${CSP_DIRECTIVES.fontSrc.join(" ")}`,
     `connect-src ${CSP_DIRECTIVES.connectSrc.join(" ")}`,
     `frame-ancestors ${CSP_DIRECTIVES.frameAncestors.join(" ")}`,
+    `object-src ${CSP_DIRECTIVES.objectSrc.join(" ")}`,
     `base-uri ${CSP_DIRECTIVES.baseUri.join(" ")}`,
     `form-action ${CSP_DIRECTIVES.formAction.join(" ")}`,
     ...(CSP_DIRECTIVES.upgradeInsecureRequests
@@ -145,46 +255,4 @@ export function buildCSPHeader(nonce: string): string {
   ];
 
   return directives.join("; ");
-}
-
-/**
- * Build a CSP header suitable for Report-Only mode to test policies safely.
- *
- * @param nonce - A base64-encoded cryptographic nonce
- * @returns A CSP header string appropriate for the report-only header
- * @source
- */
-export function buildReportOnlyCSPHeader(nonce: string): string {
-  // Same header content, but will be used with Report-Only header name
-  return buildCSPHeader(nonce);
-}
-
-/**
- * Validate that a base64-encoded nonce meets security requirements.
- *
- * @param nonce - Base64-encoded nonce to validate
- * @returns true when the nonce decodes to at least 16 bytes (128 bits)
- * @source
- */
-export function isValidNonce(nonce: string): boolean {
-  try {
-    // Check if it's valid base64
-    const decoded = Buffer.from(nonce, "base64");
-    // Ensure at least 16 bytes (128 bits) of entropy
-    return decoded.length >= 16;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Generate a base64-encoded 16-byte random nonce for testing.
- *
- * Note: production nonces are generated per request in middleware using Web Crypto.
- * @returns Base64-encoded 16-byte nonce
- * @source
- */
-export function generateTestNonce(): string {
-  const crypto = require("node:crypto");
-  return crypto.randomBytes(16).toString("base64");
 }

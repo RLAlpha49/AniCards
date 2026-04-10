@@ -1,56 +1,112 @@
 ---
-name: new-card-types-research
-description: "Research-only: propose new, feasible AniCards card types/variants and write results to ./docs/NEW_CARD_TYPES_<MODEL>.md (no code changes)."
+name: New Card Types Research
+argument-hint: "Focus: <anime|manga|user|social|mixed> | Count: <number> | Model: <suffix>"
+description: "Research new AniCards card ideas or variants and write a deduplicated proposal file in docs/. No code changes."
 agent: agent
-tools:
-  [
-    "read/readFile",
-    "edit/createFile",
-    "search/codebase",
-    "search/fileSearch",
-    "search/listDirectory",
-    "search/searchResults",
-    "search/textSearch",
-    "search/usages",
-    "web",
-    "agent",
-    "todo",
-  ]
 ---
 
 # AniCards — New Card Types / Variants (Research Only)
 
-You are a codebase researcher for the **AniCards** project.
+You are researching high-value additions for the **AniCards** project.
 
-Your task is to propose **new, feasible card types or variants** that could be added to the project.
+Your task is to propose **new, non-duplicate, technically grounded card ideas** that fit the current AniCards architecture.
 
-## Using runSubagent (recommended)
+Optional request inputs:
 
-Using the `runSubagent` tool is recommended for repository-wide research and API discovery tasks. Follow these guidelines:
+- `Focus`: preferred area such as `anime`, `manga`, `user`, `social`, or `mixed`
+- `Count`: desired number of ideas
+- `Model`: suffix for the output filename
 
-- **Recommended subagents:** `Plan` (for research & outlining). For deeper technical confirmation use `Expert Next.js Developer` or other specialty agents as appropriate.
-- **Make tasks explicit and bounded:** Provide subagents with a clear goal, required outputs, and validation steps. Subagents are stateless; include all necessary context in the prompt.
-- **Respect the docs write-only rule:** Always instruct subagents **not** to read or use files under `./docs`.
-- **Unlimited subagents allowed:** You may create or launch any number of additional subagents as needed — there is no imposed limit. When spawning subagents, ensure each one receives a clear, bounded task, the `./docs` write-only rule, and explicit deliverables. You can coordinate outputs by assigning an aggregator subagent to consolidate results into the required format and verify consistency before writing to `./docs`.
+If the user does not specify them, default to:
 
-Typical `Plan` agent checklist:
+- `Focus = mixed`
+- `Count = 10`
+- `Model = <MODEL>`
 
-1. Run targeted repo searches to find existing or similar cards; return the **search terms** used and **matches** (file path + 1-line context).
-2. Identify AniList GraphQL fields required for each candidate and provide a **minimal sample query**.
-3. Check local project data for feasibility and list relevant **file paths** (e.g., `lib/`, `lib/anilist/`, `lib/card-data/`).
-4. Classify feasibility as `AniList`, `Local`, or `requires backend changes`. If backend changes are needed, enumerate exact new fields and where they'd be stored.
-5. Produce UI/visual suggestions and a short one-line description for each idea.
+Where `<MODEL>` is the model identifier you are running as (e.g., `gpt-5.4`, `claude-opus-4.6`, etc.).
 
-When using `Expert Next.js Developer` or other specialty agents:
+## Goal
 
-- Ask them to confirm where data exists in the codebase, identify required backend or schema changes, and specify exact files or modules to update.
-- Request that they run a quick verification (e.g., grep/search for fields or APIs the card needs) and return the findings.
+Produce a research artifact that an implementation agent can act on with minimal extra discovery.
 
-## Hard Rules (non-negotiable)
+## Hard rules (non-negotiable)
 
-- **Research-only:** Do **not** implement code, refactor, rename files, or otherwise change the repo.
-- **./docs is write-only:** The `./docs` directory is reserved for model-generated outputs. Do **not** read, reference, or use any files inside `./docs` when researching or verifying card ideas — treat `./docs` as **write-only** to avoid cross-model contamination.
-- **Avoid duplicates:** Do not propose any card that already exists.
+- **Research-only:** do not implement code, rename files, refactor, or modify runtime behavior.
+- **`./docs` is write-only during research:** do not read existing `./docs` proposal files or use them as evidence while generating ideas.
+- **Avoid duplicates:** do not propose a card or variant that already exists, or that is only a cosmetic rewording of an existing capability.
+- **Prefer feasible ideas:** most proposals should be implementable with existing AniList fields from <https://docs.anilist.co/reference/> or already-cached local data.
+- **Do not pad the list:** fewer strong ideas are better than many weak or repetitive ones.
+
+## Where to verify duplicates and feasibility
+
+Before proposing any idea, inspect the current implementation surfaces that define supported cards and their capabilities. At minimum, verify against:
+
+- `lib/card-types.ts`
+- `lib/card-data/validation.ts`
+- `lib/card-groups.ts`
+- `lib/card-generator.ts`
+- `lib/server/user-data.ts`
+- `README.md`
+- `openapi.yaml`
+- relevant templates/tests/helpers outside `./docs`
+
+A proposal counts as a duplicate if the same underlying metric, comparison, leaderboard, distribution, or user insight already exists anywhere above, even if the title differs.
+
+## Recommended research workflow
+
+1. Search the repo for existing card ids, labels, and similar metrics.
+2. Identify promising gaps that fit AniCards' current card families and data model.
+3. For each candidate, verify one of these feasibility paths:
+   - **AniList-ready** — can be built from documented AniList fields
+   - **Local-ready** — can be built from existing project data already fetched or stored
+   - **Requires backend changes** — needs new collection/storage; use this sparingly and be explicit
+4. Reject ideas that are too close to existing cards, too thin to justify their own card, or purely visual variants with no meaningful new insight.
+5. Write the final Markdown artifact in a format that makes future deduplication and implementation easy.
+
+## Using subagents (optional)
+
+Using subagents is helpful for broad repository search or AniList verification. When you use them:
+
+- Give them explicit goals, constraints, and deliverables.
+- Tell them `./docs` is off-limits for research.
+- Ask for evidence: search terms used, matched files, and a short rationale.
+
+Typical bounded research tasks:
+
+- Search for similar implemented cards and return evidence.
+- Confirm required AniList fields and provide a minimal sample query.
+- Identify analogous files or templates in the repo.
+- Assess implementation complexity and risk.
+
+## Feasibility constraints
+
+Only keep ideas whose data path is clear.
+
+### A) AniList-ready
+
+Use the AniList GraphQL reference: <https://docs.anilist.co/reference/>
+
+For AniList-ready ideas, include:
+
+- exact GraphQL fields
+- a minimal sample query
+
+### B) Local-ready
+
+If the idea can be built from data already fetched or stored locally, include:
+
+- the relevant file paths
+- a one-line explanation of why those files contain the needed data
+
+### C) Requires backend changes
+
+This is allowed, but must be explicit and uncommon.
+
+For these ideas, include:
+
+- the exact new fields or aggregates needed
+- where they would likely be fetched, derived, and stored
+- why the card is still worth keeping despite added implementation cost
 
 ## Output Artifact
 
@@ -58,45 +114,26 @@ Create a Markdown file at:
 
 - `./docs/NEW_CARD_TYPES_<MODEL>.md`
 
-Where `<MODEL>` is the model identifier you are running as (e.g., `gpt-5.2`, `claude-...`, etc.).
+Where `<MODEL>` is the model identifier you are running as (e.g., `gpt-5.4`, `claude-opus-4.6`, etc.).
 
-## Verification Requirements
+If the target output file already exists, overwrite it with the new research artifact rather than appending a second format or partial update.
 
-For **each** proposed card:
+## Quality bar
+
+- Aim for **8–12 ideas** unless the user requests otherwise.
+- At least **70%** of the final ideas should be `AniList-ready` or `Local-ready`.
+- Include a balanced mix only when it improves usefulness; do not force every category.
+- Prefer cards that surface a distinct insight, not just another rendering of the same statistic.
+
+## Verification requirements
+
+For **each** proposal:
 
 1. **Run targeted repository searches** to confirm it does _not_ already exist.
 2. If a similar card exists:
-   - either **do not propose it**, or
-   - clearly explain how your proposal **differs** and why it’s still valuable.
-
-## Feasibility Constraints
-
-Only propose cards whose required data is already available from at least one of the following:
-
-### A) AniList API
-
-Use AniList GraphQL API reference:
-
-- https://docs.anilist.co/reference/
-
-For these cards, you must include:
-
-- **Exact GraphQL fields** required
-- A **minimal sample query** that returns the needed fields
-
-### B) Local Project Data
-
-If the card can be built from existing local data, include:
-
-- relevant file paths (e.g. under `lib/`, `lib/anilist/`, `lib/card-data/`, etc.)
-
-### C) Requires Backend Changes (allowed, but must be explicit)
-
-If a card would require new backend collection or storage:
-
-- label it **"requires backend changes"**
-- list the **exact new fields** needed
-- describe where they’d need to be stored (paths / modules / storage layer)
+   - either reject it, or
+   - explain precisely why the proposal is distinct enough to keep.
+3. Record the search terms used and at least one concrete repo citation.
 
 ## Required Structure of the Output File
 
@@ -106,38 +143,61 @@ At the top of the file include:
 
 - Model id
 - Date
-- Number of ideas
+- Requested focus
+- Requested count
+- Final idea count
 
 ### Summary Table
 
-A short table:
+A short table with these columns:
 
-| Name | Category | Feasibility |
-| ---- | -------- | ----------- |
+| Proposed ID | Name | Type | Category | Feasibility | Complexity |
+| ----------- | ---- | ---- | -------- | ----------- | ---------- |
 
-Then group entries by category (examples: Anime, Character, User, Studio, Trends, Other).
+Then group entries by category, such as: Anime, Manga, User, Social, Character, Studio, Trend, Comparative, Other.
 
-## Per-Card Entry Format
+## Per-entry format
 
-For each card idea, include:
+For each proposal, include:
 
 - **Title (display name)**
-- **Category** (Anime / Character / User / Studio / Trend / Other)
+- **Proposed ID** (camelCase)
+- **Proposal Type** (`new card type` or `new variant`)
+- **Category**
 - **One-line Description**
+- **Why it is distinct**
+- **Feasibility** (`AniList-ready`, `Local-ready`, or `requires backend changes`)
+- **Complexity** (`low`, `medium`, or `high`)
+- **Duplicate Check**
+  - search terms used
+  - repo evidence with file paths
 - **Required Data**
-  - either: exact AniList GraphQL fields, or
-  - local data file paths
+  - exact AniList GraphQL fields, or
+  - local data file paths with explanation, or
+  - explicit backend additions required
+- **Nearest existing implementation**
+  - similar card/template/helper to reuse
 - **Sample AniList GraphQL query** (when applicable)
-- **UI/Visual suggestion** (compact / commentary / graph / timeline / etc.)
+- **UI / visual suggestion**
+- **Notes / risks** (optional)
 
 ## Example Entry
 
 ```markdown
 ### Top Characters by Voice Actor Diversity
 
+- Proposed ID: topCharactersByVoiceActorDiversity
+- Proposal Type: new card type
 - Category: Character
 - Description: Shows characters ranked by number of distinct voice actors (e.g., different versions, languages).
-- Required Data: character.name, character.voiceActors (AniList field `character.voiceActors{name, language, id}`)
+- Why it is distinct: Existing cards summarize staff and voice actors globally, but not character-level casting breadth.
+- Feasibility: AniList-ready
+- Complexity: medium
+- Duplicate Check:
+  - Search terms: `voice actor`, `character`, `cast`
+  - Repo evidence: `lib/card-types.ts` contains `animeVoiceActors` but no character-casting card.
+- Required Data: `character.name`, `character.voiceActors { id name { full } languageV2 }`
+- Nearest existing implementation: reuse leaderboard/template ideas from other ranking-style cards.
 - Sample Query: <provide minimal GraphQL query>
 - UI: leaderboard with small avatar + count + sample voice actor list
 ```
@@ -145,4 +205,5 @@ For each card idea, include:
 ## Finish Criteria
 
 - You produced `./docs/NEW_CARD_TYPES_<MODEL>.md`.
-- All ideas are **unique** and **feasible** under the constraints above.
+- Every kept idea includes concrete evidence, feasibility analysis, and a useful implementation starting point.
+- The list is deduplicated, high-signal, and materially different from the cards already in the repo.

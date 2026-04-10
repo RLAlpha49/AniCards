@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { pageview, safeTrack } from "@/lib/utils/google-analytics";
+import { useEffect } from "react";
+
+import {
+  normalizeAnalyticsPage,
+  pageview,
+  safeTrack,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Send pageview events to Google Analytics when the pathname or query changes.
@@ -10,16 +15,31 @@ import { pageview, safeTrack } from "@/lib/utils/google-analytics";
  * @returns {void}
  * @source
  */
-export function useGoogleAnalytics() {
+export function useGoogleAnalytics(consentGranted: boolean) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
+  const normalizedPagePath = normalizeAnalyticsPage({
+    pathname,
+    search: queryString,
+  }).pagePath;
 
-  // Record pageview when the pathname or query changes
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
-      const queryString = searchParams.toString();
-      const url = pathname + (queryString ? "?" + queryString : "");
-      safeTrack(() => pageview(url));
-    }
-  }, [pathname, searchParams]);
+    if (!consentGranted || !process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) return;
+
+    safeTrack(
+      () =>
+        pageview({
+          pathname,
+          search: queryString,
+        }),
+      {
+        userAction: "analytics_pageview_dispatch",
+        metadata: {
+          analyticsHook: "use_google_analytics",
+          pagePath: normalizedPagePath,
+        },
+      },
+    );
+  }, [consentGranted, normalizedPagePath, pathname, queryString]);
 }

@@ -1,68 +1,22 @@
 import { NextResponse } from "next/server";
 
-/**
- * Base URL for sitemap entries, defaulting to the hosted site when the environment variable is missing.
- * @source
- */
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
+import { getStaticSitemapEntries } from "@/lib/seo";
+import { resolveSiteUrl } from "@/lib/site-config";
+
+const SITEMAP_CACHE_CONTROL =
+  "public, s-maxage=3600, stale-while-revalidate=600";
 
 /**
- * Static route metadata that drives sitemap priorities and update frequencies.
- * @source
- */
-const pages = [
-  {
-    path: "/",
-    priority: 1,
-    changefreq: "daily" as const,
-  },
-  {
-    path: "/search",
-    priority: 0.9,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/user",
-    priority: 0.8,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/settings",
-    priority: 0.7,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/projects",
-    priority: 0.6,
-    changefreq: "monthly" as const,
-  },
-  {
-    path: "/contact",
-    priority: 0.6,
-    changefreq: "yearly" as const,
-  },
-  {
-    path: "/license",
-    priority: 0.4,
-    changefreq: "yearly" as const,
-  },
-];
-
-/**
- * Builds the sitemap XML string covering curated routes and returns it as an XML response.
+ * Builds the sitemap XML string covering curated routes and returns it as a cacheable XML response.
  * @returns {Promise<NextResponse>} Sitemap response consumed by crawlers.
  * @source
  */
 export async function GET() {
-  const lastmod = new Date().toISOString();
-
-  const urls = pages
+  const urls = getStaticSitemapEntries()
     .map((page) => {
       return `
     <url>
-      <loc>${BASE_URL}${page.path}</loc>
-      <lastmod>${lastmod}</lastmod>
+      <loc>${resolveSiteUrl(page.path)}</loc>
       <changefreq>${page.changefreq}</changefreq>
       <priority>${page.priority}</priority>
     </url>`;
@@ -76,6 +30,7 @@ export async function GET() {
 
   return new NextResponse(sitemap, {
     headers: {
+      "Cache-Control": SITEMAP_CACHE_CONTROL,
       "Content-Type": "application/xml",
     },
   });

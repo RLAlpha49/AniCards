@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+tone_instructions: >-
+  Be concise, concrete, and repo-aware. Prioritize correctness, security, and contract drift over style trivia or speculative refactors.
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_instructions: >-
+    Keep summaries short and grounded in behavior changes, validation, and any required docs or OpenAPI updates. Skip poetry, marketing copy, and speculation.
+  suggested_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  path_filters:
+    - "!.artifacts/**"
+    - "!.next/**"
+    - "!out/**"
+    - "!build/**"
+    - "!coverage/**"
+    - "!node_modules/**"
+    - "!next-env.d.ts"
+    - "!docs/diagrams/**"
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "wip"
+      - "[wip]"
+      - "do not review"
+      - "[skip review]"
+  tools:
+    eslint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    biome:
+      enabled: false
+    oxc:
+      enabled: false
+    languagetool:
+      enabled: false
+    shellcheck:
+      enabled: true
+    github-checks:
+      enabled: false
+  path_instructions:
+    - path: "app/api/**"
+      instructions: |
+        Focus on input validation, same-origin protection, auth/authorization boundaries, rate limiting, privacy-safe logging, and OWASP-style risks such as SSRF, XSS, injection, and unsafe error leakage.
+        If a public route, alias, request field, response shape, header, status code, or privacy-visible behavior changes, require the same-PR `openapi.yaml` update.
+        Respect the repository's documented route split: public read routes stay public on purpose, while browser-facing mutation routes should keep same-origin enforcement.
+    - path: "**/*.{ts,tsx,js,jsx}"
+      instructions: |
+        Flag repo-wide anti-patterns that cut across modules: SELECT * in DB queries, blocking I/O on request threads (sync fs, heavy CPU, network calls), and unsafe global variables or other side-effectful module scope.
+        Input validation and same-origin concerns are already covered by more specific path instructions elsewhere, so keep this catch-all focused on these cross-cutting runtime risks.
+    - path: "lib/api/**"
+      instructions: |
+        Treat this as the shared API protection seam for request IDs, same-origin enforcement, privacy-safe logging, shared rate limiting, and production env validation.
+        Review changes here as security-sensitive and make sure route-level guidance in docs and handlers still matches the implementation.
+    - path: "tests/**/*.{ts,tsx}"
+      instructions: |
+        Prefer deterministic Bun unit tests for logic and Playwright only when browser behavior is the real seam.
+        Reuse shared fixtures when possible instead of inventing one-off mocks, especially `tests/e2e/fixtures/mock-data.ts` for render-critical user data.
+        Flag flaky timing assertions, real network dependence, or tests that bypass the repository's helper patterns without good reason.
+    - path: "package.json"
+      instructions: |
+        When `overrides` or `x-anicards-override-review` changes, verify that each override still has a documented reason, matches the actual dependency floor or pin, and lines up with any lockfile changes.
+        Keep review guidance aligned with the Bun-based workflow in this repository.
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Focus on least-privilege permissions, unsafe shell usage, cache correctness, and consistency with the repository's Bun + Playwright CI flow.
+        Do not suggest broad release-process scaffolding or blanket action pinning unless the change explicitly asks for it or there is a concrete security issue in the diff.
+    - path: ".github/actions/**"
+      instructions: |
+        Review composite actions for safe shell usage, minimal permissions assumptions, and consistency with the repository's Bun setup and cache behavior.
+        Avoid suggesting unrelated CI process expansion unless the diff explicitly calls for it.
+    - path: "docs/**/*.md"
+      instructions: |
+        Check for implementation accuracy, current Bun commands, and consistency with the live codebase.
+        Avoid suggesting extra process scaffolding, roadmap expansion, or speculative docs churn unless the change explicitly calls for it.
+    - path: "openapi.yaml"
+      instructions: |
+        Treat `openapi.yaml` as the source of truth for the public API.
+        Flag drift in canonical routes, aliases, parameters, request or response shapes, headers, status codes, and privacy-visible behavior.
+    - path: "next.config.ts"
+      instructions: |
+        Review security headers, rewrites, and runtime behavior against the documented CSP and header posture.
+        Do not recommend `next/image`; this repository intentionally uses optimized native `<img>` elements.
+
+chat:
+  integrations:
+    jira:
+      usage: "disabled"
+    linear:
+      usage: "disabled"
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "AGENTS.md"
+      - ".github/instructions/*.instructions.md"
+      - "docs/DEVELOPMENT.md"
+      - "docs/API.md"
+      - "docs/SECURITY.md"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+  learnings:
+    scope: "local"
+  issues:
+    scope: "local"
+  pull_requests:
+    scope: "local"
+  jira:
+    usage: "disabled"
+  linear:
+    usage: "disabled"

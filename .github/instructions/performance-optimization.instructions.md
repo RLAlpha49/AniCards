@@ -53,7 +53,7 @@ Performance isn't just a buzzword—it's the difference between a product people
 
 - **Reduce HTTP Requests:** Combine files, use image sprites, and inline critical CSS.
 - **HTTP/2 and HTTP/3:** Enable these protocols for multiplexing and lower latency.
-- **Client-Side Caching:** Use Service Workers, IndexedDB, and localStorage for offline and repeat visits.
+- **Client-Side Caching:** Use HTTP caching, IndexedDB, and localStorage to reduce repeat-visit latency.
 - **CDNs:** Serve static assets from a CDN close to your users. Use multiple CDNs for redundancy.
 - **Defer/Async Scripts:** Use `defer` or `async` for non-critical JS to avoid blocking rendering.
 - **Preload and Prefetch:** Use `<link rel="preload">` and `<link rel="prefetch">` for critical resources.
@@ -85,7 +85,8 @@ Performance isn't just a buzzword—it's the difference between a product people
 #### Next.js
 
 - Prefer Server Components for rendering static or data-driven UI where possible; move interactive code into Client Components.
-- Use `next/image`, `next/font`, and built-in optimizations to improve LCP and CLS.
+- Use `next/font` plus well-optimized native `<img>` elements to improve LCP and CLS when the repository policy forbids `next/image`.
+- Respect enforced lint policy: if `eslint.config.mjs` disables `@next/next/no-img-element` and bans `next/image`, optimize native images directly instead of recommending framework image components.
 - Use Incremental Static Regeneration (ISR) and static generation for pages that can be cached to reduce server load and TTFB.
 - Use `dynamic()` for client-only components and code splitting, and `React.lazy` where appropriate for big bundles.
 - For server-side or edge functions, optimize payload sizes, use streaming when possible, and profile server latency.
@@ -372,7 +373,7 @@ fs.readFile("file.txt", (err, data) => {
 
 ```bash
 # Use Clinic.js to profile Node.js applications
-npx clinic doctor -- node server.js
+bunx clinic doctor -- node server.js
 # Or use built-in Node inspector
 node --inspect server.js
 ```
@@ -425,5 +426,3 @@ function getCachedData(key, fetchFunction) {
 Performance optimization is an ongoing process. Always measure, profile, and iterate. Use these best practices, checklists, and troubleshooting tips to guide your development and code reviews for high-performance, scalable, and efficient software. If you have new tips or lessons learned, add them here—let's keep this guide growing!
 
 ---
-
-<!-- End of Performance Optimization Instructions -->

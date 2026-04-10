@@ -1,13 +1,28 @@
-import { clsx, type ClassValue } from "clsx";
+/**
+ * Cross-cutting utility helpers shared by the UI, SVG generation, lightweight
+ * conversion helpers, and API clients.
+ *
+ * The file is intentionally broad: it collects small reusable helpers plus a
+ * few app-level contracts around color handling and trusted SVG output so those
+ * rules stay consistent everywhere they are used.
+ */
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { StoredCardConfig } from "@/lib/types/records";
+
+import {
+  type ErrorCategory,
+  getErrorDetails,
+  isRetryableErrorCategory,
+  type RecoverySuggestion,
+} from "@/lib/error-messages";
 import type {
-  TemplateCardConfig,
   ColorValue,
   GradientDefinition,
+  GradientStop,
+  TemplateCardConfig,
 } from "@/lib/types/card";
+import type { StoredCardConfig } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import JSZip from "jszip";
 
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
@@ -18,11 +33,45 @@ const DEFAULT_BACKGROUND_COLOR = "#141321";
 const DEFAULT_TEXT_COLOR = "#a9fef7";
 const DEFAULT_CIRCLE_COLOR = "#fe428e";
 
-const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
+let secureRandomFallbackCounter = 0;
 
-type GlobalWithCache = typeof globalThis & {
-  __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
-};
+function getSecureRandomSuffix(): string {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (typeof cryptoObj?.getRandomValues === "function") {
+    const randomValues = new Uint32Array(1);
+    cryptoObj.getRandomValues(randomValues);
+    return randomValues[0].toString(36);
+  }
+
+  secureRandomFallbackCounter =
+    (secureRandomFallbackCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `${Date.now().toString(36)}-${secureRandomFallbackCounter.toString(36)}`;
+}
+
+export function generateSecureId(prefix: string): string {
+  const normalizedPrefix =
+    prefix.trim().replaceAll(/[^A-Za-z0-9._:-]+/g, "-") || "id";
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+
+  if (typeof cryptoObj?.randomUUID === "function") {
+    return `${normalizedPrefix}-${cryptoObj.randomUUID()}`;
+  }
+
+  return `${normalizedPrefix}-${getSecureRandomSuffix()}`;
+}
+
+export function getSecureRandomFraction(): number {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (typeof cryptoObj?.getRandomValues === "function") {
+    const randomValues = new Uint32Array(1);
+    cryptoObj.getRandomValues(randomValues);
+    return randomValues[0] / 2 ** 32;
+  }
+
+  secureRandomFallbackCounter =
+    (secureRandomFallbackCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return ((Date.now() + secureRandomFallbackCounter) % 2 ** 32) / 2 ** 32;
+}
 
 const _envApiBase =
   typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
@@ -61,110 +110,19 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE}${normalized}`;
 }
 
-/**
- * Extracts a card border radius from a remote SVG by reading a lightweight
- * header or, optionally, parsing the SVG contents for the <rect>'s rx
- * attribute. Results are memoized by absolute URL to avoid duplicate
- * requests across instances.
- *
- * @param svgUrl - The SVG URL to inspect (absolute or relative).
- * @param opts - Options controlling fallback behavior. `allowFallback`
- *               enables the full GET + parsing fallback when `true`.
- *               Default: false (no fallback).
- */
-export function getSvgBorderRadius(
-  svgUrl: string,
-  opts?: { allowFallback?: boolean },
-): Promise<number | null> {
-  const absoluteUrl = getAbsoluteUrl(svgUrl);
-  // Prefer a global cache (persisted across HMR) but fall back to the
-  // module-level cache otherwise.
-  const g = globalThis as GlobalWithCache;
-  const cache =
-    g.__ANICARDS__borderRadiusCache ??
-    (g.__ANICARDS__borderRadiusCache = _borderRadiusPromiseCache);
-
-  let promise = cache.get(absoluteUrl);
-  if (!promise) {
-    promise = (async () => {
-      const allowFallback = opts?.allowFallback ?? false;
-      let isFirstPartyCardEndpoint = false;
-      try {
-        const hasWindow = globalThis.window !== undefined;
-        const baseOrigin = hasWindow
-          ? globalThis.window.location.origin
-          : "http://localhost";
-        const parsed = new URL(absoluteUrl, baseOrigin);
-        const pathname = (parsed.pathname || "").toLowerCase();
-        const parsedHost = (parsed.hostname || "").toLowerCase();
-        const apiHost = (() => {
-          try {
-            return new URL(API_BASE).hostname.toLowerCase();
-          } catch {
-            return "";
-          }
-        })();
-
-        if (
-          pathname.startsWith("/api/card") ||
-          parsedHost === apiHost ||
-          parsedHost.startsWith("api.")
-        ) {
-          isFirstPartyCardEndpoint = true;
-        }
-      } catch {}
-      try {
-        const headRes = await fetch(absoluteUrl, { method: "HEAD" });
-        if (headRes.ok) {
-          const headerVal = headRes.headers.get("x-card-border-radius");
-          if (headerVal) {
-            const parsedFromHeader = Number.parseFloat(headerVal);
-            if (Number.isFinite(parsedFromHeader))
-              return clampBorderRadius(parsedFromHeader);
-          }
-        }
-      } catch {}
-
-      if (!allowFallback || isFirstPartyCardEndpoint) return null;
-      try {
-        const res = await fetch(absoluteUrl);
-        if (!res.ok) return null;
-        const text = await res.text();
-        const match = new RegExp(
-          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)['"]/i,
-        ).exec(text);
-        if (!match) return null;
-        const parsed = Number.parseFloat(match[1]);
-        if (!Number.isFinite(parsed)) return null;
-        return clampBorderRadius(parsed);
-      } catch (err) {
-        // Remove the cached promise on error so subsequent attempts can retry.
-        cache.delete(absoluteUrl);
-        throw err;
-      }
-    })();
-    cache.set(absoluteUrl, promise);
-  }
-  return promise;
-}
-
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
 
-/** A card entry used for batch export operations. @source */
-export interface BatchExportCard {
-  type: string;
-  svgUrl: string;
-  rawType: string;
-}
+/**
+ * Download formats supported by the user-facing card download/export flows.
+ * SVG remains a direct-markup path and is intentionally kept separate from the
+ * shared raster conversion contract above.
+ */
+export type CardDownloadFormat = ConversionFormat | "svg";
 
-/** Progress payload passed to a progress callback during batch conversion. @source */
-export interface BatchConversionProgress {
-  current: number;
-  total: number;
-  success: number;
-  failure: number;
-  cardIndex: number;
+export interface SvgConversionSource {
+  svgContent?: string;
+  svgUrl?: string;
 }
 
 /**
@@ -203,8 +161,7 @@ export function isGradient(value: ColorValue): value is GradientDefinition {
  * @source
  */
 export function generateGradientId(prefix: string): string {
-  const uniquePart = Math.random().toString(36).substring(2, 9);
-  return `gradient-${prefix}-${uniquePart}`;
+  return generateSecureId(`gradient-${prefix}`);
 }
 
 /**
@@ -218,16 +175,20 @@ export function generateGradientSVG(
   gradient: GradientDefinition,
   id: string,
 ): string {
-  const stops = gradient.stops
+  const sanitizedGradient = sanitizeGradientForSvg(gradient);
+  if (!sanitizedGradient) return "";
+
+  const safeId = escapeForXml(id);
+  const stops = sanitizedGradient.stops
     .map((stop) => {
       const opacity =
         stop.opacity === undefined ? "" : ` stop-opacity="${stop.opacity}"`;
-      return `<stop offset="${stop.offset}%" stop-color="${stop.color}"${opacity}/>`;
+      return `<stop offset="${stop.offset}%" stop-color="${escapeForXml(stop.color)}"${opacity}/>`;
     })
     .join("");
 
-  if (gradient.type === "linear") {
-    const angle = gradient.angle ?? 0;
+  if (sanitizedGradient.type === "linear") {
+    const angle = sanitizedGradient.angle ?? 0;
     // Convert angle to x1, y1, x2, y2 coordinates
     // 0° = left to right, 90° = top to bottom, etc.
     const angleRad = ((angle - 90) * Math.PI) / 180;
@@ -236,13 +197,12 @@ export function generateGradientSVG(
     const x2 = Math.round(50 + Math.sin(angleRad) * 50);
     const y2 = Math.round(50 + Math.cos(angleRad) * 50);
 
-    return `<linearGradient id="${id}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`;
+    return `<linearGradient id="${safeId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`;
   } else {
-    // Radial gradient
-    const cx = gradient.cx ?? 50;
-    const cy = gradient.cy ?? 50;
-    const r = gradient.r ?? 50;
-    return `<radialGradient id="${id}" cx="${cx}%" cy="${cy}%" r="${r}%">${stops}</radialGradient>`;
+    const cx = sanitizedGradient.cx ?? 50;
+    const cy = sanitizedGradient.cy ?? 50;
+    const r = sanitizedGradient.r ?? 50;
+    return `<radialGradient id="${safeId}" cx="${cx}%" cy="${cy}%" r="${r}%">${stops}</radialGradient>`;
   }
 }
 
@@ -298,6 +258,103 @@ function normalizeHexRgb(hex: string): string | null {
 }
 
 /**
+ * Determine whether a string is a recognized CSS named color.
+ * Prefers the DOM Option-based technique when available and falls back to
+ * `CSS.supports('color', value)` when present. Wrapped in try/catch to avoid
+ * throwing in non-browser environments.
+ */
+let cachedColorOption: HTMLOptionElement | null = null;
+
+/**
+ * Determine whether a string is a recognized CSS named color.
+ * Prefers the DOM Option-based technique when available and falls back to
+ * `CSS.supports('color', value)` when present. Avoids unnecessary try/catch
+ * by guarding access to potentially-absent globals.
+ */
+export function isCssNamedColor(val: string): boolean {
+  const input = String(val ?? "").trim();
+  if (!input) return false;
+
+  // Try DOM Option technique first (fast and reliable in browser envs).
+  // Use a cached Option element to avoid repeated allocations.
+  type GlobalWithOption = {
+    Option?: new (...args: unknown[]) => HTMLOptionElement;
+    CSS?: { supports?: (prop: string, value: string) => boolean };
+  };
+  const g = globalThis as unknown as GlobalWithOption;
+  const OptionCtor = g.Option;
+  if (typeof OptionCtor === "function" && typeof document !== "undefined") {
+    cachedColorOption ??= new OptionCtor();
+    const s = cachedColorOption.style;
+    s.color = input;
+    if (s.color !== "") return true;
+  }
+
+  // Fallback to CSS.supports if available
+  const cssSupports = g.CSS?.supports;
+  if (typeof cssSupports === "function") {
+    try {
+      return Boolean(cssSupports("color", input));
+    } catch {
+      // Some host environments might throw for unexpected values; fallthrough.
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Normalize various color input formats to a canonical representation used
+ * by the settings UI. Behavior mirrors the inline logic previously present in
+ * `SettingsContent.tsx`:
+ * - No-hash 3/6/8 character hex -> '#' prefix; 3-char expands to 6 by doubling
+ * - '#rgb' expands to '#rrggbb' (preserves input case)
+ * - '#rrggbb' or '#rrggbbaa' -> lowercased (slice to at most 8 digits)
+ * - CSS named colors -> lowercased
+ * - Fallback -> lowercased input
+ */
+export function normalizeColorInput(input: string): string {
+  const v = String(input ?? "").trim();
+
+  // No-hash hex like `ABC`, `ABCDEF`, or `11223344`
+  const noHashMatch = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(v);
+  if (noHashMatch) {
+    const s = noHashMatch[1];
+    if (s.length === 3) {
+      return (
+        "#" +
+        s
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      );
+    }
+    return "#" + s;
+  }
+
+  // '#rgb' expand to '#rrggbb' (preserve case)
+  if (/^#([0-9A-F]{3})$/i.test(v)) {
+    const m = /^#([0-9A-F]{3})$/i.exec(v)!;
+    return (
+      "#" +
+      m[1]
+        .split("")
+        .map((c) => c + c)
+        .join("")
+    );
+  }
+
+  // '#rrggbb' or '#rrggbbaa' -> slice up to 8 chars and lowercase
+  if (/^#([0-9A-F]{6,8})$/i.test(v)) {
+    return ("#" + v.replace(/^#/, "").slice(0, 8)).toLowerCase();
+  }
+
+  // Named colors and fallback: lowercase
+  if (isCssNamedColor(v)) return v.toLowerCase();
+  return v.toLowerCase();
+}
+
+/**
  * Convert a hex RGB color into HSL.
  *
  * @param hex - Color in #rrggbb (or #rgb) format.
@@ -337,48 +394,114 @@ export function hexToHsl(hex: string): [number, number, number] {
   return [h, s, l];
 }
 
-/**
- * Convert HSL to a hex RGB color.
- *
- * @param h - Hue in range 0..1.
- * @param s - Saturation in range 0..1.
- * @param l - Lightness in range 0..1.
- * @returns Color in #rrggbb format.
- */
-export function hslToHex(h: number, s: number, l: number): string {
-  const hh = Math.max(0, Math.min(1, Number.isFinite(h) ? h : 0));
-  const ss = Math.max(0, Math.min(1, Number.isFinite(s) ? s : 0));
-  const ll = Math.max(0, Math.min(1, Number.isFinite(l) ? l : 0));
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
-  let r: number;
-  let g: number;
-  let b: number;
+function sanitizeGradientStopForSvg(stop: unknown): GradientStop | null {
+  if (typeof stop !== "object" || stop === null) return null;
 
-  if (ss === 0) {
-    r = g = b = ll;
-  } else {
-    const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
+  const record = stop as Record<string, unknown>;
+  if (typeof record.color !== "string") return null;
+
+  const color = record.color.trim();
+  if (!isValidHexColor(color)) return null;
+
+  const offset = toFiniteNumber(record.offset, { log: false });
+  if (offset === null) return null;
+
+  const opacity =
+    record.opacity === undefined
+      ? undefined
+      : toFiniteNumber(record.opacity, { log: false });
+  const sanitizedOpacity =
+    opacity === undefined || opacity === null
+      ? undefined
+      : clampNumber(opacity, 0, 1);
+
+  return {
+    color,
+    offset: clampNumber(offset, 0, 100),
+    ...(sanitizedOpacity === undefined ? {} : { opacity: sanitizedOpacity }),
+  };
+}
+
+export function sanitizeGradientForSvg(
+  value: unknown,
+): GradientDefinition | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const gradient = value as Record<string, unknown>;
+  if (gradient.type !== "linear" && gradient.type !== "radial") return null;
+
+  const rawStops = Array.isArray(gradient.stops) ? gradient.stops : [];
+  const stops = rawStops
+    .map((stop) => sanitizeGradientStopForSvg(stop))
+    .filter((stop): stop is GradientStop => stop !== null);
+
+  if (stops.length < 2) return null;
+
+  if (gradient.type === "linear") {
+    const angle = toFiniteNumber(gradient.angle, { log: false });
+    return {
+      type: "linear",
+      stops,
+      ...(angle === null ? {} : { angle: clampNumber(angle, 0, 360) }),
     };
-
-    const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
-    const p = 2 * ll - q;
-    r = hue2rgb(p, q, hh + 1 / 3);
-    g = hue2rgb(p, q, hh);
-    b = hue2rgb(p, q, hh - 1 / 3);
   }
 
-  const toHex = (c: number) =>
-    Math.round(Math.max(0, Math.min(1, c)) * 255)
-      .toString(16)
-      .padStart(2, "0");
+  const cx = toFiniteNumber(gradient.cx, { log: false });
+  const cy = toFiniteNumber(gradient.cy, { log: false });
+  const r = toFiniteNumber(gradient.r, { log: false });
 
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  return {
+    type: "radial",
+    stops,
+    ...(cx === null ? {} : { cx: clampNumber(cx, 0, 100) }),
+    ...(cy === null ? {} : { cy: clampNumber(cy, 0, 100) }),
+    ...(r === null ? {} : { r: clampNumber(r, 0, 100) }),
+  };
+}
+
+export function getGradientRenderFallbackColor(
+  value: unknown,
+  fallbackColor = "#000000",
+): string {
+  let candidate = value;
+
+  if (typeof candidate === "string") {
+    const trimmed = candidate.trim();
+    if (!trimmed.startsWith("{")) return fallbackColor;
+
+    try {
+      candidate = JSON.parse(trimmed);
+    } catch {
+      return fallbackColor;
+    }
+  }
+
+  if (typeof candidate !== "object" || candidate === null) {
+    return fallbackColor;
+  }
+
+  const stops = Array.isArray((candidate as { stops?: unknown }).stops)
+    ? ((candidate as { stops: unknown[] }).stops ?? [])
+    : [];
+
+  for (const stop of stops) {
+    if (typeof stop !== "object" || stop === null) continue;
+
+    const color =
+      typeof (stop as { color?: unknown }).color === "string"
+        ? (stop as { color: string }).color.trim()
+        : "";
+
+    if (isValidHexColor(color)) {
+      return color;
+    }
+  }
+
+  return fallbackColor;
 }
 
 /**
@@ -391,20 +514,16 @@ function isValidGradientStop(stop: unknown): boolean {
   if (typeof stop !== "object" || stop === null) return false;
   const s = stop as Record<string, unknown>;
 
-  // Validate color
   if (typeof s.color !== "string" || !isValidHexColor(s.color)) return false;
 
-  // Validate offset
   if (typeof s.offset !== "number" || s.offset < 0 || s.offset > 100)
     return false;
 
-  // Validate optional opacity
   if (s.opacity !== undefined) {
     if (typeof s.opacity !== "number" || s.opacity < 0 || s.opacity > 1)
       return false;
   }
 
-  // Validate optional id
   if (s.id !== undefined) {
     if (typeof s.id !== "string") return false;
   }
@@ -439,23 +558,19 @@ export function isValidGradient(value: unknown): boolean {
 
   const grad = value as Record<string, unknown>;
 
-  // Validate type
   if (grad.type !== "linear" && grad.type !== "radial") return false;
 
-  // Validate stops
   if (!Array.isArray(grad.stops) || grad.stops.length < 2) return false;
 
   for (const stop of grad.stops) {
     if (!isValidGradientStop(stop)) return false;
   }
 
-  // Validate linear gradient angle
   if (grad.type === "linear" && grad.angle !== undefined) {
     if (typeof grad.angle !== "number" || grad.angle < 0 || grad.angle > 360)
       return false;
   }
 
-  // Validate radial gradient properties
   if (grad.type === "radial" && !isValidRadialProperties(grad)) {
     return false;
   }
@@ -471,20 +586,44 @@ export function isValidGradient(value: unknown): boolean {
  */
 export function validateColorValue(value: unknown): boolean {
   if (typeof value === "string") {
-    return isValidHexColor(value);
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return false;
+    // Support JSON-encoded gradient definitions (stored/transported as strings).
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isValidGradient(parsed)) return true;
+      } catch {
+        // Fall through to hex validation
+      }
+    }
+    return isValidHexColor(trimmed);
   }
   return isValidGradient(value);
 }
 
-/** Provide a human-readable reason when a color value is invalid. */
+/** Provide a human-readable reason when a color value is invalid. Returns an empty string when the value is valid. */
 export function getColorInvalidReason(value: unknown): string {
   if (typeof value === "string") {
-    if (isValidHexColor(value))
-      return "hex string passed regex but failed shared validation";
+    const trimmed = value.trim();
+    // Treat empty or whitespace-only strings as a distinct failure mode so callers
+    // can surface a clearer diagnostic message instead of a generic hex error.
+    if (trimmed.length === 0) return "empty color value";
+
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isValidGradient(parsed)) return "";
+        return "invalid gradient JSON definition";
+      } catch {
+        return "invalid gradient JSON (parse error)";
+      }
+    }
+
+    if (isValidHexColor(trimmed)) return "";
     return "invalid hex string";
   }
-  if (isValidGradient(value))
-    return "gradient passed validation but failed shared validation";
+  if (isValidGradient(value)) return "";
   return "invalid gradient definition";
 }
 
@@ -496,23 +635,79 @@ export function getColorInvalidReason(value: unknown): string {
  */
 function parseColorValue(value: ColorValue | string): ColorValue | undefined {
   if (typeof value !== "string") {
-    return value;
+    return isGradient(value)
+      ? (sanitizeGradientForSvg(value) ?? undefined)
+      : value;
   }
 
   // Try to parse JSON-encoded gradients
-  if (value.startsWith("{")) {
+  if (value.trim().startsWith("{")) {
     try {
       const parsed = JSON.parse(value);
-      if (isGradient(parsed)) {
-        return parsed;
-      }
+      return sanitizeGradientForSvg(parsed) ?? undefined;
     } catch {
-      // Not JSON or not a valid gradient, treat as regular string
+      return undefined;
     }
   }
 
-  // Return as regular color string
   return value;
+}
+
+function getSvgColorFallbackForKey(key: string): string {
+  switch (key) {
+    case "titleColor":
+      return DEFAULT_TITLE_COLOR;
+    case "backgroundColor":
+      return DEFAULT_BACKGROUND_COLOR;
+    case "textColor":
+      return DEFAULT_TEXT_COLOR;
+    case "circleColor":
+      return DEFAULT_CIRCLE_COLOR;
+    case "borderColor":
+      return "";
+    default:
+      return "#000000";
+  }
+}
+
+function resolveGradientRenderResult(
+  key: string,
+  rawValue: ColorValue | undefined,
+): { color: string; gradientId?: string; gradientSvg?: string } {
+  const fallbackColor = getSvgColorFallbackForKey(key);
+  const parsedValue =
+    rawValue === undefined ? undefined : parseColorValue(rawValue);
+
+  if (parsedValue === undefined) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  if (!isGradient(parsedValue)) {
+    return { color: parsedValue };
+  }
+
+  const sanitizedGradient = sanitizeGradientForSvg(parsedValue);
+  if (!sanitizedGradient) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  const gradientId = generateGradientId(key);
+  const gradientSvg = generateGradientSVG(sanitizedGradient, gradientId);
+  if (!gradientSvg) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  return {
+    color: `url(#${gradientId})`,
+    gradientId,
+    gradientSvg,
+  };
 }
 
 /**
@@ -535,22 +730,18 @@ export function processColorsForSVG(
   const resolvedColors: Record<string, string> = {};
 
   for (const key of colorKeys) {
-    let value = styles[key];
+    const value = styles[key];
     if (value === undefined) {
       resolvedColors[key] = "";
       continue;
     }
 
-    // Parse JSON-encoded gradients back to objects
-    value = parseColorValue(value);
+    const result = resolveGradientRenderResult(key, value);
+    resolvedColors[key] = result.color;
 
-    if (value !== undefined && isGradient(value)) {
-      const id = generateGradientId(key);
-      gradientIds[key] = id;
-      gradientDefs.push(generateGradientSVG(value, id));
-      resolvedColors[key] = `url(#${id})`;
-    } else if (value !== undefined) {
-      resolvedColors[key] = value;
+    if (result.gradientId && result.gradientSvg) {
+      gradientIds[key] = result.gradientId;
+      gradientDefs.push(result.gradientSvg);
     }
   }
 
@@ -562,43 +753,308 @@ export function processColorsForSVG(
 }
 
 /**
- * Converts an SVG file referenced by a URL to a raster image data URL via an API call.
- *
- * Makes a POST request to the conversion API endpoint with the SVG URL and requested format.
- *
- * @param svgUrl - The URL of the SVG file to be converted.
- * @param format - Desired output format ('png' | 'webp'). Defaults to 'png'.
- * @returns A Promise that resolves to the image data URL as a string.
- * @throws Error when the conversion process or network request fails.
- * @source
+ * Maps any public/absolute card preview URL back to the in-app `/api/card` endpoint.
+ * This preserves the query string while letting callers share the normalized preview cache.
  */
-export async function svgToPng(
-  svgUrl: string,
-  format: ConversionFormat = "png",
-): Promise<string> {
+export function toCardApiHref(previewUrl: string): string | null {
   try {
-    const isClient =
-      (globalThis as unknown as { window?: unknown }).window !== undefined;
-    const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
-    const response = await fetch(convertEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ svgUrl, format }),
-    });
+    const url = new URL(previewUrl, "https://example.invalid");
 
-    const payload = await parseResponsePayload(response);
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
-      );
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
     }
 
-    return extractImageDataUrl(payload);
-  } catch (error) {
-    console.error("Conversion failed:", error);
-    throw error;
+    return `/api/card${url.search}`;
+  } catch {
+    return null;
   }
+}
+
+function normalizeSvgConversionSource(
+  source: string | SvgConversionSource,
+): SvgConversionSource {
+  if (typeof source === "string") {
+    return { svgUrl: source };
+  }
+
+  return source;
+}
+
+/**
+ * Reads SVG markup from a browser object URL so callers can reuse a previously fetched preview.
+ */
+export async function readSvgMarkupFromObjectUrl(
+  objectUrl: string,
+): Promise<string> {
+  const response = await fetch(objectUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to read cached preview SVG: ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+/**
+ * Reads SVG markup directly from a preview URL when no cached object URL is available.
+ */
+export async function readSvgMarkupFromUrl(svgUrl: string): Promise<string> {
+  const response = await fetch(svgUrl, {
+    headers: {
+      Accept: "image/svg+xml,*/*",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch preview SVG: ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+/**
+ * Converts SVG input into a raster blob using the conversion API's binary response mode.
+ */
+export async function convertSvgToBlob(
+  source: string | SvgConversionSource,
+  format: ConversionFormat = "png",
+): Promise<Blob> {
+  const payloadSource = normalizeSvgConversionSource(source);
+
+  if (!payloadSource.svgUrl && !payloadSource.svgContent) {
+    throw new Error("Missing SVG source for conversion");
+  }
+
+  const isClient =
+    (globalThis as unknown as { window?: unknown }).window !== undefined;
+  const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
+  const response = await fetch(convertEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payloadSource,
+      format,
+      responseType: "binary",
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    throw new Error(
+      `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
+    );
+  }
+
+  const blob = await response.blob();
+  const expectedMimeType = format === "webp" ? "image/webp" : "image/png";
+  const mimeType = blob.type || expectedMimeType;
+
+  if (mimeType !== expectedMimeType) {
+    throw new Error(
+      `Invalid response from convert API: expected ${expectedMimeType} but received ${mimeType}`,
+    );
+  }
+
+  if (blob.type === expectedMimeType) {
+    return blob;
+  }
+
+  return new Blob([await blob.arrayBuffer()], { type: expectedMimeType });
+}
+
+const RESPONSE_REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
+const STRUCTURED_RESPONSE_ERROR_FIELDS = new Set<string>([
+  "category",
+  "error",
+  "message",
+  "recoverySuggestions",
+  "requestId",
+  "retryable",
+  "status",
+]);
+const STRUCTURED_RESPONSE_ERROR_CATEGORIES = new Set<ErrorCategory>([
+  "user_not_found",
+  "rate_limited",
+  "network_error",
+  "invalid_data",
+  "server_error",
+  "timeout",
+  "authentication",
+  "unknown",
+]);
+
+export interface StructuredResponseError {
+  message: string;
+  status?: number;
+  category: ErrorCategory;
+  retryable: boolean;
+  recoverySuggestions: RecoverySuggestion[];
+  requestId?: string;
+  additionalFields?: Record<string, unknown>;
+}
+
+function isResponsePayloadRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isErrorCategoryValue(value: unknown): value is ErrorCategory {
+  return (
+    typeof value === "string" &&
+    STRUCTURED_RESPONSE_ERROR_CATEGORIES.has(value as ErrorCategory)
+  );
+}
+
+function isRecoverySuggestionValue(
+  value: unknown,
+): value is RecoverySuggestion {
+  if (!isResponsePayloadRecord(value)) {
+    return false;
+  }
+
+  if (typeof value.title !== "string" || value.title.trim().length === 0) {
+    return false;
+  }
+
+  if (
+    typeof value.description !== "string" ||
+    value.description.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    value.actionLabel !== undefined &&
+    (typeof value.actionLabel !== "string" ||
+      value.actionLabel.trim().length === 0)
+  ) {
+    return false;
+  }
+
+  if (
+    value.actionUrl !== undefined &&
+    (typeof value.actionUrl !== "string" || value.actionUrl.trim().length === 0)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function sanitizeResponseRequestId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!RESPONSE_REQUEST_ID_PATTERN.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function resolveStructuredResponseStatus(
+  response: Response,
+  payload: Record<string, unknown> | undefined,
+): number {
+  const payloadStatus = payload?.status;
+
+  if (
+    typeof payloadStatus === "number" &&
+    Number.isInteger(payloadStatus) &&
+    payloadStatus >= 400 &&
+    payloadStatus <= 599
+  ) {
+    return payloadStatus;
+  }
+
+  return response.status;
+}
+
+function resolveStructuredResponseMessage(
+  response: Response,
+  payload: unknown,
+): string {
+  const defaultMessage = `HTTP ${response.status} ${response.statusText}`;
+  const payloadRecord = isResponsePayloadRecord(payload) ? payload : undefined;
+
+  if (
+    typeof payloadRecord?.error === "string" &&
+    payloadRecord.error.trim().length > 0
+  ) {
+    return payloadRecord.error;
+  }
+
+  if (
+    typeof payloadRecord?.message === "string" &&
+    payloadRecord.message.trim().length > 0
+  ) {
+    return payloadRecord.message;
+  }
+
+  if (typeof payload === "string" && payload.trim().length > 0) {
+    return payload;
+  }
+
+  return defaultMessage;
+}
+
+function resolveStructuredResponseAdditionalFields(
+  payload: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!payload) {
+    return undefined;
+  }
+
+  const additionalEntries = Object.entries(payload).filter(
+    ([key]) => !STRUCTURED_RESPONSE_ERROR_FIELDS.has(key),
+  );
+
+  if (additionalEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(additionalEntries);
+}
+
+export function getStructuredResponseError(
+  response: Response,
+  payload: unknown,
+): StructuredResponseError {
+  const payloadRecord = isResponsePayloadRecord(payload) ? payload : undefined;
+  const message = resolveStructuredResponseMessage(response, payload);
+  const status = resolveStructuredResponseStatus(response, payloadRecord);
+  const fallbackDetails = getErrorDetails(message, status);
+  const category = isErrorCategoryValue(payloadRecord?.category)
+    ? payloadRecord.category
+    : fallbackDetails.category;
+  let retryable = fallbackDetails.retryable;
+
+  if (typeof payloadRecord?.retryable === "boolean") {
+    retryable = payloadRecord.retryable;
+  } else if (isErrorCategoryValue(payloadRecord?.category)) {
+    retryable = isRetryableErrorCategory(payloadRecord.category);
+  }
+
+  const recoverySuggestions = Array.isArray(payloadRecord?.recoverySuggestions)
+    ? payloadRecord.recoverySuggestions.filter(isRecoverySuggestionValue)
+    : fallbackDetails.suggestions;
+  const requestId =
+    sanitizeResponseRequestId(response.headers.get("X-Request-Id")) ??
+    sanitizeResponseRequestId(payloadRecord?.requestId);
+  const additionalFields =
+    resolveStructuredResponseAdditionalFields(payloadRecord);
+
+  return {
+    message,
+    status,
+    category,
+    retryable,
+    recoverySuggestions,
+    ...(requestId ? { requestId } : {}),
+    ...(additionalFields ? { additionalFields } : {}),
+  };
 }
 
 /**
@@ -630,106 +1086,7 @@ export function getResponseErrorMessage(
   response: Response,
   payload: unknown,
 ): string {
-  let message = `HTTP ${response.status} ${response.statusText}`;
-  if (!payload) return message;
-  if (typeof payload === "object" && payload !== null) {
-    const obj = payload as Record<string, unknown>;
-    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
-    if (typeof obj.message === "string" && obj.message.trim())
-      return obj.message;
-  }
-  if (typeof payload === "string" && payload.trim()) return payload;
-  return message;
-}
-
-/**
- * Validate the parsed payload and extract the pngDataUrl property. Throws on invalid payloads.
- * @source
- */
-function extractImageDataUrl(payload: unknown): string {
-  if (!payload || typeof payload !== "object") {
-    throw new Error(
-      "Invalid response from convert API: missing or invalid pngDataUrl",
-    );
-  }
-  const maybe = (payload as Record<string, unknown>).pngDataUrl;
-  if (typeof maybe !== "string" || !maybe.trim()) {
-    throw new Error(
-      "Invalid response from convert API: missing or invalid pngDataUrl",
-    );
-  }
-  return maybe;
-}
-
-/**
- * Copies the specified text to the system clipboard.
- *
- * A simple wrapper around the browser's clipboard API that returns a promise.
- *
- * @param text - The text to be copied.
- * @returns A Promise that resolves when the text is successfully copied.
- * @source
- */
-export function copyToClipboard(text: string): Promise<void> {
-  // Utilize the browser's native clipboard API.
-  return navigator.clipboard.writeText(text);
-}
-
-/**
- * Calculates a dynamic font size for the provided text such that it fits within a maximum width.
- *
- * The calculation iteratively reduces the font size based on the text's length and an adaptive multiplier,
- * ensuring the resulting font size does not drop below a minimum threshold.
- *
- * @param text - The text string for which the font size is calculated.
- * @param initialFontSize - The starting font size (default: 18).
- * @param maxWidth - The maximum width that the text is allowed to occupy (default: 220).
- * @param minFontSize - The minimum allowable font size to keep text readable (default: 8).
- * @returns The computed font size as a string rounded to one decimal place.
- * @source
- */
-export const calculateDynamicFontSize = (
-  text: string,
-  initialFontSize = 18,
-  maxWidth = 220,
-  minFontSize = 8,
-) => {
-  let fontSize = initialFontSize;
-  // Calculate a dynamic multiplier that reduces effective width per character as the text length increases.
-  const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
-
-  // Iteratively decrease the font size until the resulting width is less than the maxWidth or until the minimum font size is reached.
-  while (
-    text.length * fontSize * charWidthMultiplier > maxWidth &&
-    fontSize > minFontSize
-  ) {
-    fontSize -= 0.1;
-  }
-  // Return the final font size formatted to one decimal place.
-  return fontSize.toFixed(1);
-};
-
-/**
- * Formats a byte count into a human-readable string using appropriate units (Bytes, KB, MB, GB).
- *
- * Divides the byte count by the appropriate power of 1024 and formats the number to the specified decimal precision.
- *
- * @param bytes - The number of bytes to format.
- * @param decimals - The number of decimal places (default: 2).
- * @returns A formatted string representing the size (e.g., "1.23 MB").
- * @source
- */
-export function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const dm = Math.max(decimals, 0);
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  // Determine the appropriate unit based on the logarithm of the byte count.
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  // Calculate the size in the determined unit and format it.
-  return (
-    Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-  );
+  return getStructuredResponseError(response, payload).message;
 }
 
 /**
@@ -796,33 +1153,6 @@ export function getAbsoluteUrl(url: string): string {
 }
 
 /**
- * Converts a stored card configuration (StoredCardConfig) into the template-facing
- * TemplateCardConfig shape. This ensures templates always receive the expected fields
- * while the stored shape may include additional persistence-only flags.
- * @source
- */
-export function toTemplateCardConfig(
-  card: StoredCardConfig | TemplateCardConfig,
-  defaultVariation = "default",
-): TemplateCardConfig {
-  return {
-    cardName: card.cardName,
-    variation:
-      "variation" in card &&
-      (card as TemplateCardConfig).variation !== undefined
-        ? (card as TemplateCardConfig).variation
-        : defaultVariation,
-    titleColor: card.titleColor ?? DEFAULT_TITLE_COLOR,
-    backgroundColor: card.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
-    textColor: card.textColor ?? DEFAULT_TEXT_COLOR,
-    circleColor: card.circleColor ?? DEFAULT_CIRCLE_COLOR,
-    borderColor: "borderColor" in card ? card.borderColor : undefined,
-    useStatusColors:
-      "useStatusColors" in card ? card.useStatusColors : undefined,
-  };
-}
-
-/**
  * Extracts the style subset from a stored or template card config so templates
  * receive only the style values they need. Provides default colors when undefined.
  * @source
@@ -830,6 +1160,10 @@ export function toTemplateCardConfig(
 export function extractStyles(
   cardConfig: StoredCardConfig | TemplateCardConfig,
 ) {
+  const renderStyleOptions = cardConfig as {
+    animate?: boolean;
+  };
+
   return {
     titleColor: cardConfig.titleColor ?? DEFAULT_TITLE_COLOR,
     backgroundColor: cardConfig.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
@@ -837,6 +1171,9 @@ export function extractStyles(
     circleColor: cardConfig.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: cardConfig.borderColor,
     borderRadius: cardConfig.borderRadius,
+    ...(typeof renderStyleOptions.animate === "boolean"
+      ? { animate: renderStyleOptions.animate }
+      : {}),
   };
 }
 
@@ -884,7 +1221,7 @@ export function getCardBorderRadius(
   if (typeof borderRadius === "number") {
     return clampBorderRadius(borderRadius);
   }
-  return defaultRadius;
+  return clampBorderRadius(defaultRadius);
 }
 
 /**
@@ -981,219 +1318,4 @@ export function toFiniteNumber(
 export function markTrustedSvg(svg: string): TrustedSVG {
   const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
   return `${prefix}${svg}` as TrustedSVG;
-}
-
-/**
- * Check whether the provided string is a marked Trusted SVG.
- * This is a lightweight runtime guard used by client components that render
- * pre-sanitized SVG markup to ensure the string passed to
- * `dangerouslySetInnerHTML` came from one of our trusted template helpers.
- * @param svg - The string to check.
- * @returns True if the string is marked as trusted.
- */
-export function isTrustedSvgString(svg: unknown): boolean {
-  if (typeof svg !== "string") return false;
-  return svg.startsWith("<!--ANICARDS_TRUSTED_SVG-->");
-}
-
-/** Successful result for a single conversion in a batch. @source */
-type BatchConversionSuccess = {
-  success: true;
-  card: BatchExportCard;
-  dataUrl: string;
-  format: ConversionFormat;
-  cardIndex: number;
-};
-
-/** Failure result representation for a single conversion in a batch. @source */
-type BatchConversionFailure = {
-  success: false;
-  card: BatchExportCard;
-  error: string;
-  cardIndex: number;
-};
-
-/** Union type representing the result of a batch conversion (success or failure). @source */
-export type BatchConversionResult =
-  | BatchConversionSuccess
-  | BatchConversionFailure;
-
-/** Image data used internally when packaging converted images into a ZIP. @source */
-interface BatchConversionImage {
-  filename: string;
-  dataUrl: string;
-  format: ConversionFormat;
-}
-
-/** Summary after exporting a batch of converted images. @source */
-export interface BatchExportSummary {
-  total: number;
-  exported: number;
-  failed: number;
-}
-
-/** Max number of concurrent conversions during batch processing. @source */
-const BATCH_CONCURRENCY_LIMIT = 4;
-
-/**
- * Converts multiple SVG URLs to raster images with concurrency limits.
- *
- * @param cards - Cards to convert, each containing type/rawType and svgUrl.
- * @param format - Target format for conversion (png | webp).
- * @param progressCallback - Optional progress callback invoked per card.
- * @returns Array of success/failure results.
- * @source
- */
-export async function batchConvertSvgsToPngs(
-  cards: BatchExportCard[],
-  format: ConversionFormat,
-  progressCallback?: (progress: BatchConversionProgress) => void,
-): Promise<BatchConversionResult[]> {
-  const queue = cards.map((card, index) => ({ card, index }));
-  const total = cards.length;
-  let completed = 0;
-  let successCount = 0;
-  let failureCount = 0;
-
-  const convertCard = async (
-    card: BatchExportCard,
-    index: number,
-  ): Promise<BatchConversionResult> => {
-    try {
-      const dataUrl = await svgToPng(card.svgUrl, format);
-      successCount += 1;
-      return {
-        success: true,
-        card,
-        dataUrl,
-        format,
-        cardIndex: index,
-      };
-    } catch (error) {
-      failureCount += 1;
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        success: false,
-        card,
-        error: message,
-        cardIndex: index,
-      };
-    } finally {
-      completed += 1;
-      progressCallback?.({
-        current: completed,
-        total,
-        success: successCount,
-        failure: failureCount,
-        cardIndex: index,
-      });
-    }
-  };
-
-  const workers = new Array(
-    Math.min(BATCH_CONCURRENCY_LIMIT, queue.length),
-  ).fill(null);
-
-  const results: BatchConversionResult[] = [];
-
-  const worker = async () => {
-    while (queue.length > 0) {
-      const next = queue.shift();
-      if (!next) break;
-      const result = await convertCard(next.card, next.index);
-      results.push(result);
-    }
-  };
-
-  await Promise.all(workers.map(() => worker()));
-  return results;
-}
-
-/**
- * Generates a ZIP archive from converted images.
- *
- * @param images - Image data with filenames and formats.
- * @returns ZIP blob ready for download.
- * @source
- */
-export async function generateZipFromImages(
-  images: BatchConversionImage[],
-): Promise<Blob> {
-  const zip = new JSZip();
-  for (const image of images) {
-    const [, base64] = image.dataUrl.split(",");
-    if (!base64) continue;
-    zip.file(image.filename, base64, { base64: true });
-  }
-  return await zip.generateAsync({ type: "blob" });
-}
-
-/**
- * Triggers a browser download for the provided blob.
- *
- * @param blob - Binary data to download.
- * @param filename - Desired filename for the download.
- * @source
- */
-export function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Converts multiple cards, zips the results, and triggers a download.
- *
- * @param cards - Cards to convert and bundle.
- * @param format - Target export format.
- * @param progressCallback - Optional progress callback for UI updates.
- * @returns Summary containing counts of success and failures.
- * @source
- */
-export async function batchConvertAndZip(
-  cards: BatchExportCard[],
-  format: ConversionFormat,
-  progressCallback?: (progress: BatchConversionProgress) => void,
-): Promise<BatchExportSummary> {
-  if (cards.length === 0) {
-    throw new Error("No cards available for export.");
-  }
-
-  const conversionResults = await batchConvertSvgsToPngs(
-    cards,
-    format,
-    progressCallback,
-  );
-
-  const successful = conversionResults.filter(
-    (result): result is BatchConversionSuccess => result.success,
-  );
-
-  if (successful.length === 0) {
-    throw new Error("Unable to convert any cards for export.");
-  }
-
-  const images: BatchConversionImage[] = successful.map((result) => ({
-    filename: `${result.card.rawType || result.card.type}.${format}`,
-    dataUrl: result.dataUrl,
-    format: result.format,
-  }));
-
-  const zipBlob = await generateZipFromImages(images);
-  const timestamp = new Date()
-    .toISOString()
-    .replaceAll(":", "-")
-    .replaceAll(".", "-");
-  downloadBlob(zipBlob, `anicards-export-${timestamp}.zip`);
-
-  return {
-    total: cards.length,
-    exported: successful.length,
-    failed: conversionResults.length - successful.length,
-  };
 }

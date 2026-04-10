@@ -19,11 +19,3 @@ export function generateCardBackground(
     />
   `;
 }
-
-export function calculateAnimationDelay(
-  baseDelay: number,
-  index: number,
-  increment: number,
-): string {
-  return `${baseDelay + index * increment}ms`;
-}

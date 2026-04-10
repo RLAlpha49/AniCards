@@ -1,16 +1,56 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Metadata } from "next";
-import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
-import { UserPageClient } from "@/components/user/UserPageClient";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
+
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PageShell from "@/components/PageShell";
+import { UserPageEditor } from "@/components/user/UserPageEditor";
+import { UserPageLoadingSpinner } from "@/components/user/UserPageLoading";
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
+import {
+  generateMetadata as createMetadata,
+  getUserPageSEOConfig,
+  getUserProfilePath,
+} from "@/lib/seo";
+
+import LoadingPreview from "./loading";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
  * @source
  */
 export const dynamic = "force-dynamic";
+
+export function buildLegacyUserRedirectUrl(params: {
+  username: string;
+  q?: string;
+  visibility?: string;
+  group?: string;
+  customFilter?: string;
+}): string {
+  const nextSearchParams = new URLSearchParams();
+
+  if (params.q?.trim()) {
+    nextSearchParams.set("q", params.q.trim());
+  }
+
+  if (params.visibility?.trim() && params.visibility !== "all") {
+    nextSearchParams.set("visibility", params.visibility.trim());
+  }
+
+  if (params.group?.trim() && params.group !== "All") {
+    nextSearchParams.set("group", params.group.trim());
+  }
+
+  if (params.customFilter?.trim() && params.customFilter !== "all") {
+    nextSearchParams.set("customFilter", params.customFilter.trim());
+  }
+
+  const pathname = getUserProfilePath(params.username);
+  const search = nextSearchParams.toString();
+
+  return search ? `${pathname}?${search}` : pathname;
+}
 
 /**
  * Builds metadata for the user page from resolved search parameters.
@@ -24,52 +64,66 @@ export async function generateMetadata({
   searchParams: Promise<{
     userId?: string;
     username?: string;
-    cards?: string;
-    showFavorites?: string;
-    animeStatusColors?: string;
-    mangaStatusColors?: string;
+    q?: string;
+    visibility?: string;
+    group?: string;
+    customFilter?: string;
   }>;
 }): Promise<Metadata> {
-  const { username } = await searchParams;
+  const params = await searchParams;
 
-  if (username) {
-    return createMetadata({
-      title: `${username}'s AniList Stats - AniCards`,
-      description: `View ${username}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
-      keywords: [
-        `${username} anilist`,
-        `${username} anime stats`,
-        `${username} manga stats`,
-        "anilist profile",
-        "anime statistics",
-        "manga statistics",
-        "stat cards",
-      ],
-      canonical: `https://anicards.vercel.app/user?username=${username}`,
-    });
-  }
-
-  return createMetadata(seoConfigs.user);
+  return createMetadata(
+    getUserPageSEOConfig({
+      username: params.username,
+      userId: params.userId,
+      q: params.q,
+      visibility: params.visibility,
+      group: params.group,
+      customFilter: params.customFilter,
+      routeType: "lookup",
+    }),
+  );
 }
 
 /**
  * Wraps the client-side user page in a suspense boundary with a spinner fallback.
  * @source
  */
-export default function UserPage() {
+export default async function UserPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{
+    userId?: string;
+    username?: string;
+    q?: string;
+    visibility?: string;
+    group?: string;
+    customFilter?: string;
+  }>;
+}>) {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
+  const params = await searchParams;
+
+  if (!params.userId && params.username?.trim()) {
+    redirect(
+      buildLegacyUserRedirectUrl({
+        username: params.username,
+        q: params.q,
+        visibility: params.visibility,
+        group: params.group,
+        customFilter: params.customFilter,
+      }),
+    );
+  }
+
   return (
-    <Suspense
-      fallback={
-        <PageShell>
-          <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-            <LoadingSpinner size="lg" text="Loading user data..." />
-          </div>
-        </PageShell>
-      }
-    >
+    <Suspense fallback={<UserPageLoadingSpinner />}>
       <ErrorBoundary>
         <PageShell>
-          <UserPageClient />
+          <UserPageEditor />
         </PageShell>
       </ErrorBoundary>
     </Suspense>

@@ -3,6 +3,11 @@
  * @returns Response containing the update prompt SVG content.
  * @source
  */
+const LEGACY_NOTICE_CACHE_CONTROL =
+  "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600";
+const LEGACY_NOTICE_EDGE_CACHE_CONTROL =
+  "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600";
+
 export async function GET() {
   const svgContent = `
     <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">
@@ -23,7 +28,9 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "image/svg+xml",
-      "Cache-Control": "no-cache",
+      "Cache-Control": LEGACY_NOTICE_CACHE_CONTROL,
+      "CDN-Cache-Control": LEGACY_NOTICE_EDGE_CACHE_CONTROL,
+      "Edge-Cache-Control": LEGACY_NOTICE_EDGE_CACHE_CONTROL,
     },
   });
 }

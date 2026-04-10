@@ -1,16 +1,28 @@
-import type { TrustedSVG } from "../../types/svg";
-import type { UserFavourites } from "../../types/records";
 import {
-  calculateDynamicFontSize,
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import { splitIntoGraphemesSync } from "@/lib/pretext/text-fit";
+
+import type { UserFavourites } from "../../types/records";
+import type { TrustedSVG } from "../../types/svg";
+import {
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
-import { getVariantLabel, type TemplateStyles } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 import { ANIMATION, TYPOGRAPHY } from "../common/constants";
+import { generateCommonStyles } from "../common/style-generators";
+import { getVariantLabel, type TemplateStyles } from "./shared";
+
+const ITEM_NAME_SEGMENTER =
+  typeof Intl.Segmenter === "function"
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
+const MAX_NAME_GRAPHEMES = 15;
 
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,
@@ -197,7 +209,6 @@ export const favoritesGridTemplate = (data: {
   } else if (variant === "studios") {
     gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
-    // mixed
     gridItems = takeInterleavedMixed(
       buildAnimeItems(),
       buildMangaItems(),
@@ -229,6 +240,8 @@ export const favoritesGridTemplate = (data: {
     h: 55 + rows * (cellHeight + spacing) + 10,
   };
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const variantLabel = getVariantLabel(variant);
   const title =
@@ -236,6 +249,16 @@ export const favoritesGridTemplate = (data: {
       ? `${data.username}'s ${variantLabel}`
       : `${data.username}'s Favorite ${variantLabel}`;
   const safeTitle = escapeForXml(title);
+  const titleMaxWidth = dims.w - TYPOGRAPHY.TITLE_HORIZONTAL_PADDING;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   return markTrustedSvg(`
 <svg
@@ -251,16 +274,11 @@ export const favoritesGridTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    ${escapeForXml(
-      `${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`,
-    )}
+    ${escapeForXml(`${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`)}
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, titleFit.fontSize, { includeAnimations: animationsEnabled })}
 
     .item-name {
       fill: ${resolvedColors.textColor};
@@ -276,7 +294,7 @@ export const favoritesGridTemplate = (data: {
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   <g data-testid="card-title" transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
 
   <g data-testid="main-card-body" transform="translate(20, 50)">
@@ -301,15 +319,35 @@ export const favoritesGridTemplate = (data: {
 
           const item = cell.item;
           const anilistUrl = `https://anilist.co/${item.type}/${item.id}`;
-          let imageHrefAttr = "";
-          if (item.image) {
-            imageHrefAttr = `xlink:href="${escapeForXml(item.image)}"`;
-            if (item.image.startsWith("data:")) {
-              imageHrefAttr = `href="${escapeForXml(item.image)}"`;
-            }
-          }
+          const imageHrefAttr = item.image?.startsWith("data:")
+            ? `href="${escapeForXml(item.image)}"`
+            : "";
 
           const clipId = `clip-${item.type}-${item.id}-${i}`;
+          // The grid is capped at 25 items, so this per-item measurement stays bounded; memoize by name if it ever becomes hot.
+          const itemNameFit = fitSvgSingleLineText({
+            fontWeight: 400,
+            initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+            maxWidth: cellWidth,
+            minFontSize: 8,
+            mode: "shrink-then-truncate",
+            text: item.name,
+          });
+          const itemNameSegments = ITEM_NAME_SEGMENTER
+            ? Array.from(
+                ITEM_NAME_SEGMENTER.segment(item.name),
+                (segment) => segment.segment,
+              )
+            : splitIntoGraphemesSync(item.name);
+          const fittedNameText = itemNameFit?.text;
+          let fittedItemName = item.name;
+          if (fittedNameText && fittedNameText.trim().length > 0) {
+            fittedItemName = fittedNameText;
+          } else if (itemNameSegments.length > MAX_NAME_GRAPHEMES) {
+            fittedItemName = `${itemNameSegments
+              .slice(0, MAX_NAME_GRAPHEMES)
+              .join("")}…`;
+          }
 
           // Studios don't have images - render text-only tiles with initials
           if (item.type === "studio") {
@@ -319,19 +357,15 @@ export const favoritesGridTemplate = (data: {
           <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
             <a xlink:href="${escapeForXml(anilistUrl)}" target="_blank">
               <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4" fill="${studioColor}" opacity="0.9"/>
-              <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}" 
-                    text-anchor="middle" 
-                    fill="white" 
-                    font-size="32" 
-                    font-weight="bold" 
+              <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}"
+                    text-anchor="middle"
+                    fill="white"
+                    font-size="32"
+                    font-weight="bold"
                     font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
             </a>
-            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+            <text class="item-name" style="font-size:${itemNameFit?.fontSize ?? TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
+              ${escapeForXml(fittedItemName)}
             </text>
           </g>
         `;
@@ -343,7 +377,7 @@ export const favoritesGridTemplate = (data: {
               <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
             </clipPath>
             ${
-              item.image
+              item.image && imageHrefAttr
                 ? `
               <a xlink:href="${escapeForXml(anilistUrl)}" target="_blank">
                 <image
@@ -358,12 +392,8 @@ export const favoritesGridTemplate = (data: {
               <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
             `
             }
-            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+            <text class="item-name" style="font-size:${itemNameFit?.fontSize ?? TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
+              ${escapeForXml(fittedItemName)}
             </text>
           </g>
         `;

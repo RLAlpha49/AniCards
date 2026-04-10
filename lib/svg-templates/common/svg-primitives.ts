@@ -1,9 +1,9 @@
-import { escapeForXml } from "@/lib/utils";
 import type {
   GroupOptions,
   RectOptions,
   TextOptions,
 } from "@/lib/svg-templates/common/types";
+import { escapeForXml } from "@/lib/utils";
 
 export function createTextElement(
   x: number,
@@ -13,13 +13,23 @@ export function createTextElement(
   options?: TextOptions,
 ): string {
   const attrs: string[] = [`x="${x}"`, `y="${y}"`];
+  const inlineStyles: string[] = [];
   if (className) attrs.push(`class="${className}"`);
   if (options?.fill) attrs.push(`fill="${options.fill}"`);
   if (typeof options?.fontSize === "number")
-    attrs.push(`font-size="${options.fontSize}"`);
+    inlineStyles.push(`font-size:${options.fontSize}px`);
   if (typeof options?.fontWeight === "number")
-    attrs.push(`font-weight="${options.fontWeight}"`);
+    inlineStyles.push(`font-weight:${options.fontWeight}`);
+  if (typeof options?.textLength === "number")
+    attrs.push(`textLength="${options.textLength}"`);
+  if (
+    options?.lengthAdjust === "spacing" ||
+    options?.lengthAdjust === "spacingAndGlyphs"
+  ) {
+    attrs.push(`lengthAdjust="${options.lengthAdjust}"`);
+  }
   if (options?.textAnchor) attrs.push(`text-anchor="${options.textAnchor}"`);
+  if (inlineStyles.length > 0) attrs.push(`style="${inlineStyles.join(";")}"`);
 
   return `<text ${attrs.join(" ")}>${escapeForXml(text)}</text>`;
 }

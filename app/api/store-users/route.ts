@@ -1,18 +1,227 @@
+// app/api/store-users/route.ts
+//
+// Persists the split Redis user record that powers the user page and analytics cards.
+// This boundary normalizes incoming AniList data, preserves the original `createdAt`
+// across overwrites, and keeps the username lookup index in sync with the saved record.
+//
+// Clients can send `ifMatchUpdatedAt` to reject stale writes instead of silently
+// overwriting fresher data from another tab or device.
+
 import type { NextResponse } from "next/server";
-import { UserRecord } from "@/lib/types/records";
-import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { saveUserRecord, fetchUserDataParts } from "@/lib/server/user-data";
+
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import {
-  incrementAnalytics,
-  handleError,
-  apiJsonHeaders,
+  buildPersistedRequestMetadata,
+  logPrivacySafe,
   logSuccess,
-  redisClient,
-  initializeApiRequest,
-  validateUserData,
+} from "@/lib/api/logging";
+import { readJsonRequestBody } from "@/lib/api/request-body";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
   buildAnalyticsMetricKey,
-  jsonWithCors,
-} from "@/lib/api-utils";
+  incrementAnalytics,
+  scheduleTelemetryTask,
+} from "@/lib/api/telemetry";
+import {
+  getSchemaValidationIssueSummary,
+  validatePersistedUserRecord,
+  validateUserData,
+} from "@/lib/api/validation";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data";
+import {
+  getPersistedUserState,
+  saveUserRecord,
+  UserDataIntegrityError,
+  UserRecordConflictError,
+} from "@/lib/server/user-data";
+import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
+
+const STORE_USERS_JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+
+function scheduleStoreUsersMetric(
+  endpoint: string,
+  endpointKey: string,
+  metric: "failed_requests" | "successful_requests",
+  request: Request,
+): void {
+  const analyticsMetric = buildAnalyticsMetricKey(endpointKey, metric);
+  scheduleTelemetryTask(() => incrementAnalytics(analyticsMetric), {
+    endpoint,
+    taskName: analyticsMetric,
+    request,
+  });
+}
+
+function rejectInvalidStoreUsersPayload(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  userId: number;
+  message: string;
+  context?: Record<string, unknown>;
+}): NextResponse {
+  logPrivacySafe(
+    "warn",
+    params.endpoint,
+    params.message,
+    params.context
+      ? { userId: params.userId, ...params.context }
+      : { userId: params.userId },
+    params.request,
+  );
+  scheduleStoreUsersMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+  );
+
+  return apiErrorResponse(params.request, 400, "Invalid data", {
+    category: "invalid_data",
+    retryable: false,
+  });
+}
+
+function createStoreUsersConflictResponse(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  currentUpdatedAt?: string;
+}): NextResponse {
+  scheduleStoreUsersMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+  );
+
+  return apiErrorResponse(
+    params.request,
+    409,
+    "Conflict: data was updated elsewhere. Please reload and try again.",
+    {
+      category: "invalid_data",
+      retryable: false,
+      additionalFields: params.currentUpdatedAt
+        ? {
+            currentUpdatedAt: params.currentUpdatedAt,
+          }
+        : undefined,
+    },
+  );
+}
+
+async function persistPreparedUserRecord(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  persistedUserData: PersistedUserRecord;
+  existingState?: Awaited<ReturnType<typeof getPersistedUserState>>;
+  ifMatchUpdatedAt?: string;
+}): Promise<
+  | {
+      saveResult: {
+        updatedAt: string;
+        revision: number;
+        snapshotToken: string;
+      };
+    }
+  | { errorResponse: NextResponse }
+> {
+  try {
+    const saveResult = await saveUserRecord(params.persistedUserData, {
+      existingState: params.existingState ?? undefined,
+      expectedUpdatedAt: params.ifMatchUpdatedAt,
+    });
+
+    return { saveResult };
+  } catch (error) {
+    if (error instanceof UserRecordConflictError) {
+      return {
+        errorResponse: createStoreUsersConflictResponse({
+          endpoint: params.endpoint,
+          endpointKey: params.endpointKey,
+          request: params.request,
+          currentUpdatedAt: error.currentUpdatedAt,
+        }),
+      };
+    }
+
+    throw error;
+  }
+}
+
+function preparePersistedUserRecord(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  requestMetadata?: PersistedUserRecord["requestMetadata"];
+  userData: UserRecord;
+  userId: number;
+}):
+  | { persistedUserData: PersistedUserRecord }
+  | { errorResponse: NextResponse } {
+  const normalizationResult = validateAndNormalizeUserRecord(params.userData, {
+    mode: "write",
+  });
+  if (!("normalized" in normalizationResult)) {
+    return {
+      errorResponse: rejectInvalidStoreUsersPayload({
+        endpoint: params.endpoint,
+        endpointKey: params.endpointKey,
+        request: params.request,
+        userId: params.userId,
+        message: "Rejected store-users payload that failed normalization",
+        context: {
+          validationError: normalizationResult.error,
+          validationStatus: normalizationResult.status,
+        },
+      }),
+    };
+  }
+
+  const finalUserData = normalizationResult.normalized;
+  const persistedRequestMetadata =
+    finalUserData.requestMetadata ?? params.requestMetadata;
+
+  const persistedUserData: PersistedUserRecord = {
+    userId: finalUserData.userId,
+    username: finalUserData.username,
+    stats: finalUserData.stats,
+    createdAt: finalUserData.createdAt,
+    updatedAt: finalUserData.updatedAt,
+    ...(finalUserData.aggregates
+      ? { aggregates: finalUserData.aggregates }
+      : {}),
+    ...(persistedRequestMetadata
+      ? { requestMetadata: persistedRequestMetadata }
+      : {}),
+  };
+
+  const persistedValidation = validatePersistedUserRecord(persistedUserData);
+  if (!persistedValidation.success) {
+    return {
+      errorResponse: rejectInvalidStoreUsersPayload({
+        endpoint: params.endpoint,
+        endpointKey: params.endpointKey,
+        request: params.request,
+        userId: params.userId,
+        message:
+          "Rejected normalized user record that failed write-boundary schema validation",
+        context: {
+          validationIssue: getSchemaValidationIssueSummary(
+            persistedValidation.error,
+          ),
+        },
+      }),
+    };
+  }
+
+  return {
+    persistedUserData: persistedValidation.data,
+  };
+}
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
@@ -25,77 +234,150 @@ export async function POST(request: Request): Promise<NextResponse> {
     request,
     "Store Users",
     "store_users",
+    undefined,
+    {
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 
   const { startTime, ip, endpoint, endpointKey } = init;
 
   try {
-    const data = await request.json();
-    console.log(
-      `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
+    const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+      request,
+      {
+        endpointName: endpoint,
+        endpointKey,
+        maxBytes: STORE_USERS_JSON_BODY_LIMIT_BYTES,
+      },
     );
+    if (!bodyResult.success) return bodyResult.errorResponse;
 
-    // Validate incoming data
-    const validationError = validateUserData(
-      data as Record<string, unknown>,
+    const data = bodyResult.data;
+
+    logPrivacySafe(
+      "log",
       endpoint,
+      "Processing store-users payload",
+      {
+        userId: data.userId,
+        username: data.username,
+      },
       request,
     );
-    if (validationError) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+
+    const validationResult = validateUserData(data, endpoint, request);
+    if (!validationResult.success) {
+      scheduleStoreUsersMetric(
+        endpoint,
+        endpointKey,
+        "failed_requests",
+        request,
       );
-      return validationError;
+      return validationResult.error;
     }
 
-    let createdAt = new Date().toISOString();
+    const { userId, username, stats, ifMatchUpdatedAt } = validationResult.data;
+    const requestMetadata = buildPersistedRequestMetadata(ip);
 
-    const partsData = await fetchUserDataParts(data.userId, ["meta"]);
-    if (partsData.meta) {
-      const meta = partsData.meta as Record<string, unknown>;
-      createdAt = (meta.createdAt as string) || createdAt;
+    const now = new Date().toISOString();
+    let createdAt = now;
+
+    let existingState;
+    try {
+      existingState = await getPersistedUserState(userId);
+    } catch (error) {
+      if (error instanceof UserDataIntegrityError) {
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Ignoring corrupt persisted user state during overwrite",
+          {
+            userId,
+            error: error.message,
+          },
+          request,
+        );
+      } else {
+        throw error;
+      }
+    }
+
+    if (existingState?.createdAt) {
+      createdAt = existingState.createdAt;
+    }
+
+    if (
+      ifMatchUpdatedAt &&
+      existingState?.updatedAt &&
+      existingState.updatedAt !== ifMatchUpdatedAt
+    ) {
+      return createStoreUsersConflictResponse({
+        endpoint,
+        endpointKey,
+        request,
+        currentUpdatedAt: existingState.updatedAt,
+      });
     }
 
     const userData: UserRecord = {
-      userId: data.userId,
-      username: data.username,
-      stats: data.stats,
-      ip,
+      userId: String(userId),
+      username,
+      stats: stats as unknown as UserRecord["stats"],
+      ...(requestMetadata ? { requestMetadata } : {}),
       createdAt,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
 
-    // Normalize and prune data before saving to Redis
-    const normalizationResult = validateAndNormalizeUserRecord(userData);
-    const finalUserData =
-      "normalized" in normalizationResult
-        ? normalizationResult.normalized
-        : userData;
+    const preparedRecord = preparePersistedUserRecord({
+      endpoint,
+      endpointKey,
+      request,
+      requestMetadata,
+      userData,
+      userId,
+    });
+    if ("errorResponse" in preparedRecord) {
+      return preparedRecord.errorResponse;
+    }
 
-    console.log(
-      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Saving user data to split Redis record",
+      {
+        userId,
+      },
+      request,
     );
 
-    await saveUserRecord(finalUserData);
-
-    // Create/update the username index if a username is provided.
-    if (data.username) {
-      const normalizedUsername = data.username.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
-      console.log(
-        `📝 [${endpoint}] Updating username index for: ${normalizedUsername}`,
-      );
-      await redisClient.set(usernameIndexKey, data.userId.toString());
+    const persistResult = await persistPreparedUserRecord({
+      endpoint,
+      endpointKey,
+      request,
+      persistedUserData: preparedRecord.persistedUserData,
+      existingState,
+      ifMatchUpdatedAt,
+    });
+    if ("errorResponse" in persistResult) {
+      return persistResult.errorResponse;
     }
 
     const duration = Date.now() - startTime;
-    logSuccess(endpoint, data.userId, duration);
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
+    logSuccess(endpoint, userId, duration, undefined, request);
+    scheduleStoreUsersMetric(
+      endpoint,
+      endpointKey,
+      "successful_requests",
+      request,
     );
 
-    return jsonWithCors({ success: true, userId: data.userId }, request);
+    return jsonWithCors(
+      { success: true, userId, updatedAt: persistResult.saveResult.updatedAt },
+      request,
+    );
   } catch (error) {
     return handleError(
       error as Error,
@@ -104,6 +386,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "User storage failed",
       request,
+      {
+        redisUnavailableMessage: "User storage is temporarily unavailable",
+      },
     );
   }
 }

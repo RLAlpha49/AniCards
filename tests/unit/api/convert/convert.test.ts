@@ -1,17 +1,33 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+/**
+ * Covers the convert route's fetch, sanitization, and format branches.
+ * `sharp` is mocked so the suite can inspect the sanitized SVG handed to
+ * rasterization without turning binary image output into brittle snapshots.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { NextRequest } from "next/server";
+
 import {
   POST,
+  removeClassTokensFromMarkup,
   removeEmptyCssRules,
   sanitizeCssContent,
-  removeClassTokensFromMarkup,
   sanitizeInlineStyleAttributes,
 } from "@/app/api/convert/route";
-import { NextRequest } from "next/server";
+import {
+  allowConsoleWarningsAndErrors,
+  getRequestInputUrl,
+  sharedRatelimitMockLimit,
+} from "@/tests/unit/__setup__";
+
+const originalApiSecretToken = process.env.API_SECRET_TOKEN;
 
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
  */
 let lastSharpBuffer: Buffer | null = null;
+let sharpConstructorCallCount = 0;
+let lastSharpCloneCount = 0;
 
 /**
  * Tracks which format (png or webp) was requested in the last sharp call
@@ -28,12 +44,8 @@ function createToBufferSuccess() {
   };
 }
 
-/**
- * Returns a sharp-like object with png() -> { toBuffer() }
- */
-function createSharpInstance(buf?: Buffer) {
-  if (buf) lastSharpBuffer = Buffer.from(buf);
-  const instance: {
+function createSharpOutputInstance() {
+  const outputInstance: {
     toBuffer: () => Promise<Buffer>;
     png: () => unknown;
     webp: (opts: { quality: number }) => unknown;
@@ -41,9 +53,42 @@ function createSharpInstance(buf?: Buffer) {
     toBuffer: createToBufferSuccess(),
     png: mock(() => {
       lastSharpFormat = "png";
+      return outputInstance;
+    }),
+    webp: mock(() => {
+      lastSharpFormat = "webp";
+      return outputInstance;
+    }),
+  };
+
+  return outputInstance;
+}
+
+/**
+ * Returns a sharp-like object with png() -> { toBuffer() }
+ */
+function createSharpInstance(buf?: Buffer) {
+  sharpConstructorCallCount += 1;
+  if (buf) lastSharpBuffer = Buffer.from(buf);
+  const outputInstance = createSharpOutputInstance();
+  const instance: {
+    clone: () => unknown;
+    metadata: () => Promise<{ height: number; width: number }>;
+    toBuffer: () => Promise<Buffer>;
+    png: () => unknown;
+    webp: (opts: { quality: number }) => unknown;
+  } = {
+    clone: mock(() => {
+      lastSharpCloneCount += 1;
+      return outputInstance;
+    }),
+    metadata: mock(async () => ({ width: 100, height: 100 })),
+    toBuffer: createToBufferSuccess(),
+    png: mock(() => {
+      lastSharpFormat = "png";
       return instance;
     }),
-    webp: mock((opts: { quality: number }) => {
+    webp: mock(() => {
       lastSharpFormat = "webp";
       return instance;
     }),
@@ -51,32 +96,23 @@ function createSharpInstance(buf?: Buffer) {
   return instance;
 }
 
-process.env.NEXT_PUBLIC_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost";
+process.env.NEXT_PUBLIC_API_URL = "http://localhost";
 
-// Mocking "sharp" using Bun's mock system
+const sharpConstructorMock = mock(createSharpInstance);
+
 mock.module("sharp", () => ({
-  default: mock(createSharpInstance),
+  default: sharpConstructorMock,
 }));
 
 describe("Convert API POST Endpoint", () => {
-  /**
-   * Retains the original fetch implementation so it can be restored after tests.
-   */
   const originalFetch = globalThis.fetch;
 
-  /**
-   * Helper to mock fetch with resolved values
-   */
   function mockFetchResolve(response: Response) {
     globalThis.fetch = mock(
       async () => response,
     ) as unknown as typeof globalThis.fetch;
   }
 
-  /**
-   * Helper to mock fetch with rejected value
-   */
   function mockFetchReject(error: Error) {
     globalThis.fetch = mock(async () => {
       throw error;
@@ -84,16 +120,52 @@ describe("Convert API POST Endpoint", () => {
   }
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      NODE_ENV: "test",
+    };
     lastSharpBuffer = null;
     lastSharpFormat = "png";
+    sharpConstructorCallCount = 0;
+    lastSharpCloneCount = 0;
+    sharpConstructorMock.mockClear();
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 60_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {
-    // Clear mocks by resetting the fetch implementation
+    if (originalApiSecretToken === undefined) {
+      delete process.env.API_SECRET_TOKEN;
+    } else {
+      process.env.API_SECRET_TOKEN = originalApiSecretToken;
+    }
     globalThis.fetch = originalFetch;
   });
 
   describe("Input Validation", () => {
+    it("should return 400 for invalid JSON request bodies", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: "{ invalid json",
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid JSON body");
+      expect(data.category).toBe("invalid_data");
+    });
+
     it("should return 400 error if svgUrl parameter is missing", async () => {
       const req = new Request("http://localhost/api/convert", {
         method: "POST",
@@ -107,7 +179,23 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error).toBe("Missing svgUrl parameter");
+      expect(data.error).toBe("Missing svgUrl or svgContent parameter");
+    });
+
+    it("should reject invalid inline svgContent", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgContent: "definitely-not-svg" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(415);
+      const data = await res.json();
+      expect(data.error).toBe("Provided content is not a valid SVG");
     });
 
     it("should return 400 error for invalid URL format", async () => {
@@ -164,6 +252,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "png",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -177,7 +266,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
     });
 
     it("should accept valid format 'webp'", async () => {
@@ -191,6 +281,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "webp",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -204,7 +295,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+      expect(data.format).toBe("webp");
+      expect(data.imageDataUrl).toContain("data:image/webp;base64,");
     });
 
     it("should use default format 'png' when format is omitted", async () => {
@@ -215,7 +307,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -228,7 +323,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
     });
 
     it("should handle format parameter case-insensitively", async () => {
@@ -255,6 +351,24 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
     });
+
+    it("should reject requests without request proof when API_SECRET_TOKEN is configured", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgContent: "<svg></svg>" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized");
+    });
   });
 
   describe("URL Authorization & Security", () => {
@@ -277,7 +391,6 @@ describe("Convert API POST Endpoint", () => {
     });
 
     it("should reject HTTP requests when allowed domain requires HTTPS", async () => {
-      // This test verifies that HTTP is rejected for non-localhost domains
       const req = new Request("http://localhost/api/convert", {
         method: "POST",
         headers: {
@@ -409,9 +522,8 @@ describe("Convert API POST Endpoint", () => {
       mockFetchReject(new Error("Network error"));
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(502);
       const data = await res.json();
-      // When fetch throws, fetchSvgContent returns "Failed to fetch SVG"
       expect(data.error).toBe("Failed to fetch SVG");
     });
 
@@ -450,7 +562,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -464,9 +579,10 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(200);
       const rawText = await res.text();
       const data = JSON.parse(rawText);
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
       const expectedBase64 = Buffer.from("FAKEPNG").toString("base64");
-      expect(data.pngDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
+      expect(data.imageDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
     });
 
     it("should successfully convert SVG to WebP", async () => {
@@ -480,6 +596,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "webp",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -493,9 +610,215 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+      expect(data.format).toBe("webp");
+      expect(data.imageDataUrl).toContain("data:image/webp;base64,");
       const expectedBase64 = Buffer.from("FAKEWEBP").toString("base64");
-      expect(data.pngDataUrl).toBe(`data:image/webp;base64,${expectedBase64}`);
+      expect(data.imageDataUrl).toBe(
+        `data:image/webp;base64,${expectedBase64}`,
+      );
+    });
+
+    it("should convert inline svgContent without refetching upstream", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "png",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("prefers inline svgContent over svgUrl when both are provided", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const inlineSvg =
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#0f172a" /></svg>';
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          svgContent: inlineSvg,
+          format: "png",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.format).toBe("png");
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(lastSharpBuffer?.toString()).toContain("rect");
+    });
+
+    it("requests AniCards card SVGs in static mode before rasterizing them", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl:
+            "http://localhost/api/card.svg?userId=542244&cardType=animeStats",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
+        | [RequestInfo | URL, RequestInit | undefined]
+        | undefined;
+      const fetchedUrl = getRequestInputUrl(firstFetchCall?.[0]);
+      expect(fetchedUrl).toContain("/api/card.svg");
+      expect(fetchedUrl).toContain("animate=false");
+    });
+
+    it("preserves explicit animate queries for AniCards card SVG conversions", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl:
+            "http://localhost/api/card.svg?userId=542244&cardType=animeStats&animate=true",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
+        | [RequestInfo | URL, RequestInit | undefined]
+        | undefined;
+      const fetchedUrl = getRequestInputUrl(firstFetchCall?.[0]);
+      expect(fetchedUrl).toContain("animate=true");
+      expect(fetchedUrl).not.toContain("animate=false");
+    });
+
+    it("reuses a single sharp constructor call and clones it for raster output", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(sharpConstructorCallCount).toBe(1);
+      expect(lastSharpCloneCount).toBe(1);
+      expect(sharpConstructorMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("defaults to binary image data when responseType is omitted", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "png",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/png");
+      const body = Buffer.from(await res.arrayBuffer()).toString();
+      expect(body).toBe("FAKEPNG");
+    });
+
+    it("should stream binary image data when responseType is binary", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          responseType: "binary",
+          svgContent: dummySVG,
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/webp");
+      const body = Buffer.from(await res.arrayBuffer()).toString();
+      expect(body).toBe("FAKEWEBP");
     });
 
     it("should return 500 error when sharp conversion fails", async () => {
@@ -506,7 +829,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -516,11 +842,7 @@ describe("Convert API POST Endpoint", () => {
         }),
       );
 
-      // Note: In Bun's test environment, mocking sharp at module level prevents
-      // easy dynamic replacement. This test validates the error handling path.
-      // To fully test sharp failures, consider integration or e2e tests.
       const res = await POST(req);
-      // With the mocked sharp, this should succeed normally
       expect(res.status).toBe(200);
     });
   });
@@ -555,7 +877,10 @@ describe("Convert API POST Endpoint", () => {
           "x-forwarded-for": "127.0.0.1",
           host: "localhost",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -568,7 +893,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toBeDefined();
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toBeDefined();
     });
 
     it("should handle failed_requests analytics when fetch fails", async () => {
@@ -585,10 +911,48 @@ describe("Convert API POST Endpoint", () => {
       mockFetchReject(new Error("Network error"));
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(502);
       const data = await res.json();
-      // When fetch throws, error message is "Failed to fetch SVG"
       expect(data.error).toBe("Failed to fetch SVG");
+    });
+  });
+
+  describe("Rate Limiting", () => {
+    it("should return 429 before attempting fetch or conversion when rate limited", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 20,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      });
+
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(429);
+      const data = await res.json();
+      expect(data.error).toBe("Too many requests");
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(res.headers.get("Retry-After")).toBeTruthy();
     });
   });
 
@@ -634,17 +998,11 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("SVG Sanitization Policy - CSS", () => {
-    /**
-     * Default headers used when crafting conversion requests.
-     */
     const defaultHeaders = {
       "Content-Type": "application/json",
       "x-forwarded-for": "127.0.0.1",
     };
 
-    /**
-     * Constructs a POST `NextRequest` for the convert API using the given SVG URL.
-     */
     const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
       new Request("http://localhost/api/convert", {
         method: "POST",
@@ -652,10 +1010,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: url }),
       }) as unknown as NextRequest;
 
-    /**
-     * Stubs `fetch` to return controlled SVG responses.
-     */
-    const mockFetchSvg = (svg: string, ok = true, status = 200) => {
+    const mockFetchSvg = (svg: string, status = 200) => {
       globalThis.fetch = mock(
         async () =>
           new Response(svg, {
@@ -673,7 +1028,7 @@ describe("Convert API POST Endpoint", () => {
       url = "http://localhost/dummy.svg",
       expectStatus = 200,
     ) => {
-      mockFetchSvg(svg, true, expectStatus);
+      mockFetchSvg(svg, expectStatus);
       lastSharpBuffer = null;
       const req = makeRequestForSvgUrl(url);
       const res = await POST(req);
@@ -704,6 +1059,30 @@ describe("Convert API POST Endpoint", () => {
       expect(captured).toMatch(/opacity\s*:\s*1/);
     });
 
+    it("sanitizes every style block, including attributed style tags", async () => {
+      const dummySVG = `
+        <svg>
+          <style>.stagger { animation: fadeIn 0.8s ease-in-out forwards; }</style>
+          <defs>
+            <style type="text/css" media="screen">
+              .keep { fill: red; }
+              .fade { animation-delay: 120ms; opacity: 0; }
+            </style>
+          </defs>
+          <g class="stagger keep" style="animation: fadeIn 1s; opacity: 0;">
+            <rect x="0" y="0" width="10" height="10"></rect>
+          </g>
+        </svg>`;
+
+      const { captured } = await postAndCaptureSvg(dummySVG);
+      expect(captured.match(/<style\b/gi)?.length).toBe(2);
+      expect(captured).toContain('<style type="text/css" media="screen">');
+      expect(captured).not.toMatch(/animation\s*:/i);
+      expect(captured).not.toMatch(/animation-delay\s*:/i);
+      expect(captured).toMatch(/opacity\s*:\s*1/);
+      expect(captured).toMatch(/fill\s*:\s*red/);
+    });
+
     it("does not remove .stagger if the .stagger rule has no animation", async () => {
       const dummySVG = `
         <svg>
@@ -717,9 +1096,7 @@ describe("Convert API POST Endpoint", () => {
         </svg>`;
 
       const { captured: captured1 } = await postAndCaptureSvg(dummySVG);
-      // animation declarations removed from CSS
       expect(captured1).not.toMatch(/animation\s*:/i);
-      // .stagger rule doesn't have animation; class should remain
       expect(captured1).toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
     });
 
@@ -809,10 +1186,8 @@ describe("Convert API POST Endpoint", () => {
       const svg = `<g style="fill: blue; animation-delay: 100ms; opacity: 0.5;"></g>`;
       const sanitized = sanitizeInlineStyleAttributes(svg);
       expect(sanitized).toMatch(/fill\s*:\s*blue/);
-      // opacity: 0.5 should be normalized to opacity: 1
       expect(sanitized).toMatch(/opacity\s*:\s*1/);
       expect(sanitized).not.toMatch(/animation-delay/);
-      // The style attribute should still exist since there are valid properties
       expect(sanitized).toContain("style=");
     });
 
@@ -845,8 +1220,7 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // Should still attempt conversion
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(415);
     });
 
     it("should handle relative URLs by using request origin", async () => {
@@ -869,7 +1243,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // Should fail because example.com is not in allowed domains
       expect(res.status).toBe(403);
     });
 
@@ -893,8 +1266,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // In development, localhost/127.0.0.1 is explicitly allowed (and should remain in the URL),
-      // so this should pass authorization and proceed.
       expect(res.status).toBe(200);
     });
 
@@ -918,7 +1289,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // ::1 is IPv6 localhost but not in allowedDomains so it should fail
       expect(res.status).toBe(403);
     });
   });

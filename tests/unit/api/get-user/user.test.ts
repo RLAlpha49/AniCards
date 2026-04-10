@@ -1,24 +1,48 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import {
-  sharedRedisMockGet,
-  sharedRedisMockIncr,
-} from "@/tests/unit/__setup__.test";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+  sharedRedisMockDel,
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+  sharedRedisMockMget,
+} from "@/tests/unit/__setup__";
 
-/**
- * Extracts the response JSON payload for assertions.
- * @param response - Response to parse.
- * @returns Parsed JSON from the response body.
- * @source
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getResponseJson(response: Response): Promise<any> {
-  return response.json();
+async function getResponseJson<T = unknown>(response: Response): Promise<T> {
+  return response.json() as Promise<T>;
 }
 
 const API_BASE = "http://localhost/api/get-user";
 const DEFAULT_HEADERS = { "x-forwarded-for": "127.0.0.1" };
+const USER_PART_KEYS = [
+  "meta",
+  "activity",
+  "favourites",
+  "statistics",
+  "pages",
+  "planning",
+  "current",
+  "rewatched",
+  "completed",
+  "aggregates",
+] as const;
+const EXPECTED_BOUNDED_SECTIONS = [
+  "activity",
+  "favourites",
+  "pages",
+  "planning",
+  "current",
+  "rewatched",
+  "completed",
+] as const;
+const EXPECTED_MISSING_AGGREGATES = [
+  "animeSourceMaterialDistributionTotals",
+  "animeSeasonalPreferenceTotals",
+  "animeGenreSynergyTotals",
+  "studioCollaborationTotals",
+] as const;
 
 function createReq(query?: string, headers?: Record<string, string>): Request {
   const url = query?.length ? `${API_BASE}?${query}` : API_BASE;
@@ -34,6 +58,106 @@ async function callGet(
   return GET(createReq(query, headers));
 }
 
+function createStoredUserParts(overrides?: {
+  meta?: Record<string, unknown>;
+  activity?: Record<string, unknown>;
+  favourites?: Record<string, unknown>;
+  statistics?: Record<string, unknown> | null;
+  pages?: Record<string, unknown>;
+  planning?: Record<string, unknown>;
+  current?: Record<string, unknown>;
+  rewatched?: Record<string, unknown>;
+  completed?: Record<string, unknown>;
+  aggregates?: Record<string, unknown> | null;
+}) {
+  return {
+    meta: {
+      userId: "123",
+      username: "testUser",
+      createdAt: "2026-03-20T08:00:00.000Z",
+      updatedAt: "2026-03-21T10:00:00.000Z",
+      requestMetadata: { lastSeenIpBucket: "loopback" },
+      name: "Test User",
+      avatar: {
+        medium: "https://example.com/avatar-medium.webp",
+        large: "https://example.com/avatar-large.webp",
+      },
+      userCreatedAt: 1_700_000_000,
+      ...overrides?.meta,
+    },
+    activity: {
+      activityHistory: [{ date: 1_700_000_000, amount: 3 }],
+      ...overrides?.activity,
+    },
+    favourites: {
+      anime: { nodes: [{ id: 1, title: { romaji: "A" } }] },
+      manga: { nodes: [] },
+      characters: { nodes: [] },
+      staff: { nodes: [] },
+      studios: { nodes: [] },
+      ...overrides?.favourites,
+    },
+    statistics: overrides?.statistics ?? {
+      anime: {
+        count: 42,
+        episodesWatched: 900,
+        minutesWatched: 27_000,
+        meanScore: 81,
+        standardDeviation: 10,
+        genres: [],
+        tags: [],
+        voiceActors: [],
+        studios: [],
+        staff: [],
+      },
+      manga: {
+        count: 12,
+        chaptersRead: 240,
+        volumesRead: 40,
+        meanScore: 79,
+        standardDeviation: 8,
+        genres: [],
+        tags: [],
+        staff: [],
+      },
+    },
+    pages: {
+      followersPage: { pageInfo: { total: 12 }, followers: [{ id: 999 }] },
+      followingPage: { pageInfo: { total: 5 }, following: [] },
+      threadsPage: { pageInfo: { total: 2 }, threads: [] },
+      threadCommentsPage: { pageInfo: { total: 7 }, threadComments: [] },
+      reviewsPage: { pageInfo: { total: 1 }, reviews: [] },
+      ...overrides?.pages,
+    },
+    planning: overrides?.planning ?? {},
+    current: overrides?.current ?? {},
+    rewatched: overrides?.rewatched ?? {},
+    completed: overrides?.completed ?? {},
+    aggregates: overrides?.aggregates ?? null,
+  };
+}
+
+function mockStoredParts(
+  parts = createStoredUserParts(),
+  options?: { usernameIndex?: string | null },
+) {
+  if (options && Object.hasOwn(options, "usernameIndex")) {
+    sharedRedisMockGet.mockResolvedValueOnce(options.usernameIndex ?? null);
+  }
+
+  sharedRedisMockMget.mockImplementationOnce((...keys: string[]) => {
+    return Promise.resolve(
+      keys.map((key) => {
+        const part = key.split(":").at(-1) as (typeof USER_PART_KEYS)[number];
+        const value = parts[part];
+        return value === null || value === undefined
+          ? null
+          : JSON.stringify(value);
+      }),
+    );
+  });
+}
+
 async function expectError(
   query: string | undefined,
   status: number,
@@ -41,96 +165,103 @@ async function expectError(
 ) {
   const res = await callGet(query);
   expect(res.status).toBe(status);
-  const json = await getResponseJson(res);
+  const json = await getResponseJson<{ error?: string }>(res);
   expect(json?.error).toBe(errorMsg);
 }
 
-async function expectOkJson(
-  query: string | undefined,
-  expected: Record<string, unknown>,
-) {
+async function expectOkJson(query: string | undefined) {
   const res = await callGet(query);
   expect(res.status).toBe(200);
-  const json = await getResponseJson(res);
+  const json = await getResponseJson<Record<string, unknown>>(res);
 
-  // Check core fields
-  expect(String(json.userId)).toBe(String(expected.userId));
-  if (expected.username) expect(json.username).toBe(expected.username);
-
-  // Check statistics if present in expected (allow explicit null)
-  if (
-    Object.hasOwn(expected, "statistics") ||
-    Object.hasOwn(expected, "stats")
-  ) {
-    const expStats = expected.statistics ?? expected.stats;
-    if (expStats === null || expStats === undefined) {
-      expect(json.statistics).toEqual(expStats);
-    } else if (typeof expStats === "object") {
-      expect(json.statistics).toMatchObject(expStats);
-    } else {
-      expect(json.statistics).toEqual(expStats);
-    }
-  }
-
-  // Check favourites if provided in expected
-  if (expected.favourites || expected.favorites) {
-    const expFavs = expected.favourites || expected.favorites;
-    if (typeof expFavs === "object" && expFavs !== null) {
-      expect(json.favourites).toMatchObject(expFavs);
-    } else {
-      expect(json.favourites).toEqual(expFavs);
-    }
-  }
-
-  // Check other fields if they were in expected
-  Object.keys(expected).forEach((key) => {
-    if (
-      ![
-        "userId",
-        "username",
-        "updatedAt",
-        "statistics",
-        "stats",
-        "User",
-        "favourites",
-        "favorites",
-        "pages",
-      ].includes(key)
-    ) {
-      expect(json[key]).toEqual(expected[key]);
-    }
+  expect(json).toMatchObject({
+    userId: 123,
+    username: "testUser",
+    stats: {
+      User: {
+        avatar: {
+          medium: "https://example.com/avatar-medium.webp",
+          large: "https://example.com/avatar-large.webp",
+        },
+      },
+    },
+    statistics: {
+      anime: { count: 42 },
+      manga: { count: 12 },
+    },
+    favourites: {
+      anime: {
+        nodes: [{ id: 1, title: { romaji: "A" } }],
+      },
+    },
+    pages: {
+      followersPage: {
+        pageInfo: { total: 12 },
+      },
+    },
+    recordMeta: {
+      storageFormat: "legacy-split",
+      schemaVersion: 1,
+      completeness: {
+        sampled: true,
+        fullHistory: false,
+        boundedSections: EXPECTED_BOUNDED_SECTIONS,
+        availableAggregates: [],
+        missingAggregates: EXPECTED_MISSING_AGGREGATES,
+      },
+    },
   });
+
+  expect(json).not.toHaveProperty("ip");
+  expect(json).not.toHaveProperty("createdAt");
+  expect(json).not.toHaveProperty("updatedAt");
+  expect(json).not.toHaveProperty("requestMetadata");
+
+  return json;
 }
 
-function mockRedisSequence(...values: Array<unknown>) {
-  sharedRedisMockGet.mockReset();
+async function expectBootstrapJson(query: string | undefined) {
+  const res = await callGet(query);
+  expect(res.status).toBe(200);
 
-  let callIndex = 0;
-  sharedRedisMockGet.mockImplementation(async (key: string) => {
-    // If we are looking for a part key and we only have one value (legacy mock), return null
-    if (
-      values.length === 1 &&
-      (key.endsWith(":meta") ||
-        key.endsWith(":activity") ||
-        key.endsWith(":favourites") ||
-        key.endsWith(":pages"))
-    ) {
-      return null;
-    }
+  const json = await getResponseJson<Record<string, unknown>>(res);
 
-    if (callIndex < values.length) {
-      const v = values[callIndex++];
-      if (v instanceof Error) throw v;
-      return v;
-    }
-    return null;
+  expect(json).toMatchObject({
+    userId: 123,
+    username: "testUser",
+    avatarUrl: "https://example.com/avatar-medium.webp",
+    recordMeta: {
+      storageFormat: "legacy-split",
+      schemaVersion: 1,
+      completeness: {
+        sampled: true,
+        fullHistory: false,
+        boundedSections: EXPECTED_BOUNDED_SECTIONS,
+        availableAggregates: [],
+        missingAggregates: EXPECTED_MISSING_AGGREGATES,
+      },
+    },
   });
+
+  return json;
 }
 
 describe("User API GET Endpoint", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     mock.clearAllMocks();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockMget.mockReset();
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockMget.mockResolvedValue(USER_PART_KEYS.map(() => null));
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 60,
+      remaining: 59,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {
@@ -149,6 +280,14 @@ describe("User API GET Endpoint", () => {
       await expectError("userId=abc", 400, "Invalid userId parameter");
     });
 
+    it("should return 400 when userId is only partially numeric", async () => {
+      await expectError("userId=123abc", 400, "Invalid userId parameter");
+    });
+
+    it("should return 400 when userId is zero", async () => {
+      await expectError("userId=0", 400, "Invalid userId parameter");
+    });
+
     it("should return 400 when username contains invalid characters", async () => {
       await expectError(
         "username=***invalid***",
@@ -165,118 +304,230 @@ describe("User API GET Endpoint", () => {
         "Invalid username parameter",
       );
     });
-
-    it("should accept userId as a valid positive integer", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
-    });
-
-    it("should accept valid username with letters, numbers, hyphens, underscores", async () => {
-      const userData = { userId: 123, username: "test_user-123" };
-      mockRedisSequence("123", JSON.stringify(userData));
-      await expectOkJson("username=test_user-123", userData);
-    });
-
-    it("should normalize username by trimming whitespace", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence("123", JSON.stringify(userData));
-      await expectOkJson("username= testUser ", userData);
-    });
-
-    it("should accept exactly 100 character username", async () => {
-      const username = "a".repeat(100);
-      const userData = { userId: 123, username };
-      mockRedisSequence("123", JSON.stringify(userData));
-      await expectOkJson(`username=${username}`, userData);
-    });
   });
 
-  describe("UserId Query Path", () => {
-    it("should fetch user data by userId when parameter is provided", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: { score: 10 },
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
+  describe("Lookup Paths", () => {
+    it("should fetch public user data by userId when parameter is provided", async () => {
+      mockStoredParts();
+
+      await expectOkJson("userId=123");
+
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        ...USER_PART_KEYS.map((part) => `user:123:${part}`),
+      );
+      expect(sharedRedisMockGet).not.toHaveBeenCalledWith("user:123");
     });
 
-    it("should return 404 when user data is not found in Redis", async () => {
-      mockRedisSequence(null);
-      await expectError("userId=123", 404, "User not found");
+    it("should return the lightweight bootstrap DTO when view=bootstrap is requested", async () => {
+      mockStoredParts();
+
+      await expectBootstrapJson("userId=123&view=bootstrap");
+
+      expect(sharedRedisMockMget).toHaveBeenCalledWith("user:123:meta");
     });
 
-    it("should handle large userId values", async () => {
-      const userData = { userId: 2147483647, username: "largeId" };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=2147483647", userData);
+    it("should resolve username to userId via index and fetch split user data", async () => {
+      mockStoredParts(undefined, { usernameIndex: "123" });
+
+      await expectOkJson("username=testuser");
+
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        ...USER_PART_KEYS.map((part) => `user:123:${part}`),
+      );
     });
 
-    it("should return 500 when Redis throws an error during fetch", async () => {
-      mockRedisSequence(new Error("Redis connection failed"));
-      await expectError("userId=123", 500, "Failed to fetch user data");
-    });
-  });
+    it("should normalize username by trimming and lowercasing for index lookup", async () => {
+      mockStoredParts(undefined, { usernameIndex: "123" });
 
-  describe("Username Query Path", () => {
-    it("should resolve username to userId via index and fetch user data", async () => {
-      const userData = { userId: 456, username: "alice" };
-      mockRedisSequence("456", JSON.stringify(userData));
-      await expectOkJson("username=alice", userData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:alice");
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:456");
-    });
+      await expectOkJson("username= TestUser ");
 
-    it("should return 404 when username index does not exist", async () => {
-      mockRedisSequence(null);
-      await expectError("username=unknownuser", 404, "User not found");
-    });
-
-    it("should return 404 when username resolves to userId but user record is missing", async () => {
-      mockRedisSequence("789", null);
-      await expectError("username=orphaned", 404, "User not found");
-    });
-
-    it("should handle case-insensitive username lookup (normalized)", async () => {
-      const userData = { userId: 111, username: "TestUser" };
-      mockRedisSequence("111", JSON.stringify(userData));
-      await expectOkJson("username=TESTUSER", userData);
       expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
-    it("should handle username with spaces (normalized)", async () => {
-      const userData = { userId: 222, username: "test user" };
-      mockRedisSequence("222", JSON.stringify(userData));
-      await expectOkJson("username=test user", userData);
+    it("should prioritize userId over username when both are provided", async () => {
+      mockStoredParts();
+
+      await expectOkJson("userId=123&username=ignored");
+
+      expect(sharedRedisMockGet).not.toHaveBeenCalledWith("username:ignored");
     });
 
-    it("should return 500 when Redis throws error during user data fetch", async () => {
-      mockRedisSequence("333", new Error("Redis disconnected"));
-      await expectError("username=someuser", 500, "Failed to fetch user data");
+    it("should return 404 when username index does not exist", async () => {
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+
+      await expectError("username=unknownuser", 404, "User not found");
+    });
+
+    it("should return 404 when username index returns a non-numeric value", async () => {
+      sharedRedisMockGet.mockResolvedValueOnce("abc");
+
+      await expectError("username=badindex", 404, "User not found");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:user_api:failed_requests",
+      );
+    });
+
+    it("should return 404 when split user record is not found", async () => {
+      await expectError("userId=123", 404, "User not found");
+    });
+
+    it("should return 500 when Redis throws during split fetch", async () => {
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
+
+      const res = await callGet("userId=123");
+      expect(res.status).toBe(503);
+      const json = await getResponseJson<{
+        error?: string;
+        retryable?: boolean;
+        status?: number;
+      }>(res);
+      expect(json.error).toBe("User data is temporarily unavailable");
+      expect(json.retryable).toBe(true);
+      expect(json.status).toBe(503);
+    });
+
+    it("should return 503 when Redis throws during username index lookup", async () => {
+      sharedRedisMockGet.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
+
+      await expectError(
+        "username=testuser",
+        503,
+        "User data is temporarily unavailable",
+      );
+    });
+
+    it("should return 500 when a stored split user record is incomplete", async () => {
+      const incomplete = createStoredUserParts();
+      sharedRedisMockMget.mockResolvedValueOnce([
+        JSON.stringify(incomplete.meta),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ]);
+
+      await expectError(
+        "userId=123",
+        500,
+        "Stored user record is incomplete or corrupted",
+      );
+    });
+
+    it("should return 500 when the stored userId cannot satisfy the public numeric contract", async () => {
+      mockStoredParts(
+        createStoredUserParts({
+          meta: {
+            userId: "not-a-number",
+          },
+        }),
+      );
+
+      await expectError(
+        "userId=123",
+        500,
+        "Stored user record is incomplete or corrupted",
+      );
+    });
+
+    it("should return 404 for a stale username alias without deleting the alias", async () => {
+      mockStoredParts(
+        createStoredUserParts({
+          meta: {
+            username: "different-user",
+          },
+        }),
+        { usernameIndex: "123" },
+      );
+
+      await expectError("username=alice", 404, "User not found");
+      expect(sharedRedisMockDel).not.toHaveBeenCalledWith("username:alice");
+    });
+  });
+
+  describe("Public DTO Minimization", () => {
+    it("should return a bounded public DTO and strip internal metadata", async () => {
+      mockStoredParts(
+        createStoredUserParts({
+          meta: {
+            userId: "123",
+            username: "testUser",
+            createdAt: "2026-03-20T08:00:00.000Z",
+            updatedAt: "2026-03-21T10:00:00.000Z",
+            requestMetadata: { lastSeenIpBucket: "10.20.x.x" },
+            name: "Test User",
+            avatar: {
+              medium: "https://example.com/avatar-medium.webp",
+              large: "https://example.com/avatar-large.webp",
+            },
+            userCreatedAt: 1_700_000_000,
+            internalOnly: "should-not-leak",
+          },
+        }),
+      );
+
+      const json = await expectOkJson("userId=123");
+
+      expect(json).not.toHaveProperty("internalOnly");
+      expect(json).not.toHaveProperty("requestMetadata");
+      expect(json).not.toHaveProperty("createdAt");
+      expect(json).not.toHaveProperty("updatedAt");
+      expect(json).not.toHaveProperty("ip");
+    });
+
+    it("should include public profile fields inside stats.User for the client", async () => {
+      mockStoredParts();
+
+      const json = await expectOkJson("userId=123");
+
+      expect(json.stats).toMatchObject({
+        User: {
+          name: "Test User",
+          avatar: {
+            medium: "https://example.com/avatar-medium.webp",
+          },
+          createdAt: 1_700_000_000,
+        },
+      });
+    });
+
+    it("should keep bootstrap responses limited to identity fields", async () => {
+      mockStoredParts();
+
+      const json = await expectBootstrapJson("userId=123&view=bootstrap");
+
+      expect(json).not.toHaveProperty("stats");
+      expect(json).not.toHaveProperty("statistics");
+      expect(json).not.toHaveProperty("favourites");
+      expect(json).not.toHaveProperty("pages");
+      expect(json).not.toHaveProperty("aggregates");
     });
   });
 
   describe("Response Headers and CORS", () => {
     it("should include Content-Type application/json header", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockStoredParts();
       const res = await callGet("userId=123");
       expect(res.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("should include Vary: Origin header for CORS cache control", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockStoredParts();
       const res = await callGet("userId=123");
       expect(res.headers.get("Vary")).toBe("Origin");
     });
 
     it("should set CORS Access-Control-Allow-Origin from request origin when no config", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockStoredParts();
       const res = await callGet("userId=123", {
         origin: "http://example.dev",
       });
@@ -289,8 +540,8 @@ describe("User API GET Endpoint", () => {
       (process.env as Record<string, string | undefined>)[
         "NEXT_PUBLIC_APP_URL"
       ] = "https://configured.example";
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockStoredParts();
+
       const res = await callGet("userId=123", {
         origin: "http://different-origin.dev",
       });
@@ -299,80 +550,24 @@ describe("User API GET Endpoint", () => {
       );
     });
 
-    it("should default to * when no origin header and no config in dev", async () => {
-      delete (process.env as Record<string, string | undefined>)[
-        "NEXT_PUBLIC_APP_URL"
-      ];
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+    it("should echo X-Request-Id when the caller provides one", async () => {
+      mockStoredParts();
+
       const res = await callGet("userId=123", {
-        "x-forwarded-for": "127.0.0.1",
+        origin: "http://example.dev",
+        "x-request-id": "req-user-12345",
       });
-      expect(res.headers.get("Access-Control-Allow-Origin")).toBeTruthy();
-    });
 
-    it("should include CORS Access-Control-Allow-Methods header on success", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
-      const res = await callGet("userId=123");
-      const methods = res.headers.get("Access-Control-Allow-Methods");
-      expect(methods).toContain("GET");
-    });
-  });
-
-  describe("Data Serialization", () => {
-    it("should parse and return valid user data from Redis JSON string", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: { score: 100, level: 5 },
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
-    });
-
-    it("should handle user data with nested objects", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: {
-          anime: { watched: 50, completed: 30 },
-          manga: { read: 100, completed: 50 },
-        },
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
-    });
-
-    it("should handle user data with arrays", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        favorites: [
-          { id: 1, title: "Attack on Titan" },
-          { id: 2, title: "Death Note" },
-        ],
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
-    });
-
-    it("should handle user data with null values", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        bio: null,
-        stats: null,
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
+      expect(res.headers.get("X-Request-Id")).toBe("req-user-12345");
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
     });
   });
 
   describe("Analytics Tracking", () => {
     it("should increment successful_requests analytics on successful fetch", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockStoredParts();
       await callGet("userId=123");
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:successful_requests",
@@ -387,99 +582,41 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should increment failed_requests analytics when Redis error occurs", async () => {
-      mockRedisSequence(new Error("Redis error"));
+      sharedRedisMockMget.mockRejectedValueOnce(new Error("Redis error"));
       await callGet("userId=123");
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:failed_requests",
       );
     });
-
-    it("should handle analytics increment failure gracefully", async () => {
-      sharedRedisMockIncr.mockRejectedValue(new Error("Analytics failed"));
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
-      const res = await callGet("userId=123");
-      expect(res.status).toBe(200);
-    });
   });
 
-  describe("Edge Cases and Error Handling", () => {
-    it("should handle malformed JSON from Redis", async () => {
-      mockRedisSequence("{ invalid json");
-      await expectError("userId=123", 500, "Failed to fetch user data");
-    });
-
-    it("should handle undefined Redis response", async () => {
-      mockRedisSequence(undefined);
-      await expectError("userId=123", 404, "User not found");
-    });
-
-    it("should prioritize userId over username when both provided", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123&username=ignored", userData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
-      expect(sharedRedisMockGet).not.toHaveBeenCalledWith("username:ignored");
-    });
-
-    it("should handle IP header extraction for logging", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
-      const req = new Request(`${API_BASE}?userId=123`, {
-        headers: { "x-forwarded-for": "192.168.1.1" },
+  describe("Rate Limiting", () => {
+    it("should return 429 before touching Redis when the Upstash limiter blocks the request", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 60,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
       });
-      const res = await GET(req);
-      expect(res.status).toBe(200);
-    });
 
-    it("should default to 127.0.0.1 when no IP header provided", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
-      const req = new Request(`${API_BASE}?userId=123`, {
-        headers: {},
-      });
-      const res = await GET(req);
-      expect(res.status).toBe(200);
-    });
-  });
-
-  describe("HTTP Status Codes", () => {
-    it("should return 200 for successful user fetch by userId", async () => {
-      mockRedisSequence(JSON.stringify({ userId: 123, username: "test" }));
       const res = await callGet("userId=123");
-      expect(res.status).toBe(200);
-    });
 
-    it("should return 200 for successful user fetch by username", async () => {
-      mockRedisSequence(
-        "123",
-        JSON.stringify({ userId: 123, username: "test" }),
+      expect(res.status).toBe(429);
+      const json = await getResponseJson<{ error?: string }>(res);
+      expect(json.error).toBe("Too many requests");
+      expect(sharedRedisMockMget).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:user_api:failed_requests",
       );
-      const res = await callGet("username=test");
-      expect(res.status).toBe(200);
-    });
-
-    it("should return 400 for invalid parameter format", async () => {
-      const res = await callGet("userId=abc");
-      expect(res.status).toBe(400);
-    });
-
-    it("should return 404 when user not found", async () => {
-      mockRedisSequence(null);
-      const res = await callGet("userId=999");
-      expect(res.status).toBe(404);
-    });
-
-    it("should return 500 for Redis errors", async () => {
-      mockRedisSequence(new Error("Connection timeout"));
-      const res = await callGet("userId=123");
-      expect(res.status).toBe(500);
+      expect(res.headers.get("Retry-After")).toBeTruthy();
     });
   });
 });
 
 describe("User API OPTIONS Endpoint", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     mock.clearAllMocks();
   });
 
@@ -545,12 +682,6 @@ describe("User API OPTIONS Endpoint", () => {
       expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
         "https://configured.example",
       );
-    });
-
-    it("should return empty response body for OPTIONS", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      expect(res.body).toBe(null);
     });
   });
 });

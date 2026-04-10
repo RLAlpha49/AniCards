@@ -1,232 +1,507 @@
+# Hand-maintained public API contract. Update this file in the same PR as any
+# public route, request/response, header, alias, or privacy-surface change.
+# Validate it against the current route behavior and relevant tests.
 openapi: "3.2.0"
 jsonSchemaDialect: "https://spec.openapis.org/oas/3.1/dialect/base"
 info:
   title: "AniCards Public API"
   version: "1.0.0"
-  description: "OpenAPI 3.2.0 specification for AniCards public API endpoints exposed under /api/*."
+  description: >-
+    Hand-maintained OpenAPI 3.2.0 specification for the live AniCards Next.js
+    route handlers, validated against the current codebase behavior and tests.
+    Storage-related routes persist AniList-derived user snapshots and card
+    editor configuration in Upstash Redis; the repository's current privacy
+    posture, telemetry consent model, and retention caveats are documented in
+    `docs/PRIVACY.md`.
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
   contact:
     name: "Alpha49 (AniCards)"
-    url: "https://anicards.alpha49.com"
-    email: "support@alpha49.com"
+    url: "https://api.anicards.alpha49.com"
+    email: "contact@alpha49.com"
 servers:
-  - url: "http://localhost:3000"
-    description: "Local development server (default)"
-  - url: "https://anicards.alpha49.com"
-    description: "Production API"
+  - url: "https://api.anicards.alpha49.com"
+    description: "Production public API host"
+security: []
 tags:
   - name: "anilist"
-    description: "Proxy to AniList GraphQL"
+    description: "Proxy access to AniList GraphQL"
   - name: "card"
-    description: "Card SVG rendering and export"
+    description: "SVG card endpoints, aliases, and legacy compatibility notices"
   - name: "cards"
     description: "Stored card configuration retrieval"
   - name: "convert"
-    description: "Convert remote SVG resources into raster images"
+    description: "SVG-to-raster conversion"
   - name: "cron"
-    description: "Background cron endpoints: statistics refresh, analytics reporting, validation, uptime monitor"
+    description: "Background refresh and analytics jobs"
   - name: "store"
-    description: "Store cards and users via POST endpoints"
+    description: "Storage endpoints for users and card configurations"
+  - name: "telemetry"
+    description: "Structured client error-report ingestion"
   - name: "user"
-    description: "Retrieve user data by ID or username"
+    description: "Stored user lookup by ID or username"
 paths:
   /api/anilist:
     post:
-      summary: "Proxy AniList GraphQL request"
+      operationId: "proxyAniList"
       tags:
         - "anilist"
+      summary: "Proxy approved AniList GraphQL operations"
+      description: >-
+        Accepts only the built-in AniCards AniList operations `GetUserId` and
+        `GetUserStats`, forwards the canonical server-side GraphQL document for
+        the selected operation, and returns the upstream `data` payload
+        unwrapped. Supplying `operation` is the preferred contract. Deprecated
+        query-text compatibility remains available only for the server-approved
+        documents and rejects arbitrary custom GraphQL operations with `400`.
+        In production this route also enforces verified-client-IP,
+        request-proof, same-origin, and shared rate-limit guards.
+      parameters:
+        - in: header
+          name: X-Test-Status
+          required: false
+          schema:
+            type: string
+            enum:
+              - "429"
+              - "500"
+          description: >-
+            Development-only header used by the route tests to simulate 429 and
+            500 responses.
       requestBody:
-        description: "GraphQL POST payload to forward to AniList. Provide a GraphQL query string and optional variables object."
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GraphQLRequest"
+              $ref: "#/components/schemas/AniListRequest"
             examples:
-              sampleQuery:
+              getUserIdByOperation:
                 value:
-                  query: "query GetUserStats($userId: Int!) {\n  User(id: $userId) {\n    id\n    name\n  }\n}"
-                  variables: { userId: 1234 }
+                  operation: "GetUserId"
+                  variables:
+                    userName: "sampleuser"
+              getUserStatsByOperation:
+                value:
+                  operation: "GetUserStats"
+                  variables:
+                    userId: 12345
+              getUserIdByCompatibilityQuery:
+                value:
+                  query: |-
+                    query GetUserId($userName: String) {
+                      User(name: $userName) {
+                        id
+                      }
+                    }
+                  variables:
+                    userName: "sampleuser"
       responses:
         "200":
-          description: "AniList GraphQL data object forwarded back to the client. The structure depends on the query"
+          description: >-
+            Unwrapped AniList GraphQL `data` payload for the approved
+            `GetUserId` or `GetUserStats` operation.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphQLSuccess"
+                $ref: "#/components/schemas/GraphQLData"
               examples:
-                sampleData:
+                getUserId:
                   value:
                     User:
-                      id: 1234
+                      id: 12345
+                getUserStats:
+                  value:
+                    User:
+                      id: 12345
                       name: "sampleuser"
+        "400":
+          description: >-
+            Malformed JSON body, unsupported operation/query document, invalid
+            AniList identifier, or a propagated AniList `400` response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                unsupportedOperation:
+                  value:
+                    error: "Unsupported AniList operation"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserName:
+                  value:
+                    error: "Invalid AniList username"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserId:
+                  value:
+                    error: "Invalid AniList userId"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                upstreamRejected:
+                  value:
+                    error: "HTTP error! status: 400 - Invalid query"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
         "429":
-          description: "Rate-limited (this can be simulated in development by X-Test-Status header)."
+          description: "Local or upstream rate limit exceeded"
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/RateLimitLimit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/RateLimitRemaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/RateLimitReset"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                rateLimited:
-                  value: { error: "Rate limited (test simulation)" }
+                simulated:
+                  value:
+                    error: "Rate limited (test simulation)"
+                    category: "rate_limited"
+                    retryable: true
+                    status: 429
+                    recoverySuggestions: []
+                upstream:
+                  value:
+                    error: "HTTP error! status: 429 - Too Many Requests (Retry-After: 60)"
+                    category: "rate_limited"
+                    retryable: true
+                    status: 429
+                    recoverySuggestions: []
         "500":
-          description: "Internal server error or upstream AniList error"
+          description: >-
+            AniList returned a GraphQL error payload or the route hit an
+            internal/server-side failure.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                serverError:
-                  value: { error: "Internal server error (test simulation)" }
-      parameters:
-        - in: header
-          name: "X-Test-Status"
-          schema:
-            type: string
-          description: "Development-only header to simulate HTTP status codes (429/500)."
+                simulated:
+                  value:
+                    error: "Internal server error (test simulation)"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+                graphQlError:
+                  value:
+                    error: "User not found"
+                upstream:
+                  value:
+                    error: "HTTP error! status: 500 - Internal Server Error"
+        "502":
+          description: "AniList transport failure before any upstream response was received"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                transportFailure:
+                  value:
+                    error: "AniList GraphQL request failed: Network error"
+                    category: "server_error"
+                    retryable: true
+                    status: 502
+                    recoverySuggestions: []
+        "503":
+          description: >-
+            Missing server-side request-guard configuration, unverifiable
+            client IP, or an open AniList upstream circuit breaker.
+          headers:
+            Retry-After:
+              $ref: "#/components/headers/RetryAfter"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                missingAppOrigin:
+                  value:
+                    error: "Server misconfigured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                missingRequestProofSecret:
+                  value:
+                    error: "API_SECRET_TOKEN is not configured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                unverifiedClientIp:
+                  value:
+                    error: "Client IP could not be verified"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                circuitOpen:
+                  value:
+                    error: "AniList GraphQL circuit breaker is open (Retry-After: 30)"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+        "504":
+          description: "Timed out while waiting for AniList to respond"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                timeout:
+                  value:
+                    error: "AniList GraphQL request timed out after 5000ms"
+                    category: "timeout"
+                    retryable: true
+                    status: 504
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightAniList"
+      tags:
+        - "anilist"
+      summary: "CORS preflight for AniList proxy requests"
+      description: >-
+        Returns the CORS headers required for browser clients to POST approved
+        AniList operations to this endpoint.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
+
   /api/card:
     get:
-      summary: "Render a single card as an SVG image"
+      operationId: "renderCardSvg"
       tags:
         - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Canonical Next.js route handler for AniCards SVG generation. At least one
+        of `userId` or `username` must be supplied. The legacy `userName`
+        alias remains accepted for backward compatibility. Public aliases also
+        exist at `/card.svg` and `/api/card.svg`.
       parameters:
-        - in: query
-          name: userId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: "AniList numeric user ID to render the card for."
-        - in: query
-          name: cardType
-          required: true
-          schema:
-            type: string
-            description: "Base card type; may optionally include a suffix variant separated with a hyphen. Example: 'animeStats' or 'animeStats-vertical'"
-            enum:
-              [
-                "animeStats",
-                "socialStats",
-                "mangaStats",
-                "animeGenres",
-                "animeTags",
-                "animeVoiceActors",
-                "animeStudios",
-                "animeStaff",
-                "mangaGenres",
-                "mangaTags",
-                "mangaStaff",
-                "animeStatusDistribution",
-                "mangaStatusDistribution",
-                "animeFormatDistribution",
-                "mangaFormatDistribution",
-                "animeScoreDistribution",
-                "mangaScoreDistribution",
-                "animeYearDistribution",
-                "mangaYearDistribution",
-                "animeCountry",
-                "mangaCountry",
-              ]
-        - in: query
-          name: variation
-          required: false
-          schema:
-            type: string
-            enum:
-              [
-                "default",
-                "vertical",
-                "pie",
-                "donut",
-                "radar",
-                "compact",
-                "minimal",
-                "badges",
-                "bar",
-                "horizontal",
-                "cumulative",
-                "anime",
-                "manga",
-                "characters",
-                "mixed",
-                "github",
-                "fire",
-                "combined",
-                "split",
-              ]
-          description: "Optional rendering variation; also settable inside stored card configuration."
-        - in: query
-          name: showFavorites
-          required: false
-          schema:
-            type: boolean
-          description: "When true, displays favorites hearts inside the card visual."
-        - in: query
-          name: statusColors
-          required: false
-          schema:
-            type: boolean
-          description: "When true, uses fixed status colors for status-distribution cards."
-        - in: query
-          name: piePercentages
-          required: false
-          schema:
-            type: boolean
-          description: "When true and rendering a pie variant, shows percentage labels on the pie slices."
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
       responses:
         "200":
-          description: "SVG image payload representing the requested card. Returns image/svg+xml content type."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-                description: "Raw SVG document in text form"
-              examples:
-                basicSvg:
-                  value: '<?xml version="1.0" encoding="UTF-8"?><svg width="400" height="100"><rect width="100%" height="100%" fill="#2b2b2b"/><text x="50%" y="50%" fill="#e2e8f0" text-anchor="middle" dominant-baseline="central">Sample AniCards SVG</text></svg>'
+          $ref: "#/components/responses/CardSvgOk"
         "400":
-          description: "Client error (missing/invalid parameters). The response is an error SVG with an error message inside."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-              examples:
-                missingParam:
-                  value: '<?xml version="1.0"?><svg><text>Client Error: Missing parameter: userId</text></svg>'
+          $ref: "#/components/responses/CardSvgBadRequest"
         "404":
-          description: "User or stored card not found; returns an SVG with not found message (404)."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-              examples:
-                notFound:
-                  value: '<?xml version="1.0"?><svg><text>Not Found: Missing card configuration or stats data</text></svg>'
+          $ref: "#/components/responses/CardSvgNotFound"
         "429":
-          description: "Rate-limited (returned as an SVG)"
-          content:
-            image/svg+xml:
-              schema: { type: string, format: binary }
-              examples:
-                rateLimit:
-                  value: '<?xml version="1.0"?><svg><text>Client Error: Too many requests - try again later</text></svg>'
+          $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
         "500":
-          description: "Server error while generating the SVG. Returns an error SVG text."
+          $ref: "#/components/responses/CardSvgInternalError"
+    options:
+      operationId: "preflightCardSvg"
+      tags:
+        - "card"
+      summary: "CORS preflight for SVG card rendering"
+      description: >-
+        Returns the embed CORS headers required for browser and third-party
+        clients to fetch card SVGs from the canonical `/api/card` endpoint.
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgPreflight"
+
+  /card.svg:
+    get:
+      operationId: "renderCardSvgAlias"
+      tags:
+        - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Public pretty-URL alias for `/api/card`. Query parameters and responses
+        are identical to the canonical handler.
+      parameters:
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgOk"
+        "400":
+          $ref: "#/components/responses/CardSvgBadRequest"
+        "404":
+          $ref: "#/components/responses/CardSvgNotFound"
+        "429":
+          $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/CardSvgInternalError"
+
+  /api/card.svg:
+    get:
+      operationId: "renderCardSvgCompatibilityAlias"
+      tags:
+        - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Compatibility alias for `/api/card`. Query parameters and responses are
+        identical to the canonical handler.
+      parameters:
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgOk"
+        "400":
+          $ref: "#/components/responses/CardSvgBadRequest"
+        "404":
+          $ref: "#/components/responses/CardSvgNotFound"
+        "429":
+          $ref: "#/components/responses/CardSvgRateLimited"
+        "503":
+          $ref: "#/components/responses/CardSvgServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/CardSvgInternalError"
+
+  /StatCards/{username}/{key}.svg:
+    get:
+      operationId: "renderLegacyStatCardsNotice"
+      tags:
+        - "card"
+      summary: "Serve the legacy StatCards compatibility notice"
+      description: >-
+        Legacy compatibility endpoint kept alive for older StatCards embed
+        URLs. The `username` and `key` path segments are preserved only so
+        historical links continue to resolve; the handler ignores both values
+        and returns the same cacheable static SVG notice for every request.
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: >-
+            Historical AniList username segment preserved for backward
+            compatibility only. It does not affect the response body.
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: >-
+            Historical StatCards key segment preserved for backward
+            compatibility only. It does not affect the response body.
+      responses:
+        "200":
+          description: "Cacheable static SVG migration notice"
+          headers:
+            Cache-Control:
+              description: "Browser cache policy for the notice SVG"
+              schema:
+                type: string
+              example: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+            CDN-Cache-Control:
+              description: "Shared-cache policy for CDN intermediaries"
+              schema:
+                type: string
+              example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+            Edge-Cache-Control:
+              description: "Edge-cache policy exposed by the route"
+              schema:
+                type: string
+              example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
           content:
             image/svg+xml:
               schema:
                 type: string
-                format: binary
               examples:
-                internalError:
-                  value: '<?xml version="1.0"?><svg><text>Server Error: An internal error occurred</text></svg>'
+                legacyNotice:
+                  summary: "Static migration prompt"
+                  value: >-
+                    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"><rect width="100%" height="100%" fill="#0b1622"/><text x="50%" y="25%" dominant-baseline="middle" text-anchor="middle" fill="#3cc8ff" font-size="30" font-family="Segoe UI">AniCards Updated!</text><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#E8E8E8" font-size="18" font-family="Segoe UI"><tspan x="50%" dy="0">Go to anicards.alpha49.com</tspan><tspan x="50%" dy="1.2em">to regenerate statcards.</tspan></text></svg>
+
   /api/get-cards:
     get:
-      summary: "Retrieve the stored card configuration for a user"
+      operationId: "getStoredCards"
       tags:
         - "cards"
+      summary: "Retrieve a stored cards record"
+      description: >-
+        Returns the persisted card configuration for a numeric AniList user ID.
+        Read responses preserve already-stored legacy unsupported `cardName`
+        values so older embeds remain visible until the next successful
+        `/api/store-cards` write.
       parameters:
         - in: query
           name: userId
@@ -234,214 +509,293 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: "Numeric AniList userId whose stored cards are fetched from Redis."
+          description: "Numeric AniList user ID"
       responses:
         "200":
-          description: "Cards record corresponding to the userId"
+          description: "Stored cards record"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CardsRecord"
               examples:
-                sampleRecord:
+                storedCards:
                   value:
                     userId: 12345
-                    updatedAt: "2025-01-01T12:00:00.000Z"
+                    updatedAt: "2026-03-21T10:15:00.000Z"
+                    globalSettings:
+                      colorPreset: "custom"
+                      titleColor: "#ffffff"
+                      backgroundColor: "#0f172a"
+                      textColor: "#e2e8f0"
+                      circleColor: "#22d3ee"
+                      borderEnabled: true
+                      borderColor: "#334155"
+                      borderRadius: 12
                     cards:
-                      - cardName: "animeOverview"
+                      - cardName: "animeStats"
                         variation: "default"
+                        useCustomSettings: true
                         titleColor: "#ffffff"
                         backgroundColor: "#0f172a"
-                        textColor: "#e5e7eb"
-                        circleColor: "#14b8a6"
-                        showFavorites: true
+                        textColor: "#e2e8f0"
+                        circleColor: "#22d3ee"
+                      - cardName: "mangaStats"
+                        disabled: true
+                      - cardName: "legacyUnsupportedCard"
+                        disabled: true
         "400":
-          description: "Missing or invalid userId parameter"
+          description: "Missing or invalid user ID"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                missingUserId:
-                  value: { error: "Missing user ID parameter" }
+                missing:
+                  value:
+                    error: "Missing user ID parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalid:
+                  value:
+                    error: "Invalid user ID format"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "404":
-          description: "No stored cards found for the user"
+          description: "No cards stored for that user"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
                 notFound:
-                  value: { error: "Cards not found" }
+                  value:
+                    error: "Cards not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
-          description: "Server error while reading Redis"
+          description: "Detected stored-record corruption"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-  /api/convert:
-    post:
-      summary: "Fetch a remote SVG, sanitize and convert it into a raster data URL"
+              examples:
+                corrupted:
+                  value:
+                    error: "Stored cards record is incomplete or corrupted"
+                    category: "server_error"
+                    retryable: false
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          description: "Card storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "Card data is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightGetStoredCards"
       tags:
-        - "convert"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ConvertRequest"
-            examples:
-              pngRequest:
-                value:
-                  { svgUrl: "https://example.com/image.svg", format: "png" }
-              webpRequest:
-                value:
-                  { svgUrl: "https://example.com/image.svg", format: "webp" }
+        - "cards"
+      summary: "CORS preflight for stored-card lookups"
+      description: >-
+        Returns the CORS headers required for browser clients to fetch stored
+        card configuration records.
       responses:
         "200":
-          description: "Returns a base64-encoded raster data URL for the requested raster format (png or webp)."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConvertResponse"
-              examples:
-                examplePngDataUrl:
-                  value:
-                    {
-                      pngDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
-                    }
-        "400":
-          description: "Bad request: missing svgUrl or invalid format or invalid URL"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                badRequest:
-                  value: { error: "Invalid format parameter" }
-        "403":
-          description: "Unauthorized domain or protocol for the requested svgUrl (SSRF protection)"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                forbidden:
-                  value: { error: "Unauthorized or unsafe domain/protocol" }
-        "500":
-          description: "Internal conversion error"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                conversionFailed:
-                  value: { error: "Conversion failed" }
-  /api/cron:
-    post:
-      summary: "Run the background cron job to process user stats (refresh AniList stats)."
+          $ref: "#/components/responses/JsonGetPreflight"
+
+  /api/get-user:
+    get:
+      operationId: "getStoredUser"
       tags:
-        - "cron"
+        - "user"
+      summary: "Retrieve a stored user record"
+      description: >-
+        Resolves a stored user by numeric `userId` or by normalized `username`.
+        When both are provided, `userId` wins. The public response intentionally
+        omits internal request metadata such as redacted IP buckets and record
+        timestamps.
       parameters:
-        - in: header
-          name: x-cron-secret
+        - in: query
+          name: userId
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: "Numeric AniList user ID"
+        - in: query
+          name: username
+          required: false
           schema:
             type: string
-          description: "Optional CRON secret header used to safeguard the endpoint; required when CRON_SECRET is set in the environment."
-      security:
-        - CronSecret: []
+            minLength: 1
+            maxLength: 100
+          description: >-
+            Username lookup key. The server trims and lowercases it before checking
+            the username index. Either `userId` or `username` must be supplied.
+        - in: query
+          name: view
+          required: false
+          schema:
+            type: string
+            enum:
+              - bootstrap
+          description: >-
+            Optional lightweight response mode used by the editor bootstrap flow.
+            When `view=bootstrap`, the response is reduced to identity fields only.
       responses:
         "200":
-          description: "Text summary describing number of users updated and failures"
-          content:
-            text/plain:
-              schema:
-                type: string
-              examples:
-                success:
-                  value: "Updated 5/10 users successfully. Failed: 2, Removed: 1"
-        "401":
-          description: "Unauthorized - invalid or missing cron secret header"
-          content:
-            text/plain:
-              schema:
-                type: string
-              examples:
-                unauthorized:
-                  value: "Unauthorized"
-        "500":
-          description: "Server error during cron processing"
-          content:
-            text/plain:
-              schema: { type: string }
-              examples:
-                failure:
-                  value: "Cron job failed"
-  /api/cron/analytics-reporting:
-    post:
-      summary: "Generate analytics report and persist it to Redis"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Analytics report object persisted and returned"
+          description: "Bounded public user record or lightweight bootstrap identity"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AnalyticsReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/data-validation:
-    post:
-      summary: "Validate stored Redis keys and create a data validation report"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Data validation report describing inconsistencies found"
+                oneOf:
+                  - $ref: "#/components/schemas/PublicUserRecord"
+                  - $ref: "#/components/schemas/UserBootstrapRecord"
+              examples:
+                user:
+                  value:
+                    userId: 12345
+                    username: "sampleuser"
+                    stats:
+                      User:
+                        name: "sampleuser"
+                    statistics:
+                      anime:
+                        count: 420
+                        episodesWatched: 5200
+                        meanScore: 82
+                      manga:
+                        count: 90
+                        chaptersRead: 1800
+                        meanScore: 79
+                    favourites:
+                      anime:
+                        nodes:
+                          - id: 1
+                            title:
+                              romaji: "Fullmetal Alchemist: Brotherhood"
+                    pages:
+                      followersPage:
+                        pageInfo:
+                          total: 12
+                        followers:
+                          - id: 999
+                bootstrap:
+                  value:
+                    userId: 12345
+                    username: "sampleuser"
+                    avatarUrl: "https://example.com/avatar-medium.webp"
+        "400":
+          description: "Missing or invalid lookup parameters"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DataValidationReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/uptime-monitor:
-    post:
-      summary: "Trigger a site uptime sweep for key routes and return the summary"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Summary of uptime checks for configured routes"
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                missing:
+                  value:
+                    error: "Missing userId or username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                badUserId:
+                  value:
+                    error: "Invalid userId parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                badUsername:
+                  value:
+                    error: "Invalid username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "404":
+          description: "No stored user matched the lookup"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UptimeMonitorReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                notFound:
+                  value:
+                    error: "User not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
-          $ref: "#/components/responses/InternalErrorPlain"
+          description: "Detected stored-record corruption"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                corrupted:
+                  value:
+                    error: "Stored user record is incomplete or corrupted"
+                    category: "server_error"
+                    retryable: false
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          description: "User storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "User data is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightGetStoredUser"
+      tags:
+        - "user"
+      summary: "CORS preflight for stored-user lookups"
+      description: >-
+        Returns the CORS headers required for browser clients to fetch stored
+        public user records.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonGetPreflight"
+
   /api/store-cards:
     post:
-      summary: "Store or update a user's card configuration in Redis"
+      operationId: "storeCards"
       tags:
         - "store"
+      summary: "Store or merge a user's card configuration"
+      description: >-
+        Stores card editor state in Redis using partial-update semantics. In
+        production this route also enforces same-origin validation and shared
+        rate limiting. The current repository does not expose a public self-serve
+        deletion or export endpoint for this stored server-side data. Reads may
+        still return legacy unsupported card IDs, but writes only accept current
+        `CardType` values and strip unsupported legacy entries from the merged
+        record before persisting.
       requestBody:
         required: true
         content:
@@ -449,45 +803,162 @@ paths:
             schema:
               $ref: "#/components/schemas/StoreCardsRequest"
             examples:
-              sampleStore:
+              saveCards:
                 value:
                   userId: 12345
-                  statsData: { User: { stats: {} } }
+                  statsData: {}
+                  cardOrder:
+                    - "animeStats"
+                    - "mangaStats"
+                    - "favoritesGrid"
+                  globalSettings:
+                    colorPreset: "custom"
+                    titleColor: "#ffffff"
+                    backgroundColor:
+                      type: "linear"
+                      angle: 90
+                      stops:
+                        - color: "#0f172a"
+                          offset: 0
+                        - color: "#1e293b"
+                          offset: 100
+                    textColor: "#e2e8f0"
+                    circleColor: "#22d3ee"
+                    borderEnabled: true
+                    borderColor: "#334155"
+                    borderRadius: 12
+                    gridCols: 3
+                    gridRows: 2
                   cards:
-                    - cardName: "animeOverview"
+                    - cardName: "animeStats"
                       variation: "default"
-                      titleColor: "#fff"
+                      useCustomSettings: true
+                      titleColor: "#ffffff"
                       backgroundColor: "#0f172a"
                       textColor: "#e2e8f0"
-                      circleColor: "#14b8a6"
+                      circleColor: "#22d3ee"
+                    - cardName: "favoritesGrid"
+                      variation: "mixed"
+                      useCustomSettings: true
+                      titleColor: "#ffffff"
+                      backgroundColor: "#0f172a"
+                      textColor: "#e2e8f0"
+                      circleColor: "#38bdf8"
+                      gridCols: 3
+                      gridRows: 2
       responses:
         "200":
-          description: "Success response when the card config was stored"
+          description: "Card configuration stored successfully"
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  userId:
-                    type: integer
+                $ref: "#/components/schemas/StoreCardsSuccess"
               examples:
                 stored:
-                  value: { success: true, userId: 12345 }
+                  value:
+                    success: true
+                    userId: 12345
+                    updatedAt: "2026-03-21T10:15:00.000Z"
         "400":
-          description: "Invalid data provided"
+          description: "Validation failure for the incoming payload"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserId:
+                  value:
+                    error: "Invalid userId"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidData:
+                  value:
+                    error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "409":
+          description: "Optimistic concurrency conflict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+              examples:
+                conflict:
+                  value:
+                    error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
+                    currentUpdatedAt: "2026-03-21T10:10:00.000Z"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "503":
+          description: "Card storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "Card storage is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
         "500":
-          $ref: "#/components/responses/InternalErrorJson"
-  /api/store-users:
-    post:
-      summary: "Store or update a user's AniList record in Redis"
+          description: "Unexpected storage failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Card storage failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightStoreCards"
       tags:
         - "store"
+      summary: "CORS preflight for card configuration writes"
+      description: >-
+        Returns the CORS headers required for browser clients to POST stored
+        card configuration updates.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
+
+  /api/store-users:
+    post:
+      operationId: "storeUser"
+      tags:
+        - "store"
+      summary: "Store or update a user's AniCards record"
+      description: >-
+        Persists a versioned split user record, atomically flips the active
+        commit pointer, maintains the normalized username alias and stale-user
+        refresh index, and optionally enforces optimistic concurrency via
+        `ifMatchUpdatedAt`. In production this route also enforces same-origin
+        validation and shared rate limiting. Public reads later return a bounded
+        DTO that excludes request metadata such as redacted IP buckets.
       requestBody:
         required: true
         content:
@@ -495,87 +966,1080 @@ paths:
             schema:
               $ref: "#/components/schemas/StoreUserRequest"
             examples:
-              sampleUser:
+              storeUser:
                 value:
                   userId: 12345
                   username: "sampleuser"
-                  stats: { User: {} }
+                  ifMatchUpdatedAt: "2026-03-21T10:15:00.000Z"
+                  stats:
+                    User:
+                      name: "sampleuser"
+                      stats:
+                        activityHistory: []
+                      favourites:
+                        anime:
+                          nodes: []
+                        manga:
+                          nodes: []
+                        characters:
+                          nodes: []
+                        staff:
+                          nodes: []
+                        studios:
+                          nodes: []
+                      statistics:
+                        anime:
+                          count: 420
+                          episodesWatched: 5200
+                          minutesWatched: 156000
+                          meanScore: 82
+                          standardDeviation: 12
+                          genres: []
+                          tags: []
+                          voiceActors: []
+                          studios: []
+                          staff: []
+                        manga:
+                          count: 90
+                          chaptersRead: 1800
+                          volumesRead: 260
+                          meanScore: 79
+                          standardDeviation: 9
+                          genres: []
+                          tags: []
+                          staff: []
+                    followersPage:
+                      pageInfo:
+                        total: 12
+                      followers: []
+                    followingPage:
+                      pageInfo:
+                        total: 8
+                      following: []
+                    threadsPage:
+                      pageInfo:
+                        total: 3
+                      threads: []
+                    threadCommentsPage:
+                      pageInfo:
+                        total: 7
+                      threadComments: []
+                    reviewsPage:
+                      pageInfo:
+                        total: 1
+                      reviews: []
       responses:
         "200":
-          description: "Success response when user was stored"
+          description: "User record stored successfully"
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  userId:
-                    type: integer
+                $ref: "#/components/schemas/StoreUserSuccess"
               examples:
                 stored:
-                  value: { success: true, userId: 12345 }
+                  value:
+                    success: true
+                    userId: 12345
+                    updatedAt: "2026-03-21T10:16:00.000Z"
         "400":
-          description: "Invalid user data"
+          description: "Validation failure for the incoming payload"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-  /api/get-user:
-    get:
-      summary: "Retrieve stored user data by numeric userId or username"
+              examples:
+                invalid:
+                  value:
+                    error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "409":
+          description: "Optimistic concurrency conflict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+              examples:
+                conflict:
+                  value:
+                    error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
+                    currentUpdatedAt: "2026-03-21T10:15:00.000Z"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "503":
+          description: "User storage temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "User storage is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+        "500":
+          description: "Unexpected storage failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "User storage failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightStoreUser"
       tags:
-        - "user"
+        - "store"
+      summary: "CORS preflight for user record writes"
+      description: >-
+        Returns the CORS headers required for browser clients to POST stored
+        user record updates.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
+
+  /api/error-reports:
+    post:
+      operationId: "reportClientError"
+      tags:
+        - "telemetry"
+      summary: "Record a structured client error report"
+      description: >-
+        Validates and durably records privacy-safe structured client error
+        reports before returning success. In production this route enforces
+        same-origin validation and a dedicated `3 requests / 10 s` limiter.
+        The server sanitizes the payload, ignores client-supplied `userId` and
+        `username`, and drops unsupported nested metadata values before
+        persistence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErrorReportRequest"
+            examples:
+              reactBoundary:
+                value:
+                  source: "react_error_boundary"
+                  userAction: "render_component_tree"
+                  message: "Failed to fetch user Alex profile"
+                  route: "/user/Alex?tab=cards"
+                  requestId: "req-error-route-12345"
+                  errorName: "TypeError"
+                  metadata:
+                    boundary: "client_error_boundary"
+                    tab: "cards"
+                    retried: false
+      responses:
+        "200":
+          description: "Structured error report durably recorded"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReportRecorded"
+              examples:
+                recorded:
+                  value:
+                    recorded: true
+        "400":
+          description: "Malformed JSON body or invalid required fields"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidPayload:
+                  value:
+                    error: "Invalid error report payload"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "500":
+          description: "Unexpected structured error ingestion failure before durable recording"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Failed to record error report"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          description: >-
+            Temporary availability failure or required security configuration
+            issue before durable recording
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                unavailable:
+                  value:
+                    error: "Structured error reporting is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+                misconfigured:
+                  value:
+                    error: "Server misconfigured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightErrorReports"
+      tags:
+        - "telemetry"
+      summary: "CORS preflight for structured error reporting"
+      description: >-
+        Returns the CORS headers required for browser clients to POST
+        structured error reports, including support for `X-Request-Id`.
+      responses:
+        "200":
+          $ref: "#/components/responses/ErrorReportsPreflight"
+
+  /api/convert:
+    post:
+      operationId: "convertSvg"
+      tags:
+        - "convert"
+      summary: "Fetch an allowed SVG and convert it to PNG or WebP"
+      description: >-
+        Accepts either an allow-listed `svgUrl` or inline `svgContent`,
+        sanitizes the markup, and converts it to a raster image. When both are
+        supplied, inline `svgContent` wins and no remote fetch occurs. JSON
+        responses return a format-agnostic data URL payload, while
+        `responseType: "binary"` or an omitted `responseType` streams the
+        converted image directly. SSRF protections reject unsafe protocols, IP
+        literals, redirects, and hosts outside the configured AniCards allow-list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertRequest"
+            examples:
+              png:
+                value:
+                  svgUrl: "/card.svg?userId=12345&cardType=animeStats"
+                  format: "png"
+                  responseType: "json"
+              webp:
+                value:
+                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
+                  format: "webp"
+                  responseType: "json"
+              inlineBinary:
+                value:
+                  svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
+                  format: "webp"
+                  responseType: "binary"
+              inlineWins:
+                value:
+                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=animeStats"
+                  svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#0f172a" /></svg>'
+                  format: "png"
+                  responseType: "json"
+      responses:
+        "200":
+          description: >-
+            Converted raster image as JSON when `responseType` is `json`, or
+            streamed binary when `responseType` is `binary` or omitted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConvertResponse"
+              examples:
+                png:
+                  value:
+                    format: "png"
+                    imageDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                webp:
+                  value:
+                    format: "webp"
+                    imageDataUrl: "data:image/webp;base64,UklGRlIAAABXRUJQVlA4..."
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: "Missing `svgUrl`, invalid URL, or invalid format"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                missingUrl:
+                  value:
+                    error: "Missing svgUrl or svgContent parameter"
+                invalidUrl:
+                  value:
+                    error: "Invalid URL format"
+                invalidFormat:
+                  value:
+                    error: "Invalid format parameter"
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "403":
+          description: "Blocked by the domain/protocol allow-list or by redirect protection"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                forbidden:
+                  value:
+                    error: "Unauthorized or unsafe domain/protocol"
+                redirectBlocked:
+                  value:
+                    error: "SVG redirects are not allowed"
+        "404":
+          description: "Allow-listed upstream SVG was not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                missingUpstream:
+                  value:
+                    error: "Failed to fetch SVG"
+        "413":
+          description: "SVG payload or rasterized output exceeded size limits"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                responseTooLarge:
+                  value:
+                    error: "SVG response too large"
+                rasterTooLarge:
+                  value:
+                    error: "SVG rasterization exceeds pixel limits"
+        "415":
+          description: "Fetched or inline content was not valid SVG markup"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidInline:
+                  value:
+                    error: "Provided content is not a valid SVG"
+                invalidFetched:
+                  value:
+                    error: "Fetched content is not a valid SVG"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "500":
+          description: "Unexpected rasterization or conversion failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                conversionFailure:
+                  value:
+                    error: "Conversion failed"
+        "502":
+          description: "Transient transport failure while fetching the upstream SVG"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamTransport:
+                  value:
+                    error: "Failed to fetch SVG"
+        "503":
+          description: "Allow-listed upstream SVG source was temporarily unavailable"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamUnavailable:
+                  value:
+                    error: "Failed to fetch SVG"
+        "504":
+          description: "Timed out while fetching the upstream SVG"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                upstreamTimeout:
+                  value:
+                    error: "SVG fetch timed out"
+    options:
+      operationId: "preflightConvertSvg"
+      tags:
+        - "convert"
+      summary: "CORS preflight for SVG conversion requests"
+      description: >-
+        Returns the CORS headers required for browser clients to POST SVG
+        conversion requests.
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonPostPreflight"
+
+  /api/cron:
+    post:
+      operationId: "runUserRefreshCron"
+      tags:
+        - "cron"
+      summary: "Refresh the stalest stored users from AniList"
+      description: >-
+        Operator-facing cron endpoint that refreshes the five stalest stored user
+        records from the maintained stale-user refresh index, tracks repeated
+        AniList 404 failures, and returns a plain-text repo-managed refresh
+        budget summary.
       parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
+      security:
+        - CronSecret: []
+        - CronBearer: []
+      responses:
+        "200":
+          description: "Plain-text execution summary"
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                success:
+                  value: |-
+                    Updated 5/5 users successfully. Failed: 0, Removed: 0
+
+                    Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).
+                    Refresh capacity budget: 5 users/run, 20 users/day.
+                    Current stored users: 18. Estimated full-sweep window: ~24 hours.
+                    Current footprint fits within the repo-managed 24-hour freshness budget.
+        "401":
+          $ref: "#/components/responses/CronUnauthorizedJson"
+        "500":
+          description: "Unexpected cron refresh failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Cron job failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
+
+  /api/cron/analytics-reporting:
+    get:
+      operationId: "listAnalyticsReports"
+      tags:
+        - "cron"
+      summary: "List recent persisted analytics reports"
+      description: >-
+        Returns recent stored analytics reports from the bounded
+        `analytics:reports` Redis list. Reports are returned newest first. The
+        `limit` query is capped by the server-side retention policy. The list
+        currently retains at most 50 generated reports.
+      parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
         - in: query
-          name: userId
+          name: limit
           required: false
           schema:
             type: integer
             minimum: 1
-          description: "numeric AniList user id (prefer for exact matching)"
-        - in: query
-          name: username
-          required: false
-          schema:
-            type: string
-          description: "username string; resolved against the username index to a numeric id. One of userId or username must be provided."
+            maximum: 50
+            default: 10
+          description: >-
+            Maximum number of recent reports to return. Values above the
+            retention cap are clamped to the configured maximum.
+      security:
+        - CronSecret: []
+        - CronBearer: []
       responses:
         "200":
-          description: "User record stored in Redis"
+          description: "Recent analytics reports, newest first"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserRecord"
+                $ref: "#/components/schemas/AnalyticsReportList"
+              examples:
+                reports:
+                  value:
+                    reports:
+                      - summary:
+                          visits: 250
+                        raw_data:
+                          analytics:visits: 250
+                        generatedAt: "2026-03-22T10:30:00.000Z"
+                      - summary:
+                          visits: 100
+                        raw_data:
+                          analytics:visits: 100
+                        generatedAt: "2026-03-21T10:30:00.000Z"
+                    count: 2
+                    retentionLimit: 50
         "400":
-          description: "Missing or invalid parameters"
+          description: "Invalid list query parameters"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-        "404":
-          description: "User not found"
+              examples:
+                invalidLimit:
+                  value:
+                    error: "Invalid limit parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/CronUnauthorizedJson"
+        "500":
+          description: "Unexpected analytics report read failure"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Failed to fetch analytics reports"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
+    post:
+      operationId: "generateAnalyticsReport"
+      tags:
+        - "cron"
+      summary: "Generate and persist an analytics report"
+      description: >-
+        Collects all `analytics:*` Redis keys except `analytics:reports`, groups
+        them into a nested summary object, appends the latest report to the
+        bounded `analytics:reports` Redis list, and returns it. Runtime analytics
+        collection in the web app is consent-gated; this endpoint only reads the
+        already-persisted aggregate counters and reports.
+      parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
+      security:
+        - CronSecret: []
+        - CronBearer: []
+      responses:
+        "200":
+          description: "Generated analytics report"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsReport"
+              examples:
+                report:
+                  value:
+                    summary:
+                      visits: 100
+                      anilist_api:
+                        successful_requests: 200
+                    raw_data:
+                      analytics:visits: 100
+                      analytics:anilist_api:successful_requests: 200
+                    generatedAt: "2026-03-21T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/CronUnauthorizedJson"
+        "500":
+          description: "Unexpected analytics job failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Analytics and reporting job failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          $ref: "#/components/responses/CronServiceUnavailableJson"
+
 components:
   securitySchemes:
     CronSecret:
       type: apiKey
       in: header
       name: x-cron-secret
-      description: "A cron-specific secret header that protects background endpoints. If unset, these endpoints accept unauthenticated calls."
+      description: >-
+        Shared cron secret header for operator-facing cron endpoints. Local and
+        manual callers can send `x-cron-secret`. Deployed environments fail
+        with `503` when `CRON_SECRET` is missing; unsecured cron is available
+        only through the explicit development override.
+    CronBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: "CRON_SECRET"
+      description: >-
+        Hosted schedulers such as Vercel may send `Authorization: Bearer
+        <CRON_SECRET>` instead of `x-cron-secret`.
+
   parameters:
-    x-cron-secret-header:
+    CronSecretHeader:
       in: header
       name: x-cron-secret
+      required: false
       schema:
         type: string
-      description: "Cron secret; required when CRON_SECRET environment variable is set."
+      description: >-
+        Cron secret used to protect operator-only endpoints. When the server is
+        missing `CRON_SECRET`, the route fails with `503` instead of allowing
+        unauthenticated access, except in the explicit development override.
+        Hosted schedulers may alternatively use `Authorization: Bearer
+        <CRON_SECRET>`.
+
+    CardUserId:
+      in: query
+      name: userId
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: >-
+        Numeric AniList user ID. Either `userId` or `username` is required.
+        When both are present, `userId` is used.
+
+    CardUsername:
+      in: query
+      name: username
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: >-
+        AniList username lookup key. The route resolves it through the stored
+        username index when `userId` is omitted.
+
+    CardUserNameDeprecated:
+      in: query
+      name: userName
+      required: false
+      deprecated: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: >-
+        Deprecated alias for `username`. Kept for backward compatibility with
+        older stat card links.
+
+    CardType:
+      in: query
+      name: cardType
+      required: true
+      schema:
+        $ref: "#/components/schemas/CardType"
+      description: "Card identifier to render"
+
+    CardVariation:
+      in: query
+      name: variation
+      required: false
+      schema:
+        $ref: "#/components/schemas/CardVariation"
+      description: >-
+        Optional card variation. Unsupported combinations fall back to the
+        card-type default on the server.
+
+    CardColorPreset:
+      in: query
+      name: colorPreset
+      required: false
+      schema:
+        type: string
+      description: >-
+        Named color preset such as `default`, `anilistDark`, or `custom`.
+        When `custom` is used with a stored card config, persisted per-color
+        values take precedence.
+
+    CardTitleColor:
+      in: query
+      name: titleColor
+      required: false
+      schema:
+        type: string
+      description: >-
+        Title color override. URL-encode `#` as `%23` when sending hex colors.
+
+    CardBackgroundColor:
+      in: query
+      name: backgroundColor
+      required: false
+      schema:
+        type: string
+      description: "Background color override"
+
+    CardTextColor:
+      in: query
+      name: textColor
+      required: false
+      schema:
+        type: string
+      description: "Body text color override"
+
+    CardCircleColor:
+      in: query
+      name: circleColor
+      required: false
+      schema:
+        type: string
+      description: "Accent circle color override"
+
+    CardBorderColor:
+      in: query
+      name: borderColor
+      required: false
+      schema:
+        type: string
+      description: "Border color override"
+
+    CardBorderRadius:
+      in: query
+      name: borderRadius
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100
+      description: >-
+        Border radius override in pixels. The route clamps values into the range
+        0-100.
+
+    CardShowFavorites:
+      in: query
+      name: showFavorites
+      required: false
+      schema:
+        type: boolean
+      description: >-
+        Enables favourite-marking visuals on the card types that support them.
+
+    CardStatusColors:
+      in: query
+      name: statusColors
+      required: false
+      schema:
+        type: boolean
+      description: "Use fixed status colors on status-distribution cards"
+
+    CardPiePercentages:
+      in: query
+      name: piePercentages
+      required: false
+      schema:
+        type: boolean
+      description: >-
+        Show percentage labels on pie and donut variants that support them.
+
+    CardGridCols:
+      in: query
+      name: gridCols
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+      description: "Favorites grid column count"
+
+    CardGridRows:
+      in: query
+      name: gridRows
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+      description: "Favorites grid row count"
+
+    CardCacheBust:
+      in: query
+      name: _t
+      required: false
+      schema:
+        type: string
+      description: "Opaque cache-busting value"
+
+  headers:
+    CardBorderRadius:
+      description: "Effective border radius used when rendering the SVG"
+      schema:
+        type: string
+    CardCacheSource:
+      description: "Potential cache source indicator exposed by the route"
+      schema:
+        type: string
+    RetryAfter:
+      description: "Seconds until the client should retry the request"
+      schema:
+        type: string
+    RateLimitLimit:
+      description: "Configured request limit for the current window"
+      schema:
+        type: string
+    RateLimitRemaining:
+      description: "Remaining requests in the current rate-limit window"
+      schema:
+        type: string
+    RateLimitReset:
+      description: "Unix timestamp in milliseconds when the current rate-limit window resets"
+      schema:
+        type: string
+    AccessControlAllowOriginJsonApi:
+      description: >-
+        Allowed browser origin for JSON API requests. In production this comes
+        from `NEXT_PUBLIC_APP_URL`; in development it falls back to the request
+        origin or `*`.
+      schema:
+        type: string
+      example: "https://anicards.alpha49.com"
+    AccessControlAllowOriginCardSvg:
+      description: >-
+        Allowed embed origin for card SVG responses. In production this defaults
+        to `https://anilist.co` unless `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`
+        overrides it.
+      schema:
+        type: string
+      example: "https://anilist.co"
+    AccessControlAllowHeadersContentType:
+      description: "Allowed request headers for this endpoint"
+      schema:
+        type: string
+      example: "Content-Type"
+    AccessControlAllowHeadersContentTypeRequestId:
+      description: "Allowed request headers for this endpoint"
+      schema:
+        type: string
+      example: "Content-Type, X-Request-Id"
+    AccessControlAllowMethodsGetHeadOptions:
+      description: "Allowed HTTP methods for this endpoint"
+      schema:
+        type: string
+      example: "GET, HEAD, OPTIONS"
+    AccessControlAllowMethodsPostOptions:
+      description: "Allowed HTTP methods for this endpoint"
+      schema:
+        type: string
+      example: "POST, OPTIONS"
+    AccessControlExposeHeadersJsonApi:
+      description: "Response headers exposed to JSON API browser clients"
+      schema:
+        type: string
+      example: "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id"
+    AccessControlExposeHeadersCardSvg:
+      description: "Response headers exposed to SVG card browser clients"
+      schema:
+        type: string
+      example: "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id"
+    HeaderVaryOrigin:
+      description: "Response varies by request `Origin`."
+      schema:
+        type: string
+      example: "Origin"
+    RequestId:
+      description: "Per-request correlation ID generated by the API layer"
+      schema:
+        type: string
+      example: "req_01HZQK8F8Y6Z8A2R3M4N5P6Q7R"
+
   responses:
+    UnauthorizedJson:
+      description: "Request blocked by same-origin protection"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            unauthorized:
+              value:
+                error: "Unauthorized"
+                category: "authentication"
+                retryable: false
+                status: 401
+                recoverySuggestions: []
+
+    TooManyRequestsJson:
+      description: "Rate limit exceeded"
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            rateLimited:
+              value:
+                error: "Too many requests"
+                category: "rate_limited"
+                retryable: true
+                status: 429
+                recoverySuggestions:
+                  - title: "Wait and retry"
+                    description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
+
+    JsonGetPreflight:
+      description: "CORS preflight response for JSON read endpoints"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    JsonPostPreflight:
+      description: "CORS preflight response for JSON write endpoints"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsPostOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    ErrorReportsPreflight:
+      description: "CORS preflight response for structured error-report ingestion"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginJsonApi"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentTypeRequestId"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsPostOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    CardSvgPreflight:
+      description: "CORS preflight response for SVG card requests"
+      headers:
+        Access-Control-Allow-Origin:
+          $ref: "#/components/headers/AccessControlAllowOriginCardSvg"
+        Access-Control-Allow-Headers:
+          $ref: "#/components/headers/AccessControlAllowHeadersContentType"
+        Access-Control-Allow-Methods:
+          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+        Access-Control-Expose-Headers:
+          $ref: "#/components/headers/AccessControlExposeHeadersCardSvg"
+        Vary:
+          $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+
+    CronUnauthorizedJson:
+      description: "Invalid or missing cron secret"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            unauthorized:
+              value:
+                error: "Unauthorized"
+                category: "authentication"
+                retryable: false
+                status: 401
+                recoverySuggestions: []
+
+    CronServiceUnavailableJson:
+      description: "Server-side cron authentication is not configured"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            missingCronSecret:
+              value:
+                error: "CRON_SECRET is not configured"
+                category: "server_error"
+                retryable: true
+                status: 503
+                recoverySuggestions: []
+
     UnauthorizedPlain:
-      description: "Unauthorized - Cron secret failed"
+      description: "Invalid or missing cron secret"
       content:
         text/plain:
           schema:
@@ -583,107 +2047,719 @@ components:
           examples:
             unauthorized:
               value: "Unauthorized"
+
     InternalErrorPlain:
-      description: "Internal server error (plain text)"
+      description: "Plain-text internal server failure"
       content:
         text/plain:
           schema:
             type: string
-    InternalErrorJson:
-      description: "Internal server error (JSON)"
+          examples:
+            failure:
+              value: "Cron job failed"
+
+    CardSvgOk:
+      description: "Rendered SVG image"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        X-Cache-Source:
+          $ref: "#/components/headers/CardCacheSource"
       content:
-        application/json:
+        image/svg+xml:
           schema:
-            $ref: "#/components/schemas/ApiError"
+            type: string
+          examples:
+            svg:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg width="400" height="120" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="100%" height="100%" fill="#0f172a" rx="12" />
+                  <text x="50%" y="50%" fill="#e2e8f0" text-anchor="middle" dominant-baseline="middle">AniCards Sample</text>
+                </svg>
+
+    CardSvgBadRequest:
+      description: "SVG-formatted client error"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            missingCardType:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Missing parameter: cardType</text></svg>
+
+    CardSvgNotFound:
+      description: "SVG-formatted not-found response"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            missingUser:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Not Found: User not found</text></svg>
+
+    CardSvgRateLimited:
+      description: "SVG-formatted rate-limit response"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            tooManyRequests:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Too many requests - try again later</text></svg>
+
+    CardSvgInternalError:
+      description: "SVG-formatted server error"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            failure:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: An internal error occurred</text></svg>
+
+    CardSvgServiceUnavailable:
+      description: "SVG-formatted temporary availability failure"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            userUnavailable:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: User data is temporarily unavailable</text></svg>
+            cardUnavailable:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: Card data is temporarily unavailable</text></svg>
+
   schemas:
     ApiError:
       type: object
+      additionalProperties: true
       properties:
         error:
           type: string
-      required: ["error"]
-      example: { error: "Invalid data" }
-    GraphQLRequest:
-      type: object
-      properties:
-        query:
+        category:
           type: string
-          description: "GraphQL query or mutation string"
-        variables:
-          type: object
-          additionalProperties: true
-          description: "Optional variables for the GraphQL query or mutation"
-      required: ["query"]
-    GraphQLSuccess:
+          enum:
+            - "user_not_found"
+            - "rate_limited"
+            - "network_error"
+            - "invalid_data"
+            - "server_error"
+            - "timeout"
+            - "authentication"
+            - "unknown"
+        retryable:
+          type: boolean
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        recoverySuggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecoverySuggestion"
+      required:
+        - error
+        - category
+        - retryable
+        - status
+        - recoverySuggestions
+
+    ConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ApiError"
+        - type: object
+          properties:
+            currentUpdatedAt:
+              type: string
+              format: date-time
+          required:
+            - currentUpdatedAt
+
+    RecoverySuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        actionUrl:
+          type: string
+        actionLabel:
+          type: string
+      required:
+        - title
+        - description
+
+    ErrorReportRecorded:
+      type: object
+      additionalProperties: false
+      properties:
+        recorded:
+          type: boolean
+          const: true
+      required:
+        - recorded
+
+    ErrorReportSource:
+      type: string
+      enum:
+        - "user_action"
+        - "client_hook"
+        - "react_error_boundary"
+        - "app_router_error_boundary"
+        - "api_route"
+
+    ErrorReportMetadataValue:
+      description: >-
+        Primitive metadata value retained after sanitization. Longer strings
+        are truncated before durable persistence.
+      anyOf:
+        - type: string
+          maxLength: 160
+        - type: number
+        - type: boolean
+        - type: "null"
+
+    ErrorReportMetadata:
+      type: object
+      description: >-
+        Optional primitive-only metadata map. Nested objects and arrays are
+        ignored. Keys longer than 64 characters are truncated before durable
+        persistence.
+      propertyNames:
+        type: string
+        maxLength: 64
+      additionalProperties:
+        $ref: "#/components/schemas/ErrorReportMetadataValue"
+
+    ErrorReportRequest:
       type: object
       additionalProperties: true
-      description: "Arbitrary GraphQL 'data' object returned by AniList. The keys depend on the query run."
-      example:
-        User:
-          id: 1234
-          name: "sampleuser"
+      description: >-
+        Structured client error report durably recorded by `/api/error-reports`.
+        `userAction` and `message` are required. Unknown top-level fields are
+        ignored, and client-supplied identifiers are not trusted or persisted.
+      properties:
+        source:
+          $ref: "#/components/schemas/ErrorReportSource"
+        userAction:
+          type: string
+          minLength: 1
+          maxLength: 120
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        requestId:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{8,120}$"
+          description: >-
+            Optional request correlation ID. When omitted or invalid, the
+            server falls back to the ingestion request ID.
+        errorName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        route:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >-
+            Current client route. The durable telemetry pipeline normalizes it
+            to a privacy-safe page path before persistence.
+        statusCode:
+          type: integer
+          minimum: 400
+          maximum: 599
+        digest:
+          type: string
+          minLength: 1
+          maxLength: 120
+        stack:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: >-
+            Optional stack trace. The telemetry pipeline strips file paths,
+            URLs, and other sensitive details before persistence.
+        componentStack:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: >-
+            Optional React component stack. The telemetry pipeline strips file
+            paths, URLs, and other sensitive details before persistence.
+        metadata:
+          $ref: "#/components/schemas/ErrorReportMetadata"
+        userId:
+          deprecated: true
+          description: >-
+            Ignored if supplied. Client-provided identifiers are discarded and
+            never persisted by this endpoint.
+        username:
+          deprecated: true
+          description: >-
+            Ignored if supplied. Client-provided usernames are discarded and
+            never persisted by this endpoint.
+      required:
+        - userAction
+        - message
+
+    AniListRequest:
+      oneOf:
+        - $ref: "#/components/schemas/AniListGetUserIdOperationRequest"
+        - $ref: "#/components/schemas/AniListGetUserStatsOperationRequest"
+        - $ref: "#/components/schemas/AniListGetUserIdCompatibilityRequest"
+        - $ref: "#/components/schemas/AniListGetUserStatsCompatibilityRequest"
+      description: >-
+        Strict `/api/anilist` request contract. `operation` mode is preferred
+        and forwards the canonical server-side GraphQL document for the
+        selected operation. Query-text mode is deprecated compatibility only
+        and accepts only the built-in AniCards `GetUserId` and `GetUserStats`
+        documents after server-side whitespace normalization.
+
+    AniListUsername:
+      type: string
+      minLength: 1
+      maxLength: 100
+      pattern: "^[a-zA-Z0-9_\\-\\s]*$"
+      description: >-
+        AniList username. The server trims surrounding whitespace before
+        validation.
+
+    AniListUserId:
+      type: integer
+      minimum: 1
+      description: "Positive AniList numeric user ID"
+
+    AniListIgnoredQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      description: >-
+        Optional legacy query text. When `operation` is present, the server
+        ignores this field and forwards the built-in document for that
+        operation.
+
+    AniListGetUserIdQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      pattern: '^\s*query\s+GetUserId\b[\s\S]*$'
+      description: >-
+        Deprecated compatibility query text. The server normalizes whitespace
+        and requires the full built-in `GetUserId` document; arbitrary custom
+        GraphQL documents are rejected with `400`.
+
+    AniListGetUserStatsQueryText:
+      type: string
+      minLength: 1
+      deprecated: true
+      pattern: '^\s*query\s+GetUserStats\b[\s\S]*$'
+      description: >-
+        Deprecated compatibility query text. The server normalizes whitespace
+        and requires the full built-in `GetUserStats` document; arbitrary custom
+        GraphQL documents are rejected with `400`.
+
+    AniListGetUserIdVariables:
+      type: object
+      additionalProperties: false
+      properties:
+        userName:
+          $ref: "#/components/schemas/AniListUsername"
+      required:
+        - userName
+
+    AniListGetUserStatsVariables:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: "#/components/schemas/AniListUserId"
+      required:
+        - userId
+
+    AniListGetUserIdOperationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Preferred request shape for resolving an AniList username to its
+        numeric AniList user ID.
+      properties:
+        operation:
+          type: string
+          const: "GetUserId"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserIdVariables"
+        query:
+          $ref: "#/components/schemas/AniListIgnoredQueryText"
+      required:
+        - operation
+        - variables
+
+    AniListGetUserStatsOperationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Preferred request shape for resolving the AniCards AniList statistics
+        payload for a known numeric AniList user ID.
+      properties:
+        operation:
+          type: string
+          const: "GetUserStats"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserStatsVariables"
+        query:
+          $ref: "#/components/schemas/AniListIgnoredQueryText"
+      required:
+        - operation
+        - variables
+
+    AniListGetUserIdCompatibilityRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Deprecated backward-compatible request shape. Prefer `operation:
+        "GetUserId"` instead.
+      properties:
+        query:
+          $ref: "#/components/schemas/AniListGetUserIdQueryText"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserIdVariables"
+      required:
+        - query
+        - variables
+
+    AniListGetUserStatsCompatibilityRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Deprecated backward-compatible request shape. Prefer `operation:
+        "GetUserStats"` instead.
+      properties:
+        query:
+          $ref: "#/components/schemas/AniListGetUserStatsQueryText"
+        variables:
+          $ref: "#/components/schemas/AniListGetUserStatsVariables"
+      required:
+        - query
+        - variables
+
+    GraphQLData:
+      type: object
+      additionalProperties: true
+      description: "Unwrapped AniList GraphQL `data` payload"
+
+    CardType:
+      type: string
+      enum:
+        - "animeStats"
+        - "socialStats"
+        - "socialMilestones"
+        - "mangaStats"
+        - "animeGenres"
+        - "animeTags"
+        - "animeVoiceActors"
+        - "animeStudios"
+        - "animeStaff"
+        - "mangaGenres"
+        - "mangaTags"
+        - "mangaStaff"
+        - "animeStatusDistribution"
+        - "mangaStatusDistribution"
+        - "animeFormatDistribution"
+        - "mangaFormatDistribution"
+        - "animeSourceMaterialDistribution"
+        - "animeSeasonalPreference"
+        - "animeEpisodeLengthPreferences"
+        - "animeGenreSynergy"
+        - "animeScoreDistribution"
+        - "mangaScoreDistribution"
+        - "animeYearDistribution"
+        - "mangaYearDistribution"
+        - "animeCountry"
+        - "mangaCountry"
+        - "profileOverview"
+        - "favoritesSummary"
+        - "favoritesGrid"
+        - "recentActivitySummary"
+        - "activityStreaks"
+        - "topActivityDays"
+        - "statusCompletionOverview"
+        - "milestones"
+        - "personalRecords"
+        - "planningBacklog"
+        - "mostRewatched"
+        - "currentlyWatchingReading"
+        - "animeMangaOverview"
+        - "scoreCompareAnimeManga"
+        - "countryDiversity"
+        - "genreDiversity"
+        - "formatPreferenceOverview"
+        - "releaseEraPreference"
+        - "startYearMomentum"
+        - "lengthPreference"
+        - "tagCategoryDistribution"
+        - "tagDiversity"
+        - "seasonalViewingPatterns"
+        - "droppedMedia"
+        - "reviewStats"
+        - "studioCollaboration"
+
+    CardVariation:
+      type: string
+      enum:
+        - "default"
+        - "vertical"
+        - "compact"
+        - "minimal"
+        - "badges"
+        - "pie"
+        - "donut"
+        - "bar"
+        - "radar"
+        - "horizontal"
+        - "cumulative"
+        - "anime"
+        - "manga"
+        - "characters"
+        - "staff"
+        - "studios"
+        - "mixed"
+        - "combined"
+        - "split"
+
+    HexColor:
+      type: string
+      pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$"
+      description: "3, 6, or 8 digit hex color string"
+
+    GradientStop:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        color:
+          $ref: "#/components/schemas/HexColor"
+        offset:
+          type: number
+          minimum: 0
+          maximum: 100
+        opacity:
+          type: number
+          minimum: 0
+          maximum: 1
+      required:
+        - color
+        - offset
+
+    GradientDefinition:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+            - "linear"
+            - "radial"
+        stops:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/GradientStop"
+        angle:
+          type: number
+          minimum: 0
+          maximum: 360
+        cx:
+          type: number
+          minimum: 0
+          maximum: 100
+        cy:
+          type: number
+          minimum: 0
+          maximum: 100
+        r:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - type
+        - stops
+
+    StringifiedGradientDefinition:
+      type: string
+      pattern: "^\\s*\\{[\\s\\S]*\\}\\s*$"
+      description: >-
+        Backwards-compatible JSON string containing a gradient definition. The
+        server accepts this form in stored color fields.
+
+    ColorValue:
+      description: "Stored card colors accept a hex string, a gradient object, or a stringified gradient JSON object."
+      oneOf:
+        - $ref: "#/components/schemas/HexColor"
+        - $ref: "#/components/schemas/GradientDefinition"
+        - $ref: "#/components/schemas/StringifiedGradientDefinition"
+
+    StoredCardName:
+      type: string
+      minLength: 1
+      description: >-
+        Card identifier returned by stored-card reads. `/api/store-cards`
+        writes only accept current `CardType` values, but `/api/get-cards`
+        may still return legacy unsupported IDs that were already stored before
+        the current allow-list was introduced.
+
     StoredCardConfig:
       type: object
-      description: "Stored configuration for a single card"
+      additionalProperties: false
       properties:
-        variation:
-          type: string
-          description: "Template variation name"
-          enum:
-            [
-              "default",
-              "vertical",
-              "pie",
-              "donut",
-              "radar",
-              "compact",
-              "minimal",
-              "badges",
-              "bar",
-              "horizontal",
-              "cumulative",
-              "anime",
-              "manga",
-              "characters",
-              "mixed",
-              "github",
-              "fire",
-              "combined",
-              "split",
-            ]
         cardName:
+          $ref: "#/components/schemas/StoredCardName"
+        variation:
+          $ref: "#/components/schemas/CardVariation"
+        colorPreset:
           type: string
-          description: "Unique name for the card template (used as identifier)"
         titleColor:
-          type: string
-          description: "Hex or gradient defining the title color"
+          $ref: "#/components/schemas/ColorValue"
         backgroundColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         textColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         circleColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         borderColor:
           type: string
+          description: >-
+            Border color string. The route validates it with the same color
+            parser used for stored colors.
         borderRadius:
           type: number
+          minimum: 0
+          maximum: 100
         showFavorites:
           type: boolean
         useStatusColors:
           type: boolean
         showPiePercentages:
           type: boolean
+        gridCols:
+          type: integer
+          minimum: 1
+          maximum: 5
+        gridRows:
+          type: integer
+          minimum: 1
+          maximum: 5
+        useCustomSettings:
+          type: boolean
+        disabled:
+          type: boolean
       required:
-        [
-          "variation",
-          "cardName",
-          "titleColor",
-          "backgroundColor",
-          "textColor",
-          "circleColor",
-        ]
+        - cardName
+      description: >-
+        Stored per-card configuration returned by `/api/get-cards`. Reads may
+        include legacy unsupported `cardName` values that are preserved for
+        compatibility until the next successful write. `/api/store-cards`
+        accepts partial patch entries and merges them with the existing stored
+        record, so most fields are optional even for enabled cards. Disabled
+        entries may omit `variation` and all per-card colors.
+
+    StoreCardsPatchCard:
+      allOf:
+        - $ref: "#/components/schemas/StoredCardConfig"
+        - type: object
+          properties:
+            cardName:
+              $ref: "#/components/schemas/CardType"
+          required:
+            - cardName
+      description: >-
+        Incoming card patch entry for `/api/store-cards`. Writes only accept
+        currently supported `CardType` values.
+
+    GlobalCardSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        colorPreset:
+          type: string
+        titleColor:
+          $ref: "#/components/schemas/ColorValue"
+        backgroundColor:
+          $ref: "#/components/schemas/ColorValue"
+        textColor:
+          $ref: "#/components/schemas/ColorValue"
+        circleColor:
+          $ref: "#/components/schemas/ColorValue"
+        borderEnabled:
+          type: boolean
+        borderColor:
+          type: string
+        borderRadius:
+          type: number
+          minimum: 0
+          maximum: 100
+        useStatusColors:
+          type: boolean
+        showPiePercentages:
+          type: boolean
+        showFavorites:
+          type: boolean
+        gridCols:
+          type: integer
+          minimum: 1
+          maximum: 5
+        gridRows:
+          type: integer
+          minimum: 1
+          maximum: 5
+
     CardsRecord:
       type: object
+      additionalProperties: false
+      description: >-
+        Persisted cards record returned by `/api/get-cards`. Reads preserve
+        already-stored legacy unsupported `cardName` values until the next
+        successful `/api/store-cards` write.
       properties:
         userId:
           type: integer
@@ -691,154 +2767,734 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StoredCardConfig"
+        globalSettings:
+          $ref: "#/components/schemas/GlobalCardSettings"
         updatedAt:
           type: string
           format: date-time
-      required: ["userId", "cards", "updatedAt"]
-      example:
-        userId: 12345
-        updatedAt: "2025-01-01T12:00:00.000Z"
-        cards:
-          - cardName: "mangaOverview"
-            variation: "default"
-            titleColor: "#ffffff"
-            backgroundColor: "#0f172a"
-            textColor: "#cbd5e1"
-            circleColor: "#06b6d4"
-            showFavorites: true
-    ConvertRequest:
-      type: object
-      properties:
-        svgUrl:
-          type: string
-          format: uri
-          description: "Absolute or relative URL that resolves to an SVG resource."
-        format:
-          type: string
-          enum: ["png", "webp"]
-      required: ["svgUrl"]
-    ConvertResponse:
-      type: object
-      properties:
-        pngDataUrl:
-          type: string
-          description: "Base64-encoded data URL representing the converted raster resource."
-      required: ["pngDataUrl"]
-      example:
-        { pngDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..." }
+      required:
+        - userId
+        - cards
+        - updatedAt
+
     StoreCardsRequest:
       type: object
+      additionalProperties: false
+      description: >-
+        Partial-update payload for `/api/store-cards`. The route merges incoming
+        card entries and global settings into the existing Redis record,
+        preserves omitted card settings, and backfills any newly supported base
+        card types as disabled records before persisting. Optional `statsData`
+        must either be `{}` or a full normalized AniList stats snapshot; other
+        malformed non-empty objects are rejected.
       properties:
         userId:
           type: integer
         statsData:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/StoreCardsStatsData"
+          description: >-
+            Optional stats payload carried by the editor workflow. Empty
+            placeholder objects are accepted, but non-empty objects must match
+            the normalized AniList snapshot shape. A top-level `error` field
+            causes the route to reject the request.
         cards:
           type: array
-          maxItems: 24
           items:
-            $ref: "#/components/schemas/StoredCardConfig"
-      required: ["userId", "cards"]
+            $ref: "#/components/schemas/StoreCardsPatchCard"
+        globalSettings:
+          $ref: "#/components/schemas/GlobalCardSettings"
+        ifMatchUpdatedAt:
+          type: string
+          format: date-time
+        cardOrder:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardType"
+      required:
+        - userId
+        - cards
+
+    StoreCardsSuccess:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        userId:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - success
+        - userId
+        - updatedAt
+
     StoreUserRequest:
       type: object
+      additionalProperties: false
+      description: >-
+        Explicit minimized persistence input. Top-level fields are allow-listed,
+        and `stats` must match the normalized AniList-derived snapshot shape
+        that the server validates and persists.
       properties:
         userId:
           type: integer
         username:
           type: string
+          minLength: 1
+          maxLength: 100
+          nullable: true
+          description: >-
+            Optional AniList username alias. Explicit `null` is accepted and is
+            treated the same as omitting the field before normalization.
+        ifMatchUpdatedAt:
+          type: string
+          format: date-time
+          description: >-
+            Optional optimistic-concurrency token. When supplied, the write is
+            rejected with `409` if the stored record has a different
+            `updatedAt`.
         stats:
-          type: object
-          description: "AniList user statistics payload as returned by GraphQL"
-          additionalProperties: true
-      required: ["userId", "stats"]
-    UserRecord:
+          $ref: "#/components/schemas/UserStatsData"
+          description: >-
+            Normalized AniList-derived snapshot. Arrays or partial placeholder
+            objects are rejected.
+      required:
+        - userId
+        - stats
+
+    StoreUserSuccess:
       type: object
-      description: "User data stored in Redis including statistics and favorites"
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        userId:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - success
+        - userId
+        - updatedAt
+
+    ConvertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        svgUrl:
+          type: string
+          description: >-
+            Absolute or relative URL to an SVG resource on an allow-listed
+            AniCards host. Ignored when `svgContent` is also supplied.
+        svgContent:
+          type: string
+          description: >-
+            Inline SVG markup to convert directly without refetching a remote
+            URL. When both `svgContent` and `svgUrl` are supplied, this inline
+            markup takes precedence.
+        format:
+          type: string
+          enum:
+            - "png"
+            - "webp"
+          default: "png"
+        responseType:
+          type: string
+          enum:
+            - "json"
+            - "binary"
+          default: "binary"
+          description: >-
+            When set to `json`, the route returns a data URL payload. When set
+            to `binary` or omitted, the route streams the converted image with
+            the appropriate image content type.
+      anyOf:
+        - required:
+            - svgUrl
+        - required:
+            - svgContent
+
+    ConvertResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        format:
+          type: string
+          enum:
+            - "png"
+            - "webp"
+          description: "Actual raster format returned in `imageDataUrl`."
+        imageDataUrl:
+          type: string
+          description: >-
+            Data URL for the converted image using the requested raster format.
+      required:
+        - format
+        - imageDataUrl
+
+    PageInfo:
+      type: object
+      additionalProperties: true
+      properties:
+        total:
+          type: integer
+      required:
+        - total
+
+    FavouriteCollection:
+      type: object
+      additionalProperties: true
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+
+    EmptyObject:
+      type: object
+      additionalProperties: false
+      maxProperties: 0
+
+    LooseObject:
+      type: object
+      additionalProperties: true
+
+    UserStatsActivityItem:
+      type: object
+      additionalProperties: true
+      properties:
+        date:
+          type: number
+        amount:
+          type: number
+      required:
+        - date
+        - amount
+
+    UserActivityStats:
+      type: object
+      additionalProperties: true
+      properties:
+        activityHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserStatsActivityItem"
+      required:
+        - activityHistory
+
+    UserStatsFavourites:
+      type: object
+      additionalProperties: true
+      properties:
+        anime:
+          $ref: "#/components/schemas/FavouriteCollection"
+        manga:
+          $ref: "#/components/schemas/FavouriteCollection"
+        characters:
+          $ref: "#/components/schemas/FavouriteCollection"
+        staff:
+          $ref: "#/components/schemas/FavouriteCollection"
+        studios:
+          $ref: "#/components/schemas/FavouriteCollection"
+      required:
+        - staff
+        - studios
+
+    UserStatsAnimeStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        count:
+          type: number
+        episodesWatched:
+          type: number
+        minutesWatched:
+          type: number
+        meanScore:
+          type: number
+        standardDeviation:
+          type: number
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        voiceActors:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        studios:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - count
+        - episodesWatched
+        - minutesWatched
+        - meanScore
+        - standardDeviation
+        - genres
+        - tags
+        - voiceActors
+        - studios
+        - staff
+
+    UserStatsMangaStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        count:
+          type: number
+        chaptersRead:
+          type: number
+        volumesRead:
+          type: number
+        meanScore:
+          type: number
+        standardDeviation:
+          type: number
+        genres:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - count
+        - chaptersRead
+        - volumesRead
+        - meanScore
+        - standardDeviation
+        - genres
+        - tags
+        - staff
+
+    UserStatsStatistics:
+      type: object
+      additionalProperties: true
+      properties:
+        anime:
+          $ref: "#/components/schemas/UserStatsAnimeStatistics"
+        manga:
+          $ref: "#/components/schemas/UserStatsMangaStatistics"
+
+    UserStatsAvatar:
+      type: object
+      additionalProperties: true
+      properties:
+        large:
+          type: string
+        medium:
+          type: string
+
+    UserStatsUserSection:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        avatar:
+          $ref: "#/components/schemas/UserStatsAvatar"
+        bannerImage:
+          type: string
+        createdAt:
+          type: number
+        stats:
+          $ref: "#/components/schemas/UserActivityStats"
+        favourites:
+          $ref: "#/components/schemas/UserStatsFavourites"
+        statistics:
+          $ref: "#/components/schemas/UserStatsStatistics"
+      required:
+        - stats
+        - favourites
+        - statistics
+
+    FollowersPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        followers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - followers
+
+    FollowingPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        following:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - following
+
+    ThreadsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - threads
+
+    ThreadCommentsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        threadComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - threadComments
+
+    ReviewsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - reviews
+
+    UserReviewsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - reviews
+
+    UserRecommendationsPage:
+      type: object
+      additionalProperties: true
+      properties:
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+      required:
+        - pageInfo
+        - recommendations
+
+    MediaListCollection:
+      type: object
+      additionalProperties: true
+      properties:
+        lists:
+          type: array
+          items:
+            $ref: "#/components/schemas/LooseObject"
+        count:
+          type: number
+        totalRepeat:
+          type: number
+      required:
+        - lists
+
+    UserStatsData:
+      type: object
+      additionalProperties: true
+      properties:
+        User:
+          $ref: "#/components/schemas/UserStatsUserSection"
+        followersPage:
+          $ref: "#/components/schemas/FollowersPage"
+        followingPage:
+          $ref: "#/components/schemas/FollowingPage"
+        threadsPage:
+          $ref: "#/components/schemas/ThreadsPage"
+        threadCommentsPage:
+          $ref: "#/components/schemas/ThreadCommentsPage"
+        reviewsPage:
+          $ref: "#/components/schemas/ReviewsPage"
+        userReviews:
+          $ref: "#/components/schemas/UserReviewsPage"
+        userRecommendations:
+          $ref: "#/components/schemas/UserRecommendationsPage"
+        animePlanning:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaPlanning:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeCompleted:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaCompleted:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeDropped:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaDropped:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeWatching:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaReading:
+          $ref: "#/components/schemas/MediaListCollection"
+      required:
+        - User
+        - followersPage
+        - followingPage
+        - threadsPage
+        - threadCommentsPage
+        - reviewsPage
+
+    StoreCardsStatsData:
+      description: >-
+        Optional editor-carried stats payload. The route accepts an empty
+        object placeholder or a full normalized `UserStatsData` snapshot; other
+        non-empty object shapes are rejected.
+      oneOf:
+        - $ref: "#/components/schemas/EmptyObject"
+        - $ref: "#/components/schemas/UserStatsData"
+
+    UserPages:
+      type: object
+      additionalProperties: true
+      properties:
+        followersPage:
+          type: object
+          additionalProperties: true
+        followingPage:
+          type: object
+          additionalProperties: true
+        threadsPage:
+          type: object
+          additionalProperties: true
+        threadCommentsPage:
+          type: object
+          additionalProperties: true
+        reviewsPage:
+          type: object
+          additionalProperties: true
+
+    UserAggregateKey:
+      type: string
+      enum:
+        - animeSourceMaterialDistributionTotals
+        - animeSeasonalPreferenceTotals
+        - animeGenreSynergyTotals
+        - studioCollaborationTotals
+
+    UserPayloadCompleteness:
+      type: object
+      additionalProperties: false
+      description: >-
+        Snapshot completeness metadata describing the sampled user payload that
+        was retained in storage.
+      properties:
+        sampled:
+          type: boolean
+        fullHistory:
+          type: boolean
+          enum:
+            - false
+        boundedSections:
+          type: array
+          items:
+            type: string
+        availableAggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAggregateKey"
+        missingAggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAggregateKey"
+      required:
+        - sampled
+        - fullHistory
+        - boundedSections
+        - availableAggregates
+        - missingAggregates
+
+    UserSnapshotRef:
+      type: object
+      additionalProperties: false
+      description: Stable identifier for one committed user snapshot.
+      properties:
+        token:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+        committedAt:
+          type: string
+          format: date-time
+      required:
+        - token
+        - revision
+        - updatedAt
+        - committedAt
+
+    PublicUserRecordMetadata:
+      type: object
+      additionalProperties: false
+      description: >-
+        Public metadata about the sampled record returned by `/api/get-user`,
+        including storage shape and snapshot completeness.
+      properties:
+        storageFormat:
+          type: string
+          enum:
+            - committed-split
+            - legacy-split
+            - legacy
+        schemaVersion:
+          type: integer
+          minimum: 1
+        snapshot:
+          $ref: "#/components/schemas/UserSnapshotRef"
+        completeness:
+          $ref: "#/components/schemas/UserPayloadCompleteness"
+      required:
+        - storageFormat
+        - schemaVersion
+        - completeness
+
+    PublicUserRecord:
+      type: object
+      additionalProperties: false
+      description: >-
+        Bounded public lookup DTO returned by `/api/get-user`. Internal
+        persistence metadata such as request IP buckets and record timestamps are
+        intentionally excluded.
       properties:
         userId:
-          type: string
+          type: integer
+          minimum: 1
         username:
           type: string
         stats:
           type: object
           additionalProperties: true
-          description: "User stats shape as returned from AniList GraphQL (highly nested)."
-        createdAt:
+          description: "Full stored AniList-derived payload"
+        statistics:
+          type: object
+          additionalProperties: true
+          description: "Convenience view of `stats.User.statistics`"
+        favourites:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/FavouriteCollection"
+        pages:
+          $ref: "#/components/schemas/UserPages"
+        aggregates:
+          type: object
+          additionalProperties: true
+        recordMeta:
+          $ref: "#/components/schemas/PublicUserRecordMetadata"
+      required:
+        - userId
+        - stats
+        - statistics
+        - favourites
+    UserBootstrapRecord:
+      type: object
+      additionalProperties: false
+      description: >-
+        Lightweight identity DTO returned by `/api/get-user?view=bootstrap`.
+        Used by the editor to resolve canonical usernames and avatars before the
+        heavier card payload is loaded.
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+        username:
           type: string
-          format: date-time
-        updatedAt:
+        avatarUrl:
           type: string
-          format: date-time
-      required: ["userId", "stats", "createdAt", "updatedAt"]
+          nullable: true
+        recordMeta:
+          $ref: "#/components/schemas/PublicUserRecordMetadata"
+      required:
+        - userId
+
     AnalyticsReport:
       type: object
+      additionalProperties: false
       properties:
         summary:
-          type: string
+          type: object
+          additionalProperties: true
         raw_data:
           type: object
-          additionalProperties:
-            type: number
+          additionalProperties: true
         generatedAt:
           type: string
           format: date-time
-      required: ["summary", "raw_data", "generatedAt"]
-      example:
-        summary: "Collected analytics metrics snapshot"
-        raw_data:
-          "analytics:store_cards:successful_requests": 10
-          "analytics:store_users:failed_requests": 2
-        generatedAt: "2025-01-01T12:00:00.000Z"
-    DataValidationReport:
-      type: object
-      properties:
-        summary:
-          type: string
-        details:
-          type: object
-          description: "Per-pattern details for keys examined"
-          additionalProperties:
-            type: object
-            properties:
-              checked:
-                type: integer
-              inconsistencies:
-                type: integer
-        issues:
-          type: array
-          items:
-            type: object
-            properties:
-              key:
-                type: string
-              issues:
-                type: array
-                items:
-                  type: string
+      required:
+        - summary
+        - raw_data
+        - generatedAt
 
-        generatedAt:
-          type: string
-          format: date-time
-      required: ["summary", "details", "issues", "generatedAt"]
-    UptimeMonitorReport:
+    AnalyticsReportList:
       type: object
+      additionalProperties: false
       properties:
-        summary:
-          type: string
-        details:
+        reports:
           type: array
           items:
-            type: object
-            properties:
-              url:
-                type: string
-              ok:
-                type: boolean
-              status:
-                type: integer
-                nullable: true
-              error:
-                type: string
-            required: ["url", "ok", "status"]
-      required: ["summary", "details"]
+            $ref: "#/components/schemas/AnalyticsReport"
+        count:
+          type: integer
+          minimum: 0
+        retentionLimit:
+          type: integer
+          minimum: 1
+      required:
+        - reports
+        - count
+        - retentionLimit

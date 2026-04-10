@@ -1,15 +1,21 @@
+import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+
 import type { ColorValue } from "../../types/card";
 import type { TrustedSVG } from "../../types/svg";
-import { MILESTONES } from "../common/constants";
-import { getCardDimensions } from "../common/dimensions";
-import { toSvgIdFragment } from "../completion-progress-stats/shared";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
+import { MILESTONES, SPACING, TYPOGRAPHY } from "../common/constants";
+import { getCardDimensions } from "../common/dimensions";
+import { toSvgIdFragment } from "../completion-progress-stats/shared";
 
 interface SocialMilestonesTemplateInput {
   username: string;
@@ -38,6 +44,14 @@ const SOCIAL_TIERS = {
   threadComments: [50, 200, 500, 1000, 2000],
   reviews: [10, 50, 100, 200, 500],
 } as const;
+
+const MIN_FITTED_FONT_SIZE = 8;
+const TEXT_PAIR_GAP_PX = 12;
+const SECONDARY_MAX_WIDTH_RATIO = 0.34;
+const MIN_SECONDARY_MAX_WIDTH_PX = 54;
+const MIN_VALUE_MAX_WIDTH_PX = 40;
+const TITLE_HORIZONTAL_MARGIN = 2 * SPACING.CARD_PADDING; // Use the shared card padding on both sides of the title.
+const TITLE_INITIAL_FONT_SIZE = TYPOGRAPHY.HEADER_SIZE; // Keep the fitted header aligned with the shared title size.
 
 function getTierProgress(
   value: number,
@@ -103,13 +117,39 @@ function renderMilestoneRow(opts: {
   const barWidth = (progress / 100) * width;
   const clipId = `${idPrefix}-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}`;
 
-  const targetText = next === null ? "Max tier" : `→ ${next.toLocaleString()}`;
+  const targetText =
+    next === null ? "Max tier" : `→ ${next.toLocaleString("en-US")}`;
+  const rowFit = fitSvgAnchoredTextPair({
+    availableWidth: width,
+    gapPx: TEXT_PAIR_GAP_PX,
+    primaryFontWeight: 600,
+    primaryInitialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+    primaryMinFontSize: MIN_FITTED_FONT_SIZE,
+    primaryText: label,
+    secondaryInitialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+    secondaryMaxWidth: Math.max(
+      MIN_SECONDARY_MAX_WIDTH_PX,
+      Math.floor(width * SECONDARY_MAX_WIDTH_RATIO),
+    ),
+    secondaryMinFontSize: MIN_FITTED_FONT_SIZE,
+    secondaryFontWeight: 500,
+    secondaryText: targetText,
+  });
+  const valueText = safeValue.toLocaleString("en-US");
+  const valueFit = fitSvgSingleLineText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: Math.max(MIN_VALUE_MAX_WIDTH_PX, width - 24),
+    minFontSize: MIN_FITTED_FONT_SIZE,
+    mode: "shrink-then-truncate",
+    text: valueText,
+  });
 
   return `
     <g transform="translate(${x}, ${y})" class="stagger" style="animation-delay:${delay}ms">
       <rect x="-12" y="${MILESTONES.ROW_Y_OFFSET}" width="${width + 24}" height="${barHeight + MILESTONES.ROW_HEIGHT}" rx="12" opacity="0.08" />
-      <text x="0" y="${MILESTONES.LABEL_Y_OFFSET}" class="row-label" fill="${textColor}">${escapeForXml(label)}</text>
-      <text x="${width}" y="${MILESTONES.LABEL_Y_OFFSET}" text-anchor="end" class="row-target" fill="${textColor}">${escapeForXml(targetText)}</text>
+      <text x="0" y="${MILESTONES.LABEL_Y_OFFSET}" class="row-label" fill="${textColor}"${rowFit ? ` font-size="${rowFit.primary.fontSize}"` : ""}>${escapeForXml(rowFit?.primary.text ?? label)}</text>
+      <text x="${width}" y="${MILESTONES.LABEL_Y_OFFSET}" text-anchor="end" class="row-target" fill="${textColor}"${rowFit ? ` font-size="${rowFit.secondary.fontSize}"` : ""}>${escapeForXml(rowFit?.secondary.text ?? targetText)}</text>
 
       <defs>
         <clipPath id="${clipId}">
@@ -123,7 +163,7 @@ function renderMilestoneRow(opts: {
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${Math.max(1, Math.floor(barHeight / 2))}" fill="#ffffff" opacity="0.12" />
       </g>
 
-      <text x="${width / 2}" y="${barHeight + MILESTONES.VALUE_Y_OFFSET}" text-anchor="middle" class="row-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke">${safeValue.toLocaleString()}</text>
+      <text x="${width / 2}" y="${barHeight + MILESTONES.VALUE_Y_OFFSET}" text-anchor="middle" class="row-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke"${valueFit ? ` font-size="${valueFit.fontSize}"` : ""}>${escapeForXml(valueFit?.text ?? valueText)}</text>
     </g>
   `;
 }
@@ -155,7 +195,17 @@ export function socialMilestonesTemplate(
 
   const title = `${username}'s Social Milestones`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = dims.w - TITLE_HORIZONTAL_MARGIN;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const idPrefix = `sm-${toSvgIdFragment(username)}-${toSvgIdFragment(variant)}`;
 
@@ -204,7 +254,7 @@ export function socialMilestonesTemplate(
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .row-label {
@@ -244,7 +294,7 @@ export function socialMilestonesTemplate(
   />
 
   <g transform="translate(20, 34)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
 
   <g transform="translate(0, 64)">

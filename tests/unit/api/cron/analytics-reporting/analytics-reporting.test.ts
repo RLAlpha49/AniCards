@@ -1,472 +1,697 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
 import {
-  sharedRedisMockScan,
+  allowConsoleWarningsAndErrors,
   sharedRedisMockGet,
+  sharedRedisMockLrange,
+  sharedRedisMockLtrim,
+  sharedRedisMockMget,
   sharedRedisMockRpush,
-} from "@/tests/unit/__setup__.test";
+  sharedRedisMockScan,
+} from "@/tests/unit/__setup__";
 
-const { POST } = await import("@/app/api/cron/analytics-reporting/route");
+const { GET, POST } = await import("@/app/api/cron/analytics-reporting/route");
 
-/**
- * Dummy cron secret to satisfy authorization for analytics cron tests.
- * @source
- */
 const CRON_SECRET = "testsecret";
-
-/**
- * Base URL used to build cron requests for analytics reporting.
- * @source
- */
 const BASE_URL = "http://localhost/api/cron/analytics-reporting";
 
-/**
- * Builds a cron request that includes the provided secret header.
- * @param secret - Cron secret to include in the request; pass null to omit header.
- * @returns Configured request targeting the analytics cron route.
- * @source
- */
-function createCronRequest(secret: string | null = CRON_SECRET): Request {
-  const headers: Record<string, string> = {};
-  if (secret !== null) {
-    headers["x-cron-secret"] = secret;
+function createCronRequest(
+  secret: string | null = CRON_SECRET,
+  options?: {
+    headers?: Record<string, string>;
+    method?: "GET" | "POST";
+    searchParams?: Record<string, string>;
+    useAuthorizationHeader?: boolean;
+  },
+): Request {
+  const url = new URL(BASE_URL);
+  Object.entries(options?.searchParams ?? {}).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const headers = new Headers(options?.headers);
+
+  if (secret) {
+    if (options?.useAuthorizationHeader) {
+      headers.set("authorization", `Bearer ${secret}`);
+    } else {
+      headers.set("x-cron-secret", secret);
+    }
   }
-  return new Request(BASE_URL, { headers });
+
+  return new Request(url, {
+    method: options?.method ?? "POST",
+    headers,
+  });
 }
 
-/**
- * Asserts that the response matches the expected status and text body.
- * @param response - Response returned by the cron handler.
- * @param expectedStatus - Expected HTTP status code.
- * @param expectedText - Expected response text body.
- * @source
- */
-async function expectErrorResponse(
+function setupAnalyticsData(values: Record<string, string | null>) {
+  const keys = Object.keys(values);
+  sharedRedisMockLrange.mockResolvedValueOnce([]);
+  sharedRedisMockLrange.mockResolvedValueOnce([]);
+  sharedRedisMockScan.mockResolvedValueOnce([0, keys]);
+  sharedRedisMockMget.mockResolvedValueOnce(
+    keys.map((key) => values[key] ?? null),
+  );
+  sharedRedisMockMget.mockResolvedValueOnce([null, null]);
+  sharedRedisMockGet.mockResolvedValueOnce(null);
+  sharedRedisMockRpush.mockResolvedValueOnce(1);
+  sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+}
+
+async function expectApiErrorResponse(
   response: Response,
   expectedStatus: number,
-  expectedText: string,
+  expectedError: string,
 ) {
   expect(response.status).toBe(expectedStatus);
-  const text = await response.text();
-  expect(text).toBe(expectedText);
+  expect(response.headers.get("Content-Type")).toContain("application/json");
+
+  const body = (await response.json()) as {
+    error: string;
+    status: number;
+    category: string;
+    retryable: boolean;
+    recoverySuggestions: unknown[];
+  };
+
+  expect(body).toMatchObject({
+    error: expectedError,
+    status: expectedStatus,
+    category: expect.any(String),
+    retryable: expect.any(Boolean),
+    recoverySuggestions: expect.any(Array),
+  });
 }
 
-/**
- * Asserts the response represents a successful analytics report and returns it.
- * @param response - Response object from the analytics cron handler.
- * @returns Parsed analytics report payload.
- * @source
- */
 async function expectSuccessfulReport(response: Response) {
   expect(response.status).toBe(200);
   const report = await response.json();
-
-  // Report should contain required properties
   expect(report).toHaveProperty("summary");
   expect(report).toHaveProperty("raw_data");
   expect(report).toHaveProperty("generatedAt");
-
-  // Validate timestamp format (ISO 8601)
-  expect(() => new Date(report.generatedAt)).not.toThrow();
-
   return report;
 }
 
-/**
- * Configures Redis mocks to simulate a successful analytics run.
- * @source
- */
-function setupSuccessfulAnalyticsMocks() {
-  // Simulate Redis returning analytics keys
-  sharedRedisMockScan.mockResolvedValueOnce([
-    0,
-    ["analytics:visits", "analytics:anilist_api:successful_requests"],
-  ]);
-
-  // Simulate Redis get responses for each key
-  sharedRedisMockGet.mockImplementation((key: string) => {
-    if (key === "analytics:visits") {
-      return Promise.resolve("100");
-    } else if (key === "analytics:anilist_api:successful_requests") {
-      return Promise.resolve("200");
-    }
-    return Promise.resolve(null);
-  });
-
-  // Simulate rpush success
-  sharedRedisMockRpush.mockResolvedValueOnce(1);
+async function expectSuccessfulReportList(response: Response) {
+  expect(response.status).toBe(200);
+  const payload = await response.json();
+  expect(payload).toHaveProperty("reports");
+  expect(payload).toHaveProperty("count");
+  expect(payload).toHaveProperty("retentionLimit");
+  return payload;
 }
 
 describe("Analytics & Reporting Cron API", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
-    process.env.CRON_SECRET = CRON_SECRET;
+    allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      CRON_SECRET,
+      NODE_ENV: "test",
+    };
+    delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockScan.mockReset();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLrange.mockReset();
+    sharedRedisMockLtrim.mockReset();
+    sharedRedisMockGet.mockResolvedValue(null);
   });
 
   afterEach(() => {
     mock.clearAllMocks();
+    Object.defineProperty(globalThis, "fetch", {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
     delete process.env.CRON_SECRET;
+    delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
+    delete process.env.ERROR_ALERT_WEBHOOK_URL;
   });
 
-  describe("Authorization", () => {
-    it("should return 401 Unauthorized when cron secret header is invalid", async () => {
-      const req = createCronRequest("wrongsecret");
-      const res = await POST(req);
-      await expectErrorResponse(res, 401, "Unauthorized");
+  it("rejects invalid or missing cron secrets", async () => {
+    await expectApiErrorResponse(
+      await POST(createCronRequest("wrongsecret")),
+      401,
+      "Unauthorized",
+    );
+    await expectApiErrorResponse(
+      await POST(createCronRequest(null)),
+      401,
+      "Unauthorized",
+    );
+  });
+
+  it("accepts Vercel-style Authorization bearer cron secrets", async () => {
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const report = await expectSuccessfulReport(
+      await POST(
+        createCronRequest(CRON_SECRET, { useAuthorizationHeader: true }),
+      ),
+    );
+
+    expect(report.summary.visits).toBe(100);
+  });
+
+  it("fails closed when CRON_SECRET is missing", async () => {
+    delete process.env.CRON_SECRET;
+    await expectApiErrorResponse(
+      await POST(createCronRequest(null)),
+      503,
+      "CRON_SECRET is not configured",
+    );
+  });
+
+  it("allows unsecured cron only when explicitly enabled in development", async () => {
+    delete process.env.CRON_SECRET;
+    process.env = { ...process.env, NODE_ENV: "development" };
+    process.env.ALLOW_UNSECURED_CRON_IN_DEV = "true";
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest(null)),
+    );
+    expect(report.summary.visits).toBe(100);
+  });
+
+  it("groups analytics metrics and filters analytics:reports", async () => {
+    setupAnalyticsData({
+      "analytics:visits": "100",
+      "analytics:api:requests": "5000",
+      "analytics:api:errors": "25",
+      "analytics:reports": null,
     });
 
-    it("should return 401 Unauthorized when cron secret header is missing", async () => {
-      const req = createCronRequest(null);
-      const res = await POST(req);
-      await expectErrorResponse(res, 401, "Unauthorized");
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(report.summary).toMatchObject({
+      visits: 100,
+      api: {
+        requests: 5000,
+        errors: 25,
+      },
+      observability: {
+        errorReports: {
+          totalCaptured: 0,
+          totalDropped: 0,
+          retainedTriage: {
+            totalReports: 0,
+          },
+          evictedTriage: {
+            totalReports: 0,
+          },
+        },
+      },
+    });
+    expect(report.raw_data).toEqual({
+      "analytics:visits": 100,
+      "analytics:api:requests": 5000,
+      "analytics:api:errors": 25,
+    });
+    expect(sharedRedisMockMget).toHaveBeenCalledWith(
+      "analytics:visits",
+      "analytics:api:requests",
+      "analytics:api:errors",
+    );
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "analytics:reports",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "analytics:reports",
+      -50,
+      -1,
+    );
+  });
+
+  it("echoes X-Request-Id on analytics reporting responses", async () => {
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const response = await POST(
+      new Request(BASE_URL, {
+        method: "POST",
+        headers: {
+          "x-cron-secret": CRON_SECRET,
+          "x-request-id": "req-analytics-12345",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-Id")).toBe("req-analytics-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
+    );
+  });
+
+  it("maps missing values to zero and parses structured JSON values", async () => {
+    setupAnalyticsData({
+      "analytics:missing_metric": null,
+      "analytics:custom": '{"count": 50}',
     });
 
-    it("should allow request when CRON_SECRET is not set and no secret is required", async () => {
-      delete process.env.CRON_SECRET;
-      setupSuccessfulAnalyticsMocks();
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+    expect(report.raw_data["analytics:missing_metric"]).toBe(0);
+    expect(report.summary.missing_metric).toBe(0);
+    expect(report.raw_data["analytics:custom"]).toEqual({ count: 50 });
+  });
 
-      const req = createCronRequest(null);
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
+  it("surfaces error-report ring-buffer saturation metrics in the cron summary", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 
-      expect(report).toBeDefined();
-      expect(sharedRedisMockRpush).toHaveBeenCalled();
-    });
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
 
-    it("should allow request with correct cron secret", async () => {
-      setupSuccessfulAnalyticsMocks();
-
-      const req = createCronRequest(CRON_SECRET);
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report).toBeDefined();
+    expect(report.summary.observability).toEqual({
+      errorReports: {
+        capacity: 250,
+        retained: 6,
+        totalCaptured: 8,
+        totalDropped: 2,
+        cumulativeSaturationRate: 0.25,
+        retainedTriage: {
+          totalReports: 0,
+          topRoutes: [],
+          topCategories: [],
+          topSources: [],
+          topUserActions: [],
+          recentReports: [],
+        },
+        evictedTriage: {
+          totalReports: 0,
+          topRoutes: [],
+          topCategories: [],
+          topSources: [],
+          topUserActions: [],
+          recentReports: [],
+        },
+      },
+      alerts: {
+        webhookConfigured: false,
+        baselineAvailable: false,
+        triggered: false,
+        reasons: [],
+        minNewReportsThreshold: 25,
+        newCapturedSinceLastReport: null,
+        newDroppedSinceLastReport: null,
+        intervalSaturationRate: null,
+        delivery: {
+          attempted: false,
+          delivered: false,
+          skippedReason: "baseline_unavailable",
+        },
+      },
     });
   });
 
-  describe("Analytics Data Collection", () => {
-    it("should generate analytics report with simple metrics successfully", async () => {
-      setupSuccessfulAnalyticsMocks();
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      // Verify the summary structure
-      expect(report.summary.visits).toBe(100);
-      expect(report.summary.anilist_api).toEqual({
-        successful_requests: 200,
-      });
-
-      // Verify raw_data contains the raw numbers
-      expect(report.raw_data).toEqual({
-        "analytics:visits": 100,
-        "analytics:anilist_api:successful_requests": 200,
-      });
-    });
-
-    it("should handle empty analytics data (no keys found)", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.summary).toEqual({});
-      expect(report.raw_data).toEqual({});
-      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
-        "analytics:reports",
-        expect.any(String),
-      );
-    });
-
-    it("should filter out analytics:reports key from data collection", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:visits", "analytics:reports"],
-      ]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key === "analytics:visits") {
-          return Promise.resolve("50");
-        }
-        return Promise.resolve(null);
-      });
-
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      // analytics:reports should not be in the data
-      expect(report.raw_data).toEqual({ "analytics:visits": 50 });
-      expect(report.raw_data).not.toHaveProperty("analytics:reports");
-    });
-
-    it("should map null/missing redis values to zero", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:missing_metric"],
-      ]);
-      sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.raw_data["analytics:missing_metric"]).toBe(0);
-      expect(report.summary.missing_metric).toBe(0);
-    });
-
-    it("should handle multiple services with multiple metrics", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        [
-          "analytics:visits",
-          "analytics:api:requests",
-          "analytics:api:errors",
-          "analytics:cache:hits",
-          "analytics:cache:misses",
+  it("adds retained and evicted top-N error breakdowns to cron observability summaries", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        id: "rep-retained-1",
+        timestamp: 1_710_000_100_000,
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        category: "network_error",
+        retryable: true,
+        technicalMessage: "Segment render failed after retry",
+        errorName: "Error",
+        route: "/user/Alex",
+        requestId: "req-retained-12345",
+        digest: "digest-retained-1",
+      }),
+      JSON.stringify({
+        id: "rep-retained-2",
+        timestamp: 1_710_000_200_000,
+        source: "client_hook",
+        userAction: "bootstrap_user_page",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Bootstrap payload missing required shape",
+        errorName: "TypeError",
+        route: "/user/Alex?tab=cards",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
+    sharedRedisMockGet.mockResolvedValueOnce(
+      JSON.stringify({
+        totalReports: 4,
+        updatedAt: 1_710_000_300_000,
+        routes: {
+          "/user/Alex": {
+            reports: 3,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+              route: "/user/Alex",
+              requestId: "req-evicted-12345",
+              digest: "digest-evicted-1",
+            },
+          },
+        },
+        categories: {
+          network_error: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        sources: {
+          react_error_boundary: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        userActions: {
+          render_component_tree: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        recentReports: [
+          {
+            id: "rep-evicted-1",
+            timestamp: 1_710_000_250_000,
+            source: "react_error_boundary",
+            userAction: "render_component_tree",
+            category: "network_error",
+            retryable: true,
+            technicalMessage: "Earlier incident rolled out of the buffer",
+            errorName: "Error",
+          },
         ],
-      ]);
+      }),
+    );
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        const responses: Record<string, string> = {
-          "analytics:visits": "1000",
-          "analytics:api:requests": "5000",
-          "analytics:api:errors": "25",
-          "analytics:cache:hits": "3000",
-          "analytics:cache:misses": "1000",
-        };
-        return Promise.resolve(responses[key] ?? null);
-      });
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
 
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
+    expect(
+      report.summary.observability.errorReports.retainedTriage,
+    ).toMatchObject({
+      totalReports: 2,
+    });
+    expect(
+      report.summary.observability.errorReports.retainedTriage.topRoutes.some(
+        (bucket: {
+          value: string;
+          reports: number;
+          latest?: {
+            requestId?: string;
+            digest?: string;
+          };
+        }) =>
+          bucket.value === "/user/Alex" &&
+          bucket.reports === 1 &&
+          bucket.latest?.requestId === "req-retained-12345" &&
+          bucket.latest?.digest === "digest-retained-1",
+      ),
+    ).toBe(true);
+    expect(
+      report.summary.observability.errorReports.evictedTriage,
+    ).toMatchObject({
+      totalReports: 4,
+      updatedAt: 1_710_000_300_000,
+    });
+    expect(
+      report.summary.observability.errorReports.evictedTriage.topCategories[0],
+    ).toMatchObject({
+      value: "network_error",
+      reports: 4,
+    });
+  });
 
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
+  it("sends a webhook alert for error spikes and saturation without blocking report creation", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
 
-      expect(report.summary).toEqual({
-        visits: 1000,
-        api: {
-          requests: 5000,
-          errors: 25,
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: {
+          observability: {
+            errorReports: {
+              capacity: 250,
+              retained: 5,
+              totalCaptured: 5,
+              totalDropped: 0,
+              cumulativeSaturationRate: 0,
+            },
+          },
         },
-        cache: {
-          hits: 3000,
-          misses: 1000,
+        raw_data: {},
+        generatedAt: "2026-03-27T10:30:00.000Z",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://hooks.example.test/services/error-spikes",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(report.summary.observability.alerts).toEqual({
+      webhookConfigured: true,
+      baselineAvailable: true,
+      triggered: true,
+      reasons: ["error_spike", "ring_buffer_saturation"],
+      minNewReportsThreshold: 25,
+      newCapturedSinceLastReport: 35,
+      newDroppedSinceLastReport: 3,
+      intervalSaturationRate: 0.0857,
+      delivery: {
+        attempted: true,
+        delivered: true,
+        destinationHost: "hooks.example.test",
+        statusCode: 204,
+      },
+    });
+  });
+
+  it("keeps cron reporting successful when webhook delivery fails", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const fetchMock = mock(() => Promise.reject(new Error("webhook down")));
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: {
+          observability: {
+            errorReports: {
+              capacity: 250,
+              retained: 0,
+              totalCaptured: 0,
+              totalDropped: 0,
+              cumulativeSaturationRate: 0,
+            },
+          },
         },
-      });
-    });
+        raw_data: {},
+        generatedAt: "2026-03-27T10:30:00.000Z",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["30", "1"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 
-    it("should handle metrics with multiple colons in the name", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:service:metric1:metric2:metric3"],
-      ]);
-      sharedRedisMockGet.mockResolvedValueOnce("42");
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
+    const response = await POST(createCronRequest());
+    const report = await expectSuccessfulReport(response);
 
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.summary.service).toEqual({
-        "metric1:metric2:metric3": 42,
-      });
-    });
-
-    it("should parse non-numeric string values using safeParse", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:visits", "analytics:custom"],
-      ]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key === "analytics:visits") {
-          return Promise.resolve("100");
-        } else if (key === "analytics:custom") {
-          // Simulate a JSON stringified value
-          return Promise.resolve('{"count": 50}');
-        }
-        return Promise.resolve(null);
-      });
-
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.raw_data["analytics:visits"]).toBe(100);
-      expect(report.raw_data["analytics:custom"]).toEqual({ count: 50 });
+    expect(response.status).toBe(200);
+    expect(report.summary.observability.alerts.delivery).toEqual({
+      attempted: true,
+      delivered: false,
+      destinationHost: "hooks.example.test",
+      failure: "webhook_request_failed",
     });
   });
 
-  describe("Redis Operations", () => {
-    it("should save report to analytics:reports list", async () => {
-      setupSuccessfulAnalyticsMocks();
+  it("returns 500 when Redis scan, mget, or report persistence fails", async () => {
+    sharedRedisMockScan.mockRejectedValueOnce(new Error("scan failed"));
+    await expectApiErrorResponse(
+      await POST(createCronRequest()),
+      500,
+      "Analytics and reporting job failed",
+    );
 
-      const req = createCronRequest();
-      await POST(req);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockRejectedValueOnce(new Error("mget failed"));
+    await expectApiErrorResponse(
+      await POST(createCronRequest()),
+      500,
+      "Analytics and reporting job failed",
+    );
 
-      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
-        "analytics:reports",
-        expect.any(String),
-      );
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockRpush.mockRejectedValueOnce(new Error("rpush failed"));
+    await expectApiErrorResponse(
+      await POST(createCronRequest()),
+      500,
+      "Analytics and reporting job failed",
+    );
 
-      // Verify that the saved report is valid JSON
-      const callArgs = sharedRedisMockRpush.mock.calls[0];
-      expect(() => JSON.parse(callArgs[1])).not.toThrow();
-    });
-
-    it("should return 500 when redis keys retrieval fails", async () => {
-      sharedRedisMockScan.mockRejectedValueOnce(
-        new Error("Redis connection failed"),
-      );
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      await expectErrorResponse(res, 500, "Analytics and reporting job failed");
-    });
-
-    it("should return 500 when redis get fails during data fetch", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
-      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get error"));
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      await expectErrorResponse(res, 500, "Analytics and reporting job failed");
-    });
-
-    it("should return 500 when redis rpush fails during report save", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
-      sharedRedisMockGet.mockResolvedValueOnce("100");
-      sharedRedisMockRpush.mockRejectedValueOnce(
-        new Error("Redis rpush error"),
-      );
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      await expectErrorResponse(res, 500, "Analytics and reporting job failed");
-    });
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockRejectedValueOnce(new Error("ltrim failed"));
+    await expectApiErrorResponse(
+      await POST(createCronRequest()),
+      500,
+      "Analytics and reporting job failed",
+    );
   });
 
-  describe("Report Structure", () => {
-    it("should include summary, raw_data, and generatedAt in report", async () => {
-      setupSuccessfulAnalyticsMocks();
+  it("returns recent stored analytics reports through GET", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: { visits: 100 },
+        raw_data: { "analytics:visits": 100 },
+        generatedAt: "2026-03-21T10:30:00.000Z",
+      }),
+      JSON.stringify({
+        summary: { visits: 250 },
+        raw_data: { "analytics:visits": 250 },
+        generatedAt: "2026-03-22T10:30:00.000Z",
+      }),
+    ]);
 
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
+    const payload = await expectSuccessfulReportList(
+      await GET(
+        createCronRequest(CRON_SECRET, {
+          method: "GET",
+          searchParams: { limit: "2" },
+        }),
+      ),
+    );
 
-      expect(Object.keys(report).sort((a, b) => a.localeCompare(b))).toEqual([
-        "generatedAt",
-        "raw_data",
-        "summary",
-      ]);
+    expect(payload).toEqual({
+      reports: [
+        {
+          summary: { visits: 250 },
+          raw_data: { "analytics:visits": 250 },
+          generatedAt: "2026-03-22T10:30:00.000Z",
+        },
+        {
+          summary: { visits: 100 },
+          raw_data: { "analytics:visits": 100 },
+          generatedAt: "2026-03-21T10:30:00.000Z",
+        },
+      ],
+      count: 2,
+      retentionLimit: 50,
     });
-
-    it("should use ISO 8601 timestamp format for generatedAt", async () => {
-      setupSuccessfulAnalyticsMocks();
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/;
-      expect(report.generatedAt).toMatch(isoRegex);
-    });
-
-    it("should have raw_data matching the collected analytics", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:metric1", "analytics:metric2"],
-      ]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        const responses: Record<string, string> = {
-          "analytics:metric1": "10",
-          "analytics:metric2": "20",
-        };
-        return Promise.resolve(responses[key] ?? null);
-      });
-
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.raw_data).toHaveProperty("analytics:metric1", 10);
-      expect(report.raw_data).toHaveProperty("analytics:metric2", 20);
-    });
+    expect(sharedRedisMockLrange).toHaveBeenCalledWith(
+      "analytics:reports",
+      -2,
+      -1,
+    );
   });
 
-  describe("Error Handling & Edge Cases", () => {
-    it("should handle concurrent metric fetch gracefully", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:a", "analytics:b", "analytics:c"],
-      ]);
+  it("rejects invalid GET limits and reports read failures", async () => {
+    const invalidLimitResponse = await GET(
+      createCronRequest(CRON_SECRET, {
+        method: "GET",
+        searchParams: { limit: "abc" },
+      }),
+    );
 
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        const responses: Record<string, string> = {
-          "analytics:a": "1",
-          "analytics:b": "2",
-          "analytics:c": "3",
-        };
-        return Promise.resolve(responses[key] ?? null);
-      });
+    await expectApiErrorResponse(
+      invalidLimitResponse,
+      400,
+      "Invalid limit parameter",
+    );
 
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLrange.mockRejectedValueOnce(new Error("lrange failed"));
+    const failureResponse = await GET(
+      createCronRequest(CRON_SECRET, {
+        method: "GET",
+        searchParams: { limit: "3" },
+      }),
+    );
 
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(Object.keys(report.raw_data).length).toBe(3);
-      expect(sharedRedisMockGet).toHaveBeenCalledTimes(3);
-    });
-
-    it("should handle zero values correctly", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:zero_metric"]]);
-      sharedRedisMockGet.mockResolvedValueOnce("0");
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.raw_data["analytics:zero_metric"]).toBe(0);
-      expect(report.summary.zero_metric).toBe(0);
-    });
-
-    it("should handle large numeric values correctly", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["analytics:large_number"],
-      ]);
-      sharedRedisMockGet.mockResolvedValueOnce("999999999999");
-      sharedRedisMockRpush.mockResolvedValueOnce(1);
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      const report = await expectSuccessfulReport(res);
-
-      expect(report.raw_data["analytics:large_number"]).toBe(999999999999);
-    });
-
-    it("should return 500 with error message on unexpected error", async () => {
-      sharedRedisMockScan.mockImplementationOnce(() => {
-        throw new Error("Unexpected error");
-      });
-
-      const req = createCronRequest();
-      const res = await POST(req);
-      await expectErrorResponse(res, 500, "Analytics and reporting job failed");
-    });
+    await expectApiErrorResponse(
+      failureResponse,
+      500,
+      "Failed to fetch analytics reports",
+    );
   });
 });
