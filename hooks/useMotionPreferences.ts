@@ -46,7 +46,7 @@ export function useMotionPreferences() {
 
     const windowObject = globalThis.window;
 
-    if (windowObject === undefined || windowObject.matchMedia === undefined) {
+    if (windowObject?.matchMedia === undefined) {
       return;
     }
 
