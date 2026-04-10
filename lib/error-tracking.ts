@@ -14,8 +14,15 @@ import {
   isRetryableErrorCategory,
   type RecoverySuggestion,
 } from "@/lib/error-messages";
+import {
+  type ErrorReportMetadataValue,
+  sanitizeErrorReportMetadata,
+  sanitizeErrorReportRoute,
+  sanitizeErrorReportText,
+  sanitizeOptionalText,
+  truncateText,
+} from "@/lib/error-report-sanitization";
 import { getStructuredResponseError, parseResponsePayload } from "@/lib/utils";
-import { normalizeAnalyticsPage } from "@/lib/utils/google-analytics";
 
 export type ErrorReportSource =
   | "user_action"
@@ -27,7 +34,7 @@ export type ErrorReportSource =
 
 type ErrorReportEnvironment = "client" | "server";
 
-type SerializableMetadataValue = string | number | boolean | null;
+type SerializableMetadataValue = ErrorReportMetadataValue;
 
 interface ReportErrorOptions {
   userAction: string;
@@ -128,55 +135,10 @@ const MAX_ERROR_REPORT_TRIAGE_MESSAGE_LENGTH = 240;
 const MAX_ERROR_REPORT_TRIAGE_STACK_LENGTH = 600;
 const MAX_TEXT_FIELD_LENGTH = 2_000;
 const MAX_STACK_LENGTH = 8_000;
-const MAX_METADATA_KEY_LENGTH = 64;
-const MAX_METADATA_VALUE_LENGTH = 160;
-const MAX_METADATA_ENTRIES = 12;
 const MAX_RECOVERY_SUGGESTIONS = 6;
 const MAX_RECOVERY_SUGGESTION_TITLE_LENGTH = 120;
 const MAX_RECOVERY_SUGGESTION_DESCRIPTION_LENGTH = 240;
 const MAX_RECOVERY_SUGGESTION_ACTION_LABEL_LENGTH = 80;
-const REDACTED_EMAIL = "[redacted-email]";
-const REDACTED_PATH = "[redacted-path]";
-const REDACTED_SECRET = "[redacted]";
-const REDACTED_URL = "[redacted-url]";
-const SENSITIVE_METADATA_KEY_FRAGMENTS = [
-  "auth",
-  "authorization",
-  "cookie",
-  "csrf",
-  "email",
-  "mail",
-  "ip",
-  "jwt",
-  "password",
-  "passwd",
-  "phone",
-  "query",
-  "route",
-  "search",
-  "secret",
-  "session",
-  "token",
-  "url",
-  "uri",
-  "username",
-  "user_id",
-] as const;
-const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const FILE_PATH_PATTERN =
-  /(?:[A-Za-z]:\\|\/Users\/|\/home\/|\/var\/|\/tmp\/)[^\s"'`)\]}]+/g;
-const QUERY_PARAMETER_PATTERN = /([?&][A-Za-z0-9_-]{1,64}=)[^&#\s"'`)\]}]+/g;
-const RELATIVE_ROUTE_WITH_QUERY_PATTERN =
-  /((?:\/[A-Za-z0-9._~-]+)+)\?([^\s"'`)\]}]+)/g;
-const ACCOUNT_KEY_VALUE_PATTERN =
-  /\b(email|username|user(?:[_-]?id)?)\s*[:=]\s*([^\s,;]+)/gi;
-const SECRET_KEY_VALUE_PATTERN =
-  /\b(token|secret|password|passwd)\s*[:=]\s*([^\s,;]+)/gi;
-const SESSION_KEY_VALUE_PATTERN =
-  /\b(authorization|cookie|session|api(?:[_-]?key)?)\s*[:=]\s*([^\s,;]+)/gi;
-const TOKEN_LIKE_PATTERN =
-  /\b(?:eyJ[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9]{20,}|sk_[A-Za-z0-9]{16,}|[A-Fa-f0-9]{32,}|[A-Za-z0-9+/_-]{40,})\b/g;
-const URL_PATTERN = /\bhttps?:\/\/[^\s"'`)\]}]+/gi;
 
 function roundRatio(value: number): number {
   return Number(value.toFixed(4));
@@ -341,85 +303,8 @@ class ClientErrorReportDeliveryError extends Error {
 
 let isFlushingQueuedClientErrorReports = false;
 
-function truncateText(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
-}
-
-function normalizeMetadataKey(value: string): string {
-  return value.replaceAll(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
-}
-
-function isSensitiveMetadataKey(value: string): boolean {
-  const normalizedKey = normalizeMetadataKey(value.trim());
-  if (!normalizedKey) {
-    return false;
-  }
-
-  return SENSITIVE_METADATA_KEY_FRAGMENTS.some((fragment) =>
-    normalizedKey.includes(fragment),
-  );
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function sanitizeOptionalText(
-  value: string | undefined,
-  maxLength: number,
-): string | undefined {
-  if (typeof value !== "string") return undefined;
-
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-
-  return truncateText(trimmed, maxLength);
-}
-
-export function sanitizeErrorReportText(
-  value: string | undefined,
-  maxLength: number,
-  options?: {
-    normalizeRelativeRoutes?: boolean;
-  },
-): string | undefined {
-  if (typeof value !== "string") return undefined;
-
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-
-  let sanitized = trimmed;
-
-  if (options?.normalizeRelativeRoutes ?? true) {
-    sanitized = sanitized.replaceAll(
-      RELATIVE_ROUTE_WITH_QUERY_PATTERN,
-      (_match, path: string, query: string) =>
-        normalizeRoute(`${path}?${query}`) ?? path,
-    );
-  }
-
-  sanitized = sanitized
-    .replaceAll(FILE_PATH_PATTERN, REDACTED_PATH)
-    .replaceAll(URL_PATTERN, REDACTED_URL)
-    .replaceAll(EMAIL_PATTERN, REDACTED_EMAIL)
-    .replaceAll(QUERY_PARAMETER_PATTERN, (_match, prefix: string) => {
-      return `${prefix}${REDACTED_SECRET}`;
-    })
-    .replaceAll(ACCOUNT_KEY_VALUE_PATTERN, (_match, key: string) => {
-      return `${key}=${REDACTED_SECRET}`;
-    })
-    .replaceAll(SECRET_KEY_VALUE_PATTERN, (_match, key: string) => {
-      return `${key}=${REDACTED_SECRET}`;
-    })
-    .replaceAll(SESSION_KEY_VALUE_PATTERN, (_match, key: string) => {
-      return `${key}=${REDACTED_SECRET}`;
-    })
-    .replaceAll(TOKEN_LIKE_PATTERN, REDACTED_SECRET)
-    .replaceAll(/\s+/g, " ");
-
-  return truncateText(sanitized, maxLength);
 }
 
 function isWhitespaceCodePoint(codePoint: number | undefined): boolean {
@@ -521,75 +406,6 @@ function getRetryAfterMs(retryAfterHeader: string | null): number | undefined {
 function getCurrentClientRoute(): string | undefined {
   if (globalThis.location === undefined) return undefined;
   return `${globalThis.location.pathname}${globalThis.location.search}`;
-}
-
-export function sanitizeErrorReportRoute(
-  route: string | undefined,
-): string | undefined {
-  const candidate = sanitizeOptionalText(route, 512);
-  if (!candidate) return undefined;
-
-  try {
-    const parsed =
-      candidate.startsWith("http://") || candidate.startsWith("https://")
-        ? new URL(candidate)
-        : new URL(candidate, "https://anicards.local");
-
-    return normalizeAnalyticsPage({
-      pathname: parsed.pathname,
-      search: parsed.search,
-    }).pagePath;
-  } catch {
-    const pathname = candidate.startsWith("/") ? candidate : `/${candidate}`;
-    return normalizeAnalyticsPage({ pathname }).pagePath;
-  }
-}
-
-function normalizeRoute(route: string | undefined): string | undefined {
-  return sanitizeErrorReportRoute(route);
-}
-
-export function sanitizeErrorReportMetadata(
-  metadata: Record<string, unknown> | undefined,
-): Record<string, SerializableMetadataValue> | undefined {
-  if (!metadata) return undefined;
-
-  const entries = Object.entries(metadata)
-    .slice(0, MAX_METADATA_ENTRIES)
-    .flatMap(([key, value]) => {
-      const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
-      if (
-        !normalizedKey ||
-        normalizedKey.toLowerCase() === "requestid" ||
-        isSensitiveMetadataKey(normalizedKey)
-      ) {
-        return [];
-      }
-
-      if (
-        value === null ||
-        typeof value === "number" ||
-        typeof value === "boolean"
-      ) {
-        return [[normalizedKey, value satisfies SerializableMetadataValue]];
-      }
-
-      if (typeof value === "string") {
-        const sanitizedValue = sanitizeErrorReportText(
-          value,
-          MAX_METADATA_VALUE_LENGTH,
-        );
-        return sanitizedValue ? [[normalizedKey, sanitizedValue]] : [];
-      }
-
-      return [];
-    });
-
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  return Object.fromEntries(entries);
 }
 
 function resolveReportRequestId(
@@ -722,7 +538,7 @@ function buildStructuredErrorReport(
     source: options.source ?? "user_action",
     userAction: sanitizeUserAction(options.userAction),
     requestId: resolveReportRequestId(options),
-    route: normalizeRoute(options.route ?? getCurrentClientRoute()),
+    route: sanitizeErrorReportRoute(options.route ?? getCurrentClientRoute()),
     category,
     retryable,
     userMessage: categoryDetails.userMessage,
@@ -1158,7 +974,7 @@ function parseClientErrorReportQueueTriage(
     errorName,
     technicalMessage,
     ...(typeof value.route === "string"
-      ? { route: normalizeRoute(value.route) }
+      ? { route: sanitizeErrorReportRoute(value.route) }
       : {}),
     ...(sanitizeRequestId(value.requestId)
       ? { requestId: sanitizeRequestId(value.requestId) }
@@ -1207,7 +1023,7 @@ function buildClientErrorReportQueueTriageFromBody(
           : "unknown",
       route:
         typeof parsed.route === "string"
-          ? normalizeRoute(parsed.route)
+          ? sanitizeErrorReportRoute(parsed.route)
           : undefined,
       requestId:
         sanitizeRequestId(parsed.requestId) ?? sanitizeRequestId(requestId),

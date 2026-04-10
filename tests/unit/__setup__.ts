@@ -557,6 +557,53 @@ export const sharedRedisMockZcard = mock(async () => 0);
 export const sharedRedisMockZrem = mock(async () => 1);
 export const sharedRedisMockPipelineExec = mock(async () => []);
 
+type SharedRedisCallObserver = (args: unknown[]) => void;
+
+const sharedRedisRpushObservers = new Set<SharedRedisCallObserver>();
+const sharedRedisLtrimObservers = new Set<SharedRedisCallObserver>();
+
+function notifySharedRedisCallObservers(
+  observers: Set<SharedRedisCallObserver>,
+  args: unknown[],
+): void {
+  for (const observer of observers) {
+    observer([...args]);
+  }
+}
+
+function captureSharedRedisCalls(observers: Set<SharedRedisCallObserver>): {
+  calls: unknown[][];
+  release: () => void;
+} {
+  const calls: unknown[][] = [];
+  const observer: SharedRedisCallObserver = (args) => {
+    calls.push(args);
+  };
+
+  observers.add(observer);
+
+  return {
+    calls,
+    release: () => {
+      observers.delete(observer);
+    },
+  };
+}
+
+export function captureSharedRedisRpushCalls(): {
+  calls: unknown[][];
+  release: () => void;
+} {
+  return captureSharedRedisCalls(sharedRedisRpushObservers);
+}
+
+export function captureSharedRedisLtrimCalls(): {
+  calls: unknown[][];
+  release: () => void;
+} {
+  return captureSharedRedisCalls(sharedRedisLtrimObservers);
+}
+
 function normalizeAnalyticsCounterKeyForAssertions(key: unknown): unknown {
   if (typeof key !== "string") return key;
   return key.replace(/:month:\d{4}-\d{2}$/, "");
@@ -634,9 +681,25 @@ const sharedRedisFakeClient = {
     );
   }),
   expire: sharedRedisMockExpire,
-  rpush: sharedRedisMockRpush,
+  rpush: (...args: unknown[]) => {
+    notifySharedRedisCallObservers(sharedRedisRpushObservers, args);
+
+    const result = (
+      sharedRedisMockRpush as unknown as (...callArgs: unknown[]) => unknown
+    )(...args);
+
+    return result === undefined ? 1 : result;
+  },
   lrange: sharedRedisMockLrange,
-  ltrim: sharedRedisMockLtrim,
+  ltrim: (...args: unknown[]) => {
+    notifySharedRedisCallObservers(sharedRedisLtrimObservers, args);
+
+    const result = (
+      sharedRedisMockLtrim as unknown as (...callArgs: unknown[]) => unknown
+    )(...args);
+
+    return result === undefined ? "OK" : result;
+  },
   mget: sharedRedisMockMget,
   sadd: sharedRedisMockSadd,
   smembers: sharedRedisMockSmembers,

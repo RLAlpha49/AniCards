@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisLtrimCalls,
+  captureSharedRedisRpushCalls,
   sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockLtrim,
@@ -472,7 +474,7 @@ describe("Cron API Route", () => {
 
   it("aborts the overlapping AniList refresh when bootstrap metadata loading fails", async () => {
     mockUserRecords(["123"]);
-    const errorReportCalls: unknown[][] = [];
+    const capturedRpush = captureSharedRedisRpushCalls();
     let fetchSignal: AbortSignal | undefined;
 
     globalThis.fetch = mock(
@@ -492,28 +494,30 @@ describe("Cron API Route", () => {
         }),
     ) as unknown as typeof fetch;
 
-    sharedRedisMockRpush.mockImplementation(async (...args: unknown[]) => {
-      errorReportCalls.push(args);
-      return 1;
-    });
-    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
+    try {
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Part fetch exploded"),
+      );
 
-    const response = await POST(createCronRequest());
+      const response = await POST(createCronRequest());
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
-    );
-    expect(fetchSignal?.aborted).toBe(true);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      );
+      expect(fetchSignal?.aborted).toBe(true);
 
-    const errorReportCall = errorReportCalls.find(
-      ([key]) => key === "telemetry:error-reports:v1",
-    );
-    expect(errorReportCall).toBeDefined();
-    expect(errorReportCall).toEqual([
-      "telemetry:error-reports:v1",
-      expect.any(String),
-    ]);
+      const errorReportCall = capturedRpush.calls.find(
+        ([key]) => key === "telemetry:error-reports:v1",
+      );
+      expect(errorReportCall).toBeDefined();
+      expect(errorReportCall).toEqual([
+        "telemetry:error-reports:v1",
+        expect.any(String),
+      ]);
+    } finally {
+      capturedRpush.release();
+    }
   });
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
@@ -742,62 +746,67 @@ describe("Cron API Route", () => {
 
   it("records structured per-user cron errors without aborting the whole job", async () => {
     mockUserRecords(["123"]);
-    const errorReportCalls: unknown[][] = [];
-    sharedRedisMockRpush.mockImplementation(async (...args: unknown[]) => {
-      errorReportCalls.push(args);
-      return 1;
-    });
-    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
+    const capturedRpush = captureSharedRedisRpushCalls();
+    const capturedLtrim = captureSharedRedisLtrimCalls();
 
-    const response = await POST(
-      new Request("http://localhost/api/cron", {
-        headers: {
-          "x-cron-secret": CRON_SECRET,
-          "x-request-id": "req-cron-user-error",
-        },
-      }),
-    );
+    try {
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Part fetch exploded"),
+      );
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
-    );
+      const response = await POST(
+        new Request("http://localhost/api/cron", {
+          headers: {
+            "x-cron-secret": CRON_SECRET,
+            "x-request-id": "req-cron-user-error",
+          },
+        }),
+      );
 
-    const errorReportCall = errorReportCalls.find(
-      ([key]) => key === "telemetry:error-reports:v1",
-    );
-    expect(errorReportCall).toBeDefined();
-    expect(errorReportCall).toEqual([
-      "telemetry:error-reports:v1",
-      expect.any(String),
-    ]);
-    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
-      "telemetry:error-reports:v1",
-      -250,
-      -1,
-    );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      );
 
-    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1];
-    const payload = JSON.parse(String(serializedReport)) as {
-      metadata?: Record<string, unknown>;
-      requestId?: string;
-      route?: string;
-      source?: string;
-      technicalMessage?: string;
-      userAction?: string;
-    };
+      const errorReportCall = capturedRpush.calls.find(
+        ([key]) => key === "telemetry:error-reports:v1",
+      );
+      expect(errorReportCall).toBeDefined();
+      expect(errorReportCall).toEqual([
+        "telemetry:error-reports:v1",
+        expect.any(String),
+      ]);
 
-    expect(payload.userAction).toBe("cron_refresh_user");
-    expect(payload.source).toBe("api_route");
-    expect(payload.route).toBe("/api/cron");
-    expect(payload.requestId).toBe("req-cron-user-error");
-    expect(payload.technicalMessage).toBe("Part fetch exploded");
-    expect(payload.metadata).toMatchObject({
-      endpoint: "cron_job",
-      stage: "fetch_user_data_parts",
-    });
-    expect(payload.metadata).not.toHaveProperty("requestId");
-    expect(payload.metadata).not.toHaveProperty("userId");
+      const ltrimCall = capturedLtrim.calls.find(
+        ([key]) => key === "telemetry:error-reports:v1",
+      );
+      expect(ltrimCall).toEqual(["telemetry:error-reports:v1", -250, -1]);
+
+      const serializedReport = errorReportCall?.[1];
+      const payload = JSON.parse(String(serializedReport)) as {
+        metadata?: Record<string, unknown>;
+        requestId?: string;
+        route?: string;
+        source?: string;
+        technicalMessage?: string;
+        userAction?: string;
+      };
+
+      expect(payload.userAction).toBe("cron_refresh_user");
+      expect(payload.source).toBe("api_route");
+      expect(payload.route).toBe("/api/cron");
+      expect(payload.requestId).toBe("req-cron-user-error");
+      expect(payload.technicalMessage).toBe("Part fetch exploded");
+      expect(payload.metadata).toMatchObject({
+        endpoint: "cron_job",
+        stage: "fetch_user_data_parts",
+      });
+      expect(payload.metadata).not.toHaveProperty("requestId");
+      expect(payload.metadata).not.toHaveProperty("userId");
+    } finally {
+      capturedRpush.release();
+      capturedLtrim.release();
+    }
   });
 
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {

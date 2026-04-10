@@ -9,6 +9,7 @@ import {
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisRpushCalls,
   sharedRatelimitMockLimit,
   sharedRedisMockGet,
   sharedRedisMockIncr,
@@ -107,7 +108,8 @@ describe("AniList API Route", () => {
     sharedRedisMockLtrim.mockResolvedValue("OK");
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     process.env = originalEnv;
     mock.clearAllMocks();
   });
@@ -331,43 +333,44 @@ describe("AniList API Route", () => {
 
   it("surfaces non-retried AniList HTTP errors", async () => {
     setEnvironment("test");
-    const errorReportCalls: unknown[][] = [];
-    sharedRedisMockRpush.mockImplementation(async (...args: unknown[]) => {
-      errorReportCalls.push(args);
-      return 1;
-    });
-    mockJsonFetch(
-      { error: "Invalid query" },
-      {
-        status: 400,
-      },
-    );
+    const capturedRpush = captureSharedRedisRpushCalls();
 
-    const response = await POST(
-      createAniListRequest({
-        body: {
-          operation: "GetUserStats",
-          variables: { userId: 123 },
+    try {
+      mockJsonFetch(
+        { error: "Invalid query" },
+        {
+          status: 400,
         },
-      }),
-    );
+      );
 
-    expect(response.status).toBe(400);
-    expect((await response.json()).error).toContain("Invalid query");
+      const response = await POST(
+        createAniListRequest({
+          body: {
+            operation: "GetUserStats",
+            variables: { userId: 123 },
+          },
+        }),
+      );
 
-    await flushScheduledTelemetryTasksForTests();
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:anilist_api:failed_requests",
-    );
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain("Invalid query");
 
-    const errorReportCall = errorReportCalls.find(
-      ([key]) => key === "telemetry:error-reports:v1",
-    );
-    expect(errorReportCall).toBeDefined();
-    expect(errorReportCall).toEqual([
-      "telemetry:error-reports:v1",
-      expect.any(String),
-    ]);
+      await flushScheduledTelemetryTasksForTests();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:anilist_api:failed_requests",
+      );
+
+      const errorReportCall = capturedRpush.calls.find(
+        ([key]) => key === "telemetry:error-reports:v1",
+      );
+      expect(errorReportCall).toBeDefined();
+      expect(errorReportCall).toEqual([
+        "telemetry:error-reports:v1",
+        expect.any(String),
+      ]);
+    } finally {
+      capturedRpush.release();
+    }
   });
 
   it("returns GraphQL payload errors as 500s", async () => {
