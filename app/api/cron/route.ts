@@ -119,12 +119,12 @@ function isAniListUserStatsData(
     return false;
   }
 
-  const resolvedUserId =
-    typeof user.id === "number"
-      ? String(user.id)
-      : typeof user.id === "string"
-        ? user.id.trim()
-        : "";
+  let resolvedUserId = "";
+  if (typeof user.id === "number") {
+    resolvedUserId = String(user.id);
+  } else if (typeof user.id === "string") {
+    resolvedUserId = user.id.trim();
+  }
 
   return resolvedUserId === expectedUserId;
 }
