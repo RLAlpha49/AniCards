@@ -438,7 +438,7 @@ function extractBearerToken(
 
   let separatorIndex = 6;
   while (separatorIndex < trimmed.length) {
-    const code = trimmed.charCodeAt(separatorIndex);
+    const code = trimmed.codePointAt(separatorIndex) ?? -1;
     const isWhitespace =
       code === 9 || code === 10 || code === 12 || code === 13 || code === 32;
 

@@ -233,12 +233,12 @@ async function readSharedCachedDataUrl(
     if (!parsedEntry) return null;
 
     if (parsedEntry.expiresAt <= now) {
-      void redisClient.del(cacheKey).catch(() => {});
+      redisClient.del(cacheKey).catch(() => undefined);
       return null;
     }
 
     if (parsedEntry.byteLength > IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES) {
-      void redisClient.del(cacheKey).catch(() => {});
+      redisClient.del(cacheKey).catch(() => undefined);
     }
 
     setMemoryCachedDataUrl(

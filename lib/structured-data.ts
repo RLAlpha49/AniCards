@@ -447,9 +447,6 @@ function buildPageEntry(
 
   switch (pageType) {
     case "about":
-      pageEntry.about = buildReference(entityIds.organization);
-      pageEntry.mainEntity = buildReference(entityIds.organization);
-      break;
     case "contact":
       pageEntry.about = buildReference(entityIds.organization);
       pageEntry.mainEntity = buildReference(entityIds.organization);

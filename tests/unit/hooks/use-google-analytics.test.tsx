@@ -62,6 +62,19 @@ installHappyDom();
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const { useGoogleAnalytics } = await import("@/hooks/useGoogleAnalytics");
 
+function parseRequestInitJson<T>(init: RequestInit | undefined): T {
+  const body = init?.body;
+  if (typeof body === "string") {
+    return JSON.parse(body) as T;
+  }
+
+  if (body instanceof URLSearchParams) {
+    return JSON.parse(body.toString()) as T;
+  }
+
+  throw new Error("Expected RequestInit.body to be a string.");
+}
+
 function getReportedErrorPayload(callIndex = 0) {
   const fetchCall = fetchMock.mock.calls[callIndex] as
     | [string, RequestInit]
@@ -70,11 +83,11 @@ function getReportedErrorPayload(callIndex = 0) {
   expect(fetchCall?.[0]).toBe("/api/error-reports");
   expect(fetchCall?.[1]?.method).toBe("POST");
 
-  return JSON.parse(String(fetchCall?.[1]?.body)) as {
+  return parseRequestInitJson<{
     metadata?: Record<string, unknown>;
     source?: string;
     userAction?: string;
-  };
+  }>(fetchCall?.[1]);
 }
 
 beforeEach(() => {

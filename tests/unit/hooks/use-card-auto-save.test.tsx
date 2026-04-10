@@ -1,5 +1,3 @@
-import "@/tests/unit/__setup__";
-
 import {
   afterAll,
   afterEach,
@@ -16,6 +14,7 @@ import type {
   CardEditorConfig,
   LocalEditsPatch,
 } from "@/lib/stores/user-page-editor";
+import { parseRequestInitJson } from "@/tests/unit/__setup__";
 import {
   createCardConfig,
   createGlobalSnapshot,
@@ -188,12 +187,12 @@ describe("useCardAutoSave", () => {
     }
 
     const [url, init] = firstFetchCall as unknown as [string, RequestInit];
-    const body = JSON.parse(String(init.body)) as {
+    const body = parseRequestInitJson<{
       cards: Array<Record<string, unknown>>;
       globalSettings?: Record<string, unknown>;
       ifMatchUpdatedAt?: string;
       userId: string;
-    };
+    }>(init);
 
     expect(url).toBe("/api/store-cards");
     expect(init.method).toBe("POST");

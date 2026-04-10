@@ -11,6 +11,8 @@ import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisLtrimCalls,
   captureSharedRedisRpushCalls,
+  getStringValue,
+  parseRequestInitJson,
   sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockLtrim,
@@ -376,7 +378,9 @@ describe("Cron API Route", () => {
     );
 
     globalThis.fetch = mock((url: RequestInfo, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body ?? "{}"));
+      const body = parseRequestInitJson<{
+        variables: { userId: number | string };
+      }>(init, "{}");
       return Promise.resolve(
         createJsonResponse(200, {
           data: createValidStatsPayload(String(body.variables.userId)),
@@ -527,7 +531,7 @@ describe("Cron API Route", () => {
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
     mockUserRecords(["123"]);
     sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
-      const key = String(args[0] ?? "");
+      const key = getStringValue(args[0]);
       if (key === "user:123:username-aliases") {
         return ["user123", "old-user123"];
       }

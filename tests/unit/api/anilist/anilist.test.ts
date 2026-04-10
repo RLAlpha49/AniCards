@@ -10,6 +10,7 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisRpushCalls,
+  parseRequestInitJson,
   sharedRatelimitMockLimit,
   sharedRedisMockGet,
   sharedRedisMockIncr,
@@ -152,7 +153,10 @@ describe("AniList API Route", () => {
 
     const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
       .mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(String(init.body));
+    const body = parseRequestInitJson<{
+      query: string;
+      variables: Record<string, unknown>;
+    }>(init);
     expect(body.query).toBe(USER_STATS_QUERY);
     expect(body.variables).toEqual({ userId: 123 });
     expect(init.headers).toMatchObject({
@@ -182,7 +186,10 @@ describe("AniList API Route", () => {
 
     const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
       .mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(String(init.body));
+    const body = parseRequestInitJson<{
+      query: string;
+      variables: Record<string, unknown>;
+    }>(init);
     expect(body.query).toBe(USER_ID_QUERY);
     expect(body.variables).toEqual({ userName: "testUser" });
   });
@@ -205,7 +212,10 @@ describe("AniList API Route", () => {
 
     const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
       .mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(String(init.body));
+    const body = parseRequestInitJson<{
+      query: string;
+      variables: Record<string, unknown>;
+    }>(init);
     expect(body.query).toBe(USER_ID_QUERY);
     expect(body.variables).toEqual({ userName: "testUser" });
   });

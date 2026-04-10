@@ -327,12 +327,7 @@ describe("svg template shared helper modules", () => {
     } as unknown as Parameters<typeof getFavouriteCounts>[0];
 
     const counts = getFavouriteCounts(favourites);
-    const summary = generateFavouritesSummaryBody(counts, {
-      titleColor: "#ffffff",
-      backgroundColor: "#111827",
-      textColor: "#e5e7eb",
-      circleColor: "#38bdf8",
-    });
+    const summary = generateFavouritesSummaryBody(counts);
 
     expect(dedupeByMediaIdKeepHighestRepeat(entries)).toHaveLength(2);
     expect(getMediaTitle(firstEntry)).toBe("English Title");

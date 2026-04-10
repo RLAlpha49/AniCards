@@ -194,7 +194,7 @@ export const CARD_GROUPS: CardGroup[] = CARD_GROUP_DEFINITIONS.map(
     createCardGroup({
       cardType,
       cardTitle,
-      ...(options ?? {}),
+      ...options,
     }),
 );
 

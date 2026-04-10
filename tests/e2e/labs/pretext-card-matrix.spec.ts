@@ -53,7 +53,7 @@ function hasErrorCode(error: unknown, code: string): boolean {
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
+  return value.replaceAll(/[&<>"']/g, (char) => {
     switch (char) {
       case "&":
         return "&amp;";
@@ -139,9 +139,11 @@ function runProbeScript(
       signal: NodeJS.Signals | null,
     ) => {
       if (code !== 0) {
+        const signalSuffix = signal ? ` (signal ${signal})` : "";
+
         finishReject(
           new Error(
-            `Matrix render probe failed with exit code ${code ?? "unknown"}${signal ? ` (signal ${signal})` : ""}\n${stderr.trim()}`,
+            `Matrix render probe failed with exit code ${code ?? "unknown"}${signalSuffix}\n${stderr.trim()}`,
           ),
         );
         return;

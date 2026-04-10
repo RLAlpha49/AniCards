@@ -25,10 +25,7 @@ const rasterizeSvgMock = mock(async (svgMarkup: string) => {
   return Uint8Array.from(Buffer.from("FAKEPNG"));
 });
 
-const cardSvgGetMock = mock(async (request: Request) => {
-  void request;
-  return createDefaultSvgResponse();
-});
+const cardSvgGetMock = mock(async () => createDefaultSvgResponse());
 
 const GET = createCardPngRoute(cardSvgGetMock, rasterizeSvgMock);
 
@@ -41,10 +38,7 @@ beforeEach(() => {
   });
 
   cardSvgGetMock.mockReset();
-  cardSvgGetMock.mockImplementation(async (request: Request) => {
-    void request;
-    return createDefaultSvgResponse();
-  });
+  cardSvgGetMock.mockImplementation(async () => createDefaultSvgResponse());
 });
 
 describe("/card.png route", () => {
@@ -54,9 +48,10 @@ describe("/card.png route", () => {
     );
 
     const response = await GET(request);
-    const forwardedRequest = cardSvgGetMock.mock.calls[0]?.[0] as
-      | Request
+    const firstForwardedCall = cardSvgGetMock.mock.calls.at(0) as
+      | [Request]
       | undefined;
+    const forwardedRequest = firstForwardedCall?.[0];
 
     expect(cardSvgGetMock).toHaveBeenCalledTimes(1);
     const forwardedUrl = new URL(forwardedRequest?.url ?? request.url);
@@ -82,9 +77,10 @@ describe("/card.png route", () => {
       ),
     );
 
-    const forwardedRequest = cardSvgGetMock.mock.calls[0]?.[0] as
-      | Request
+    const firstForwardedCall = cardSvgGetMock.mock.calls.at(0) as
+      | [Request]
       | undefined;
+    const forwardedRequest = firstForwardedCall?.[0];
     const forwardedUrl = new URL(forwardedRequest?.url ?? "http://localhost");
 
     expect(forwardedUrl.searchParams.get("animate")).toBe("true");

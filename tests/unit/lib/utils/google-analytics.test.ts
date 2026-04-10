@@ -1,5 +1,3 @@
-import "@/tests/unit/__setup__";
-
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
@@ -13,6 +11,7 @@ import {
   setAnalyticsConsentState,
   trackError,
 } from "@/lib/utils/google-analytics";
+import { parseRequestInitJson } from "@/tests/unit/__setup__";
 
 async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
   for (let index = 0; index < cycles; index++) {
@@ -86,12 +85,12 @@ describe("google analytics privacy utilities", () => {
     expect(fetchCall?.[0]).toBe("/api/error-reports");
     expect(fetchCall?.[1]?.method).toBe("POST");
 
-    return JSON.parse(String(fetchCall?.[1]?.body)) as {
+    return parseRequestInitJson<{
       category?: string;
       metadata?: Record<string, unknown>;
       source?: string;
       userAction?: string;
-    };
+    }>(fetchCall?.[1]);
   };
 
   beforeEach(() => {

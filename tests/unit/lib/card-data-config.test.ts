@@ -85,7 +85,7 @@ describe("card-data config helpers", () => {
     expect(resolveEffectiveColorPreset(null, "anilistDark")).toBe(
       "anilistDark",
     );
-    expect(resolveEffectiveColorPreset(null, undefined)).toBeUndefined();
+    expect(resolveEffectiveColorPreset(null)).toBeUndefined();
     expect(isCustomPreset("custom")).toBe(true);
     expect(isCustomPreset("anilistDark")).toBe(false);
   });

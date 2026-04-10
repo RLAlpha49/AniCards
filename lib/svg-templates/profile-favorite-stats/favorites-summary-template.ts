@@ -117,7 +117,7 @@ export const favoritesSummaryTemplate = (data: {
     <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
 
-  ${generateFavouritesSummaryBody(counts, resolvedColors)}
+  ${generateFavouritesSummaryBody(counts)}
 </svg>
 `);
 };

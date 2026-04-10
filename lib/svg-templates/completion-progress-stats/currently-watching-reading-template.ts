@@ -197,6 +197,9 @@ export function currentlyWatchingReadingTemplate(
   const noDataText = escapeForXml(
     noDataFit?.text ?? "No currently watching/reading entries found",
   );
+  const noDataFontSizeStyle = noDataFit
+    ? ` style="font-size:${noDataFit.fontSize}px"`
+    : "";
 
   const COVER_W = 26;
   const COVER_H = 36;
@@ -295,7 +298,7 @@ export function currentlyWatchingReadingTemplate(
 
   const noDataMessage =
     rows.length === 0
-      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line"${noDataFit ? ` style="font-size:${noDataFit.fontSize}px"` : ""}>${noDataText}</text>`
+      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line"${noDataFontSizeStyle}>${noDataText}</text>`
       : "";
 
   return markTrustedSvg(`

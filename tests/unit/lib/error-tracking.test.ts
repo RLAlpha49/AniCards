@@ -6,6 +6,7 @@ import {
 } from "@/lib/error-tracking";
 import {
   allowConsoleWarningsAndErrors,
+  parseRequestInitJson,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockLrange,
@@ -534,10 +535,7 @@ describe("error tracking", () => {
     expect(firstFetchCall).toBeTruthy();
 
     const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
-    const payload = JSON.parse(String(requestInit?.body)) as Record<
-      string,
-      unknown
-    >;
+    const payload = parseRequestInitJson<Record<string, unknown>>(requestInit);
 
     expect(payload).not.toHaveProperty("userId");
     expect(payload).not.toHaveProperty("username");
@@ -914,10 +912,10 @@ describe("error tracking", () => {
       throw new Error("Expected mocked fetch to receive a RequestInit object");
     }
 
-    const payload = JSON.parse(String((requestInit as RequestInit).body)) as {
+    const payload = parseRequestInitJson<{
       stack?: string;
       componentStack?: string;
-    };
+    }>(requestInit as RequestInit);
 
     expect(payload.stack).toBe("at renderUser\nat fetchProfile");
     expect(payload.componentStack).toBe("at UserPage\nat Layout");

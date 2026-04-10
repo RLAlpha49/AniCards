@@ -95,19 +95,54 @@ function summarizeStackForLogs(value: unknown): string | undefined {
   return truncateLogString(frames.join(" | "), 200);
 }
 
+function describeNonPrimitiveLogValue(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message || value.name;
+  }
+
+  if (typeof value === "function") {
+    return value.name ? `[Function ${value.name}]` : "[Function]";
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    if (typeof serialized === "string") {
+      return serialized;
+    }
+  } catch {
+    // Ignore serialization failures and fall back to a stable label below.
+  }
+
+  if (Array.isArray(value)) {
+    return `[Array(${value.length})]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const constructorName = value.constructor?.name;
+    if (constructorName && constructorName !== "Object") {
+      return `[${constructorName}]`;
+    }
+
+    return "[Object]";
+  }
+
+  return String(value);
+}
+
 function safeStringifyValue(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null) return "null";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
     return String(value);
   }
 
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return describeNonPrimitiveLogValue(value);
 }
 
 export function redactIp(ip: string): string {
@@ -158,7 +193,7 @@ export function redactUserIdentifier(value: unknown): string {
     return "missing";
   }
 
-  const normalized = String(value).trim();
+  const normalized = safeStringifyValue(value).trim();
   if (!normalized) {
     return "missing";
   }
@@ -194,7 +229,7 @@ function sanitizeLogContextValue(
 
   const normalizedKey = key.toLowerCase();
   if (normalizedKey.includes("ip")) {
-    return redactIp(String(value));
+    return redactIp(safeStringifyValue(value));
   }
 
   if (
@@ -206,7 +241,7 @@ function sanitizeLogContextValue(
   }
 
   if (normalizedKey === "requestid") {
-    return truncateLogString(String(value), 120);
+    return truncateLogString(safeStringifyValue(value), 120);
   }
 
   if (normalizedKey.includes("stack")) {

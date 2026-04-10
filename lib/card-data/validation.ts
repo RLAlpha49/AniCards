@@ -158,13 +158,15 @@ export function getRequiredAggregateKeyForCardType(
   return CARD_TYPE_REQUIRED_AGGREGATES[baseCardType];
 }
 
+type AggregateCarrier =
+  | Pick<UserRecord, "aggregates">
+  | Partial<Pick<UserRecord, "aggregates">>
+  | null
+  | undefined;
+
 /** Returns the aggregate keys already stored on a user record. @source */
 export function getAvailableUserAggregateKeys(
-  user:
-    | Pick<UserRecord, "aggregates">
-    | Partial<Pick<UserRecord, "aggregates">>
-    | null
-    | undefined,
+  user: AggregateCarrier,
 ): UserAggregateKey[] {
   const storedAggregates = user?.aggregates;
 
@@ -176,11 +178,7 @@ export function getAvailableUserAggregateKeys(
 
 /** Returns the aggregate keys missing from a sampled user record. @source */
 export function getMissingUserAggregateKeys(
-  user:
-    | Pick<UserRecord, "aggregates">
-    | Partial<Pick<UserRecord, "aggregates">>
-    | null
-    | undefined,
+  user: AggregateCarrier,
 ): UserAggregateKey[] {
   const available = new Set(getAvailableUserAggregateKeys(user));
   return USER_AGGREGATE_KEYS.filter((key) => !available.has(key));
@@ -189,11 +187,7 @@ export function getMissingUserAggregateKeys(
 /** Returns whether the user record already has the aggregate needed by a card. @source */
 export function userHasRequiredAggregateForCardType(
   baseCardType: string,
-  user:
-    | Pick<UserRecord, "aggregates">
-    | Partial<Pick<UserRecord, "aggregates">>
-    | null
-    | undefined,
+  user: AggregateCarrier,
 ): boolean {
   const requiredAggregateKey = getRequiredAggregateKeyForCardType(baseCardType);
   if (!requiredAggregateKey) {

@@ -1,5 +1,3 @@
-import "@/tests/unit/__setup__";
-
 import {
   afterAll,
   afterEach,
@@ -11,6 +9,8 @@ import {
 } from "bun:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+
+import { parseRequestInitJson } from "@/tests/unit/__setup__";
 
 const capturedScripts: Array<{
   children?: ReactNode;
@@ -68,12 +68,12 @@ function getReportedErrorPayload(callIndex = 0) {
   expect(fetchCall?.[0]).toBe("/api/error-reports");
   expect(fetchCall?.[1]?.method).toBe("POST");
 
-  return JSON.parse(String(fetchCall?.[1]?.body)) as {
+  return parseRequestInitJson<{
     category?: string;
     metadata?: Record<string, unknown>;
     source?: string;
     userAction?: string;
-  };
+  }>(fetchCall?.[1]);
 }
 
 function createStorageMock(): Storage {
@@ -184,7 +184,8 @@ describe("GoogleAnalytics", () => {
 
     expect(loaderScript?.onError).toBeDefined();
 
-    await loaderScript?.onError?.(new TypeError("Failed to load script"));
+    loaderScript?.onError?.(new TypeError("Failed to load script"));
+    await Promise.resolve();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getReportedErrorPayload(0)).toMatchObject({

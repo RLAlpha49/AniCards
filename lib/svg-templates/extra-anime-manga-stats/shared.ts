@@ -113,6 +113,25 @@ function buildRadarLabelCandidates(
   return candidates;
 }
 
+type RadarSingleLineFitOptions = {
+  fontWeight: number;
+  initialFontSize: number;
+  maxWidth: number;
+  minFontSize: number;
+  text: string;
+};
+
+function buildRadarLineFitCacheKey(options: RadarSingleLineFitOptions): string {
+  return [
+    options.text,
+    options.initialFontSize,
+    options.maxWidth,
+    options.minFontSize,
+    options.fontWeight,
+    "shrink-then-truncate",
+  ].join("\u0001");
+}
+
 /**
  * Build radar label layouts by enumerating candidate word groupings, using
  * provisional single-line fits to choose a shared font size, then re-fitting
@@ -136,31 +155,8 @@ function fitRadarLabelLines(
   >();
   const labelWidthCache = new Map<string, number>();
 
-  function buildFitCacheKey(options: {
-    fontWeight: number;
-    initialFontSize: number;
-    maxWidth: number;
-    minFontSize: number;
-    text: string;
-  }): string {
-    return [
-      options.text,
-      options.initialFontSize,
-      options.maxWidth,
-      options.minFontSize,
-      options.fontWeight,
-      "shrink-then-truncate",
-    ].join("\u0001");
-  }
-
-  function getRadarSingleLineFit(options: {
-    fontWeight: number;
-    initialFontSize: number;
-    maxWidth: number;
-    minFontSize: number;
-    text: string;
-  }) {
-    const cacheKey = buildFitCacheKey(options);
+  function getRadarSingleLineFit(options: RadarSingleLineFitOptions) {
+    const cacheKey = buildRadarLineFitCacheKey(options);
     const cachedFit = singleLineFitCache.get(cacheKey);
 
     if (cachedFit !== undefined) {

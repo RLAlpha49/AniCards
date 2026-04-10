@@ -135,10 +135,13 @@ function summarizeCronRefreshBudget(totalUsers: number): {
   note: string;
 } {
   const dailyCapacity = CRON_REFRESH_BATCH_SIZE * CRON_REFRESH_RUNS_PER_DAY;
-  const estimatedSweepHours =
-    totalUsers === 0
-      ? 0
-      : Math.max(1, Math.ceil((totalUsers / dailyCapacity) * 24));
+  let estimatedSweepHours = 0;
+  if (totalUsers > 0) {
+    estimatedSweepHours = Math.max(
+      1,
+      Math.ceil((totalUsers / dailyCapacity) * 24),
+    );
+  }
 
   if (totalUsers === 0) {
     return {

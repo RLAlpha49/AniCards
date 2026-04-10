@@ -28,19 +28,54 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function describeNonPrimitiveValidationValue(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message || value.name;
+  }
+
+  if (typeof value === "function") {
+    return value.name ? `[Function ${value.name}]` : "[Function]";
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    if (typeof serialized === "string") {
+      return serialized;
+    }
+  } catch {
+    // Ignore serialization failures and fall back to a stable label below.
+  }
+
+  if (Array.isArray(value)) {
+    return `[Array(${value.length})]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const constructorName = value.constructor?.name;
+    if (constructorName && constructorName !== "Object") {
+      return `[${constructorName}]`;
+    }
+
+    return "[Object]";
+  }
+
+  return String(value);
+}
+
 function safeStringifyValue(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null) return "null";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
     return String(value);
   }
 
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return describeNonPrimitiveValidationValue(value);
 }
 
 function coerceToString(value: unknown): string {
@@ -1452,7 +1487,7 @@ export function validateStoreCardsStatsData(
     if (statsError !== undefined) {
       return {
         success: false,
-        errorMessage: String(statsError),
+        errorMessage: safeStringifyValue(statsError),
       };
     }
 

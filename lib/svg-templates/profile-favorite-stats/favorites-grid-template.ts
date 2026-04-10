@@ -319,10 +319,9 @@ export const favoritesGridTemplate = (data: {
 
           const item = cell.item;
           const anilistUrl = `https://anilist.co/${item.type}/${item.id}`;
-          const imageHrefAttr =
-            item.image && item.image.startsWith("data:")
-              ? `href="${escapeForXml(item.image)}"`
-              : "";
+          const imageHrefAttr = item.image?.startsWith("data:")
+            ? `href="${escapeForXml(item.image)}"`
+            : "";
 
           const clipId = `clip-${item.type}-${item.id}-${i}`;
           // The grid is capped at 25 items, so this per-item measurement stays bounded; memoize by name if it ever becomes hot.
@@ -340,12 +339,15 @@ export const favoritesGridTemplate = (data: {
                 (segment) => segment.segment,
               )
             : splitIntoGraphemesSync(item.name);
-          const fittedItemName =
-            itemNameFit?.text && itemNameFit.text.trim().length > 0
-              ? itemNameFit.text
-              : itemNameSegments.length > MAX_NAME_GRAPHEMES
-                ? `${itemNameSegments.slice(0, MAX_NAME_GRAPHEMES).join("")}…`
-                : item.name;
+          const fittedNameText = itemNameFit?.text;
+          let fittedItemName = item.name;
+          if (fittedNameText && fittedNameText.trim().length > 0) {
+            fittedItemName = fittedNameText;
+          } else if (itemNameSegments.length > MAX_NAME_GRAPHEMES) {
+            fittedItemName = `${itemNameSegments
+              .slice(0, MAX_NAME_GRAPHEMES)
+              .join("")}…`;
+          }
 
           // Studios don't have images - render text-only tiles with initials
           if (item.type === "studio") {

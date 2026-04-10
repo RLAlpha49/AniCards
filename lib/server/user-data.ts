@@ -1055,8 +1055,13 @@ function parseUserCommitPointer(
     });
   }
 
+  const parsedUserId =
+    typeof parsed.userId === "string" || typeof parsed.userId === "number"
+      ? String(parsed.userId)
+      : String(userId);
+
   return {
-    userId: String(parsed.userId ?? userId),
+    userId: parsedUserId,
     storageFormat: USER_STORAGE_FORMAT,
     readShape: readOptionalCommitPointerString(parsed, "readShape"),
     schemaVersion:

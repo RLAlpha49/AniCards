@@ -466,9 +466,44 @@ function sanitizeRecoverySuggestions(
 }
 
 function coerceErrorMessage(error: unknown): string {
+  if (error === undefined || error === null) return "Unknown error";
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
-  return String(error);
+  if (
+    typeof error === "number" ||
+    typeof error === "boolean" ||
+    typeof error === "bigint" ||
+    typeof error === "symbol"
+  ) {
+    return String(error);
+  }
+
+  try {
+    const serialized = JSON.stringify(error);
+    if (typeof serialized === "string") {
+      return serialized;
+    }
+  } catch {
+    // Ignore serialization failures and fall back to a stable label below.
+  }
+
+  if (typeof error === "function") {
+    return error.name ? `[Function ${error.name}]` : "[Function]";
+  }
+
+  if (Array.isArray(error)) {
+    return `[Array(${error.length})]`;
+  }
+
+  const constructorName =
+    typeof error === "object" && error !== null
+      ? error.constructor?.name
+      : undefined;
+  if (constructorName && constructorName !== "Object") {
+    return `[${constructorName}]`;
+  }
+
+  return "[Object]";
 }
 
 function resolveErrorName(error: unknown, explicitName?: string): string {
@@ -1488,7 +1523,7 @@ function saveClientErrorReportQueueStore(store: {
     }
 
     store.state.stats.storage = fallbackHandle.kind;
-    void writeClientErrorReportQueueStateToStorage(fallbackHandle, store.state);
+    writeClientErrorReportQueueStateToStorage(fallbackHandle, store.state);
   }
 }
 
@@ -1722,8 +1757,7 @@ function toClientErrorReportDeliveryError(
     return error;
   }
 
-  const message =
-    error instanceof Error ? error.message : String(error ?? "Unknown error");
+  const message = coerceErrorMessage(error);
 
   return new ClientErrorReportDeliveryError(message, {
     retryable: isRetryableClientErrorReportTransportFailure(error),

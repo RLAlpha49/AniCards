@@ -16,6 +16,7 @@ import {
 } from "@/app/api/convert/route";
 import {
   allowConsoleWarningsAndErrors,
+  getRequestInputUrl,
   sharedRatelimitMockLimit,
 } from "@/tests/unit/__setup__";
 
@@ -54,8 +55,7 @@ function createSharpOutputInstance() {
       lastSharpFormat = "png";
       return outputInstance;
     }),
-    webp: mock((opts: { quality: number }) => {
-      void opts;
+    webp: mock(() => {
       lastSharpFormat = "webp";
       return outputInstance;
     }),
@@ -88,8 +88,7 @@ function createSharpInstance(buf?: Buffer) {
       lastSharpFormat = "png";
       return instance;
     }),
-    webp: mock((opts: { quality: number }) => {
-      void opts;
+    webp: mock(() => {
       lastSharpFormat = "webp";
       return instance;
     }),
@@ -717,7 +716,7 @@ describe("Convert API POST Endpoint", () => {
       const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
         | [RequestInfo | URL, RequestInit | undefined]
         | undefined;
-      const fetchedUrl = String(firstFetchCall?.[0] ?? "");
+      const fetchedUrl = getRequestInputUrl(firstFetchCall?.[0]);
       expect(fetchedUrl).toContain("/api/card.svg");
       expect(fetchedUrl).toContain("animate=false");
     });
@@ -752,7 +751,7 @@ describe("Convert API POST Endpoint", () => {
       const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
         | [RequestInfo | URL, RequestInit | undefined]
         | undefined;
-      const fetchedUrl = String(firstFetchCall?.[0] ?? "");
+      const fetchedUrl = getRequestInputUrl(firstFetchCall?.[0]);
       expect(fetchedUrl).toContain("animate=true");
       expect(fetchedUrl).not.toContain("animate=false");
     });
@@ -1011,8 +1010,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: url }),
       }) as unknown as NextRequest;
 
-    const mockFetchSvg = (svg: string, ok = true, status = 200) => {
-      void ok;
+    const mockFetchSvg = (svg: string, status = 200) => {
       globalThis.fetch = mock(
         async () =>
           new Response(svg, {
@@ -1030,7 +1028,7 @@ describe("Convert API POST Endpoint", () => {
       url = "http://localhost/dummy.svg",
       expectStatus = 200,
     ) => {
-      mockFetchSvg(svg, true, expectStatus);
+      mockFetchSvg(svg, expectStatus);
       lastSharpBuffer = null;
       const req = makeRequestForSvgUrl(url);
       const res = await POST(req);

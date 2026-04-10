@@ -530,56 +530,124 @@ function isRegionalIndicator(char: string): boolean {
   return REGIONAL_INDICATOR_PATTERN.test(char);
 }
 
-function splitIntoGraphemeClustersFallback(text: string): string[] {
-  const clusters: string[] = [];
-  let current = "";
-  let joinNext = false;
-  let currentRegionalIndicators = 0;
+type GraphemeClusterState = {
+  current: string;
+  currentRegionalIndicators: number;
+  joinNext: boolean;
+};
 
-  for (const char of text) {
-    const isJoiner = char === ZERO_WIDTH_JOINER;
-    const isModifier = isCombiningOrModifier(char);
-    const isRegional = isRegionalIndicator(char);
+type GraphemeClusterFlags = {
+  isJoiner: boolean;
+  isModifier: boolean;
+  isRegional: boolean;
+};
 
-    if (current === "") {
-      current = char;
-      joinNext = isJoiner;
-      currentRegionalIndicators = isRegional ? 1 : 0;
-      continue;
-    }
+type GraphemeClusterAction =
+  | "seed"
+  | "append-after-joiner"
+  | "append-modifier"
+  | "append-joiner"
+  | "append-regional-pair"
+  | "flush";
 
-    if (joinNext) {
-      current += char;
-      joinNext = isJoiner;
-      currentRegionalIndicators = isRegional ? 1 : 0;
-      continue;
-    }
+function resetGraphemeClusterState(
+  state: GraphemeClusterState,
+  char: string,
+  flags: GraphemeClusterFlags,
+): void {
+  state.current = char;
+  state.joinNext = flags.isJoiner;
+  state.currentRegionalIndicators = flags.isRegional ? 1 : 0;
+}
 
-    if (isModifier) {
-      current += char;
-      continue;
-    }
-
-    if (isJoiner) {
-      current += char;
-      joinNext = true;
-      continue;
-    }
-
-    if (isRegional && currentRegionalIndicators % 2 === 1) {
-      current += char;
-      currentRegionalIndicators += 1;
-      continue;
-    }
-
-    clusters.push(current);
-    current = char;
-    joinNext = isJoiner;
-    currentRegionalIndicators = isRegional ? 1 : 0;
+function getGraphemeClusterAction(
+  state: GraphemeClusterState,
+  flags: GraphemeClusterFlags,
+): GraphemeClusterAction {
+  if (state.current === "") {
+    return "seed";
   }
 
-  if (current) {
-    clusters.push(current);
+  if (state.joinNext) {
+    return "append-after-joiner";
+  }
+
+  if (flags.isModifier) {
+    return "append-modifier";
+  }
+
+  if (flags.isJoiner) {
+    return "append-joiner";
+  }
+
+  return flags.isRegional && state.currentRegionalIndicators % 2 === 1
+    ? "append-regional-pair"
+    : "flush";
+}
+
+function applyGraphemeClusterAction(
+  state: GraphemeClusterState,
+  char: string,
+  flags: GraphemeClusterFlags,
+  action: GraphemeClusterAction,
+): string | null {
+  switch (action) {
+    case "seed":
+      resetGraphemeClusterState(state, char, flags);
+      return null;
+    case "append-after-joiner":
+      state.current += char;
+      state.joinNext = flags.isJoiner;
+      state.currentRegionalIndicators = flags.isRegional ? 1 : 0;
+      return null;
+    case "append-modifier":
+      state.current += char;
+      return null;
+    case "append-joiner":
+      state.current += char;
+      state.joinNext = true;
+      return null;
+    case "append-regional-pair":
+      state.current += char;
+      state.currentRegionalIndicators += 1;
+      return null;
+    case "flush": {
+      const previousCluster = state.current;
+      resetGraphemeClusterState(state, char, flags);
+      return previousCluster;
+    }
+  }
+}
+
+function splitIntoGraphemeClustersFallback(text: string): string[] {
+  const clusters: string[] = [];
+  const state: GraphemeClusterState = {
+    current: "",
+    currentRegionalIndicators: 0,
+    joinNext: false,
+  };
+
+  for (const char of text) {
+    const flags: GraphemeClusterFlags = {
+      isJoiner: char === ZERO_WIDTH_JOINER,
+      isModifier: isCombiningOrModifier(char),
+      isRegional: isRegionalIndicator(char),
+    };
+    const action = getGraphemeClusterAction(state, flags);
+    const previousCluster = applyGraphemeClusterAction(
+      state,
+      char,
+      flags,
+      action,
+    );
+
+    if (previousCluster) {
+      clusters.push(previousCluster);
+    }
+  }
+
+  if (state.current) {
+    clusters.push(state.current);
   }
 
   return clusters;
