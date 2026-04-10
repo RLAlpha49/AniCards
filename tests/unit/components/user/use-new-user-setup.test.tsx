@@ -70,6 +70,36 @@ function createJsonResponse(
   });
 }
 
+function getRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  if (input instanceof Request) {
+    return input.url;
+  }
+
+  throw new TypeError("Expected fetch input to be a string, URL, or Request.");
+}
+
+function parseJsonRequestBody<T>(
+  body: RequestInit["body"] | null | undefined,
+): T {
+  if (body === null || body === undefined) {
+    return {} as T;
+  }
+
+  if (typeof body === "string") {
+    return JSON.parse(body) as T;
+  }
+
+  throw new TypeError("Expected a JSON request body string.");
+}
+
 function createAniListStatsResponse(
   overrides: Partial<{
     avatar: { large?: string; medium?: string };
@@ -114,12 +144,12 @@ describe("useNewUserSetup", () => {
   it("bootstraps a direct numeric userId path and hydrates one authoritative saved starter state", async () => {
     const fetchMock = mock(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        const requestUrl = String(input);
+        const requestUrl = getRequestUrl(input);
 
         if (requestUrl === "/api/anilist") {
-          const requestBody = JSON.parse(String(init?.body ?? "{}")) as {
-            query?: string;
-          };
+          const requestBody = parseJsonRequestBody<{ query?: string }>(
+            init?.body,
+          );
 
           expect(requestBody.query).toBe(USER_STATS_QUERY);
           return createJsonResponse(createAniListStatsResponse());
@@ -179,12 +209,12 @@ describe("useNewUserSetup", () => {
   it("resolves username lookups through AniList before saving and hydrating starter cards", async () => {
     const fetchMock = mock(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        const requestUrl = String(input);
+        const requestUrl = getRequestUrl(input);
 
         if (requestUrl === "/api/anilist") {
-          const requestBody = JSON.parse(String(init?.body ?? "{}")) as {
-            query?: string;
-          };
+          const requestBody = parseJsonRequestBody<{ query?: string }>(
+            init?.body,
+          );
 
           if (requestBody.query === USER_ID_QUERY) {
             return createJsonResponse({ User: { id: 542244 } });
@@ -229,15 +259,15 @@ describe("useNewUserSetup", () => {
       username: "Alpha49",
     });
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    const firstAniListBody = JSON.parse(
-      String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body),
-    ) as { query?: string };
+    const firstAniListBody = parseJsonRequestBody<{ query?: string }>(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body,
+    );
     expect(firstAniListBody.query).toBe(USER_ID_QUERY);
   });
 
   it("returns a retryable error when AniList rate limits the username-to-ID lookup", async () => {
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl === "/api/anilist") {
         return createJsonResponse(
@@ -271,7 +301,7 @@ describe("useNewUserSetup", () => {
 
   it("returns a non-retryable not-found error when AniList does not resolve a numeric user ID", async () => {
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl === "/api/anilist") {
         return createJsonResponse({});
@@ -302,12 +332,12 @@ describe("useNewUserSetup", () => {
   it("surfaces store-users failures without hydrating the editor or leaving a pending starter save", async () => {
     const fetchMock = mock(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        const requestUrl = String(input);
+        const requestUrl = getRequestUrl(input);
 
         if (requestUrl === "/api/anilist") {
-          const requestBody = JSON.parse(String(init?.body ?? "{}")) as {
-            query?: string;
-          };
+          const requestBody = parseJsonRequestBody<{ query?: string }>(
+            init?.body,
+          );
 
           expect(requestBody.query).toBe(USER_STATS_QUERY);
           return createJsonResponse(createAniListStatsResponse());
@@ -355,12 +385,12 @@ describe("useNewUserSetup", () => {
 
     const fetchMock = mock(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        const requestUrl = String(input);
+        const requestUrl = getRequestUrl(input);
 
         if (requestUrl === "/api/anilist") {
-          const requestBody = JSON.parse(String(init?.body ?? "{}")) as {
-            query?: string;
-          };
+          const requestBody = parseJsonRequestBody<{ query?: string }>(
+            init?.body,
+          );
 
           if (requestBody.query === USER_ID_QUERY) {
             userIdLookups += 1;

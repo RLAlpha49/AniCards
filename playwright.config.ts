@@ -12,34 +12,58 @@ import { resolve } from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+function normalizeLocalEnvValue(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  if (trimmed.length < 2) {
+    return trimmed;
+  }
+
+  const hasMatchingSingleQuotes =
+    trimmed.startsWith("'") && trimmed.endsWith("'");
+  const hasMatchingDoubleQuotes =
+    trimmed.startsWith('"') && trimmed.endsWith('"');
+
+  return hasMatchingSingleQuotes || hasMatchingDoubleQuotes
+    ? trimmed.slice(1, -1).trim()
+    : trimmed;
+}
+
+function applyLocalPlaywrightEnvLine(line: string): void {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) {
+    return;
+  }
+
+  const match = /^([A-Za-z_]\w*)=(.*)$/.exec(trimmed);
+  if (!match) {
+    return;
+  }
+
+  const [, key, rawValue] = match;
+  if (process.env[key]?.trim()) {
+    return;
+  }
+
+  const normalizedValue = normalizeLocalEnvValue(rawValue);
+  if (normalizedValue) {
+    process.env[key] = normalizedValue;
+  }
+}
+
+function loadLocalPlaywrightEnvFile(relativePath: string): void {
+  const absolutePath = resolve(process.cwd(), relativePath);
+  if (!existsSync(absolutePath)) {
+    return;
+  }
+
+  for (const line of readFileSync(absolutePath, "utf8").split(/\r?\n/)) {
+    applyLocalPlaywrightEnvLine(line);
+  }
+}
+
 function loadLocalPlaywrightEnv(): void {
   for (const relativePath of [".env", ".env.local"]) {
-    const absolutePath = resolve(process.cwd(), relativePath);
-    if (!existsSync(absolutePath)) {
-      continue;
-    }
-
-    for (const line of readFileSync(absolutePath, "utf8").split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
-
-      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
-      if (!match) {
-        continue;
-      }
-
-      const [, key, rawValue] = match;
-      if (process.env[key]?.trim()) {
-        continue;
-      }
-
-      const normalizedValue = rawValue.replace(/^['\"]|['\"]$/g, "").trim();
-      if (normalizedValue) {
-        process.env[key] = normalizedValue;
-      }
-    }
+    loadLocalPlaywrightEnvFile(relativePath);
   }
 }
 
@@ -52,28 +76,55 @@ const useLocalProductionServer =
   process.env.PLAYWRIGHT_LOCAL_PRODUCTION === "1";
 const includeRealHandlerIpHeader = process.env.PLAYWRIGHT_REAL_USER_E2E === "1";
 const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
-const localServerCommand = process.env.CI
-  ? "bun run start"
-  : useLocalProductionServer
-    ? "bun run build && bun run start"
-    : "bun run dev";
+
+function getLocalServerCommand(): string {
+  if (process.env.CI) {
+    return "bun run start";
+  }
+
+  if (useLocalProductionServer) {
+    return "bun run build && bun run start";
+  }
+
+  return "bun run dev";
+}
+
 // Preview deployments can be protection-gated; these headers let CI reach them
 // without weakening the public site configuration.
-const extraHTTPHeaders = {
-  ...(automationBypassSecret
-    ? {
-        "x-vercel-protection-bypass": automationBypassSecret,
-        "x-vercel-set-bypass-cookie": "true",
-      }
-    : {}),
-  ...(includeRealHandlerIpHeader
-    ? {
-        "x-playwright-client-ip": "127.0.0.1",
-      }
-    : {}),
-};
-const resolvedExtraHTTPHeaders =
-  Object.keys(extraHTTPHeaders).length > 0 ? extraHTTPHeaders : undefined;
+function buildExtraHttpHeaders(): Record<string, string> | undefined {
+  const extraHTTPHeaders = {
+    ...(automationBypassSecret
+      ? {
+          "x-vercel-protection-bypass": automationBypassSecret,
+          "x-vercel-set-bypass-cookie": "true",
+        }
+      : {}),
+    ...(includeRealHandlerIpHeader
+      ? {
+          "x-playwright-client-ip": "127.0.0.1",
+        }
+      : {}),
+  };
+
+  return Object.keys(extraHTTPHeaders).length > 0
+    ? extraHTTPHeaders
+    : undefined;
+}
+
+function buildWebServerConfig() {
+  if (!shouldLaunchLocalServer) {
+    return undefined;
+  }
+
+  return {
+    command: getLocalServerCommand(),
+    url: baseURL,
+    reuseExistingServer: !process.env.CI && !useLocalProductionServer,
+    timeout: useLocalProductionServer ? 300 * 1000 : 120 * 1000,
+  };
+}
+
+const resolvedExtraHTTPHeaders = buildExtraHttpHeaders();
 
 const projects = [
   {
@@ -119,12 +170,5 @@ export default defineConfig({
 
   projects,
 
-  webServer: shouldLaunchLocalServer
-    ? {
-        command: localServerCommand,
-        url: baseURL,
-        reuseExistingServer: !process.env.CI && !useLocalProductionServer,
-        timeout: useLocalProductionServer ? 300 * 1000 : 120 * 1000,
-      }
-    : undefined,
+  webServer: buildWebServerConfig(),
 });

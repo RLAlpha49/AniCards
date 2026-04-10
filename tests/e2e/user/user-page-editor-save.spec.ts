@@ -37,13 +37,13 @@ function readLocalEnvValues(): Record<string, string> {
         continue;
       }
 
-      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
+      const match = /^([A-Za-z_]\w*)=(.*)$/.exec(trimmed);
       if (!match) {
         continue;
       }
 
       const [, key, rawValue] = match;
-      const unquotedValue = rawValue.replace(/^['\"]|['\"]$/g, "").trim();
+      const unquotedValue = rawValue.replaceAll(/^['"]|['"]$/g, "").trim();
       if (unquotedValue) {
         values[key] = unquotedValue;
       }

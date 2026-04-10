@@ -31,6 +31,63 @@ const formatConsoleArgs = (args: unknown[]): string =>
     })
     .join(" ");
 
+function getBodyText(
+  body: BodyInit | null | undefined,
+  fallback?: string,
+): string | undefined {
+  if (typeof body === "string") {
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  return body == null ? fallback : undefined;
+}
+
+export function getRequestInitBodyText(
+  init: RequestInit | undefined,
+  fallback?: string,
+): string | undefined {
+  return getBodyText(init?.body, fallback);
+}
+
+export function parseRequestInitJson<T>(
+  init: RequestInit | undefined,
+  fallback?: string,
+): T {
+  const bodyText = getRequestInitBodyText(init, fallback);
+  if (bodyText === undefined) {
+    throw new Error("Expected RequestInit.body to be a string.");
+  }
+
+  return JSON.parse(bodyText) as T;
+}
+
+export function getRequestInputUrl(
+  input: RequestInfo | URL | undefined,
+  fallback = "",
+): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  if (input instanceof Request) {
+    return input.url;
+  }
+
+  return fallback;
+}
+
+export function getStringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
 const unexpectedConsoleWarn = mock((...args: unknown[]) => {
   throw new Error(
     [
@@ -163,10 +220,7 @@ async function applyEvalPartWrites(options: {
   userId: string;
   parts: Record<string, unknown>;
   presentParts: string[];
-  snapshotKeyPrefix: string;
 }) {
-  void options.snapshotKeyPrefix;
-
   for (const partName of options.presentParts) {
     const serializedPart = JSON.stringify(options.parts[partName]);
     await sharedRedisMockSet(
@@ -451,7 +505,6 @@ async function emulateAtomicUserSaveEval(
     userId: payload.userId,
     parts,
     presentParts: payload.presentParts,
-    snapshotKeyPrefix: payload.snapshotKeyPrefix,
   });
 
   const commitPointer = buildEvalCommitPointer({
@@ -484,11 +537,10 @@ async function emulateAtomicUserSaveEval(
 }
 
 async function defaultRedisEval(
-  script: unknown,
+  _script: unknown,
   keys: unknown,
   args: unknown,
 ): Promise<unknown> {
-  void script;
   const keyList = Array.isArray(keys) ? keys : [];
   const argList = Array.isArray(args) ? args : [];
 
@@ -523,18 +575,9 @@ export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
 export const sharedRedisMockEval = mock(defaultRedisEval);
 export const sharedRedisMockDel = mock();
-export const sharedRedisMockIncr = mock(async (...args: unknown[]) => {
-  void args;
-  return 1;
-});
-export const sharedRedisMockIncrRaw = mock(async (...args: unknown[]) => {
-  void args;
-  return 1;
-});
-export const sharedRedisMockExpire = mock(async (...args: unknown[]) => {
-  void args;
-  return 1;
-});
+export const sharedRedisMockIncr = mock(async () => 1);
+export const sharedRedisMockIncrRaw = mock(async () => 1);
+export const sharedRedisMockExpire = mock(async () => 1);
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock();
 export const sharedRedisMockLtrim = mock();
@@ -623,6 +666,12 @@ function normalizeAnalyticsCounterKeyForAssertions(key: unknown): unknown {
   return key.replace(/:month:\d{4}-\d{2}$/, "");
 }
 
+function detachPromise(result: unknown): void {
+  if (result instanceof Promise) {
+    result.catch(() => undefined);
+  }
+}
+
 const sharedRedisPipelineMock = {
   set: mock((...args: unknown[]) => {
     sharedRedisMockPipelineSet(...args);
@@ -659,17 +708,18 @@ const sharedRedisPipelineMock = {
       ...callArgs: unknown[]
     ) => Promise<unknown>;
 
-    void invokeSharedRedisMockIncrRaw(key);
-    void invokeSharedRedisMockIncr(
-      normalizeAnalyticsCounterKeyForAssertions(key),
+    detachPromise(invokeSharedRedisMockIncrRaw(key));
+    detachPromise(
+      invokeSharedRedisMockIncr(normalizeAnalyticsCounterKeyForAssertions(key)),
     );
     return sharedRedisPipelineMock;
   }),
   expire: mock((...args: unknown[]) => {
     sharedRedisMockPipelineExpire(...args);
-    void (
+    const expireResult = (
       sharedRedisMockExpire as unknown as (...callArgs: unknown[]) => unknown
     )(...args);
+    detachPromise(expireResult);
     return sharedRedisPipelineMock;
   }),
   exec: sharedRedisMockPipelineExec,

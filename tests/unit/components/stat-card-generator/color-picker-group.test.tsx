@@ -36,21 +36,29 @@ type TooltipTriggerProps = {
   children?: ReactNode;
 };
 
-mock.module("framer-motion", () => {
-  const MotionDiv = ({
-    animate,
-    children,
-    exit,
-    initial,
-    transition,
-    ...props
-  }: MotionDivProps) => {
-    void animate;
-    void exit;
-    void initial;
-    void transition;
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
 
-    return <div {...props}>{children}</div>;
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
+}
+
+mock.module("framer-motion", () => {
+  const MotionDiv = ({ children, ...props }: MotionDivProps) => {
+    const divProps = omitStubProps(props, [
+      "animate",
+      "exit",
+      "initial",
+      "transition",
+    ] as const);
+
+    return <div {...divProps}>{children}</div>;
   };
 
   return {
@@ -61,18 +69,11 @@ mock.module("framer-motion", () => {
 });
 
 mock.module("@/components/ui/Button", () => ({
-  Button: ({
-    children,
-    size,
-    type = "button",
-    variant,
-    ...props
-  }: ButtonProps) => {
-    void size;
-    void variant;
+  Button: ({ children, type = "button", ...props }: ButtonProps) => {
+    const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 
     return (
-      <button type={type} {...props}>
+      <button type={type} {...buttonProps}>
         {children}
       </button>
     );
@@ -93,10 +94,7 @@ mock.module("@/components/ui/Tooltip", () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   TooltipContent: () => null,
   TooltipProvider: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ asChild, children }: TooltipTriggerProps) => {
-    void asChild;
-    return <>{children}</>;
-  },
+  TooltipTrigger: ({ children }: TooltipTriggerProps) => <>{children}</>,
 }));
 
 function isGradientChange(

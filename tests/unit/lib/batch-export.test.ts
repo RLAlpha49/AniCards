@@ -40,8 +40,8 @@ const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
 
 const anchorClick = mock(() => {});
-const createObjectURL = mock((resource: Blob | MediaSource) => {
-  void resource;
+const createObjectURL = mock((blob: Blob | MediaSource) => {
+  void blob;
   return "blob:zip-download";
 });
 const revokeObjectURL = mock(() => {});
@@ -148,11 +148,7 @@ describe("batch-export queue scheduling", () => {
     readSvgMarkupFromObjectUrl.mockReset();
 
     convertSvgToBlob.mockImplementation(
-      async (
-        source: string | { svgContent: string },
-        format: "png" | "webp",
-      ) => {
-        void format;
+      async (source: string | { svgContent: string }) => {
         const sourceKey =
           typeof source === "string" ? source : source.svgContent;
         const match = /card-(\d+)/.exec(sourceKey);
@@ -313,18 +309,15 @@ describe("batch-export queue scheduling", () => {
       createDeferred<Blob>(),
     );
 
-    convertSvgToBlob.mockImplementation(
-      async (source: string, format: "png" | "webp") => {
-        void format;
-        const match = /card-(\d+)/.exec(source);
+    convertSvgToBlob.mockImplementation(async (source: string) => {
+      const match = /card-(\d+)/.exec(source);
 
-        if (!match) {
-          throw new Error(`Unexpected source key: ${source}`);
-        }
+      if (!match) {
+        throw new Error(`Unexpected source key: ${source}`);
+      }
 
-        return await deferredConversions[Number(match[1])].promise;
-      },
-    );
+      return await deferredConversions[Number(match[1])].promise;
+    });
 
     const exportPromise = batchConvertAndZip(
       [

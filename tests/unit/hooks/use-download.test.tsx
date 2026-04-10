@@ -53,8 +53,8 @@ const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
 
 const anchorClick = mock(() => {});
-const createObjectURL = mock((resource: Blob | MediaSource) => {
-  void resource;
+const createObjectURL = mock((blob: Blob | MediaSource) => {
+  void blob;
   return "blob:download-result";
 });
 const revokeObjectURL = mock(() => {});
@@ -190,9 +190,10 @@ describe("useDownload", () => {
     );
 
     let downloadPromise!: Promise<void>;
+    let duplicateDownloadPromise!: Promise<void>;
     act(() => {
       downloadPromise = result.current.handleDownload("webp");
-      void result.current.handleDownload("webp");
+      duplicateDownloadPromise = result.current.handleDownload("webp");
     });
 
     await act(async () => {
@@ -212,7 +213,7 @@ describe("useDownload", () => {
     deferredBlob.resolve(new Blob(["webp"], { type: "image/webp" }));
 
     await act(async () => {
-      await downloadPromise;
+      await Promise.all([downloadPromise, duplicateDownloadPromise]);
     });
 
     expect(result.current.isDownloading).toBe(false);

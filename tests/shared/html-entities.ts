@@ -1,5 +1,5 @@
 export function decodeHtmlEntities(value: string): string {
-  return value.replace(
+  return value.replaceAll(
     /&(lt|gt|amp|quot|apos|#39|#x27|#\d+|#x[0-9a-fA-F]+);/g,
     (entity) => {
       switch (entity) {

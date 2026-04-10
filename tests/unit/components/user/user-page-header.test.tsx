@@ -13,68 +13,61 @@ type MotionProps<T extends MotionTag> = ComponentProps<T> & {
   variants?: unknown;
 };
 
-function MotionHeader({
-  animate,
-  children,
-  initial,
-  transition,
-  variants,
-  ...props
-}: MotionProps<"header">) {
-  void animate;
-  void initial;
-  void transition;
-  void variants;
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
 
-  return <header {...props}>{children}</header>;
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
 }
 
-function MotionDiv({
-  animate,
-  children,
-  initial,
-  transition,
-  variants,
-  ...props
-}: MotionProps<"div">) {
-  void animate;
-  void initial;
-  void transition;
-  void variants;
+function MotionHeader({ children, ...props }: MotionProps<"header">) {
+  const headerProps = omitStubProps(props, [
+    "animate",
+    "initial",
+    "transition",
+    "variants",
+  ] as const);
 
-  return <div {...props}>{children}</div>;
+  return <header {...headerProps}>{children}</header>;
 }
 
-function MotionH1({
-  animate,
-  children,
-  initial,
-  transition,
-  variants,
-  ...props
-}: MotionProps<"h1">) {
-  void animate;
-  void initial;
-  void transition;
-  void variants;
+function MotionDiv({ children, ...props }: MotionProps<"div">) {
+  const divProps = omitStubProps(props, [
+    "animate",
+    "initial",
+    "transition",
+    "variants",
+  ] as const);
 
-  return <h1 {...props}>{children}</h1>;
+  return <div {...divProps}>{children}</div>;
 }
 
-function MotionP({
-  animate,
-  children,
-  initial,
-  transition,
-  variants,
-  ...props
-}: MotionProps<"p">) {
-  void animate;
-  void initial;
-  void transition;
-  void variants;
+function MotionH1({ children, ...props }: MotionProps<"h1">) {
+  const headingProps = omitStubProps(props, [
+    "animate",
+    "initial",
+    "transition",
+    "variants",
+  ] as const);
 
-  return <p {...props}>{children}</p>;
+  return <h1 {...headingProps}>{children}</h1>;
+}
+
+function MotionP({ children, ...props }: MotionProps<"p">) {
+  const paragraphProps = omitStubProps(props, [
+    "animate",
+    "initial",
+    "transition",
+    "variants",
+  ] as const);
+
+  return <p {...paragraphProps}>{children}</p>;
 }
 
 mock.module("framer-motion", () => ({

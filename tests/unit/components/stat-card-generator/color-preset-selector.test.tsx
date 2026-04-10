@@ -46,43 +46,43 @@ type TooltipTriggerProps = {
   children?: ReactNode;
 };
 
-mock.module("@/components/ui/Motion", () => {
-  const MotionButton = ({
-    animate,
-    children,
-    exit,
-    initial,
-    transition,
-    whileHover,
-    whileTap,
-    ...props
-  }: MotionButtonProps) => {
-    void animate;
-    void exit;
-    void initial;
-    void transition;
-    void whileHover;
-    void whileTap;
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
 
-    return <button {...props}>{children}</button>;
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
+}
+
+mock.module("@/components/ui/Motion", () => {
+  const MotionButton = ({ children, ...props }: MotionButtonProps) => {
+    const buttonProps = omitStubProps(props, [
+      "animate",
+      "exit",
+      "initial",
+      "transition",
+      "whileHover",
+      "whileTap",
+    ] as const);
+
+    return <button {...buttonProps}>{children}</button>;
   };
 
-  const MotionDiv = ({
-    animate,
-    children,
-    exit,
-    initial,
-    transition,
-    variants,
-    ...props
-  }: MotionDivProps) => {
-    void animate;
-    void exit;
-    void initial;
-    void transition;
-    void variants;
+  const MotionDiv = ({ children, ...props }: MotionDivProps) => {
+    const divProps = omitStubProps(props, [
+      "animate",
+      "exit",
+      "initial",
+      "transition",
+      "variants",
+    ] as const);
 
-    return <div {...props}>{children}</div>;
+    return <div {...divProps}>{children}</div>;
   };
 
   return {
@@ -97,18 +97,11 @@ mock.module("@/components/ui/Motion", () => {
 });
 
 mock.module("@/components/ui/Button", () => ({
-  Button: ({
-    children,
-    size,
-    type = "button",
-    variant,
-    ...props
-  }: ButtonProps) => {
-    void size;
-    void variant;
+  Button: ({ children, type = "button", ...props }: ButtonProps) => {
+    const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 
     return (
-      <button type={type} {...props}>
+      <button type={type} {...buttonProps}>
         {children}
       </button>
     );
@@ -125,10 +118,7 @@ mock.module("@/components/ui/Tooltip", () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   TooltipContent: () => null,
   TooltipProvider: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ asChild, children }: TooltipTriggerProps) => {
-    void asChild;
-    return <>{children}</>;
-  },
+  TooltipTrigger: ({ children }: TooltipTriggerProps) => <>{children}</>,
 }));
 
 function installDomGlobals() {
