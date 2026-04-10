@@ -27,7 +27,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             node_modules
@@ -36,7 +36,7 @@ jobs:
           restore-keys: ${{ runner.os }}-bun-
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload Playwright artifacts (Deployed Smoke)
         if: ${{ always() && steps.playwright_deployed.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-deployed-smoke
           path: |

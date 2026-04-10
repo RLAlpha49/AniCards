@@ -142,7 +142,7 @@ jobs:
           '
 
       - name: Cache Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-cache-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'public/**', 'package.json', 'tsconfig.json', 'next.config.ts') }}
@@ -153,7 +153,7 @@ jobs:
         run: bun run build
 
       - name: Upload Next build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: next-build
           path: .next
@@ -228,7 +228,7 @@ jobs:
 
       - name: Upload unit test coverage
         if: ${{ always() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-coverage
           path: .artifacts/coverage
@@ -256,7 +256,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
@@ -269,7 +269,7 @@ jobs:
           bun-version: latest
 
       - name: Download Next build artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: next-build
           path: .next
@@ -283,7 +283,7 @@ jobs:
 
       - name: Upload Playwright artifacts (Chromium)
         if: ${{ always() && steps.playwright_chromium.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-chromium
           path: |
@@ -313,7 +313,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
@@ -326,7 +326,7 @@ jobs:
           bun-version: latest
 
       - name: Download Next build artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: next-build
           path: .next
@@ -340,7 +340,7 @@ jobs:
 
       - name: Upload Playwright artifacts (Mobile Chrome)
         if: ${{ always() && steps.playwright_mobile.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-mobile-chrome
           path: |
@@ -370,7 +370,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
@@ -383,7 +383,7 @@ jobs:
           bun-version: latest
 
       - name: Download Next build artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: next-build
           path: .next
@@ -397,7 +397,7 @@ jobs:
 
       - name: Upload Playwright artifacts (Firefox Smoke)
         if: ${{ always() && steps.playwright_firefox_smoke.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-firefox-smoke
           path: |
