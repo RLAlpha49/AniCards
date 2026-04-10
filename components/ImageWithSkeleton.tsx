@@ -45,7 +45,7 @@ export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
 export const SLOW_LOAD_THRESHOLD_MS = 2000;
 
 const useIsomorphicLayoutEffect =
-  typeof globalThis.window === "undefined" ? useEffect : useLayoutEffect;
+  globalThis.window === undefined ? useEffect : useLayoutEffect;
 
 export function isImageReady(
   imageElement: HTMLImageElement | null,

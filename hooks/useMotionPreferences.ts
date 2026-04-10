@@ -44,14 +44,12 @@ export function useMotionPreferences() {
   useEffect(() => {
     setHasHydrated(true);
 
-    if (
-      typeof globalThis.window === "undefined" ||
-      typeof globalThis.window.matchMedia !== "function"
-    ) {
+    const windowObject = globalThis.window;
+
+    if (windowObject === undefined || windowObject.matchMedia === undefined) {
       return;
     }
 
-    const windowObject = globalThis.window;
     const reducedDataQuery = windowObject.matchMedia(REDUCED_DATA_MEDIA_QUERY);
     const coarsePointerQuery = windowObject.matchMedia(
       COARSE_POINTER_MEDIA_QUERY,
