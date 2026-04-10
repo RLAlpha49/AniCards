@@ -107,7 +107,10 @@ import {
 } from "@/lib/user-page-starters";
 import { cn } from "@/lib/utils";
 
-import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
+import {
+  BulkConfirmDialog,
+  type BulkConfirmPreviewItem,
+} from "./bulk/BulkConfirmDialog";
 import {
   CardCategorySection,
   type CardTileDragHandleProps,
@@ -1447,6 +1450,444 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
 
 EditorCardGroupsPanel.displayName = "EditorCardGroupsPanel";
 
+function getBulkActionDescription(count: number, action: string) {
+  if (count === 0) {
+    return undefined;
+  }
+
+  return `${count} cards ${action}`;
+}
+
+function openBulkDialogIfCardsAvailable(
+  cardCount: number,
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>,
+) {
+  if (cardCount === 0) {
+    return;
+  }
+
+  setOpen(true);
+}
+
+function runBulkCardAction(params: {
+  action: () => void;
+  successMessage: string;
+  successDescription?: string;
+  errorMessage: string;
+  logLabel: string;
+  toastId: string;
+  onFinally?: () => void;
+}) {
+  try {
+    params.action();
+    toast.success(params.successMessage, {
+      description: params.successDescription,
+      id: params.toastId,
+    });
+  } catch (err) {
+    console.error(`${params.logLabel}:`, err);
+    toast.error(params.errorMessage, {
+      id: params.toastId,
+    });
+  } finally {
+    params.onFinally?.();
+  }
+}
+
+type EditorBulkActionsProps = {
+  expandAll: () => void;
+  collapseAll: () => void;
+  isReorderMode: boolean;
+  canEnterReorderMode: boolean;
+  onToggleReorderMode: () => void;
+  undoBulk: () => void;
+  redoBulk: () => void;
+  canUndoBulk: boolean;
+  canRedoBulk: boolean;
+  allCardCount: number;
+  enabledCardCount: number;
+  enableAllCards: () => void;
+  disableAllCards: () => void;
+  resetAllCardsToGlobal: () => void;
+  isDisableAllDialogOpen: boolean;
+  setIsDisableAllDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isResetDialogOpen: boolean;
+  setIsResetDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  enabledCardsPreviewItems: BulkConfirmPreviewItem[];
+  allCardsPreviewItems: BulkConfirmPreviewItem[];
+  bulkLastMessage: string | null;
+};
+
+function EditorBulkActions({
+  expandAll,
+  collapseAll,
+  isReorderMode,
+  canEnterReorderMode,
+  onToggleReorderMode,
+  undoBulk,
+  redoBulk,
+  canUndoBulk,
+  canRedoBulk,
+  allCardCount,
+  enabledCardCount,
+  enableAllCards,
+  disableAllCards,
+  resetAllCardsToGlobal,
+  isDisableAllDialogOpen,
+  setIsDisableAllDialogOpen,
+  isResetDialogOpen,
+  setIsResetDialogOpen,
+  enabledCardsPreviewItems,
+  allCardsPreviewItems,
+  bulkLastMessage,
+}: Readonly<EditorBulkActionsProps>) {
+  const handleEnableAllCards = useCallback(() => {
+    if (allCardCount === 0) {
+      return;
+    }
+
+    runBulkCardAction({
+      action: enableAllCards,
+      successMessage: "Enabled all cards",
+      successDescription: getBulkActionDescription(
+        allCardCount,
+        "are now enabled.",
+      ),
+      errorMessage: "Failed to enable all cards",
+      logLabel: "Failed to enable all cards",
+      toastId: "enable-all-cards",
+    });
+  }, [allCardCount, enableAllCards]);
+
+  const handleOpenDisableAllDialog = useCallback(() => {
+    openBulkDialogIfCardsAvailable(enabledCardCount, setIsDisableAllDialogOpen);
+  }, [enabledCardCount, setIsDisableAllDialogOpen]);
+
+  const handleOpenResetDialog = useCallback(() => {
+    setIsResetDialogOpen(true);
+  }, [setIsResetDialogOpen]);
+
+  const handleConfirmDisableAll = useCallback(() => {
+    runBulkCardAction({
+      action: disableAllCards,
+      successMessage: "Disabled all enabled cards",
+      successDescription: getBulkActionDescription(
+        enabledCardCount,
+        "disabled. You can undo this.",
+      ),
+      errorMessage: "Failed to disable all cards",
+      logLabel: "Failed to disable all cards",
+      toastId: "disable-all-cards",
+      onFinally: () => setIsDisableAllDialogOpen(false),
+    });
+  }, [disableAllCards, enabledCardCount, setIsDisableAllDialogOpen]);
+
+  const handleConfirmResetAll = useCallback(() => {
+    runBulkCardAction({
+      action: resetAllCardsToGlobal,
+      successMessage: "Reset all cards to global settings",
+      successDescription: getBulkActionDescription(
+        allCardCount,
+        "reset. You can undo this.",
+      ),
+      errorMessage: "Failed to reset all cards",
+      logLabel: "Failed to reset all cards",
+      toastId: "reset-all-cards",
+      onFinally: () => setIsResetDialogOpen(false),
+    });
+  }, [allCardCount, resetAllCardsToGlobal, setIsResetDialogOpen]);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                onClick={expandAll}
+              >
+                <ChevronsUpDown className="size-4" />
+                <span className="sr-only">Expand all</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Expand all categories
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                onClick={collapseAll}
+              >
+                <ChevronsUpDown className="size-4 rotate-90" />
+                <span className="sr-only">Collapse all</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Collapse all categories
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <div className="h-5 w-px bg-gold/15" />
+
+        <ReorderModeToolbarToggle
+          isReorderMode={isReorderMode}
+          canEnterReorderMode={canEnterReorderMode}
+          onToggle={onToggleReorderMode}
+          dataTour="reorder-toggle"
+        />
+
+        <div className="h-5 w-px bg-gold/15" />
+
+        <div className="hidden items-center gap-1 sm:flex">
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  onClick={undoBulk}
+                  disabled={!canUndoBulk}
+                >
+                  <Undo2 className="size-4" />
+                  <span className="sr-only">Undo</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                {canUndoBulk ? "Undo last bulk action" : "Nothing to undo"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  onClick={redoBulk}
+                  disabled={!canRedoBulk}
+                >
+                  <Redo2 className="size-4" />
+                  <span className="sr-only">Redo</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                {canRedoBulk ? "Redo last bulk action" : "Nothing to redo"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <div className="h-5 w-px bg-gold/15" />
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="
+                    h-8 px-2 text-xs font-medium text-gold-dim
+                    hover:bg-gold/8
+                    dark:text-gold
+                  "
+                  onClick={handleEnableAllCards}
+                >
+                  <Eye className="size-3.5 lg:mr-1" />
+                  <span className="hidden lg:inline">Enable All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Enable all cards
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {getTooltipTriggerChild(
+                  enabledCardCount === 0 ? "disabled" : "enabled",
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="
+                      h-8 px-2 text-xs font-medium text-red-600
+                      hover:bg-red-50/80
+                      dark:text-red-400
+                      dark:hover:bg-red-950/30
+                    "
+                    onClick={handleOpenDisableAllDialog}
+                    disabled={enabledCardCount === 0}
+                  >
+                    <EyeOff className="size-3.5 lg:mr-1" />
+                    <span className="hidden lg:inline">Disable All</span>
+                  </Button>,
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Disable all cards
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="
+                    h-8 px-2 text-xs font-medium text-muted-foreground
+                    hover:bg-gold/5 hover:text-foreground
+                  "
+                  onClick={handleOpenResetDialog}
+                >
+                  <RotateCcw className="size-3.5 lg:mr-1" />
+                  <span className="hidden lg:inline">Reset All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Reset all cards to global settings
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <div className="ml-auto sm:hidden">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+              >
+                <MoreHorizontal className="size-4" />
+                <span className="sr-only">More actions</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="end">
+              <div className="flex flex-col gap-1">
+                <ReorderModeMenuToggle
+                  isReorderMode={isReorderMode}
+                  canEnterReorderMode={canEnterReorderMode}
+                  onToggle={onToggleReorderMode}
+                  dataTour="reorder-toggle"
+                />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={undoBulk}
+                  disabled={!canUndoBulk}
+                >
+                  <Undo2 className="mr-2 size-4" />
+                  Undo
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={redoBulk}
+                  disabled={!canRedoBulk}
+                >
+                  <Redo2 className="mr-2 size-4" />
+                  Redo
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-gold-dim dark:text-gold"
+                  onClick={handleEnableAllCards}
+                >
+                  <Eye className="mr-2 size-4" />
+                  Enable All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-red-600 dark:text-red-400"
+                  onClick={handleOpenDisableAllDialog}
+                  disabled={enabledCardCount === 0}
+                >
+                  <EyeOff className="mr-2 size-4" />
+                  Disable All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-muted-foreground"
+                  onClick={handleOpenResetDialog}
+                >
+                  <RotateCcw className="mr-2 size-4" />
+                  Reset All
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      <BulkConfirmDialog
+        open={isDisableAllDialogOpen}
+        onOpenChange={setIsDisableAllDialogOpen}
+        title="Disable all cards?"
+        description={
+          <>
+            This will hide all currently enabled cards.
+            <br />
+            <br />
+            You can undo this afterwards.
+          </>
+        }
+        confirmLabel="Disable all"
+        confirmDestructive
+        previewItems={enabledCardsPreviewItems}
+        totalAffected={enabledCardCount}
+        onConfirm={handleConfirmDisableAll}
+      />
+
+      <BulkConfirmDialog
+        open={isResetDialogOpen}
+        onOpenChange={setIsResetDialogOpen}
+        title="Reset all cards to global settings?"
+        description={
+          <>
+            This will reset <strong>all your cards</strong> to use the global
+            color, border, and advanced settings. Any custom per-card colors,
+            borders, and advanced settings will be removed.
+            <br />
+            <br />
+            You can undo this afterwards.
+          </>
+        }
+        confirmLabel="Reset all"
+        confirmDestructive
+        previewItems={allCardsPreviewItems}
+        totalAffected={allCardCount}
+        onConfirm={handleConfirmResetAll}
+      />
+
+      <BulkActionLiveRegion message={bulkLastMessage} />
+      <ReorderModeHint isVisible={isReorderMode} />
+    </>
+  );
+}
+
 function SelectedBulkActionsToolbarGate() {
   const selectedCount = useUserPageEditor(
     (state) => state.selectedCardIds.size,
@@ -1856,11 +2297,34 @@ export function UserPageEditor({
     });
   }, [reload]);
 
+  const helpDialog = useMemo(() => {
+    if (!hasRequestedHelpDialog) {
+      return null;
+    }
+
+    return (
+      <LazyUserHelpDialog
+        open={isHelpDialogOpen}
+        onOpenChange={handleHelpDialogOpenChange}
+        onStartTour={startTour}
+      />
+    );
+  }, [
+    handleHelpDialogOpenChange,
+    hasRequestedHelpDialog,
+    isHelpDialogOpen,
+    startTour,
+  ]);
+
   const clearAllFilters = useCallback(() => {
     setQuery("");
     setVisibility("all");
     setSelectedGroup("All");
     setCustomFilter("all");
+  }, []);
+
+  const handleToggleReorderMode = useCallback(() => {
+    setIsReorderMode((prev) => !prev);
   }, []);
 
   const activeFilterCount = useMemo(
@@ -1969,13 +2433,7 @@ export function UserPageEditor({
           saveState={saveState}
         />
 
-        {hasRequestedHelpDialog ? (
-          <LazyUserHelpDialog
-            open={isHelpDialogOpen}
-            onOpenChange={handleHelpDialogOpenChange}
-            onStartTour={startTour}
-          />
-        ) : null}
+        {helpDialog}
 
         <CommandPalette
           open={isCommandPaletteOpen}
@@ -2598,426 +3056,30 @@ export function UserPageEditor({
 
                 <div className="gold-line" />
 
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="
-                            size-8 p-0 text-muted-foreground
-                            hover:bg-gold/5 hover:text-foreground
-                          "
-                          onClick={expandAll}
-                        >
-                          <ChevronsUpDown className="size-4" />
-                          <span className="sr-only">Expand all</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        sideOffset={6}
-                        className="text-xs"
-                      >
-                        Expand all categories
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="
-                            size-8 p-0 text-muted-foreground
-                            hover:bg-gold/5 hover:text-foreground
-                          "
-                          onClick={collapseAll}
-                        >
-                          <ChevronsUpDown className="size-4 rotate-90" />
-                          <span className="sr-only">Collapse all</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        sideOffset={6}
-                        className="text-xs"
-                      >
-                        Collapse all categories
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="h-5 w-px bg-gold/15" />
-
-                  <ReorderModeToolbarToggle
-                    isReorderMode={isReorderMode}
-                    canEnterReorderMode={canEnterReorderMode}
-                    onToggle={() => setIsReorderMode((prev) => !prev)}
-                    dataTour="reorder-toggle"
-                  />
-
-                  <div className="h-5 w-px bg-gold/15" />
-
-                  <div className="hidden items-center gap-1 sm:flex">
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="
-                              size-8 p-0 text-muted-foreground
-                              hover:bg-gold/5 hover:text-foreground
-                            "
-                            onClick={undoBulk}
-                            disabled={!canUndoBulk}
-                          >
-                            <Undo2 className="size-4" />
-                            <span className="sr-only">Undo</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={6}
-                          className="text-xs"
-                        >
-                          {canUndoBulk
-                            ? "Undo last bulk action"
-                            : "Nothing to undo"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="
-                              size-8 p-0 text-muted-foreground
-                              hover:bg-gold/5 hover:text-foreground
-                            "
-                            onClick={redoBulk}
-                            disabled={!canRedoBulk}
-                          >
-                            <Redo2 className="size-4" />
-                            <span className="sr-only">Redo</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={6}
-                          className="text-xs"
-                        >
-                          {canRedoBulk
-                            ? "Redo last bulk action"
-                            : "Nothing to redo"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <div className="h-5 w-px bg-gold/15" />
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="
-                              h-8 px-2 text-xs font-medium text-gold-dim
-                              hover:bg-gold/8
-                              dark:text-gold
-                            "
-                            onClick={() => {
-                              if (allCardIds.length === 0) return;
-                              try {
-                                enableAllCards();
-                                toast.success("Enabled all cards", {
-                                  description:
-                                    allCardIds.length > 0
-                                      ? `${allCardIds.length} cards are now enabled.`
-                                      : undefined,
-                                  id: "enable-all-cards",
-                                });
-                              } catch (err) {
-                                console.error(
-                                  "Failed to enable all cards:",
-                                  err,
-                                );
-                                toast.error("Failed to enable all cards", {
-                                  id: "enable-all-cards",
-                                });
-                              }
-                            }}
-                          >
-                            <Eye className="size-3.5 lg:mr-1" />
-                            <span className="hidden lg:inline">Enable All</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={6}
-                          className="text-xs"
-                        >
-                          Enable all cards
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {getTooltipTriggerChild(
-                            enabledCardIds.length === 0
-                              ? "disabled"
-                              : "enabled",
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="
-                                h-8 px-2 text-xs font-medium text-red-600
-                                hover:bg-red-50/80
-                                dark:text-red-400
-                                dark:hover:bg-red-950/30
-                              "
-                              onClick={() => {
-                                if (enabledCardIds.length === 0) return;
-                                setIsDisableAllDialogOpen(true);
-                              }}
-                              disabled={enabledCardIds.length === 0}
-                            >
-                              <EyeOff className="size-3.5 lg:mr-1" />
-                              <span className="hidden lg:inline">
-                                Disable All
-                              </span>
-                            </Button>,
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={6}
-                          className="text-xs"
-                        >
-                          Disable all cards
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="
-                              h-8 px-2 text-xs font-medium text-muted-foreground
-                              hover:bg-gold/5 hover:text-foreground
-                            "
-                            onClick={() => setIsResetDialogOpen(true)}
-                          >
-                            <RotateCcw className="size-3.5 lg:mr-1" />
-                            <span className="hidden lg:inline">Reset All</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={6}
-                          className="text-xs"
-                        >
-                          Reset all cards to global settings
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-
-                  <div className="ml-auto sm:hidden">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="
-                            size-8 p-0 text-muted-foreground
-                            hover:bg-gold/5 hover:text-foreground
-                          "
-                        >
-                          <MoreHorizontal className="size-4" />
-                          <span className="sr-only">More actions</span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-48 p-2" align="end">
-                        <div className="flex flex-col gap-1">
-                          <ReorderModeMenuToggle
-                            isReorderMode={isReorderMode}
-                            canEnterReorderMode={canEnterReorderMode}
-                            onToggle={() => setIsReorderMode((prev) => !prev)}
-                            dataTour="reorder-toggle"
-                          />
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start"
-                            onClick={undoBulk}
-                            disabled={!canUndoBulk}
-                          >
-                            <Undo2 className="mr-2 size-4" />
-                            Undo
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start"
-                            onClick={redoBulk}
-                            disabled={!canRedoBulk}
-                          >
-                            <Redo2 className="mr-2 size-4" />
-                            Redo
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start text-gold-dim dark:text-gold"
-                            onClick={() => {
-                              if (allCardIds.length === 0) return;
-                              try {
-                                enableAllCards();
-                                toast.success("Enabled all cards", {
-                                  description:
-                                    allCardIds.length > 0
-                                      ? `${allCardIds.length} cards are now enabled.`
-                                      : undefined,
-                                  id: "enable-all-cards",
-                                });
-                              } catch (err) {
-                                console.error(
-                                  "Failed to enable all cards:",
-                                  err,
-                                );
-                                toast.error("Failed to enable all cards", {
-                                  id: "enable-all-cards",
-                                });
-                              }
-                            }}
-                          >
-                            <Eye className="mr-2 size-4" />
-                            Enable All
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start text-red-600 dark:text-red-400"
-                            onClick={() => {
-                              if (enabledCardIds.length === 0) return;
-                              setIsDisableAllDialogOpen(true);
-                            }}
-                            disabled={enabledCardIds.length === 0}
-                          >
-                            <EyeOff className="mr-2 size-4" />
-                            Disable All
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="justify-start text-muted-foreground"
-                            onClick={() => setIsResetDialogOpen(true)}
-                          >
-                            <RotateCcw className="mr-2 size-4" />
-                            Reset All
-                          </Button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
+                <EditorBulkActions
+                  expandAll={expandAll}
+                  collapseAll={collapseAll}
+                  isReorderMode={isReorderMode}
+                  canEnterReorderMode={canEnterReorderMode}
+                  onToggleReorderMode={handleToggleReorderMode}
+                  undoBulk={undoBulk}
+                  redoBulk={redoBulk}
+                  canUndoBulk={canUndoBulk}
+                  canRedoBulk={canRedoBulk}
+                  allCardCount={allCardIds.length}
+                  enabledCardCount={enabledCardIds.length}
+                  enableAllCards={enableAllCards}
+                  disableAllCards={disableAllCards}
+                  resetAllCardsToGlobal={resetAllCardsToGlobal}
+                  isDisableAllDialogOpen={isDisableAllDialogOpen}
+                  setIsDisableAllDialogOpen={setIsDisableAllDialogOpen}
+                  isResetDialogOpen={isResetDialogOpen}
+                  setIsResetDialogOpen={setIsResetDialogOpen}
+                  enabledCardsPreviewItems={enabledCardsPreviewItems}
+                  allCardsPreviewItems={allCardsPreviewItems}
+                  bulkLastMessage={bulkLastMessage}
+                />
               </div>
-
-              <BulkConfirmDialog
-                open={isDisableAllDialogOpen}
-                onOpenChange={setIsDisableAllDialogOpen}
-                title="Disable all cards?"
-                description={
-                  <>
-                    This will hide all currently enabled cards.
-                    <br />
-                    <br />
-                    You can undo this afterwards.
-                  </>
-                }
-                confirmLabel="Disable all"
-                confirmDestructive
-                previewItems={enabledCardsPreviewItems}
-                totalAffected={enabledCardIds.length}
-                onConfirm={() => {
-                  try {
-                    disableAllCards();
-                    toast.success("Disabled all enabled cards", {
-                      description:
-                        enabledCardIds.length > 0
-                          ? `${enabledCardIds.length} cards disabled. You can undo this.`
-                          : undefined,
-                      id: "disable-all-cards",
-                    });
-                  } catch (err) {
-                    console.error("Failed to disable all cards:", err);
-                    toast.error("Failed to disable all cards", {
-                      id: "disable-all-cards",
-                    });
-                  } finally {
-                    setIsDisableAllDialogOpen(false);
-                  }
-                }}
-              />
-
-              <BulkConfirmDialog
-                open={isResetDialogOpen}
-                onOpenChange={setIsResetDialogOpen}
-                title="Reset all cards to global settings?"
-                description={
-                  <>
-                    This will reset <strong>all your cards</strong> to use the
-                    global color, border, and advanced settings. Any custom
-                    per-card colors, borders, and advanced settings will be
-                    removed.
-                    <br />
-                    <br />
-                    You can undo this afterwards.
-                  </>
-                }
-                confirmLabel="Reset all"
-                confirmDestructive
-                previewItems={allCardsPreviewItems}
-                totalAffected={allCardIds.length}
-                onConfirm={() => {
-                  try {
-                    resetAllCardsToGlobal();
-                    toast.success("Reset all cards to global settings", {
-                      description:
-                        allCardIds.length > 0
-                          ? `${allCardIds.length} cards reset. You can undo this.`
-                          : undefined,
-                      id: "reset-all-cards",
-                    });
-                  } catch (err) {
-                    console.error("Failed to reset all cards:", err);
-                    toast.error("Failed to reset all cards", {
-                      id: "reset-all-cards",
-                    });
-                  } finally {
-                    setIsResetDialogOpen(false);
-                  }
-                }}
-              />
-
-              <BulkActionLiveRegion message={bulkLastMessage} />
-              <ReorderModeHint isVisible={isReorderMode} />
             </motion.div>
 
             <EditorCardGroupsPanel
