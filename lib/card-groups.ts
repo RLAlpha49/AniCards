@@ -69,6 +69,25 @@ type CardGroupDefinition = {
   extrasByVariation?: Partial<Record<string, Record<string, string>>>;
 };
 
+type CardGroupDefinitionEntry = readonly [
+  cardType: CardGroupDefinition["cardType"],
+  cardTitle: CardGroupDefinition["cardTitle"],
+  options?: Pick<CardGroupDefinition, "variationOrder" | "extrasByVariation">,
+];
+
+const DEFAULT_STATS_VARIATION_ORDER = [
+  "vertical",
+  "default",
+  "compact",
+  "minimal",
+] as const;
+
+const STATUS_COLOR_VARIATION_EXTRAS = {
+  pie: { statusColors: "true" },
+  bar: { statusColors: "true" },
+  donut: { statusColors: "true" },
+} as const satisfies NonNullable<CardGroupDefinition["extrasByVariation"]>;
+
 function createCardGroup(definition: CardGroupDefinition): CardGroup {
   const supportedVariationIds = getCardVariations(definition.cardType).map(
     (variation) => variation.id,
@@ -99,228 +118,85 @@ function createCardGroup(definition: CardGroupDefinition): CardGroup {
 }
 
 /** All grouped card metadata used to render examples and UI lists. @source */
-export const CARD_GROUPS: CardGroup[] = [
-  createCardGroup({
-    cardType: "animeStats",
-    cardTitle: "Anime Statistics",
-    variationOrder: ["vertical", "default", "compact", "minimal"],
-  }),
-  createCardGroup({
-    cardType: "mangaStats",
-    cardTitle: "Manga Statistics",
-    variationOrder: ["vertical", "default", "compact", "minimal"],
-  }),
-  createCardGroup({
-    cardType: "socialStats",
-    cardTitle: "Social Statistics",
-  }),
-  createCardGroup({
-    cardType: "socialMilestones",
-    cardTitle: "Social Milestones",
-  }),
-  createCardGroup({
-    cardType: "animeGenres",
-    cardTitle: "Anime Genres",
-  }),
-  createCardGroup({
-    cardType: "animeTags",
-    cardTitle: "Anime Tags",
-  }),
-  createCardGroup({
-    cardType: "animeVoiceActors",
-    cardTitle: "Voice Actors",
-  }),
-  createCardGroup({
-    cardType: "animeStudios",
-    cardTitle: "Animation Studios",
-  }),
-  createCardGroup({
-    cardType: "studioCollaboration",
-    cardTitle: "Studio Collaboration",
-  }),
-  createCardGroup({
-    cardType: "animeStaff",
-    cardTitle: "Anime Staff",
-  }),
-  createCardGroup({
-    cardType: "animeStatusDistribution",
-    cardTitle: "Anime Status Distribution",
-    extrasByVariation: {
-      pie: { statusColors: "true" },
-      bar: { statusColors: "true" },
-      donut: { statusColors: "true" },
-    },
-  }),
-  createCardGroup({
-    cardType: "animeFormatDistribution",
-    cardTitle: "Anime Format Distribution",
-  }),
-  createCardGroup({
-    cardType: "animeCountry",
-    cardTitle: "Anime Country Distribution",
-  }),
-  createCardGroup({
-    cardType: "animeSourceMaterialDistribution",
-    cardTitle: "Anime Source Material Distribution",
-  }),
-  createCardGroup({
-    cardType: "animeSeasonalPreference",
-    cardTitle: "Anime Seasonal Preference",
-  }),
-  createCardGroup({
-    cardType: "animeScoreDistribution",
-    cardTitle: "Anime Score Distribution",
-  }),
-  createCardGroup({
-    cardType: "animeYearDistribution",
-    cardTitle: "Anime Year Distribution",
-  }),
-  createCardGroup({
-    cardType: "animeEpisodeLengthPreferences",
-    cardTitle: "Episode Length Preferences",
-  }),
-  createCardGroup({
-    cardType: "animeGenreSynergy",
-    cardTitle: "Genre Synergy",
-  }),
-  createCardGroup({
-    cardType: "mangaGenres",
-    cardTitle: "Manga Genres",
-  }),
-  createCardGroup({
-    cardType: "mangaTags",
-    cardTitle: "Manga Tags",
-  }),
-  createCardGroup({
-    cardType: "mangaStaff",
-    cardTitle: "Manga Staff",
-  }),
-  createCardGroup({
-    cardType: "mangaStatusDistribution",
-    cardTitle: "Manga Status Distribution",
-    extrasByVariation: {
-      pie: { statusColors: "true" },
-      bar: { statusColors: "true" },
-      donut: { statusColors: "true" },
-    },
-  }),
-  createCardGroup({
-    cardType: "mangaFormatDistribution",
-    cardTitle: "Manga Format Distribution",
-  }),
-  createCardGroup({
-    cardType: "mangaCountry",
-    cardTitle: "Manga Country Distribution",
-  }),
-  createCardGroup({
-    cardType: "mangaScoreDistribution",
-    cardTitle: "Manga Score Distribution",
-  }),
-  createCardGroup({
-    cardType: "mangaYearDistribution",
-    cardTitle: "Manga Year Distribution",
-  }),
-  createCardGroup({
-    cardType: "profileOverview",
-    cardTitle: "Profile Overview",
-  }),
-  createCardGroup({
-    cardType: "favoritesSummary",
-    cardTitle: "Favourites Summary",
-  }),
-  createCardGroup({
-    cardType: "favoritesGrid",
-    cardTitle: "Favourites Grid",
-  }),
-  createCardGroup({
-    cardType: "recentActivitySummary",
-    cardTitle: "Recent Activity Summary",
-  }),
-  createCardGroup({
-    cardType: "activityStreaks",
-    cardTitle: "Activity Streaks",
-  }),
-  createCardGroup({
-    cardType: "topActivityDays",
-    cardTitle: "Top Activity Days",
-  }),
-  createCardGroup({
-    cardType: "statusCompletionOverview",
-    cardTitle: "Status Completion Overview",
-  }),
-  createCardGroup({
-    cardType: "milestones",
-    cardTitle: "Consumption Milestones",
-  }),
-  createCardGroup({
-    cardType: "personalRecords",
-    cardTitle: "Personal Records",
-  }),
-  createCardGroup({
-    cardType: "planningBacklog",
-    cardTitle: "Planning Backlog",
-  }),
-  createCardGroup({
-    cardType: "mostRewatched",
-    cardTitle: "Most Rewatched/Reread",
-  }),
-  createCardGroup({
-    cardType: "currentlyWatchingReading",
-    cardTitle: "Currently Watching / Reading",
-  }),
-  createCardGroup({
-    cardType: "animeMangaOverview",
-    cardTitle: "Anime vs Manga Overview",
-  }),
-  createCardGroup({
-    cardType: "scoreCompareAnimeManga",
-    cardTitle: "Anime vs Manga Score Comparison",
-  }),
-  createCardGroup({
-    cardType: "countryDiversity",
-    cardTitle: "Country Diversity",
-  }),
-  createCardGroup({
-    cardType: "genreDiversity",
-    cardTitle: "Genre Diversity",
-  }),
-  createCardGroup({
-    cardType: "formatPreferenceOverview",
-    cardTitle: "Format Preference Overview",
-  }),
-  createCardGroup({
-    cardType: "releaseEraPreference",
-    cardTitle: "Release Era Preference",
-  }),
-  createCardGroup({
-    cardType: "startYearMomentum",
-    cardTitle: "Start-Year Momentum",
-  }),
-  createCardGroup({
-    cardType: "lengthPreference",
-    cardTitle: "Length Preference",
-  }),
-  createCardGroup({
-    cardType: "tagCategoryDistribution",
-    cardTitle: "Tag Category Distribution",
-  }),
-  createCardGroup({
-    cardType: "tagDiversity",
-    cardTitle: "Tag Diversity",
-  }),
-  createCardGroup({
-    cardType: "seasonalViewingPatterns",
-    cardTitle: "Seasonal Viewing Patterns",
-  }),
-  createCardGroup({
-    cardType: "droppedMedia",
-    cardTitle: "Dropped Media",
-  }),
-  createCardGroup({
-    cardType: "reviewStats",
-    cardTitle: "Review Statistics",
-  }),
-];
+const CARD_GROUP_DEFINITIONS = [
+  [
+    "animeStats",
+    "Anime Statistics",
+    { variationOrder: DEFAULT_STATS_VARIATION_ORDER },
+  ],
+  [
+    "mangaStats",
+    "Manga Statistics",
+    { variationOrder: DEFAULT_STATS_VARIATION_ORDER },
+  ],
+  ["socialStats", "Social Statistics"],
+  ["socialMilestones", "Social Milestones"],
+  ["animeGenres", "Anime Genres"],
+  ["animeTags", "Anime Tags"],
+  ["animeVoiceActors", "Voice Actors"],
+  ["animeStudios", "Animation Studios"],
+  ["studioCollaboration", "Studio Collaboration"],
+  ["animeStaff", "Anime Staff"],
+  [
+    "animeStatusDistribution",
+    "Anime Status Distribution",
+    { extrasByVariation: STATUS_COLOR_VARIATION_EXTRAS },
+  ],
+  ["animeFormatDistribution", "Anime Format Distribution"],
+  ["animeCountry", "Anime Country Distribution"],
+  ["animeSourceMaterialDistribution", "Anime Source Material Distribution"],
+  ["animeSeasonalPreference", "Anime Seasonal Preference"],
+  ["animeScoreDistribution", "Anime Score Distribution"],
+  ["animeYearDistribution", "Anime Year Distribution"],
+  ["animeEpisodeLengthPreferences", "Episode Length Preferences"],
+  ["animeGenreSynergy", "Genre Synergy"],
+  ["mangaGenres", "Manga Genres"],
+  ["mangaTags", "Manga Tags"],
+  ["mangaStaff", "Manga Staff"],
+  [
+    "mangaStatusDistribution",
+    "Manga Status Distribution",
+    { extrasByVariation: STATUS_COLOR_VARIATION_EXTRAS },
+  ],
+  ["mangaFormatDistribution", "Manga Format Distribution"],
+  ["mangaCountry", "Manga Country Distribution"],
+  ["mangaScoreDistribution", "Manga Score Distribution"],
+  ["mangaYearDistribution", "Manga Year Distribution"],
+  ["profileOverview", "Profile Overview"],
+  ["favoritesSummary", "Favourites Summary"],
+  ["favoritesGrid", "Favourites Grid"],
+  ["recentActivitySummary", "Recent Activity Summary"],
+  ["activityStreaks", "Activity Streaks"],
+  ["topActivityDays", "Top Activity Days"],
+  ["statusCompletionOverview", "Status Completion Overview"],
+  ["milestones", "Consumption Milestones"],
+  ["personalRecords", "Personal Records"],
+  ["planningBacklog", "Planning Backlog"],
+  ["mostRewatched", "Most Rewatched/Reread"],
+  ["currentlyWatchingReading", "Currently Watching / Reading"],
+  ["animeMangaOverview", "Anime vs Manga Overview"],
+  ["scoreCompareAnimeManga", "Anime vs Manga Score Comparison"],
+  ["countryDiversity", "Country Diversity"],
+  ["genreDiversity", "Genre Diversity"],
+  ["formatPreferenceOverview", "Format Preference Overview"],
+  ["releaseEraPreference", "Release Era Preference"],
+  ["startYearMomentum", "Start-Year Momentum"],
+  ["lengthPreference", "Length Preference"],
+  ["tagCategoryDistribution", "Tag Category Distribution"],
+  ["tagDiversity", "Tag Diversity"],
+  ["seasonalViewingPatterns", "Seasonal Viewing Patterns"],
+  ["droppedMedia", "Dropped Media"],
+  ["reviewStats", "Review Statistics"],
+] as const satisfies readonly CardGroupDefinitionEntry[];
+
+export const CARD_GROUPS: CardGroup[] = CARD_GROUP_DEFINITIONS.map(
+  ([cardType, cardTitle, options]) =>
+    createCardGroup({
+      cardType,
+      cardTitle,
+      ...(options ?? {}),
+    }),
+);
 
 /**
  * Parameters for building a card URL with all configuration options.
