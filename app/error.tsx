@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-
 import { ErrorFallbackPanel } from "@/components/ErrorBoundary";
-import { reportStructuredError } from "@/lib/error-tracking";
-import { safeTrack, trackError } from "@/lib/utils/google-analytics";
+import { useAppRouterErrorBoundaryReporting } from "@/hooks/useAppRouterErrorBoundaryReporting";
 
 export default function AppErrorBoundary({
   error,
@@ -13,27 +10,13 @@ export default function AppErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  useEffect(() => {
-    console.error("[AppErrorBoundary] Caught route error:", error);
-
-    void reportStructuredError({
-      source: "app_router_error_boundary",
-      userAction: "route_segment_render",
-      error,
-      digest: error.digest,
-      route:
-        globalThis.location === undefined
-          ? undefined
-          : `${globalThis.location.pathname}${globalThis.location.search}`,
-      metadata: {
-        boundary: "app_root_error",
-      },
-    });
-
-    safeTrack(() =>
-      trackError(error.name ?? "AppRouteError", error.message ?? undefined),
-    );
-  }, [error]);
+  useAppRouterErrorBoundaryReporting({
+    error,
+    boundary: "app_root_error",
+    defaultErrorName: "AppRouteError",
+    logLabel: "[AppErrorBoundary] Caught route error:",
+    userAction: "route_segment_render",
+  });
 
   return (
     <ErrorFallbackPanel

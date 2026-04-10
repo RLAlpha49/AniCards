@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
 import PageShell from "@/components/PageShell";
 import { UserPageEditor } from "@/components/user/UserPageEditor";
+import { UserPageLoadingSpinner } from "@/components/user/UserPageLoading";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import {
   generateMetadata as createMetadata,
@@ -120,17 +120,7 @@ export default async function UserPage({
   }
 
   return (
-    <Suspense
-      fallback={
-        <PageShell>
-          <div className="
-            relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
-          ">
-            <LoadingSpinner size="lg" text="Loading user data..." />
-          </div>
-        </PageShell>
-      }
-    >
+    <Suspense fallback={<UserPageLoadingSpinner />}>
       <ErrorBoundary>
         <PageShell>
           <UserPageEditor />

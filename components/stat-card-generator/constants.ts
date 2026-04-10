@@ -1,4 +1,4 @@
-import type { ColorValue } from "@/lib/types/card";
+import type { ColorValue, GradientStop } from "@/lib/types/card";
 
 export interface ColorPreset {
   colors: ColorValue[];
@@ -6,6 +6,53 @@ export interface ColorPreset {
 }
 
 export { statCardTypes } from "@/lib/card-types";
+
+interface LinearGradientPresetOptions {
+  mode: ColorPreset["mode"];
+  primary: readonly GradientStop[];
+  background: readonly GradientStop[];
+  text: ColorValue;
+  accent?: readonly GradientStop[];
+  primaryAngle?: number;
+  backgroundAngle?: number;
+  accentAngle?: number;
+}
+
+function stop(color: string, offset: number, opacity?: number): GradientStop {
+  if (opacity === undefined) {
+    return { color, offset };
+  }
+
+  return { color, offset, opacity };
+}
+
+function linearGradient(
+  angle: number,
+  stops: readonly GradientStop[],
+): ColorValue {
+  return {
+    type: "linear",
+    angle,
+    stops: [...stops],
+  };
+}
+
+function createLinearGradientPreset(
+  options: Readonly<LinearGradientPresetOptions>,
+): ColorPreset {
+  return {
+    colors: [
+      linearGradient(options.primaryAngle ?? 90, options.primary),
+      linearGradient(options.backgroundAngle ?? 180, options.background),
+      options.text,
+      linearGradient(
+        options.accentAngle ?? 135,
+        options.accent ?? options.primary,
+      ),
+    ],
+    mode: options.mode,
+  };
+}
 
 const _unsortedColorPresets: Record<string, ColorPreset> = {
   default: {
@@ -438,236 +485,57 @@ const _unsortedColorPresets: Record<string, ColorPreset> = {
     ],
     mode: "dark",
   },
-  anilistLightGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#FFFFFF", offset: 0 },
-          { color: "#f0f9ff", offset: 100 },
-        ],
-      },
-      "#333333",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-    ],
+  anilistLightGradient: createLinearGradientPreset({
     mode: "light",
-  },
-  anilistDarkGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#0b1622", offset: 0 },
-          { color: "#11202f", offset: 50 },
-          { color: "#152238", offset: 100 },
-        ],
-      },
-      "#E8E8E8",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#0295e5", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#3cc8ff", 0), stop("#02a9ff", 100)],
+    background: [stop("#FFFFFF", 0), stop("#f0f9ff", 100)],
+    text: "#333333",
+  }),
+  anilistDarkGradient: createLinearGradientPreset({
     mode: "dark",
-  },
-  sunriseMeadow: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#f97316", offset: 0 },
-          { color: "#fbbf24", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#fffbeb", offset: 0 },
-          { color: "#fef3c7", offset: 50 },
-          { color: "#fff7ed", offset: 100 },
-        ],
-      },
-      "#78350f",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#fb923c", offset: 0 },
-          { color: "#fbbf24", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#3cc8ff", 0), stop("#02a9ff", 100)],
+    background: [stop("#0b1622", 0), stop("#11202f", 50), stop("#152238", 100)],
+    text: "#E8E8E8",
+    accent: [stop("#3cc8ff", 0), stop("#0295e5", 100)],
+  }),
+  sunriseMeadow: createLinearGradientPreset({
     mode: "light",
-  },
-  lavenderBloom: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#8b5cf6", offset: 0 },
-          { color: "#a78bfa", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#faf5ff", offset: 0 },
-          { color: "#f3e8ff", offset: 50 },
-          { color: "#ede9fe", offset: 100 },
-        ],
-      },
-      "#4c1d95",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#a78bfa", offset: 0 },
-          { color: "#c4b5fd", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#f97316", 0), stop("#fbbf24", 100)],
+    background: [stop("#fffbeb", 0), stop("#fef3c7", 50), stop("#fff7ed", 100)],
+    text: "#78350f",
+    accent: [stop("#fb923c", 0), stop("#fbbf24", 100)],
+    accentAngle: 45,
+  }),
+  lavenderBloom: createLinearGradientPreset({
     mode: "light",
-  },
-  skylineAzure: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#0ea5e9", offset: 0 },
-          { color: "#38bdf8", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#f0f9ff", offset: 0 },
-          { color: "#e0f2fe", offset: 50 },
-          { color: "#f0f9ff", offset: 100 },
-        ],
-      },
-      "#0c4a6e",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#38bdf8", offset: 0 },
-          { color: "#7dd3fc", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#8b5cf6", 0), stop("#a78bfa", 100)],
+    background: [stop("#faf5ff", 0), stop("#f3e8ff", 50), stop("#ede9fe", 100)],
+    text: "#4c1d95",
+    accent: [stop("#a78bfa", 0), stop("#c4b5fd", 100)],
+  }),
+  skylineAzure: createLinearGradientPreset({
     mode: "light",
-  },
-  coralReef: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#f43f5e", offset: 0 },
-          { color: "#fb7185", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#fff1f2", offset: 0 },
-          { color: "#ffe4e6", offset: 50 },
-          { color: "#fecdd3", offset: 100 },
-        ],
-      },
-      "#881337",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#fb7185", offset: 0 },
-          { color: "#fda4af", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#0ea5e9", 0), stop("#38bdf8", 100)],
+    background: [stop("#f0f9ff", 0), stop("#e0f2fe", 50), stop("#f0f9ff", 100)],
+    text: "#0c4a6e",
+    accent: [stop("#38bdf8", 0), stop("#7dd3fc", 100)],
+    accentAngle: 45,
+  }),
+  coralReef: createLinearGradientPreset({
     mode: "light",
-  },
-  springGarden: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#10b981", offset: 0 },
-          { color: "#34d399", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#ecfdf5", offset: 0 },
-          { color: "#d1fae5", offset: 50 },
-          { color: "#f0fdf4", offset: 100 },
-        ],
-      },
-      "#064e3b",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#34d399", offset: 0 },
-          { color: "#6ee7b7", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#f43f5e", 0), stop("#fb7185", 100)],
+    background: [stop("#fff1f2", 0), stop("#ffe4e6", 50), stop("#fecdd3", 100)],
+    text: "#881337",
+    accent: [stop("#fb7185", 0), stop("#fda4af", 100)],
+  }),
+  springGarden: createLinearGradientPreset({
     mode: "light",
-  },
+    primary: [stop("#10b981", 0), stop("#34d399", 100)],
+    background: [stop("#ecfdf5", 0), stop("#d1fae5", 50), stop("#f0fdf4", 100)],
+    text: "#064e3b",
+    accent: [stop("#34d399", 0), stop("#6ee7b7", 100)],
+    accentAngle: 45,
+  }),
   anicardsLight: {
     colors: ["#a9842d", "#f7f5f2", "#2a2622", "#a9842d"],
     mode: "light",
@@ -676,68 +544,19 @@ const _unsortedColorPresets: Record<string, ColorPreset> = {
     colors: ["#d5a944", "#0c0a10", "#eee4d3", "#d5a944"],
     mode: "dark",
   },
-  anicardsLightGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#a9842d", offset: 0 },
-          { color: "#e1b137", offset: 100 },
-        ],
-      },
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#fbfaf9", offset: 0 },
-          { color: "#f7f5f2", offset: 50 },
-          { color: "#eeebe8", offset: 100 },
-        ],
-      },
-      "#2a2622",
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#a9842d", offset: 0 },
-          { color: "#e1b137", offset: 100 },
-        ],
-      },
-    ],
+  anicardsLightGradient: createLinearGradientPreset({
     mode: "light",
-  },
-  anicardsDarkGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#d5a944", offset: 0 },
-          { color: "#dfb03a", offset: 100 },
-        ],
-      },
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#0c0a10", offset: 0 },
-          { color: "#18161d", offset: 50 },
-          { color: "#22222b", offset: 100 },
-        ],
-      },
-      "#eee4d3",
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#d5a944", offset: 0 },
-          { color: "#89763e", offset: 100 },
-        ],
-      },
-    ],
+    primary: [stop("#a9842d", 0), stop("#e1b137", 100)],
+    background: [stop("#fbfaf9", 0), stop("#f7f5f2", 50), stop("#eeebe8", 100)],
+    text: "#2a2622",
+  }),
+  anicardsDarkGradient: createLinearGradientPreset({
     mode: "dark",
-  },
+    primary: [stop("#d5a944", 0), stop("#dfb03a", 100)],
+    background: [stop("#0c0a10", 0), stop("#18161d", 50), stop("#22222b", 100)],
+    text: "#eee4d3",
+    accent: [stop("#d5a944", 0), stop("#89763e", 100)],
+  }),
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 
