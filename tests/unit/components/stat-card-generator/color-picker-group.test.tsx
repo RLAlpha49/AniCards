@@ -32,7 +32,6 @@ type ButtonProps = ComponentProps<"button"> & {
 };
 
 type TooltipTriggerProps = {
-  asChild?: boolean;
   children?: ReactNode;
 };
 
