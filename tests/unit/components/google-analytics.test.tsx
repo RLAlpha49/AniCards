@@ -16,7 +16,7 @@ const capturedScripts: Array<{
   children?: ReactNode;
   id?: string;
   nonce?: string;
-  onError?: (error: Error) => void;
+  onError?: (error: Error) => void | Promise<void>;
   src?: string;
   strategy?: string;
 }> = [];
@@ -37,7 +37,7 @@ mock.module("next/script", () => ({
     children?: ReactNode;
     id?: string;
     nonce?: string;
-    onError?: (error: Error) => void;
+    onError?: (error: Error) => void | Promise<void>;
     src?: string;
     strategy?: string;
   }) => {
@@ -182,10 +182,11 @@ describe("GoogleAnalytics", () => {
       (script) => script.id === "google-analytics-loader",
     );
 
-    expect(loaderScript?.onError).toBeDefined();
+    const onError = loaderScript?.onError;
 
-    loaderScript?.onError?.(new TypeError("Failed to load script"));
-    await Promise.resolve();
+    expect(onError).toBeDefined();
+
+    await onError?.(new TypeError("Failed to load script"));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getReportedErrorPayload(0)).toMatchObject({

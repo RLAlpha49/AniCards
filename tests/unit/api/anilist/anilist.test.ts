@@ -9,6 +9,7 @@ import {
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
   captureSharedRedisRpushCalls,
   parseRequestInitJson,
   sharedRatelimitMockLimit,
@@ -137,36 +138,41 @@ describe("AniList API Route", () => {
 
   it("accepts the explicit GetUserStats contract and forwards the canonical query", async () => {
     setEnvironment("test", true);
+    const capturedIncr = captureSharedRedisIncrCalls();
     mockJsonFetch({ data: { User: { id: 123 } } });
 
-    const response = await POST(
-      createAniListRequest({
-        body: {
-          operation: "GetUserStats",
-          variables: { userId: 123 },
-        },
-      }),
-    );
+    try {
+      const response = await POST(
+        createAniListRequest({
+          body: {
+            operation: "GetUserStats",
+            variables: { userId: 123 },
+          },
+        }),
+      );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ User: { id: 123 } });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ User: { id: 123 } });
 
-    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
-      .mock.calls[0] as [string, RequestInit];
-    const body = parseRequestInitJson<{
-      query: string;
-      variables: Record<string, unknown>;
-    }>(init);
-    expect(body.query).toBe(USER_STATS_QUERY);
-    expect(body.variables).toEqual({ userId: 123 });
-    expect(init.headers).toMatchObject({
-      Authorization: "Bearer dummy-token",
-    });
+      const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+        .mock.calls[0] as [string, RequestInit];
+      const body = parseRequestInitJson<{
+        query: string;
+        variables: Record<string, unknown>;
+      }>(init);
+      expect(body.query).toBe(USER_STATS_QUERY);
+      expect(body.variables).toEqual({ userId: 123 });
+      expect(init.headers).toMatchObject({
+        Authorization: "Bearer dummy-token",
+      });
 
-    await flushScheduledTelemetryTasksForTests();
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:anilist_api:successful_requests",
-    );
+      await flushScheduledTelemetryTasksForTests();
+      expect(capturedIncr.calls).toContainEqual([
+        "analytics:anilist_api:successful_requests",
+      ]);
+    } finally {
+      capturedIncr.release();
+    }
   });
 
   it("accepts the exact approved GetUserId query for backward compatibility", async () => {
@@ -343,6 +349,7 @@ describe("AniList API Route", () => {
 
   it("surfaces non-retried AniList HTTP errors", async () => {
     setEnvironment("test");
+    const capturedIncr = captureSharedRedisIncrCalls();
     const capturedRpush = captureSharedRedisRpushCalls();
 
     try {
@@ -366,9 +373,9 @@ describe("AniList API Route", () => {
       expect((await response.json()).error).toContain("Invalid query");
 
       await flushScheduledTelemetryTasksForTests();
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      expect(capturedIncr.calls).toContainEqual([
         "analytics:anilist_api:failed_requests",
-      );
+      ]);
 
       const errorReportCall = capturedRpush.calls.find(
         ([key]) => key === "telemetry:error-reports:v1",
@@ -379,6 +386,7 @@ describe("AniList API Route", () => {
         expect.any(String),
       ]);
     } finally {
+      capturedIncr.release();
       capturedRpush.release();
     }
   });

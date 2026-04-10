@@ -604,6 +604,7 @@ type SharedRedisCallObserver = (args: unknown[]) => void;
 
 const sharedRedisRpushObservers = new Set<SharedRedisCallObserver>();
 const sharedRedisLtrimObservers = new Set<SharedRedisCallObserver>();
+const sharedRedisIncrObservers = new Set<SharedRedisCallObserver>();
 
 function notifySharedRedisCallObservers(
   observers: Set<SharedRedisCallObserver>,
@@ -614,35 +615,35 @@ function notifySharedRedisCallObservers(
   }
 }
 
-function captureSharedRedisCalls(observers: Set<SharedRedisCallObserver>): {
+function captureSharedRedisCalls(options: {
+  getMockCalls: () => unknown[][];
+  observers: Set<SharedRedisCallObserver>;
+}): {
   readonly calls: unknown[][];
   release: () => void;
 } {
   const calls: unknown[][] = [];
-  const getMockCalls =
-    observers === sharedRedisRpushObservers
-      ? () => sharedRedisMockRpush.mock.calls
-      : () => sharedRedisMockLtrim.mock.calls;
-  const mockCallStartIndex = getMockCalls().length;
+  const mockCallStartIndex = options.getMockCalls().length;
   const observer: SharedRedisCallObserver = (args) => {
     calls.push(args);
   };
 
-  observers.add(observer);
+  options.observers.add(observer);
 
   return {
     get calls() {
       const observedCalls = calls.map((args) => [...args]);
-      const mockCalls = getMockCalls()
+      if (observedCalls.length > 0) {
+        return observedCalls;
+      }
+
+      return options
+        .getMockCalls()
         .slice(mockCallStartIndex)
         .map((args) => [...args]);
-
-      return mockCalls.length > observedCalls.length
-        ? mockCalls
-        : observedCalls;
     },
     release: () => {
-      observers.delete(observer);
+      options.observers.delete(observer);
     },
   };
 }
@@ -651,14 +652,30 @@ export function captureSharedRedisRpushCalls(): {
   calls: unknown[][];
   release: () => void;
 } {
-  return captureSharedRedisCalls(sharedRedisRpushObservers);
+  return captureSharedRedisCalls({
+    getMockCalls: () => sharedRedisMockRpush.mock.calls,
+    observers: sharedRedisRpushObservers,
+  });
 }
 
 export function captureSharedRedisLtrimCalls(): {
   calls: unknown[][];
   release: () => void;
 } {
-  return captureSharedRedisCalls(sharedRedisLtrimObservers);
+  return captureSharedRedisCalls({
+    getMockCalls: () => sharedRedisMockLtrim.mock.calls,
+    observers: sharedRedisLtrimObservers,
+  });
+}
+
+export function captureSharedRedisIncrCalls(): {
+  calls: unknown[][];
+  release: () => void;
+} {
+  return captureSharedRedisCalls({
+    getMockCalls: () => sharedRedisMockIncr.mock.calls,
+    observers: sharedRedisIncrObservers,
+  });
 }
 
 function normalizeAnalyticsCounterKeyForAssertions(key: unknown): unknown {
@@ -707,11 +724,12 @@ const sharedRedisPipelineMock = {
     const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
       ...callArgs: unknown[]
     ) => Promise<unknown>;
+    const normalizedKey = normalizeAnalyticsCounterKeyForAssertions(key);
+
+    notifySharedRedisCallObservers(sharedRedisIncrObservers, [normalizedKey]);
 
     detachPromise(invokeSharedRedisMockIncrRaw(key));
-    detachPromise(
-      invokeSharedRedisMockIncr(normalizeAnalyticsCounterKeyForAssertions(key)),
-    );
+    detachPromise(invokeSharedRedisMockIncr(normalizedKey));
     return sharedRedisPipelineMock;
   }),
   expire: mock((...args: unknown[]) => {
@@ -738,11 +756,12 @@ const sharedRedisFakeClient = {
     const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
       ...callArgs: unknown[]
     ) => Promise<unknown>;
+    const normalizedKey = normalizeAnalyticsCounterKeyForAssertions(key);
+
+    notifySharedRedisCallObservers(sharedRedisIncrObservers, [normalizedKey]);
 
     await invokeSharedRedisMockIncrRaw(key);
-    return invokeSharedRedisMockIncr(
-      normalizeAnalyticsCounterKeyForAssertions(key),
-    );
+    return invokeSharedRedisMockIncr(normalizedKey);
   }),
   expire: sharedRedisMockExpire,
   rpush: (...args: unknown[]) => {

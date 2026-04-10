@@ -23,6 +23,7 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockEval,
@@ -175,6 +176,7 @@ describe("Store Users API", () => {
 
     it("should reject cross-origin requests in production when origin differs", async () => {
       const originalEnv = process.env;
+      const capturedIncr = captureSharedRedisIncrCalls();
       process.env = {
         ...process.env,
         NODE_ENV: "production",
@@ -199,16 +201,19 @@ describe("Store Users API", () => {
         },
       );
 
-      const res = await POST(req);
-      expect(res.status).toBe(401);
-      const data = await getJsonResponse(res);
-      expect(data.error).toBe("Unauthorized");
-      await flushScheduledTelemetryTasksForTests();
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_users:failed_requests",
-      );
-
-      process.env = originalEnv;
+      try {
+        const res = await POST(req);
+        expect(res.status).toBe(401);
+        const data = await getJsonResponse(res);
+        expect(data.error).toBe("Unauthorized");
+        await flushScheduledTelemetryTasksForTests();
+        expect(capturedIncr.calls).toContainEqual([
+          "analytics:store_users:failed_requests",
+        ]);
+      } finally {
+        capturedIncr.release();
+        process.env = originalEnv;
+      }
     });
 
     it("should reject request with missing userId", async () => {
