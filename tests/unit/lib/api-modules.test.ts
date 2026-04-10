@@ -2,27 +2,30 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  apiErrorResponse,
+  handleError,
+  invalidJsonResponse,
+} from "@/lib/api/errors";
+import { checkRateLimit, createRateLimiter } from "@/lib/api/rate-limit";
+import { readJsonRequestBody } from "@/lib/api/request-body";
+import {
+  getRequestIp,
+  initializeApiRequest,
+  validateSameOrigin,
+} from "@/lib/api/request-guards";
+import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
   resolveVerifiedClientIp,
 } from "@/lib/api/request-proof";
 import {
   ANALYTICS_COUNTER_TTL_SECONDS,
-  apiErrorResponse,
   buildAnalyticsStorageKey,
-  checkRateLimit,
-  createRateLimiter,
   flushScheduledTelemetryTasksForTests,
-  getRequestIp,
-  handleError,
   incrementAnalytics,
   incrementAnalyticsBatch,
-  initializeApiRequest,
-  invalidJsonResponse,
-  readJsonRequestBody,
   scheduleTelemetryTask,
-  validateSameOrigin,
-} from "@/lib/api-utils";
+} from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockSlidingWindow,
@@ -55,7 +58,7 @@ function getLastRatelimitConstructorOptions(): Record<string, unknown> {
   return options ?? {};
 }
 
-describe("api-utils hardening", () => {
+describe("api module hardening", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {

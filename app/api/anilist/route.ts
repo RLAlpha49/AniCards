@@ -1,25 +1,23 @@
 import { NextResponse } from "next/server";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, invalidJsonResponse } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
+  buildAnalyticsMetricKey,
+  incrementAnalytics,
+  scheduleTelemetryTask,
+} from "@/lib/api/telemetry";
 import {
   ANILIST_GRAPHQL_CIRCUIT_BREAKER,
   ANILIST_GRAPHQL_URL,
   buildAniListGraphQlRequestInit,
-} from "@/lib/api/upstream";
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  buildAnalyticsMetricKey,
   fetchUpstreamWithRetry,
-  incrementAnalytics,
-  initializeApiRequest,
-  invalidJsonResponse,
-  isValidUsername,
-  jsonWithCors,
-  logPrivacySafe,
-  scheduleTelemetryTask,
   UpstreamTransportError,
-} from "@/lib/api-utils";
+} from "@/lib/api/upstream";
+import { isValidUsername } from "@/lib/api/validation";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 

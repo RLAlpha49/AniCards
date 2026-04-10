@@ -2033,7 +2033,6 @@ async function persistStructuredErrorBufferEntry(
  * @source
  */
 export async function getErrorReportBufferSnapshot(): Promise<ErrorReportBufferSnapshot> {
-  const { redisClient } = await import("@/lib/api-utils");
   const [
     [totalCapturedRaw, totalDroppedRaw],
     retainedEntriesRaw,

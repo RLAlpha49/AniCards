@@ -7,19 +7,15 @@
  * the client can hydrate from one response instead of stitching sections
  * together with follow-up requests.
  */
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  createRateLimiter,
-  handleError,
-  incrementAnalytics,
-  initializeApiRequest,
-  isValidUsername,
-  jsonWithCors,
-  logPrivacySafe,
-  parseStrictPositiveInteger,
-  redisClient,
-} from "@/lib/api-utils";
+import { redisClient } from "@/lib/api/clients";
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { parseStrictPositiveInteger } from "@/lib/api/primitives";
+import { createRateLimiter } from "@/lib/api/rate-limit";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import { incrementAnalytics } from "@/lib/api/telemetry";
+import { isValidUsername } from "@/lib/api/validation";
 import {
   ALL_USER_DATA_PARTS,
   fetchUserDataSnapshot,

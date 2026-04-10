@@ -7,13 +7,13 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { scheduleTelemetryTask } from "@/lib/api/telemetry";
+import { redisClient } from "@/lib/api/clients";
 import {
   buildPersistedRequestMetadata,
   logPrivacySafe,
-  parseStrictPositiveInteger,
-  redisClient,
-} from "@/lib/api-utils";
+} from "@/lib/api/logging";
+import { parseStrictPositiveInteger } from "@/lib/api/primitives";
+import { scheduleTelemetryTask } from "@/lib/api/telemetry";
 import {
   AnimeGenreSynergyTotalsEntry,
   FollowersPage,

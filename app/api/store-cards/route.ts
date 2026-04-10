@@ -9,25 +9,22 @@
  */
 import type { NextResponse } from "next/server";
 
+import { redisClient } from "@/lib/api/clients";
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
+import { logPrivacySafe, logSuccess } from "@/lib/api/logging";
+import { readJsonRequestBody } from "@/lib/api/request-body";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
+  buildAnalyticsMetricKey,
+  incrementAnalytics,
+  scheduleTelemetryTask,
+} from "@/lib/api/telemetry";
 import {
   storeCardsRequestSchema,
+  validateCardData,
   validateStoreCardsStatsData,
 } from "@/lib/api/validation";
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  buildAnalyticsMetricKey,
-  handleError,
-  incrementAnalytics,
-  initializeApiRequest,
-  jsonWithCors,
-  logPrivacySafe,
-  logSuccess,
-  readJsonRequestBody,
-  redisClient,
-  scheduleTelemetryTask,
-  validateCardData,
-} from "@/lib/api-utils";
 import { parseStoredCardsRecord as parsePersistedCardsRecord } from "@/lib/card-data/fetching";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import { getPersistedUserState } from "@/lib/server/user-data";

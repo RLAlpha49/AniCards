@@ -48,13 +48,13 @@ const TOKEN_LIKE_PATTERN =
   /\b(?:eyJ[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9]{20,}|sk_[A-Za-z0-9]{16,}|[A-Fa-f0-9]{32,}|[A-Za-z0-9+/_-]{40,})\b/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'`)\]}]+/gi;
 
-function truncateText(value: string, maxLength: number): string {
+export function truncateText(value: string, maxLength: number): string {
   return value.length <= maxLength
     ? value
     : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
-function sanitizeOptionalText(
+export function sanitizeOptionalText(
   value: string | undefined,
   maxLength: number,
 ): string | undefined {

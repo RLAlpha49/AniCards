@@ -1,15 +1,11 @@
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  createRateLimiter,
-  handleError,
-  incrementAnalytics,
-  initializeApiRequest,
-  jsonWithCors,
-  logPrivacySafe,
-  parseStrictPositiveInteger,
-  redisClient,
-} from "@/lib/api-utils";
+import { redisClient } from "@/lib/api/clients";
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { parseStrictPositiveInteger } from "@/lib/api/primitives";
+import { createRateLimiter } from "@/lib/api/rate-limit";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import { incrementAnalytics } from "@/lib/api/telemetry";
 import { parseStoredCardsRecord } from "@/lib/card-data/fetching";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });

@@ -7,10 +7,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import {
-  createRateLimiter,
-  flushScheduledTelemetryTasksForTests,
-} from "@/lib/api-utils";
+import { createRateLimiter } from "@/lib/api/rate-limit";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
 import {

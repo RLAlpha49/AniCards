@@ -14,7 +14,7 @@ import {
   requestClientJson,
 } from "@/lib/api/client-fetch";
 import { normalizePositiveIntegerString } from "@/lib/api/primitives";
-import { isValidUsername } from "@/lib/api-utils";
+import { isValidUsername } from "@/lib/api/validation";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails, getSafeErrorSummary } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";

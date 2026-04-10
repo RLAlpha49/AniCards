@@ -1,9 +1,9 @@
+import { redisClient } from "@/lib/api/clients";
+import { isRedisBackplaneUnavailable } from "@/lib/api/errors";
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
-  isRedisBackplaneUnavailable,
-  redisClient,
-} from "@/lib/api-utils";
+} from "@/lib/api/telemetry";
 import {
   fetchUserDataSnapshot,
   getPartsForCard,

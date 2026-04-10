@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,

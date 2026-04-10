@@ -1,15 +1,14 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
+import { redisClient, scanAllKeys } from "@/lib/api/clients";
+import { apiJsonHeaders } from "@/lib/api/cors";
+import { apiErrorResponse } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
-  apiErrorResponse,
-  apiJsonHeaders,
   authorizeCronRequest,
   fetchUpstreamWithRetry,
-  initializeApiRequest,
-  logPrivacySafe,
-  redisClient,
-  scanAllKeys,
-} from "@/lib/api-utils";
+} from "@/lib/api/upstream";
 import {
   type ErrorReportBreakdownBucket,
   type ErrorReportBufferSnapshot,

@@ -9,25 +9,25 @@
 
 import type { NextResponse } from "next/server";
 
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
+import {
+  buildPersistedRequestMetadata,
+  logPrivacySafe,
+  logSuccess,
+} from "@/lib/api/logging";
+import { readJsonRequestBody } from "@/lib/api/request-body";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import {
+  buildAnalyticsMetricKey,
+  incrementAnalytics,
+  scheduleTelemetryTask,
+} from "@/lib/api/telemetry";
 import {
   getSchemaValidationIssueSummary,
   validatePersistedUserRecord,
-} from "@/lib/api/validation";
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  buildAnalyticsMetricKey,
-  buildPersistedRequestMetadata,
-  handleError,
-  incrementAnalytics,
-  initializeApiRequest,
-  jsonWithCors,
-  logPrivacySafe,
-  logSuccess,
-  readJsonRequestBody,
-  scheduleTelemetryTask,
   validateUserData,
-} from "@/lib/api-utils";
+} from "@/lib/api/validation";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
 import {
   getPersistedUserState,

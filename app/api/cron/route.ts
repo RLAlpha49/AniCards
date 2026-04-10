@@ -11,21 +11,19 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { redisClient } from "@/lib/api/clients";
+import { apiTextHeaders } from "@/lib/api/cors";
+import { apiErrorResponse } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
   ANILIST_GRAPHQL_CIRCUIT_BREAKER,
   ANILIST_GRAPHQL_URL,
-  buildAniListGraphQlRequestInit,
-} from "@/lib/api/upstream";
-import {
-  apiErrorResponse,
-  apiTextHeaders,
   authorizeCronRequest,
+  buildAniListGraphQlRequestInit,
   fetchUpstreamWithRetry,
-  initializeApiRequest,
-  logPrivacySafe,
-  redisClient,
   UpstreamTransportError,
-} from "@/lib/api-utils";
+} from "@/lib/api/upstream";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import { categorizeError } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";

@@ -8,20 +8,21 @@
  * giving up freshness.
  */
 import { colorPresets } from "@/components/stat-card-generator/constants";
+import { getAllowedCardSvgOrigin } from "@/lib/api/cors";
+import { isRedisBackplaneUnavailable } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { parseStrictPositiveInteger } from "@/lib/api/primitives";
+import { checkRateLimit, createRateLimiter } from "@/lib/api/rate-limit";
+import {
+  ensureRequestContext,
+  withRequestIdHeaders,
+} from "@/lib/api/request-context";
+import { getRequestIp } from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
-  checkRateLimit,
-  createRateLimiter,
-  ensureRequestContext,
-  getAllowedCardSvgOrigin,
-  getRequestIp,
   incrementAnalyticsBatch,
-  isRedisBackplaneUnavailable,
-  logPrivacySafe,
-  parseStrictPositiveInteger,
   scheduleTelemetryTask,
-  withRequestIdHeaders,
-} from "@/lib/api-utils";
+} from "@/lib/api/telemetry";
 import {
   buildCardConfigFromParams,
   CardDataError,

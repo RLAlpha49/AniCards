@@ -1,5 +1,7 @@
 import { Redis } from "@upstash/redis";
 
+import { assertRequiredProductionEnv } from "@/lib/api/production-env";
+
 let realRedisClient: Redis | undefined;
 
 /**
@@ -7,6 +9,12 @@ let realRedisClient: Redis | undefined;
  * configuration. This defers initialization until the client is used.
  */
 export function createRealRedisClient(): Redis {
+  if (process.env.NODE_ENV === "production") {
+    assertRequiredProductionEnv(process.env, {
+      names: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+    });
+  }
+
   realRedisClient ??= Redis.fromEnv({
     enableAutoPipelining: true,
     retry: {

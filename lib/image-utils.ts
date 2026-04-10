@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 
-import { redisClient } from "@/lib/api-utils";
+import { redisClient } from "@/lib/api/clients";
 import type { MediaListEntry, UserFavourites } from "@/lib/types/records";
 
 /**

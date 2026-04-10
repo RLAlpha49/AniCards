@@ -1,14 +1,10 @@
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
+import { apiErrorResponse, handleError } from "@/lib/api/errors";
+import { createRateLimiter } from "@/lib/api/rate-limit";
+import { readJsonRequestBody } from "@/lib/api/request-body";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import { buildAnalyticsMetricKey } from "@/lib/api/telemetry";
 import { errorReportPayloadSchema } from "@/lib/api/validation";
-import {
-  apiErrorResponse,
-  apiJsonHeaders,
-  buildAnalyticsMetricKey,
-  createRateLimiter,
-  handleError,
-  initializeApiRequest,
-  jsonWithCors,
-  readJsonRequestBody,
-} from "@/lib/api-utils";
 import {
   ERROR_REPORT_REQUEST_MAX_BYTES,
   type ErrorReportSource,

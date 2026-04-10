@@ -2,11 +2,11 @@ import { gunzipSync, gzipSync } from "node:zlib";
 
 import { LRUCache } from "lru-cache";
 
+import { redisClient } from "@/lib/api/clients";
 import {
   buildAnalyticsMetricKey,
   incrementAnalyticsBatch,
-  redisClient,
-} from "@/lib/api-utils";
+} from "@/lib/api/telemetry";
 
 const DEFAULT_MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_SHARED_TTL_MS = 24 * 60 * 60 * 1000;

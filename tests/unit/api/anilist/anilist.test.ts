@@ -6,7 +6,7 @@ import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
 } from "@/lib/api/request-proof";
-import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisRpushCalls,

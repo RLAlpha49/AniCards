@@ -9,19 +9,20 @@
 import type { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 
+import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
 import {
   apiErrorResponse,
-  apiJsonHeaders,
-  createRateLimiter,
-  fetchUpstreamWithRetry,
   handleError,
-  incrementAnalytics,
-  initializeApiRequest,
   invalidJsonResponse,
-  jsonWithCors,
-  logPrivacySafe,
+} from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { createRateLimiter } from "@/lib/api/rate-limit";
+import { initializeApiRequest } from "@/lib/api/request-guards";
+import { incrementAnalytics } from "@/lib/api/telemetry";
+import {
+  fetchUpstreamWithRetry,
   UpstreamTransportError,
-} from "@/lib/api-utils";
+} from "@/lib/api/upstream";
 import type { ConversionFormat } from "@/lib/utils";
 
 const ratelimit = createRateLimiter({
