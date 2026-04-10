@@ -24,6 +24,13 @@ type UnitTestTelemetryGlobals = typeof globalThis & {
   ANICARDS_UNIT_TEST?: boolean;
 };
 
+type TelemetryTaskSchedulingOptions = {
+  endpoint?: string;
+  forceRequestContext?: boolean;
+  request?: Request;
+  taskName?: string;
+};
+
 export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 
 function shouldTrackTelemetryTasksForTests(): boolean {
@@ -39,10 +46,6 @@ function shouldTrackTelemetryTasksForTests(): boolean {
 }
 
 function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
-  if (!shouldTrackTelemetryTasksForTests()) {
-    return;
-  }
-
   pendingTelemetryTasks.add(task);
   task.finally(() => {
     pendingTelemetryTasks.delete(task);
@@ -67,10 +70,6 @@ function createDeferredTelemetryTask(task: () => Promise<void>): Promise<void> {
 }
 
 export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
-  if (!shouldTrackTelemetryTasksForTests()) {
-    return;
-  }
-
   while (pendingTelemetryTasks.size > 0) {
     await Promise.allSettled(pendingTelemetryTasks);
   }
@@ -78,14 +77,11 @@ export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
 
 export function scheduleTelemetryTask(
   task: () => Promise<unknown> | void,
-  options?: {
-    endpoint?: string;
-    taskName?: string;
-    request?: Request;
-  },
+  options?: TelemetryTaskSchedulingOptions,
 ): void {
   const taskName = options?.taskName ?? "scheduled telemetry task";
   const endpoint = options?.endpoint ?? "Telemetry";
+  const forceRequestContext = options?.forceRequestContext ?? false;
 
   const runTask = async () => {
     try {
@@ -104,7 +100,7 @@ export function scheduleTelemetryTask(
     }
   };
 
-  if (shouldTrackTelemetryTasksForTests()) {
+  if (!forceRequestContext && shouldTrackTelemetryTasksForTests()) {
     const pendingTask = runTask();
     trackPendingTelemetryTaskForTests(pendingTask);
     return;

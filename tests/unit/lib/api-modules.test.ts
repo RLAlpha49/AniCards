@@ -249,15 +249,8 @@ describe("api module hardening", () => {
     };
     const originalRequestContext =
       globalWithRequestContext[requestContextSymbol];
-    const originalTelemetryTestFlag = process.env.ANICARDS_UNIT_TEST;
-    const globalTelemetryFlags = globalThis as typeof globalThis & {
-      ANICARDS_UNIT_TEST?: boolean;
-    };
-    const originalTelemetryGlobalFlag = globalTelemetryFlags.ANICARDS_UNIT_TEST;
     let executions = 0;
 
-    process.env.ANICARDS_UNIT_TEST = "false";
-    globalTelemetryFlags.ANICARDS_UNIT_TEST = false;
     globalWithRequestContext[requestContextSymbol] = {
       get: () => ({
         waitUntil: () => {
@@ -273,6 +266,7 @@ describe("api module hardening", () => {
         },
         {
           endpoint: "Test API",
+          forceRequestContext: true,
           taskName: "waitUntil-fallback",
           request: createApiRequest(),
         },
@@ -284,8 +278,6 @@ describe("api module hardening", () => {
 
       expect(executions).toBe(1);
     } finally {
-      process.env.ANICARDS_UNIT_TEST = originalTelemetryTestFlag;
-      globalTelemetryFlags.ANICARDS_UNIT_TEST = originalTelemetryGlobalFlag;
       globalWithRequestContext[requestContextSymbol] = originalRequestContext;
     }
   });
