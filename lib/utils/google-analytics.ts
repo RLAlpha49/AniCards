@@ -757,22 +757,30 @@ export const safeTrack = (fn: () => void, options?: SafeTrackOptions) => {
   }
 };
 
+const trackNamedEvent = (
+  action: string,
+  category: string,
+  label?: string,
+): void => {
+  event({
+    action,
+    category,
+    ...(label ? { label } : {}),
+  });
+};
+
 /** Track a settings change event with GA. @source */
 export const trackSettingsChanged = (settingType: string) => {
-  event({
-    action: "settings_changed",
-    category: "engagement",
-    label: settingType,
-  });
+  trackNamedEvent("settings_changed", "engagement", settingType);
 };
 
 /** Track button clicks in the UI with optional context. @source */
 export const trackButtonClick = (buttonName: string, context?: string) => {
-  event({
-    action: "button_clicked",
-    category: "engagement",
-    label: context ? `${buttonName}_${context}` : buttonName,
-  });
+  trackNamedEvent(
+    "button_clicked",
+    "engagement",
+    context ? `${buttonName}_${context}` : buttonName,
+  );
 };
 
 /** Track a navigation event including the destination and optional source context. @source */
@@ -780,31 +788,25 @@ export const trackNavigation = (
   destinationPage: string,
   sourceContext?: string,
 ) => {
-  event({
-    action: "navigation",
-    category: "engagement",
-    label: sourceContext
-      ? `${sourceContext}_to_${destinationPage}`
-      : destinationPage,
-  });
+  trackNamedEvent(
+    "navigation",
+    "engagement",
+    sourceContext ? `${sourceContext}_to_${destinationPage}` : destinationPage,
+  );
 };
 
 /** Track when a color preset is selected in the UI. @source */
 export const trackColorPresetSelection = (presetName: string) => {
-  event({
-    action: "color_preset_selected",
-    category: "customization",
-    label: presetName,
-  });
+  trackNamedEvent("color_preset_selected", "customization", presetName);
 };
 
 /** Track form submission success or failure for product analytics. @source */
 export const trackFormSubmission = (formType: string, success: boolean) => {
-  event({
-    action: success ? "form_submitted_success" : "form_submitted_error",
-    category: "conversion",
-    label: formType,
-  });
+  trackNamedEvent(
+    success ? "form_submitted_success" : "form_submitted_error",
+    "conversion",
+    formType,
+  );
 };
 
 /** Track clicks on external links with optional context indicating origin. @source */
@@ -812,18 +814,18 @@ export const trackExternalLinkClick = (
   linkDestination: string,
   context?: string,
 ) => {
-  event({
-    action: "external_link_clicked",
-    category: "engagement",
-    label: context ? `${context}_${linkDestination}` : linkDestination,
-  });
+  trackNamedEvent(
+    "external_link_clicked",
+    "engagement",
+    context ? `${context}_${linkDestination}` : linkDestination,
+  );
 };
 
 /** Track an error event capturing type and optional message. @source */
 export const trackError = (errorType: string, errorMessage?: string) => {
-  event({
-    action: "error_occurred",
-    category: "error",
-    label: buildAnalyticsErrorLabel(errorType, errorMessage),
-  });
+  trackNamedEvent(
+    "error_occurred",
+    "error",
+    buildAnalyticsErrorLabel(errorType, errorMessage),
+  );
 };
