@@ -572,10 +572,15 @@ function notifySharedRedisCallObservers(
 }
 
 function captureSharedRedisCalls(observers: Set<SharedRedisCallObserver>): {
-  calls: unknown[][];
+  readonly calls: unknown[][];
   release: () => void;
 } {
   const calls: unknown[][] = [];
+  const getMockCalls =
+    observers === sharedRedisRpushObservers
+      ? () => sharedRedisMockRpush.mock.calls
+      : () => sharedRedisMockLtrim.mock.calls;
+  const mockCallStartIndex = getMockCalls().length;
   const observer: SharedRedisCallObserver = (args) => {
     calls.push(args);
   };
@@ -583,7 +588,16 @@ function captureSharedRedisCalls(observers: Set<SharedRedisCallObserver>): {
   observers.add(observer);
 
   return {
-    calls,
+    get calls() {
+      const observedCalls = calls.map((args) => [...args]);
+      const mockCalls = getMockCalls()
+        .slice(mockCallStartIndex)
+        .map((args) => [...args]);
+
+      return mockCalls.length > observedCalls.length
+        ? mockCalls
+        : observedCalls;
+    },
     release: () => {
       observers.delete(observer);
     },

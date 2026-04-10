@@ -19,6 +19,7 @@ import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
 } from "@/lib/api/request-proof";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
@@ -128,7 +129,8 @@ describe("Store Users API", () => {
     };
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     if (originalApiSecretToken === undefined) {
       delete process.env.API_SECRET_TOKEN;
     } else {
@@ -201,6 +203,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(401);
       const data = await getJsonResponse(res);
       expect(data.error).toBe("Unauthorized");
+      await flushScheduledTelemetryTasksForTests();
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );

@@ -15,6 +15,7 @@ import {
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
+  scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 
 /**
@@ -25,9 +26,17 @@ export function getRequestIp(request?: Request): string {
   return clientIp.verified ? clientIp.ip : "unknown";
 }
 
-function incrementFailedRequestMetric(endpointKey: string): void {
+function incrementFailedRequestMetric(
+  endpointName: string,
+  endpointKey: string,
+  request: Request,
+): void {
   const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-  void incrementAnalytics(metric);
+  scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    endpoint: endpointName,
+    taskName: metric,
+    request,
+  });
 }
 
 function createUnverifiedClientIpResponse(
@@ -45,7 +54,7 @@ function createUnverifiedClientIpResponse(
     },
     request,
   );
-  incrementFailedRequestMetric(endpointKey);
+  incrementFailedRequestMetric(endpointName, endpointKey, request);
 
   return apiErrorResponse(request, 503, "Client IP could not be verified", {
     category: "server_error",
@@ -92,7 +101,7 @@ async function validateRequestProof(
     },
     request,
   );
-  incrementFailedRequestMetric(endpointKey);
+  incrementFailedRequestMetric(endpointName, endpointKey, request);
 
   return apiErrorResponse(
     request,
@@ -128,9 +137,7 @@ export function validateSameOrigin(
       undefined,
       request,
     );
-
-    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-    void incrementAnalytics(metric);
+    incrementFailedRequestMetric(endpointName, endpointKey, request);
 
     return apiErrorResponse(request, 503, "Server misconfigured", {
       category: "server_error",
@@ -152,9 +159,7 @@ export function validateSameOrigin(
       { allowedOrigin },
       request,
     );
-
-    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-    void incrementAnalytics(metric);
+    incrementFailedRequestMetric(endpointName, endpointKey, request);
 
     return apiErrorResponse(request, 401, "Unauthorized", {
       category: "authentication",
@@ -170,16 +175,7 @@ export function validateSameOrigin(
       { origin, allowedOrigin },
       request,
     );
-
-    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-    void incrementAnalytics(metric).catch((error) => {
-      if (process.env.NODE_ENV !== "production") {
-        logPrivacySafe("warn", endpointName, "Analytics increment failed", {
-          metric,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    });
+    incrementFailedRequestMetric(endpointName, endpointKey, request);
 
     return apiErrorResponse(request, 401, "Unauthorized", {
       category: "authentication",

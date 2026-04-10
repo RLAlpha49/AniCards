@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisLtrimCalls,
@@ -282,7 +283,8 @@ describe("Cron API Route", () => {
     sharedRedisMockGet.mockImplementation(() => Promise.resolve(null));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     mock.clearAllMocks();
     delete process.env.ANILIST_TOKEN;
     delete process.env.CRON_SECRET;
@@ -506,6 +508,8 @@ describe("Cron API Route", () => {
         "Updated 0/1 users successfully. Failed: 0, Removed: 0",
       );
       expect(fetchSignal?.aborted).toBe(true);
+
+      await flushScheduledTelemetryTasksForTests();
 
       const errorReportCall = capturedRpush.calls.find(
         ([key]) => key === "telemetry:error-reports:v1",
@@ -767,6 +771,8 @@ describe("Cron API Route", () => {
       expect(await response.text()).toContain(
         "Updated 0/1 users successfully. Failed: 0, Removed: 0",
       );
+
+      await flushScheduledTelemetryTasksForTests();
 
       const errorReportCall = capturedRpush.calls.find(
         ([key]) => key === "telemetry:error-reports:v1",
