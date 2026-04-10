@@ -9,6 +9,7 @@ import { logPrivacySafe } from "@/lib/api/logging";
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
+  isUnitTestRuntime,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 
@@ -75,9 +76,7 @@ function createConfiguredRateLimiter(options?: {
   const limit = options?.limit ?? 10;
   const window =
     options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
-  const isUnitTestEnv =
-    process.env.NODE_ENV === "test" ||
-    process.env.ANICARDS_UNIT_TEST === "true";
+  const isUnitTestEnv = isUnitTestRuntime();
 
   if (!options?.redis && !hasUsableUpstashRedisConfig() && !isUnitTestEnv) {
     return createDisabledRateLimiter(limit);

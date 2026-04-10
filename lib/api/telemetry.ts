@@ -22,6 +22,7 @@ const pendingTelemetryTasks = new Set<Promise<void>>();
 
 type UnitTestTelemetryGlobals = typeof globalThis & {
   ANICARDS_UNIT_TEST?: boolean;
+  ANICARDS_UNIT_TEST_RUNTIME?: boolean;
 };
 
 type TelemetryTaskSchedulingOptions = {
@@ -33,8 +34,12 @@ type TelemetryTaskSchedulingOptions = {
 
 export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 
-function shouldTrackTelemetryTasksForTests(): boolean {
+export function isUnitTestRuntime(): boolean {
   const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
+  if (unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === true) {
+    return true;
+  }
+
   if (typeof unitTestGlobals.ANICARDS_UNIT_TEST === "boolean") {
     return unitTestGlobals.ANICARDS_UNIT_TEST;
   }
@@ -82,6 +87,7 @@ export function scheduleTelemetryTask(
   const taskName = options?.taskName ?? "scheduled telemetry task";
   const endpoint = options?.endpoint ?? "Telemetry";
   const forceRequestContext = options?.forceRequestContext ?? false;
+  const isTrackedUnitTestRuntime = isUnitTestRuntime();
 
   const runTask = async () => {
     try {
@@ -100,7 +106,7 @@ export function scheduleTelemetryTask(
     }
   };
 
-  if (!forceRequestContext && shouldTrackTelemetryTasksForTests()) {
+  if (!forceRequestContext && isTrackedUnitTestRuntime) {
     const pendingTask = runTask();
     trackPendingTelemetryTaskForTests(pendingTask);
     return;
@@ -116,6 +122,10 @@ export function scheduleTelemetryTask(
 
       await runTask();
     });
+
+    if (isTrackedUnitTestRuntime) {
+      trackPendingTelemetryTaskForTests(pendingTask);
+    }
 
     try {
       waitUntil(pendingTask);
@@ -133,12 +143,21 @@ export function scheduleTelemetryTask(
         options?.request,
       );
 
-      void runTask();
+      const fallbackTask = runTask();
+      if (isTrackedUnitTestRuntime) {
+        trackPendingTelemetryTaskForTests(fallbackTask);
+        return;
+      }
+
       return;
     }
   }
 
-  void runTask();
+  const pendingTask = runTask();
+  if (isTrackedUnitTestRuntime) {
+    trackPendingTelemetryTaskForTests(pendingTask);
+    return;
+  }
 }
 
 /**
