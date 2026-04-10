@@ -23,7 +23,7 @@ async function selectLookupMethod(
   });
   const option = page
     .locator("label")
-    .filter({ hasText: new RegExp(`^\\s*${label}\\s*$`, "i") })
+    .filter({ hasText: new RegExp(String.raw`^\s*${label}\s*$`, "i") })
     .first();
 
   await option.click();

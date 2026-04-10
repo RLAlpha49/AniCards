@@ -35,6 +35,54 @@ function normalizeAniListUserId(value: string): string | null {
   return normalizePositiveIntegerString(value);
 }
 
+function getSearchModeAnnouncement(nextMethod: SearchLookupMode): string {
+  if (nextMethod === "username") {
+    return "Search mode changed to AniList username.";
+  }
+
+  return "Search mode changed to AniList user ID.";
+}
+
+function getSearchInputMeta(searchMethod: SearchLookupMode): {
+  inputLabel: string;
+  inputPlaceholder: string;
+  inputHint: string;
+  inputType: "text" | "search";
+  inputMode: "numeric" | "search";
+  Icon: typeof Search;
+} {
+  if (searchMethod === "userId") {
+    return {
+      inputLabel: "AniList User ID",
+      inputPlaceholder: "e.g., 542244",
+      inputHint: "Enter a numeric AniList user ID.",
+      inputType: "text",
+      inputMode: "numeric",
+      Icon: Hash,
+    };
+  }
+
+  return {
+    inputLabel: "AniList Username",
+    inputPlaceholder: "e.g., Alpha49",
+    inputHint: "Enter an AniList username without the at symbol.",
+    inputType: "search",
+    inputMode: "search",
+    Icon: Search,
+  };
+}
+
+function getSearchDestination(
+  searchMethod: SearchLookupMode,
+  nextSearchValue: string,
+): string {
+  if (searchMethod === "username") {
+    return getUserProfilePath(nextSearchValue);
+  }
+
+  return `/user?${new URLSearchParams({ userId: nextSearchValue }).toString()}`;
+}
+
 /**
  * Props for the SearchForm component.
  * @source
@@ -77,8 +125,14 @@ export function SearchForm({
   const usernameRadioId = `${baseId}-search-method-username`;
   const userIdRadioId = `${baseId}-search-method-userid`;
   const searchMethodHintId = `${baseId}-search-method-hint`;
-  const inputLabel = isUserIdMode ? "AniList User ID" : "AniList Username";
-  const inputPlaceholder = isUserIdMode ? "e.g., 542244" : "e.g., Alpha49";
+  const {
+    inputLabel,
+    inputPlaceholder,
+    inputHint,
+    inputType,
+    inputMode,
+    Icon: SearchInputIcon,
+  } = getSearchInputMeta(searchMethod);
   const inputDescribedBy = error ? `${inputHintId} ${errorId}` : inputHintId;
 
   useEffect(() => {
@@ -96,11 +150,7 @@ export function SearchForm({
   const updateSearchMethod = useCallback(
     (nextMethod: SearchLookupMode) => {
       if (nextMethod !== searchMethod) {
-        setModeAnnouncement(
-          nextMethod === "username"
-            ? "Search mode changed to AniList username."
-            : "Search mode changed to AniList user ID.",
-        );
+        setModeAnnouncement(getSearchModeAnnouncement(nextMethod));
 
         const nextSearchPagePath = getSearchPagePath({
           mode: nextMethod,
@@ -158,10 +208,7 @@ export function SearchForm({
       safeTrack(() => trackFormSubmission("user_search", true));
       safeTrack(() => trackNavigation("user_page", "search_form"));
 
-      const nextUrl =
-        searchMethod === "username"
-          ? getUserProfilePath(nextSearchValue)
-          : `/user?${new URLSearchParams({ userId: nextSearchValue }).toString()}`;
+      const nextUrl = getSearchDestination(searchMethod, nextSearchValue);
 
       scheduleAfterPaint(() => {
         try {
@@ -344,9 +391,7 @@ export function SearchForm({
               {inputLabel}
             </label>
             <p id={inputHintId} className="sr-only">
-              {isUserIdMode
-                ? "Enter a numeric AniList user ID."
-                : "Enter an AniList username without the at symbol."}
+              {inputHint}
             </p>
             <div className="group relative">
               <div
@@ -357,22 +402,18 @@ export function SearchForm({
                   group-focus-within:text-gold/70
                 "
               >
-                {isUserIdMode ? (
-                  <Hash className="size-5" />
-                ) : (
-                  <Search className="size-5" />
-                )}
+                <SearchInputIcon className="size-5" />
               </div>
               <Input
                 id={inputId}
-                type={isUserIdMode ? "text" : "search"}
+                type={inputType}
                 value={searchValue}
                 onChange={(e) => {
                   setSearchValue(e.target.value);
                   setError("");
                 }}
                 placeholder={inputPlaceholder}
-                inputMode={isUserIdMode ? "numeric" : "search"}
+                inputMode={inputMode}
                 autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect="off"

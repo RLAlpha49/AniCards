@@ -21,10 +21,11 @@ const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
 const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
   .gtag;
 const originalTrackingId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-const gtagMock = mock((...args: unknown[]) => {
-  void args.length;
-  return undefined;
-});
+const gtagMock = mock(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (_command: string, _action: string, _params: Record<string, unknown>) =>
+    undefined,
+);
 const NEXT_NAVIGATION_STATE_KEY = "__ANICARDS_TEST_NEXT_NAVIGATION__";
 let rejectNextPush = false;
 let restoreDomGlobals: (() => void) | null = null;
@@ -75,6 +76,19 @@ type ButtonProps = ComponentProps<"button"> & {
   variant?: string;
 };
 
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
+
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
+}
+
 mock.module("next/navigation", () => ({
   usePathname: () => getNextNavigationState().pathname,
   useRouter: () => ({
@@ -85,30 +99,20 @@ mock.module("next/navigation", () => ({
 }));
 
 mock.module("framer-motion", () => {
-  const MotionDiv = ({
-    animate,
-    children,
-    exit,
-    initial,
-    transition,
-    variants,
-    viewport,
-    whileHover,
-    whileInView,
-    whileTap,
-    ...props
-  }: MotionDivProps) => {
-    void animate;
-    void exit;
-    void initial;
-    void transition;
-    void variants;
-    void viewport;
-    void whileHover;
-    void whileInView;
-    void whileTap;
+  const MotionDiv = ({ children, ...props }: MotionDivProps) => {
+    const divProps = omitStubProps(props, [
+      "animate",
+      "exit",
+      "initial",
+      "transition",
+      "variants",
+      "viewport",
+      "whileHover",
+      "whileInView",
+      "whileTap",
+    ] as const);
 
-    return <div {...props}>{children}</div>;
+    return <div {...divProps}>{children}</div>;
   };
 
   return {
@@ -122,9 +126,10 @@ mock.module("framer-motion", () => {
 });
 
 mock.module("@/components/ui/Alert", () => ({
-  Alert: ({ children, variant, ...props }: AlertProps) => {
-    void variant;
-    return <div {...props}>{children}</div>;
+  Alert: ({ children, ...props }: AlertProps) => {
+    const alertProps = omitStubProps(props, ["variant"] as const);
+
+    return <div {...alertProps}>{children}</div>;
   },
   AlertDescription: ({ children, ...props }: ComponentProps<"p">) => (
     <p {...props}>{children}</p>
@@ -135,18 +140,11 @@ mock.module("@/components/ui/Alert", () => ({
 }));
 
 mock.module("@/components/ui/Button", () => ({
-  Button: ({
-    children,
-    size,
-    type = "button",
-    variant,
-    ...props
-  }: ButtonProps) => {
-    void size;
-    void variant;
+  Button: ({ children, type = "button", ...props }: ButtonProps) => {
+    const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 
     return (
-      <button type={type} {...props}>
+      <button type={type} {...buttonProps}>
         {children}
       </button>
     );
