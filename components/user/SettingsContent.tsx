@@ -321,6 +321,11 @@ interface AdvancedVisibility {
   showGridSize?: boolean;
 }
 
+interface QuickColorPresetOption {
+  id: string;
+  label: string;
+}
+
 interface SettingsContentProps {
   idPrefix: string;
   mode: "global" | "card";
@@ -418,6 +423,471 @@ function SettingsSection({
   );
 }
 
+type BorderColorInputState = ReturnType<typeof useBorderColorInput>;
+type GridSizeInputState = ReturnType<typeof useGridSizeInputs>;
+
+function ColorsTabContent({
+  quickColorPresets,
+  colorPreset,
+  onPresetChange,
+  colorPickers,
+}: Readonly<{
+  quickColorPresets: QuickColorPresetOption[];
+  colorPreset: string;
+  onPresetChange: (preset: string) => void;
+  colorPickers: ColorPickerItem[];
+}>) {
+  return (
+    <TabsContent value="colors" className="mt-4 space-y-4">
+      {quickColorPresets.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Quick Apply
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {quickColorPresets.map((preset) => (
+              <Button
+                key={preset.id}
+                type="button"
+                size="sm"
+                variant={preset.id === colorPreset ? "default" : "outline"}
+                onClick={() => onPresetChange(preset.id)}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  preset.id === colorPreset
+                    ? "bg-gold text-white shadow-sm hover:bg-gold/90"
+                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
+                )}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <SettingsSection title="Color Preset" icon={Palette}>
+        <ColorPresetSelector
+          selectedPreset={colorPreset}
+          presets={colorPresets}
+          onPresetChange={onPresetChange}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Custom Colors" icon={Palette} defaultOpen={false}>
+        <ColorPickerGroup pickers={colorPickers} />
+      </SettingsSection>
+    </TabsContent>
+  );
+}
+
+function BorderTabContent({
+  idPrefix,
+  borderEnabled,
+  borderColor,
+  borderRadius,
+  onBorderEnabledChange,
+  onBorderRadiusChange,
+  borderInputs,
+}: Readonly<{
+  idPrefix: string;
+  borderEnabled: boolean;
+  borderColor: string;
+  borderRadius: number;
+  onBorderEnabledChange: (enabled: boolean) => void;
+  onBorderRadiusChange: (radius: number) => void;
+  borderInputs: BorderColorInputState;
+}>) {
+  return (
+    <TabsContent value="border" className="mt-4 space-y-4">
+      <div className="space-y-2">
+        <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+          Quick Apply
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={borderEnabled ? "outline" : "default"}
+            onClick={() => onBorderEnabledChange(false)}
+            className={cn(
+              "h-8 text-xs font-medium transition-all",
+              borderEnabled
+                ? "border-border/60 hover:border-gold/40 hover:bg-gold/5"
+                : "bg-gold text-white shadow-sm hover:bg-gold/90",
+            )}
+          >
+            No border
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={
+              borderEnabled && borderRadius === 0 ? "default" : "outline"
+            }
+            onClick={() => {
+              if (!borderEnabled) onBorderEnabledChange(true);
+              onBorderRadiusChange(0);
+            }}
+            className={cn(
+              "h-8 text-xs font-medium transition-all",
+              borderEnabled && borderRadius === 0
+                ? "bg-gold text-white shadow-sm hover:bg-gold/90"
+                : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
+            )}
+          >
+            Square
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={
+              borderEnabled && borderRadius === 16 ? "default" : "outline"
+            }
+            onClick={() => {
+              if (!borderEnabled) onBorderEnabledChange(true);
+              onBorderRadiusChange(16);
+            }}
+            className={cn(
+              "h-8 text-xs font-medium transition-all",
+              borderEnabled && borderRadius === 16
+                ? "bg-gold text-white shadow-sm hover:bg-gold/90"
+                : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
+            )}
+          >
+            Rounded
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border border-border/50 bg-muted/30 p-4">
+        <div className="flex items-center gap-3">
+          <div className="
+            flex size-8 items-center justify-center bg-gold/10 text-gold
+            dark:bg-gold/15
+          ">
+            <Square className="size-4" />
+          </div>
+          <span className="text-sm font-medium text-foreground">
+            Enable Border
+          </span>
+        </div>
+        <Switch
+          checked={borderEnabled}
+          onCheckedChange={onBorderEnabledChange}
+          className="data-[state=checked]:bg-gold"
+          aria-label="Enable border"
+        />
+      </div>
+
+      <AnimatePresence mode="wait" initial={false}>
+        {borderEnabled && (
+          <motion.div
+            key="border-settings"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="space-y-5 overflow-hidden"
+          >
+            <div className="space-y-2">
+              <Label
+                htmlFor={`${idPrefix}-borderColor-input`}
+                className="text-sm font-medium text-foreground"
+              >
+                Border Color
+              </Label>
+              <div className="flex items-center gap-3">
+                <div className="
+                  relative size-10 shrink-0 overflow-hidden border border-border/60 shadow-inner
+                ">
+                  <Input
+                    type="color"
+                    value={
+                      getColorPickerHex(borderInputs.inputBorderColor) ??
+                      getColorPickerHex(borderColor) ??
+                      "#000000"
+                    }
+                    onChange={(e) =>
+                      borderInputs.handleColorPickerChange(e.target.value)
+                    }
+                    className="
+                      absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0
+                    "
+                    aria-label="Border color picker"
+                  />
+                </div>
+                <Input
+                  id={`${idPrefix}-borderColor-input`}
+                  type="text"
+                  value={borderInputs.inputBorderColor}
+                  onChange={(e) =>
+                    borderInputs.handleBorderColorTextChange(e.target.value)
+                  }
+                  onBlur={borderInputs.handleBorderColorBlur}
+                  aria-invalid={!borderInputs.isBorderColorValid}
+                  aria-describedby={borderInputs.borderColorAriaDescribedBy}
+                  className={cn(
+                    "h-10 flex-1 font-mono text-sm lowercase transition-colors",
+                    borderInputs.isBorderColorValid
+                      ? "border-border/60 focus-visible:ring-gold/30"
+                      : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500",
+                  )}
+                  placeholder="#e4e2e2"
+                />
+              </div>
+              <AnimatePresence>
+                {!borderInputs.isBorderColorValid && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-1"
+                  >
+                    <p
+                      id={`${idPrefix}-borderColor-error`}
+                      className="text-xs text-red-600"
+                    >
+                      Invalid color — use{" "}
+                      <span className="font-mono">#RGB</span>,{" "}
+                      <span className="font-mono">#RRGGBB</span>,{" "}
+                      <span className="font-mono">#RRGGBBAA</span> or a CSS
+                      color name.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-foreground">
+                  Border Radius
+                </Label>
+                <span className="
+                  bg-gold/10 px-2.5 py-1 text-xs font-bold text-gold-dim tabular-nums
+                  dark:text-gold
+                ">
+                  {borderRadius}px
+                </span>
+              </div>
+              <Input
+                type="range"
+                min={0}
+                max={100}
+                step={0.1}
+                value={borderRadius}
+                onChange={(e) =>
+                  onBorderRadiusChange(
+                    Math.round(Number.parseFloat(e.target.value) * 10) / 10,
+                  )
+                }
+                aria-label={`Border radius (${borderRadius}px)`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={borderRadius}
+                className="
+                  h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r from-gold/15
+                  to-gold/25 px-0
+                  [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:cursor-pointer
+                  [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full
+                  [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
+                  [&::-moz-range-thumb]:bg-gold [&::-moz-range-thumb]:shadow-md
+                  [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
+                  [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white
+                  [&::-webkit-slider-thumb]:bg-gold [&::-webkit-slider-thumb]:shadow-md
+                "
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </TabsContent>
+  );
+}
+
+function AdvancedTabContent({
+  idPrefix,
+  mode,
+  visibility,
+  effectiveAdvancedSettings,
+  onAdvancedSettingChange,
+  gridValidationEnabled,
+  gridInputs,
+}: Readonly<{
+  idPrefix: string;
+  mode: "global" | "card";
+  visibility: AdvancedVisibility;
+  effectiveAdvancedSettings: Required<AdvancedSettings>;
+  onAdvancedSettingChange: <K extends keyof AdvancedSettings>(
+    key: K,
+    value: AdvancedSettings[K],
+  ) => void;
+  gridValidationEnabled: boolean;
+  gridInputs: GridSizeInputState;
+}>) {
+  return (
+    <TabsContent value="advanced" className="mt-4 space-y-3">
+      {visibility.showStatusColors && (
+        <ToggleRow
+          icon={Palette}
+          label="Status Colors"
+          description={
+            mode === "global"
+              ? "Fixed colors for status distribution"
+              : undefined
+          }
+          checked={effectiveAdvancedSettings.useStatusColors}
+          onCheckedChange={(checked) =>
+            onAdvancedSettingChange("useStatusColors", checked)
+          }
+          ariaLabel="Status colors"
+        />
+      )}
+
+      {visibility.showPiePercentages && (
+        <ToggleRow
+          icon={PieChart}
+          label="Show Percentages"
+          description={
+            mode === "global" ? "Display % on pie/donut charts" : undefined
+          }
+          checked={effectiveAdvancedSettings.showPiePercentages}
+          onCheckedChange={(checked) =>
+            onAdvancedSettingChange("showPiePercentages", checked)
+          }
+          ariaLabel="Show percentages"
+        />
+      )}
+
+      {visibility.showFavorites && (
+        <ToggleRow
+          icon={Heart}
+          label="Show Favorites"
+          description={
+            mode === "global"
+              ? "Display favorites on applicable cards"
+              : undefined
+          }
+          checked={effectiveAdvancedSettings.showFavorites}
+          onCheckedChange={(checked) =>
+            onAdvancedSettingChange("showFavorites", checked)
+          }
+          ariaLabel="Show favorites"
+        />
+      )}
+
+      {visibility.showGridSize && (
+        <div className="border border-border/50 bg-muted/30 p-4">
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="
+              flex size-7 items-center justify-center bg-gold/10 text-gold
+              dark:bg-gold/15
+            ">
+              <Grid className="size-3.5" />
+            </div>
+            <span className="text-sm font-medium text-foreground">
+              {mode === "global" ? "Favorites Grid Size" : "Grid Size"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label
+                htmlFor={`${idPrefix}-gridCols`}
+                className="mb-1.5 text-xs font-medium text-muted-foreground"
+              >
+                Columns
+              </Label>
+              <Input
+                id={`${idPrefix}-gridCols`}
+                type="number"
+                min={GRID_MIN}
+                max={GRID_MAX}
+                value={gridInputs.inputGridCols}
+                onChange={(e) =>
+                  gridInputs.handleGridColsChange(e.target.value)
+                }
+                onBlur={gridInputs.handleGridColsBlur}
+                aria-invalid={
+                  gridValidationEnabled && !gridInputs.isGridColsValid
+                }
+                aria-describedby={gridInputs.gridColsAriaDescribedBy}
+                className={cn(
+                  "h-9 text-sm",
+                  gridValidationEnabled && !gridInputs.isGridColsValid
+                    ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
+                    : "border-border/60",
+                )}
+              />
+              <AnimatePresence>
+                {gridValidationEnabled && !gridInputs.isGridColsValid && (
+                  <motion.p
+                    id={`${idPrefix}-gridCols-error`}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-1 text-xs text-red-600"
+                  >
+                    Enter a whole number between {GRID_MIN} and {GRID_MAX}.
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </div>
+            <div>
+              <Label
+                htmlFor={`${idPrefix}-gridRows`}
+                className="mb-1.5 text-xs font-medium text-muted-foreground"
+              >
+                Rows
+              </Label>
+              <Input
+                id={`${idPrefix}-gridRows`}
+                type="number"
+                min={GRID_MIN}
+                max={GRID_MAX}
+                value={gridInputs.inputGridRows}
+                onChange={(e) =>
+                  gridInputs.handleGridRowsChange(e.target.value)
+                }
+                onBlur={gridInputs.handleGridRowsBlur}
+                aria-invalid={
+                  gridValidationEnabled && !gridInputs.isGridRowsValid
+                }
+                aria-describedby={gridInputs.gridRowsAriaDescribedBy}
+                className={cn(
+                  "h-9 text-sm",
+                  gridValidationEnabled && !gridInputs.isGridRowsValid
+                    ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
+                    : "border-border/60",
+                )}
+              />
+              <AnimatePresence>
+                {gridValidationEnabled && !gridInputs.isGridRowsValid && (
+                  <motion.p
+                    id={`${idPrefix}-gridRows-error`}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-1 text-xs text-red-600"
+                  >
+                    Enter a whole number between {GRID_MIN} and {GRID_MAX}.
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+          {mode === "global" && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Grid dimensions for favorites card (1-5 each)
+            </p>
+          )}
+        </div>
+      )}
+    </TabsContent>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  SettingsContent                                                    */
 /* ------------------------------------------------------------------ */
@@ -508,7 +978,7 @@ export function SettingsContent({
   const defaultResetLabel =
     mode === "global" ? "Reset to Defaults" : "Reset to Global Settings";
 
-  const quickColorPresets = useMemo(() => {
+  const quickColorPresets = useMemo<QuickColorPresetOption[]>(() => {
     const candidates = [
       { id: "default", label: "Default" },
       { id: "anilistDark", label: "AniList Dark" },
@@ -516,6 +986,17 @@ export function SettingsContent({
     ];
     return candidates.filter((p) => Boolean(colorPresets[p.id]));
   }, []);
+
+  const normalizedAdvancedSettings = useMemo<Required<AdvancedSettings>>(
+    () => ({
+      useStatusColors: effectiveAdvancedSettings.useStatusColors ?? false,
+      showPiePercentages: effectiveAdvancedSettings.showPiePercentages ?? false,
+      showFavorites: effectiveAdvancedSettings.showFavorites ?? false,
+      gridCols: effectiveAdvancedSettings.gridCols ?? 3,
+      gridRows: effectiveAdvancedSettings.gridRows ?? 3,
+    }),
+    [effectiveAdvancedSettings],
+  );
 
   const borderInputs = useBorderColorInput({
     idPrefix,
@@ -621,432 +1102,34 @@ export function SettingsContent({
           )}
         </TabsList>
 
-        {/* ── Colors Tab ──────────────────────────────── */}
-        <TabsContent value="colors" className="mt-4 space-y-4">
-          {/* Quick Apply */}
-          {quickColorPresets.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                Quick Apply
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {quickColorPresets.map((p) => (
-                  <Button
-                    key={p.id}
-                    type="button"
-                    size="sm"
-                    variant={p.id === colorPreset ? "default" : "outline"}
-                    onClick={() => onPresetChange(p.id)}
-                    className={cn(
-                      "h-8 text-xs font-medium transition-all",
-                      p.id === colorPreset
-                        ? "bg-gold text-white shadow-sm hover:bg-gold/90"
-                        : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
-                    )}
-                  >
-                    {p.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
+        <ColorsTabContent
+          quickColorPresets={quickColorPresets}
+          colorPreset={colorPreset}
+          onPresetChange={onPresetChange}
+          colorPickers={colorPickers}
+        />
 
-          {/* Color Preset Selector */}
-          <SettingsSection title="Color Preset" icon={Palette}>
-            <ColorPresetSelector
-              selectedPreset={colorPreset}
-              presets={colorPresets}
-              onPresetChange={onPresetChange}
-            />
-          </SettingsSection>
+        <BorderTabContent
+          idPrefix={idPrefix}
+          borderEnabled={borderEnabled}
+          borderColor={borderColor}
+          borderRadius={borderRadius}
+          onBorderEnabledChange={onBorderEnabledChange}
+          onBorderRadiusChange={onBorderRadiusChange}
+          borderInputs={borderInputs}
+        />
 
-          {/* Custom Colors */}
-          <SettingsSection
-            title="Custom Colors"
-            icon={Palette}
-            defaultOpen={false}
-          >
-            <ColorPickerGroup pickers={colorPickers} />
-          </SettingsSection>
-        </TabsContent>
-
-        {/* ── Border Tab ──────────────────────────────── */}
-        <TabsContent value="border" className="mt-4 space-y-4">
-          {/* Quick Apply */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              Quick Apply
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={borderEnabled ? "outline" : "default"}
-                onClick={() => onBorderEnabledChange(false)}
-                className={cn(
-                  "h-8 text-xs font-medium transition-all",
-                  borderEnabled
-                    ? "border-border/60 hover:border-gold/40 hover:bg-gold/5"
-                    : "bg-gold text-white shadow-sm hover:bg-gold/90",
-                )}
-              >
-                No border
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  borderEnabled && borderRadius === 0 ? "default" : "outline"
-                }
-                onClick={() => {
-                  if (!borderEnabled) onBorderEnabledChange(true);
-                  onBorderRadiusChange(0);
-                }}
-                className={cn(
-                  "h-8 text-xs font-medium transition-all",
-                  borderEnabled && borderRadius === 0
-                    ? "bg-gold text-white shadow-sm hover:bg-gold/90"
-                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
-                )}
-              >
-                Square
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={
-                  borderEnabled && borderRadius === 16 ? "default" : "outline"
-                }
-                onClick={() => {
-                  if (!borderEnabled) onBorderEnabledChange(true);
-                  onBorderRadiusChange(16);
-                }}
-                className={cn(
-                  "h-8 text-xs font-medium transition-all",
-                  borderEnabled && borderRadius === 16
-                    ? "bg-gold text-white shadow-sm hover:bg-gold/90"
-                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
-                )}
-              >
-                Rounded
-              </Button>
-            </div>
-          </div>
-
-          {/* Enable Border Toggle */}
-          <div className="flex items-center justify-between border border-border/50 bg-muted/30 p-4">
-            <div className="flex items-center gap-3">
-              <div className="
-                flex size-8 items-center justify-center bg-gold/10 text-gold
-                dark:bg-gold/15
-              ">
-                <Square className="size-4" />
-              </div>
-              <span className="text-sm font-medium text-foreground">
-                Enable Border
-              </span>
-            </div>
-            <Switch
-              checked={borderEnabled}
-              onCheckedChange={onBorderEnabledChange}
-              className="data-[state=checked]:bg-gold"
-              aria-label="Enable border"
-            />
-          </div>
-
-          {/* Border Settings */}
-          <AnimatePresence mode="wait" initial={false}>
-            {borderEnabled && (
-              <motion.div
-                key="border-settings"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="space-y-5 overflow-hidden"
-              >
-                {/* Border Color */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor={`${idPrefix}-borderColor-input`}
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Border Color
-                  </Label>
-                  <div className="flex items-center gap-3">
-                    <div className="
-                      relative size-10 shrink-0 overflow-hidden border border-border/60 shadow-inner
-                    ">
-                      <Input
-                        type="color"
-                        value={
-                          getColorPickerHex(borderInputs.inputBorderColor) ??
-                          getColorPickerHex(borderColor) ??
-                          "#000000"
-                        }
-                        onChange={(e) =>
-                          borderInputs.handleColorPickerChange(e.target.value)
-                        }
-                        className="
-                          absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0
-                        "
-                        aria-label="Border color picker"
-                      />
-                    </div>
-                    <Input
-                      id={`${idPrefix}-borderColor-input`}
-                      type="text"
-                      value={borderInputs.inputBorderColor}
-                      onChange={(e) =>
-                        borderInputs.handleBorderColorTextChange(e.target.value)
-                      }
-                      onBlur={borderInputs.handleBorderColorBlur}
-                      aria-invalid={!borderInputs.isBorderColorValid}
-                      aria-describedby={borderInputs.borderColorAriaDescribedBy}
-                      className={cn(
-                        "h-10 flex-1 font-mono text-sm lowercase transition-colors",
-                        borderInputs.isBorderColorValid
-                          ? "border-border/60 focus-visible:ring-gold/30"
-                          : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500",
-                      )}
-                      placeholder="#e4e2e2"
-                    />
-                  </div>
-                  <AnimatePresence>
-                    {!borderInputs.isBorderColorValid && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="mt-1"
-                      >
-                        <p
-                          id={`${idPrefix}-borderColor-error`}
-                          className="text-xs text-red-600"
-                        >
-                          Invalid color — use{" "}
-                          <span className="font-mono">#RGB</span>,{" "}
-                          <span className="font-mono">#RRGGBB</span>,{" "}
-                          <span className="font-mono">#RRGGBBAA</span> or a CSS
-                          color name.
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Border Radius */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-foreground">
-                      Border Radius
-                    </Label>
-                    <span className="
-                      bg-gold/10 px-2.5 py-1 text-xs font-bold text-gold-dim tabular-nums
-                      dark:text-gold
-                    ">
-                      {borderRadius}px
-                    </span>
-                  </div>
-                  <Input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    value={borderRadius}
-                    onChange={(e) =>
-                      onBorderRadiusChange(
-                        Math.round(Number.parseFloat(e.target.value) * 10) / 10,
-                      )
-                    }
-                    aria-label={`Border radius (${borderRadius}px)`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={borderRadius}
-                    className="
-                      h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r
-                      from-gold/15 to-gold/25 px-0
-                      [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:cursor-pointer
-                      [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full
-                      [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
-                      [&::-moz-range-thumb]:bg-gold [&::-moz-range-thumb]:shadow-md
-                      [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:cursor-pointer
-                      [&::-webkit-slider-thumb]:appearance-none
-                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2
-                      [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-gold
-                      [&::-webkit-slider-thumb]:shadow-md
-                    "
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </TabsContent>
-
-        {/* ── Advanced Tab ─────────────────────────────── */}
-        {hasAdvancedOptions && (
-          <TabsContent value="advanced" className="mt-4 space-y-3">
-            {visibility.showStatusColors && (
-              <ToggleRow
-                icon={Palette}
-                label="Status Colors"
-                description={
-                  mode === "global"
-                    ? "Fixed colors for status distribution"
-                    : undefined
-                }
-                checked={effectiveAdvancedSettings.useStatusColors ?? false}
-                onCheckedChange={(checked) =>
-                  onAdvancedSettingChange("useStatusColors", checked)
-                }
-                ariaLabel="Status colors"
-              />
-            )}
-
-            {visibility.showPiePercentages && (
-              <ToggleRow
-                icon={PieChart}
-                label="Show Percentages"
-                description={
-                  mode === "global"
-                    ? "Display % on pie/donut charts"
-                    : undefined
-                }
-                checked={effectiveAdvancedSettings.showPiePercentages ?? false}
-                onCheckedChange={(checked) =>
-                  onAdvancedSettingChange("showPiePercentages", checked)
-                }
-                ariaLabel="Show percentages"
-              />
-            )}
-
-            {visibility.showFavorites && (
-              <ToggleRow
-                icon={Heart}
-                label="Show Favorites"
-                description={
-                  mode === "global"
-                    ? "Display favorites on applicable cards"
-                    : undefined
-                }
-                checked={effectiveAdvancedSettings.showFavorites ?? false}
-                onCheckedChange={(checked) =>
-                  onAdvancedSettingChange("showFavorites", checked)
-                }
-                ariaLabel="Show favorites"
-              />
-            )}
-
-            {visibility.showGridSize && (
-              <div className="border border-border/50 bg-muted/30 p-4">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <div className="
-                    flex size-7 items-center justify-center bg-gold/10 text-gold
-                    dark:bg-gold/15
-                  ">
-                    <Grid className="size-3.5" />
-                  </div>
-                  <span className="text-sm font-medium text-foreground">
-                    {mode === "global" ? "Favorites Grid Size" : "Grid Size"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label
-                      htmlFor={`${idPrefix}-gridCols`}
-                      className="mb-1.5 text-xs font-medium text-muted-foreground"
-                    >
-                      Columns
-                    </Label>
-                    <Input
-                      id={`${idPrefix}-gridCols`}
-                      type="number"
-                      min={GRID_MIN}
-                      max={GRID_MAX}
-                      value={gridInputs.inputGridCols}
-                      onChange={(e) =>
-                        gridInputs.handleGridColsChange(e.target.value)
-                      }
-                      onBlur={gridInputs.handleGridColsBlur}
-                      aria-invalid={
-                        gridValidationEnabled && !gridInputs.isGridColsValid
-                      }
-                      aria-describedby={gridInputs.gridColsAriaDescribedBy}
-                      className={cn(
-                        "h-9 text-sm",
-                        gridValidationEnabled && !gridInputs.isGridColsValid
-                          ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
-                          : "border-border/60",
-                      )}
-                    />
-                    <AnimatePresence>
-                      {gridValidationEnabled && !gridInputs.isGridColsValid && (
-                        <motion.p
-                          id={`${idPrefix}-gridCols-error`}
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-1 text-xs text-red-600"
-                        >
-                          Enter a whole number between {GRID_MIN} and {GRID_MAX}
-                          .
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  <div>
-                    <Label
-                      htmlFor={`${idPrefix}-gridRows`}
-                      className="mb-1.5 text-xs font-medium text-muted-foreground"
-                    >
-                      Rows
-                    </Label>
-                    <Input
-                      id={`${idPrefix}-gridRows`}
-                      type="number"
-                      min={GRID_MIN}
-                      max={GRID_MAX}
-                      value={gridInputs.inputGridRows}
-                      onChange={(e) =>
-                        gridInputs.handleGridRowsChange(e.target.value)
-                      }
-                      onBlur={gridInputs.handleGridRowsBlur}
-                      aria-invalid={
-                        gridValidationEnabled && !gridInputs.isGridRowsValid
-                      }
-                      aria-describedby={gridInputs.gridRowsAriaDescribedBy}
-                      className={cn(
-                        "h-9 text-sm",
-                        gridValidationEnabled && !gridInputs.isGridRowsValid
-                          ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
-                          : "border-border/60",
-                      )}
-                    />
-                    <AnimatePresence>
-                      {gridValidationEnabled && !gridInputs.isGridRowsValid && (
-                        <motion.p
-                          id={`${idPrefix}-gridRows-error`}
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-1 text-xs text-red-600"
-                        >
-                          Enter a whole number between {GRID_MIN} and {GRID_MAX}
-                          .
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-                {mode === "global" && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Grid dimensions for favorites card (1-5 each)
-                  </p>
-                )}
-              </div>
-            )}
-          </TabsContent>
-        )}
+        {hasAdvancedOptions ? (
+          <AdvancedTabContent
+            idPrefix={idPrefix}
+            mode={mode}
+            visibility={visibility}
+            effectiveAdvancedSettings={normalizedAdvancedSettings}
+            onAdvancedSettingChange={onAdvancedSettingChange}
+            gridValidationEnabled={gridValidationEnabled}
+            gridInputs={gridInputs}
+          />
+        ) : null}
       </Tabs>
 
       {/* ── Reset Footer ────────────────────────────────── */}

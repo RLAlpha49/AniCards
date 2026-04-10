@@ -33,6 +33,19 @@ type TabsContentProps = ComponentProps<"div"> & {
   value: string;
 };
 
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
+
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
+}
+
 function registerModuleMocks() {
   mock.module("@/components/ui/Motion", () => {
     const MotionButton = ({ children, ...props }: ComponentProps<"button">) => (
@@ -59,18 +72,11 @@ function registerModuleMocks() {
   }));
 
   mock.module("@/components/ui/Button", () => ({
-    Button: ({
-      children,
-      size,
-      type = "button",
-      variant,
-      ...props
-    }: ButtonProps) => {
-      void size;
-      void variant;
+    Button: ({ children, type = "button", ...props }: ButtonProps) => {
+      const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 
       return (
-        <button type={type} {...props}>
+        <button type={type} {...buttonProps}>
           {children}
         </button>
       );
@@ -329,7 +335,7 @@ describe("SettingsContent", () => {
       expect(onValidityChange.mock.calls.at(-1)).toEqual([false]);
     });
 
-    expect(view.getByText(/invalid color/i)).toBeTruthy();
+    view.getByText(/invalid color/i);
   });
 
   it("maps named border colors into the color picker and preserves the text value", async () => {
@@ -453,8 +459,6 @@ describe("SettingsContent", () => {
     fireEvent.click(view.getByRole("button", { name: /^anilist light$/i }));
 
     expect(onPresetChange.mock.calls).toEqual([["default"], ["anilistLight"]]);
-    expect(
-      view.getByRole("button", { name: /reset card settings/i }),
-    ).toBeTruthy();
+    view.getByRole("button", { name: /reset card settings/i });
   });
 });

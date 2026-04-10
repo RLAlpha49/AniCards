@@ -21,10 +21,17 @@ function subscribeToMediaQuery(
     };
   }
 
-  mediaQueryList.addListener(listener);
+  const previousOnChange = mediaQueryList.onchange;
+  const handleChange: NonNullable<MediaQueryList["onchange"]> = () => {
+    listener();
+  };
+
+  mediaQueryList.onchange = handleChange;
 
   return () => {
-    mediaQueryList.removeListener(listener);
+    if (mediaQueryList.onchange === handleChange) {
+      mediaQueryList.onchange = previousOnChange ?? null;
+    }
   };
 }
 
@@ -38,14 +45,17 @@ export function useMotionPreferences() {
     setHasHydrated(true);
 
     if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
+      typeof globalThis.window === "undefined" ||
+      typeof globalThis.window.matchMedia !== "function"
     ) {
       return;
     }
 
-    const reducedDataQuery = window.matchMedia(REDUCED_DATA_MEDIA_QUERY);
-    const coarsePointerQuery = window.matchMedia(COARSE_POINTER_MEDIA_QUERY);
+    const windowObject = globalThis.window;
+    const reducedDataQuery = windowObject.matchMedia(REDUCED_DATA_MEDIA_QUERY);
+    const coarsePointerQuery = windowObject.matchMedia(
+      COARSE_POINTER_MEDIA_QUERY,
+    );
 
     const syncPreferences = () => {
       setPrefersReducedData(reducedDataQuery.matches);

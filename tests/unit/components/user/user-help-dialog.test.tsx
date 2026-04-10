@@ -29,7 +29,8 @@ let restoreNodeFilter: (() => void) | null = null;
 let restoreScrollTo: (() => void) | null = null;
 
 function installMatchMediaStub() {
-  const previousMatchMedia = window.matchMedia;
+  const domWindow = globalThis.window;
+  const previousMatchMedia = domWindow.matchMedia;
   const matchMedia = (query: string): MediaQueryList => ({
     matches: false,
     media: query,
@@ -41,7 +42,7 @@ function installMatchMediaStub() {
     dispatchEvent: () => false,
   });
 
-  Object.defineProperty(window, "matchMedia", {
+  Object.defineProperty(domWindow, "matchMedia", {
     configurable: true,
     value: matchMedia,
     writable: true,
@@ -49,7 +50,7 @@ function installMatchMediaStub() {
 
   return () => {
     if (previousMatchMedia) {
-      Object.defineProperty(window, "matchMedia", {
+      Object.defineProperty(domWindow, "matchMedia", {
         configurable: true,
         value: previousMatchMedia,
         writable: true,
@@ -57,7 +58,7 @@ function installMatchMediaStub() {
       return;
     }
 
-    Reflect.deleteProperty(window, "matchMedia");
+    Reflect.deleteProperty(domWindow, "matchMedia");
   };
 }
 
@@ -85,11 +86,12 @@ function installScrollToStub() {
 }
 
 function installNodeFilterStub() {
+  const domWindow = globalThis.window;
   const previousNodeFilter = globalThis.NodeFilter;
 
   Object.defineProperty(globalThis, "NodeFilter", {
     configurable: true,
-    value: window.NodeFilter,
+    value: domWindow.NodeFilter,
     writable: true,
   });
 
@@ -108,10 +110,11 @@ function installNodeFilterStub() {
 }
 
 function installElementConstructorStubs() {
+  const domWindow = globalThis.window;
   const constructors = [
-    ["HTMLInputElement", window.HTMLInputElement],
-    ["HTMLSelectElement", window.HTMLSelectElement],
-    ["HTMLTextAreaElement", window.HTMLTextAreaElement],
+    ["HTMLInputElement", domWindow.HTMLInputElement],
+    ["HTMLSelectElement", domWindow.HTMLSelectElement],
+    ["HTMLTextAreaElement", domWindow.HTMLTextAreaElement],
   ] as const;
   const previousConstructors = new Map<string, unknown>();
 
@@ -245,9 +248,11 @@ describe("UserHelpDialog topic semantics", () => {
     expect(guidedTourButtons.length).toBeGreaterThan(0);
 
     for (const button of quickStartButtons) {
+      const controlsId = button.getAttribute("aria-controls");
+
       expect(button.getAttribute("aria-pressed")).toBe("true");
       expect(button.hasAttribute("aria-current")).toBe(false);
-      expect(button.getAttribute("aria-controls")).toBeTruthy();
+      expect(controlsId).not.toBeNull();
     }
 
     fireEvent.click(guidedTourButtons[0]!);

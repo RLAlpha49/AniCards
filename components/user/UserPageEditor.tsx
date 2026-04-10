@@ -1262,6 +1262,54 @@ function useReorderModeAvailability(opts: {
   }, [opts.canEnterReorderMode, opts.isReorderMode, opts.setIsReorderMode]);
 }
 
+function usePendingSettingsTemplateApplication(params: {
+  isLoading: boolean;
+  userId: string | null;
+}) {
+  useEffect(() => {
+    if (params.isLoading || !params.userId) return;
+
+    const pendingTemplateApply = consumePendingSettingsTemplateApply();
+    if (!pendingTemplateApply) return;
+
+    const store = useUserPageEditor.getState();
+    let template = store.settingsTemplates.find(
+      (entry) => entry.id === pendingTemplateApply.templateId,
+    );
+
+    if (!template) {
+      const persistedTemplate = readSettingsTemplatesFromStorage().find(
+        (entry) => entry.id === pendingTemplateApply.templateId,
+      );
+
+      if (persistedTemplate) {
+        store.importSettingsTemplates([persistedTemplate]);
+        template = useUserPageEditor
+          .getState()
+          .settingsTemplates.find(
+            (entry) => entry.id === pendingTemplateApply.templateId,
+          );
+      }
+    }
+
+    if (!template) {
+      toast.error("Couldn't apply the queued example style", {
+        description: "Try selecting the example again from the gallery.",
+      });
+      return;
+    }
+
+    store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
+    toast.success(
+      `${pendingTemplateApply.templateName ?? template.name} applied`,
+      {
+        description:
+          "This style is now active in Global Settings and saved in your template library.",
+      },
+    );
+  }, [params.isLoading, params.userId]);
+}
+
 type RenderableCardType = (typeof statCardTypes)[number];
 
 const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
@@ -1701,48 +1749,10 @@ export function UserPageEditor({
     applyLocalEditsPatch,
   });
 
-  useEffect(() => {
-    if (isLoading || !userId) return;
-
-    const pendingTemplateApply = consumePendingSettingsTemplateApply();
-    if (!pendingTemplateApply) return;
-
-    const store = useUserPageEditor.getState();
-    let template = store.settingsTemplates.find(
-      (entry) => entry.id === pendingTemplateApply.templateId,
-    );
-
-    if (!template) {
-      const persistedTemplate = readSettingsTemplatesFromStorage().find(
-        (entry) => entry.id === pendingTemplateApply.templateId,
-      );
-
-      if (persistedTemplate) {
-        store.importSettingsTemplates([persistedTemplate]);
-        template = useUserPageEditor
-          .getState()
-          .settingsTemplates.find(
-            (entry) => entry.id === pendingTemplateApply.templateId,
-          );
-      }
-    }
-
-    if (!template) {
-      toast.error("Couldn't apply the queued example style", {
-        description: "Try selecting the example again from the gallery.",
-      });
-      return;
-    }
-
-    store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
-    toast.success(
-      `${pendingTemplateApply.templateName ?? template.name} applied`,
-      {
-        description:
-          "This style is now active in Global Settings and saved in your template library.",
-      },
-    );
-  }, [isLoading, userId]);
+  usePendingSettingsTemplateApplication({
+    isLoading,
+    userId,
+  });
 
   const showDraftNotice =
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
@@ -1840,6 +1850,12 @@ export function UserPageEditor({
     replace: router.replace,
   });
 
+  const handleRetryLoad = useCallback(() => {
+    reload().catch((error) => {
+      console.error("Failed to retry loading the user page:", error);
+    });
+  }, [reload]);
+
   const clearAllFilters = useCallback(() => {
     setQuery("");
     setVisibility("all");
@@ -1931,9 +1947,7 @@ export function UserPageEditor({
         loadError={loadError}
         canRetry={canRetryLoadInPlace}
         prefersSimplifiedMotion={prefersSimplifiedMotion}
-        onRetry={() => {
-          void reload();
-        }}
+        onRetry={handleRetryLoad}
       />
     );
   }

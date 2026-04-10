@@ -129,6 +129,13 @@ export function ExampleCard({
     copied,
     queuedForEditor,
   });
+  let editorButtonTitle = "Choose a preview theme before queuing this style";
+
+  if (selectedSettingsSnapshot) {
+    editorButtonTitle = queuedForEditor
+      ? "Queued for the editor"
+      : "Queue this style for the editor";
+  }
 
   useEffect(() => {
     if (copied) {
@@ -336,13 +343,7 @@ export function ExampleCard({
                   `,
               )}
               aria-label={buttonLabels.editor}
-              title={
-                selectedSettingsSnapshot
-                  ? queuedForEditor
-                    ? "Queued for the editor"
-                    : "Queue this style for the editor"
-                  : "Choose a preview theme before queuing this style"
-              }
+              title={editorButtonTitle}
               disabled={!selectedSettingsSnapshot}
             >
               <Sparkles className="size-3" />

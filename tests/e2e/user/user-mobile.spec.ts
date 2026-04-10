@@ -6,12 +6,16 @@ const MOBILE_VIEWPORT = {
   height: 851,
 };
 
+function useMockFixture<T>(fixture: T): T {
+  return fixture;
+}
+
 test.describe("User page mobile ergonomics", () => {
   test("uses the touch-first mobile editor shell contract", async ({
     page,
     mockSuccessfulApi,
   }) => {
-    void mockSuccessfulApi;
+    useMockFixture(mockSuccessfulApi);
 
     await page.setViewportSize(MOBILE_VIEWPORT);
     await gotoReady(page, "/user/TestUser");

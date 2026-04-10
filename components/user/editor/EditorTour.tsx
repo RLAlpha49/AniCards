@@ -14,6 +14,7 @@ import { shouldAutoStartTour } from "./tour-utils";
 const TOUR_STORAGE_VERSION = "v1";
 type DriverModule = typeof import("driver.js");
 type DriverInstance = ReturnType<DriverModule["driver"]>;
+type IdentifiedDriveStep = DriveStep & { id: string };
 
 let driverModulePromise: Promise<DriverModule> | null = null;
 
@@ -64,9 +65,9 @@ const TOUR_SELECTOR_FALLBACKS: Readonly<Record<string, string[]>> = {
 };
 
 function toPopoverOnlyStep(step: DriveStep): DriveStep {
-  const { element, ...rest } = step;
-  void element;
-  return rest;
+  const stepWithoutElement = { ...step };
+  delete stepWithoutElement.element;
+  return stepWithoutElement;
 }
 
 function resolveTourSelector(selector: string, doc: Document): Element | null {
@@ -107,27 +108,39 @@ function normalizeToId(input?: string): string | undefined {
     .replaceAll(/(^-|-$)/g, "");
 }
 
-function ensureStepIds(steps: DriveStep[]): (DriveStep & { id: string })[] {
+function getStepId(step: DriveStep): string | undefined {
+  if (!("id" in step) || typeof step.id !== "string") {
+    return undefined;
+  }
+
+  const stepId = step.id.trim();
+  return stepId.length > 0 ? stepId : undefined;
+}
+
+function withStepId(step: DriveStep, id: string): IdentifiedDriveStep {
+  return {
+    ...step,
+    id,
+  };
+}
+
+function ensureStepIds(steps: DriveStep[]): IdentifiedDriveStep[] {
   return steps.map((step, idx) => {
-    const s = { ...step } as DriveStep & { id?: string };
-
-    if (s.id && typeof s.id === "string" && s.id.trim()) {
-      return s as DriveStep & { id: string };
+    const existingId = getStepId(step);
+    if (existingId) {
+      return withStepId(step, existingId);
     }
 
-    const titleId = normalizeToId(s.popover?.title);
+    const titleId = normalizeToId(step.popover?.title);
     if (titleId) {
-      s.id = titleId;
-      return s as DriveStep & { id: string };
+      return withStepId(step, titleId);
     }
 
-    if (typeof s.element === "string" && s.element.trim()) {
-      s.id = normalizeToId(s.element) ?? `step-${idx + 1}`;
-      return s as DriveStep & { id: string };
+    if (typeof step.element === "string" && step.element.trim()) {
+      return withStepId(step, normalizeToId(step.element) ?? `step-${idx + 1}`);
     }
 
-    s.id = `step-${idx + 1}`;
-    return s as DriveStep & { id: string };
+    return withStepId(step, `step-${idx + 1}`);
   });
 }
 
@@ -151,10 +164,9 @@ export function findActiveStepIndex(
   if (!activeStep) return -1;
 
   return resolvedSteps.findIndex((step) => {
-    const stepId = (step as DriveStep & { id?: string }).id;
+    const stepId = getStepId(step);
     const activeId =
-      (activeStep as DriveStep & { id?: string }).id ??
-      normalizeToId(activeStep.popover?.title);
+      getStepId(activeStep) ?? normalizeToId(activeStep.popover?.title);
 
     if (stepId && activeId) {
       return stepId === activeId;
@@ -177,8 +189,6 @@ type TourStepDefinition = Readonly<{
   element?: string;
 }>;
 
-type IdentifiedDriveStep = DriveStep & { id: string };
-
 function createTourStep({
   id,
   title,
@@ -187,16 +197,18 @@ function createTourStep({
   align,
   element,
 }: TourStepDefinition): IdentifiedDriveStep {
-  return {
-    id,
-    ...(element ? { element } : {}),
-    popover: {
-      title,
-      description,
-      side,
-      align,
+  return withStepId(
+    {
+      ...(element ? { element } : {}),
+      popover: {
+        title,
+        description,
+        side,
+        align,
+      },
     },
-  } as IdentifiedDriveStep;
+    id,
+  );
 }
 
 type UseEditorTourArgs = Readonly<{
@@ -552,7 +564,9 @@ export function useEditorTour({
     // Delay by one tick so dialogs/menus can close before the tour overlay mounts.
     startTourTimerRef.current = globalThis.setTimeout(() => {
       startTourTimerRef.current = null;
-      void runTour();
+      runTour().catch((error) => {
+        console.error("Unexpected error starting guided tour:", error);
+      });
     }, 0);
   }, [closeHelpDialog, runTour]);
 

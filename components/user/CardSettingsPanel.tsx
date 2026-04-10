@@ -143,8 +143,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
                   tracking-wider text-gold-dim uppercase
                   dark:bg-gold/10 dark:text-gold
                 ">
-                  Custom
-                  <span className="sr-only"> settings applied</span>
+                  Custom <span className="sr-only">settings applied</span>
                 </span>
               )}
             </div>

@@ -223,6 +223,144 @@ export default function ExamplesPageClient({
     activeCategory !== null ||
     showAllCollections;
 
+  const shouldRenderCollectionChooser =
+    searchQuery.trim().length === 0 &&
+    activeCategory === null &&
+    showAllCollections === false;
+
+  let galleryContent: React.ReactNode;
+
+  if (shouldRenderCollectionChooser) {
+    galleryContent = (
+      <section
+        aria-labelledby="gallery-collections-heading"
+        className="space-y-10"
+      >
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-3 text-xs tracking-[0.4em] text-gold/55 uppercase">
+            Browse by collection
+          </p>
+          <h2
+            id="gallery-collections-heading"
+            className="font-display text-3xl tracking-[0.12em] text-foreground sm:text-4xl"
+          >
+            PICK A SLICE OF THE GALLERY
+          </h2>
+          <p className="
+            mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/42
+            sm:text-base/relaxed
+          ">
+            Open the category you care about, or load the full wall if you want
+            every preview on one gloriously oversized canvas.
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+          {categorySummaries.map((category, index) => (
+            <button
+              key={category.name}
+              type="button"
+              onClick={() => handleCategoryChange(category.name)}
+              className="
+                group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left transition-all
+                duration-300
+                hover:border-gold/30 hover:bg-gold/6
+                focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                focus-visible:ring-offset-background focus-visible:outline-none
+              "
+            >
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <span className="
+                  font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
+                ">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-xs text-foreground/25 tabular-nums">
+                  {category.cardTypeCount} types · {category.variantCount}{" "}
+                  variants
+                </span>
+              </div>
+              <h3 className="
+                font-display text-lg tracking-[0.08em] text-foreground transition-colors
+                group-hover:text-gold/90
+              ">
+                {category.name}
+              </h3>
+              <p className="mt-4 font-body-serif text-sm/relaxed text-foreground/40">
+                {category.description}
+              </p>
+              <span className="
+                mt-6 inline-flex text-xs font-semibold tracking-[0.18em] text-gold uppercase
+              ">
+                Open collection
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAllCollections(true)}
+            className="
+              border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em] text-gold
+              uppercase transition-colors
+              hover:border-gold/40 hover:bg-gold/6
+              focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+              focus-visible:ring-offset-background focus-visible:outline-none
+            "
+          >
+            Load the full gallery
+          </button>
+        </div>
+      </section>
+    );
+  } else if (activeCategory) {
+    galleryContent = (
+      <CategorySection
+        key={activeCategory}
+        category={activeCategory}
+        cardTypes={filteredCardTypes}
+        isFirstCategory={true}
+        previewColorPreset={previewColorPreset}
+      />
+    );
+  } else {
+    galleryContent = catalog.categories.reduce<React.ReactNode[]>(
+      (nodes, category, categoryIndex) => {
+        const categoryCardTypes = filteredCardTypes.filter(
+          (card) => card.category === category,
+        );
+        if (categoryCardTypes.length === 0) return nodes;
+
+        if (nodes.length > 0) {
+          nodes.push(
+            <div
+              key={`divider-${category}`}
+              className="flex items-center justify-center gap-3"
+            >
+              <div className="gold-line max-w-16 flex-1" />
+              <div className="size-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
+              <div className="gold-line max-w-16 flex-1" />
+            </div>,
+          );
+        }
+
+        nodes.push(
+          <CategorySection
+            key={category}
+            category={category}
+            cardTypes={categoryCardTypes}
+            isFirstCategory={categoryIndex === 0}
+            previewColorPreset={previewColorPreset}
+          />,
+        );
+        return nodes;
+      },
+      [],
+    );
+  }
+
   return (
     <ErrorBoundary
       resetKeys={[searchQuery, activeCategory ?? ""]}
@@ -310,137 +448,7 @@ export default function ExamplesPageClient({
         >
           <div className="relative container mx-auto px-4">
             <div className="mx-auto max-w-7xl space-y-28">
-              {!shouldRenderExpandedGallery ? (
-                <section
-                  aria-labelledby="gallery-collections-heading"
-                  className="space-y-10"
-                >
-                  <div className="mx-auto max-w-3xl text-center">
-                    <p className="mb-3 text-xs tracking-[0.4em] text-gold/55 uppercase">
-                      Browse by collection
-                    </p>
-                    <h2
-                      id="gallery-collections-heading"
-                      className="
-                        font-display text-3xl tracking-[0.12em] text-foreground
-                        sm:text-4xl
-                      "
-                    >
-                      PICK A SLICE OF THE GALLERY
-                    </h2>
-                    <p className="
-                      mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/42
-                      sm:text-base/relaxed
-                    ">
-                      Open the category you care about, or load the full wall if
-                      you want every preview on one gloriously oversized canvas.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-                    {categorySummaries.map((category, index) => (
-                      <button
-                        key={category.name}
-                        type="button"
-                        onClick={() => handleCategoryChange(category.name)}
-                        className="
-                          group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left
-                          transition-all duration-300
-                          hover:border-gold/30 hover:bg-gold/6
-                          focus-visible:ring-2 focus-visible:ring-gold/50
-                          focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                          focus-visible:outline-none
-                        "
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <span className="
-                            font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
-                          ">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                          <span className="text-xs text-foreground/25 tabular-nums">
-                            {category.cardTypeCount} types ·{" "}
-                            {category.variantCount} variants
-                          </span>
-                        </div>
-                        <h3 className="
-                          font-display text-lg tracking-[0.08em] text-foreground transition-colors
-                          group-hover:text-gold/90
-                        ">
-                          {category.name}
-                        </h3>
-                        <p className="mt-4 font-body-serif text-sm/relaxed text-foreground/40">
-                          {category.description}
-                        </p>
-                        <span className="
-                          mt-6 inline-flex text-xs font-semibold tracking-[0.18em] text-gold
-                          uppercase
-                        ">
-                          Open collection
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setShowAllCollections(true)}
-                      className="
-                        border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em]
-                        text-gold uppercase transition-colors
-                        hover:border-gold/40 hover:bg-gold/6
-                        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
-                        focus-visible:ring-offset-background focus-visible:outline-none
-                      "
-                    >
-                      Load the full gallery
-                    </button>
-                  </div>
-                </section>
-              ) : activeCategory ? (
-                <CategorySection
-                  key={activeCategory}
-                  category={activeCategory}
-                  cardTypes={filteredCardTypes}
-                  isFirstCategory={true}
-                  previewColorPreset={previewColorPreset}
-                />
-              ) : (
-                catalog.categories.reduce<React.ReactNode[]>(
-                  (nodes, category, categoryIndex) => {
-                    const categoryCardTypes = filteredCardTypes.filter(
-                      (card) => card.category === category,
-                    );
-                    if (categoryCardTypes.length === 0) return nodes;
-
-                    if (nodes.length > 0) {
-                      nodes.push(
-                        <div
-                          key={`divider-${category}`}
-                          className="flex items-center justify-center gap-3"
-                        >
-                          <div className="gold-line max-w-16 flex-1" />
-                          <div className="size-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
-                          <div className="gold-line max-w-16 flex-1" />
-                        </div>,
-                      );
-                    }
-
-                    nodes.push(
-                      <CategorySection
-                        key={category}
-                        category={category}
-                        cardTypes={categoryCardTypes}
-                        isFirstCategory={categoryIndex === 0}
-                        previewColorPreset={previewColorPreset}
-                      />,
-                    );
-                    return nodes;
-                  },
-                  [],
-                )
-              )}
+              {galleryContent}
 
               {shouldRenderExpandedGallery &&
                 filteredCardTypes.length === 0 && (

@@ -105,6 +105,22 @@ function createJsonResponse(
   });
 }
 
+function getRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  if (input instanceof Request) {
+    return input.url;
+  }
+
+  throw new TypeError("Expected fetch input to be a string, URL, or Request.");
+}
+
 function createStructuredError(
   overrides: Partial<StructuredResponseError> &
     Pick<StructuredResponseError, "message">,
@@ -178,46 +194,43 @@ describe("useUserDataLoader", () => {
   });
 
   it("tracks top-level request IDs and preserves structured retry facts for user-load failures", async () => {
-    const fetchMock = mock(
-      async (input: RequestInfo | URL, _init?: RequestInit) => {
-        void _init;
-        const requestUrl = String(input);
+    const fetchMock = mock(async (input: RequestInfo | URL) => {
+      const requestUrl = getRequestUrl(input);
 
-        if (requestUrl.startsWith("/api/get-user?")) {
-          return createJsonResponse(
-            {
-              error: "User bootstrap temporarily unavailable",
-              category: "server_error",
-              retryable: false,
-              status: 503,
-              recoverySuggestions: [
-                {
-                  title: "Retry later",
-                  description:
-                    "Wait for the backend to recover, then retry loading your profile.",
-                  actionLabel: "Retry",
-                },
-              ],
-            },
-            {
-              headers: {
-                "X-Request-Id": "req-user-load-12345",
+      if (requestUrl.startsWith("/api/get-user?")) {
+        return createJsonResponse(
+          {
+            error: "User bootstrap temporarily unavailable",
+            category: "server_error",
+            retryable: false,
+            status: 503,
+            recoverySuggestions: [
+              {
+                title: "Retry later",
+                description:
+                  "Wait for the backend to recover, then retry loading your profile.",
+                actionLabel: "Retry",
               },
-              status: 503,
-              statusText: "Service Unavailable",
+            ],
+          },
+          {
+            headers: {
+              "X-Request-Id": "req-user-load-12345",
             },
-          );
-        }
-
-        if (requestUrl === "/api/error-reports") {
-          return createJsonResponse({ recorded: true });
-        }
-
-        throw new Error(
-          `Unexpected fetch request in useUserDataLoader test: ${requestUrl}`,
+            status: 503,
+            statusText: "Service Unavailable",
+          },
         );
-      },
-    );
+      }
+
+      if (requestUrl === "/api/error-reports") {
+        return createJsonResponse({ recorded: true });
+      }
+
+      throw new Error(
+        `Unexpected fetch request in useUserDataLoader test: ${requestUrl}`,
+      );
+    });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const startSetup = mock(async () => ({
@@ -232,7 +245,17 @@ describe("useUserDataLoader", () => {
 
     expect(fetchUserCardsMock).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalled();
-    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/^\/api\/get-user\?/i);
+    const firstRequestInput = fetchMock.mock.calls[0]?.[0];
+
+    if (!firstRequestInput) {
+      throw new TypeError(
+        "Expected useUserDataLoader to issue a bootstrap request.",
+      );
+    }
+
+    expect(getRequestUrl(firstRequestInput as RequestInfo | URL)).toMatch(
+      /^\/api\/get-user\?/i,
+    );
     expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
       "Server error. Wait for the backend to recover, then retry loading your profile.",
     );
@@ -272,7 +295,7 @@ describe("useUserDataLoader", () => {
     const bootstrapResponse = createDeferred<Response>();
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl.startsWith("/api/get-user?")) {
         return bootstrapResponse.promise;
@@ -321,7 +344,7 @@ describe("useUserDataLoader", () => {
     routeSearchParams = new URLSearchParams();
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl.startsWith("/api/get-user?")) {
         return createSuccessfulBootstrapResponse();
@@ -379,7 +402,7 @@ describe("useUserDataLoader", () => {
     routeSearchParams = new URLSearchParams("username=FreshUser");
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl.startsWith("/api/get-user?")) {
         return createJsonResponse(
@@ -423,7 +446,7 @@ describe("useUserDataLoader", () => {
     routeSearchParams = new URLSearchParams();
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl.startsWith("/api/get-user?")) {
         return createSuccessfulBootstrapResponse();
@@ -479,7 +502,7 @@ describe("useUserDataLoader", () => {
     routeSearchParams = new URLSearchParams();
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      const requestUrl = String(input);
+      const requestUrl = getRequestUrl(input);
 
       if (requestUrl.startsWith("/api/get-user?")) {
         return createSuccessfulBootstrapResponse();

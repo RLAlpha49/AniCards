@@ -45,7 +45,7 @@ export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
 export const SLOW_LOAD_THRESHOLD_MS = 2000;
 
 const useIsomorphicLayoutEffect =
-  typeof window === "undefined" ? useEffect : useLayoutEffect;
+  typeof globalThis.window === "undefined" ? useEffect : useLayoutEffect;
 
 export function isImageReady(
   imageElement: HTMLImageElement | null,
@@ -211,7 +211,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
       areImageRenderStatesEqual(current, loadingState) ? current : loadingState,
     );
 
-    const slowLoadingTimer = window.setTimeout(() => {
+    const slowLoadingTimer = globalThis.setTimeout(() => {
       setImageState((current) =>
         current.loadState === "loading"
           ? { ...current, loadState: "slow" }
@@ -219,7 +219,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
       );
     }, SLOW_LOAD_THRESHOLD_MS);
 
-    return () => window.clearTimeout(slowLoadingTimer);
+    return () => globalThis.clearTimeout(slowLoadingTimer);
   }, [height, src, width]);
 
   const onImageLoad = () => {

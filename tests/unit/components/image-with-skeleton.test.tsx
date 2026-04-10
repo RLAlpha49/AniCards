@@ -122,14 +122,14 @@ describe("ImageWithSkeleton", () => {
       />,
     );
 
-    const wrapper = container.querySelector("[data-image-state]");
+    const wrapper = container.querySelector<HTMLElement>("[data-image-state]");
     const image = container.querySelector("img");
 
     if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
       throw new Error("Expected ImageWithSkeleton to render an image element.");
     }
 
-    expect(wrapper?.getAttribute("data-image-state")).toBe("loading");
+    expect(wrapper?.dataset.imageState).toBe("loading");
     expect(wrapper?.getAttribute("aria-busy")).toBe("true");
     expect(wrapper?.getAttribute("style")).toContain("aspect-ratio");
     expect(image.getAttribute("width")).toBe("450");
@@ -164,7 +164,7 @@ describe("ImageWithSkeleton", () => {
 
     fireEvent.load(image);
 
-    expect(wrapper.getAttribute("data-image-state")).toBe("loaded");
+    expect(wrapper.dataset.imageState).toBe("loaded");
     expect(image.className).toMatch(/opacity-100/);
     expect(wrapper.querySelector(".animate-pulse")).toBeNull();
   });
@@ -207,7 +207,8 @@ describe("ImageWithSkeleton", () => {
         />,
       );
 
-      const wrapper = container.querySelector("[data-image-state]");
+      const wrapper =
+        container.querySelector<HTMLElement>("[data-image-state]");
       const image = container.querySelector("img");
 
       if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
@@ -216,7 +217,7 @@ describe("ImageWithSkeleton", () => {
         );
       }
 
-      expect(wrapper?.getAttribute("data-image-state")).toBe("loaded");
+      expect(wrapper?.dataset.imageState).toBe("loaded");
       expect(wrapper?.getAttribute("aria-busy")).toBe("false");
       expect(image.className).toMatch(/opacity-100/);
       expect(wrapper?.querySelector(".animate-pulse")).toBeNull();

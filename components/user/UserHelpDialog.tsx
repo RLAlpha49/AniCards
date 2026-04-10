@@ -341,8 +341,7 @@ export function UserHelpDialog({
             </div>
           </div>
 
-          <div
-            role="group"
+          <nav
             aria-label="Help topics"
             className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
           >
@@ -351,69 +350,70 @@ export function UserHelpDialog({
                 No matching topics.
               </p>
             ) : (
-              <div className="space-y-px">
+              <ul className="m-0 list-none space-y-px p-0">
                 {filteredTopics.map((t) => {
                   const Icon = TOPIC_ICONS[t.id];
                   const isActive = t.id === selectedTopicId;
                   return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setSelectedTopicId(t.id)}
-                      className={cn(
-                        `
-                          group relative flex w-full items-center gap-3 px-3 py-2.5 text-left
-                          transition-all duration-200
-                        `,
-                        isActive
-                          ? "bg-gold/8 dark:bg-gold/8"
-                          : "hover:bg-gold/4 dark:hover:bg-gold/4",
-                      )}
-                      aria-controls={topicPanelId}
-                      aria-pressed={isActive}
-                    >
-                      <div
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTopicId(t.id)}
                         className={cn(
                           `
-                            absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 transition-all
-                            duration-300
+                            group relative flex w-full items-center gap-3 px-3 py-2.5 text-left
+                            transition-all duration-200
                           `,
                           isActive
-                            ? "bg-gold opacity-100"
-                            : `
-                              bg-transparent opacity-0
-                              group-hover:bg-gold/30 group-hover:opacity-100
-                            `,
+                            ? "bg-gold/8 dark:bg-gold/8"
+                            : "hover:bg-gold/4 dark:hover:bg-gold/4",
                         )}
-                      />
-
-                      {Icon && (
-                        <Icon
+                        aria-controls={topicPanelId}
+                        aria-pressed={isActive}
+                      >
+                        <div
                           className={cn(
-                            "size-4 shrink-0 transition-colors duration-200",
+                            `
+                              absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 transition-all
+                              duration-300
+                            `,
                             isActive
-                              ? "text-gold"
-                              : "text-muted-foreground/35 group-hover:text-gold/50",
+                              ? "bg-gold opacity-100"
+                              : `
+                                bg-transparent opacity-0
+                                group-hover:bg-gold/30 group-hover:opacity-100
+                              `,
                           )}
                         />
-                      )}
 
-                      <span
-                        className={cn(
-                          "truncate text-sm transition-colors duration-200",
-                          isActive
-                            ? "font-medium text-foreground"
-                            : "text-muted-foreground group-hover:text-foreground/70",
+                        {Icon && (
+                          <Icon
+                            className={cn(
+                              "size-4 shrink-0 transition-colors duration-200",
+                              isActive
+                                ? "text-gold"
+                                : "text-muted-foreground/35 group-hover:text-gold/50",
+                            )}
+                          />
                         )}
-                      >
-                        {t.title}
-                      </span>
-                    </button>
+
+                        <span
+                          className={cn(
+                            "truncate text-sm transition-colors duration-200",
+                            isActive
+                              ? "font-medium text-foreground"
+                              : "text-muted-foreground group-hover:text-foreground/70",
+                          )}
+                        >
+                          {t.title}
+                        </span>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
-          </div>
+          </nav>
         </div>
 
         {/* Right column: header + mobile strip + content + footer */}
@@ -454,46 +454,47 @@ export function UserHelpDialog({
               />
             </div>
 
-            <div
-              role="group"
-              aria-label="Help topics"
-              className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5"
-            >
-              {filteredTopics.length === 0 ? (
-                <p className="py-1 text-xs text-muted-foreground/50 italic">
-                  No results
-                </p>
-              ) : (
-                filteredTopics.map((t) => {
-                  const Icon = TOPIC_ICONS[t.id];
-                  const isActive = t.id === selectedTopicId;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setSelectedTopicId(t.id)}
-                      className={cn(
-                        `
-                          flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border px-3.5 py-2
-                          text-xs transition-all
-                        `,
-                        isActive
-                          ? "border-gold/35 bg-gold/10 text-foreground"
-                          : `
-                            border-gold/10 text-muted-foreground
-                            hover:border-gold/25 hover:bg-gold/5
-                          `,
-                      )}
-                      aria-controls={topicPanelId}
-                      aria-pressed={isActive}
-                    >
-                      {Icon && <Icon className="size-3" />}
-                      {t.title}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+            <nav aria-label="Help topics">
+              <ul className="-mx-1 flex list-none gap-1.5 overflow-x-auto px-1 pb-0.5">
+                {filteredTopics.length === 0 ? (
+                  <li>
+                    <p className="py-1 text-xs text-muted-foreground/50 italic">
+                      No results
+                    </p>
+                  </li>
+                ) : (
+                  filteredTopics.map((t) => {
+                    const Icon = TOPIC_ICONS[t.id];
+                    const isActive = t.id === selectedTopicId;
+                    return (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTopicId(t.id)}
+                          className={cn(
+                            `
+                              flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border px-3.5
+                              py-2 text-xs transition-all
+                            `,
+                            isActive
+                              ? "border-gold/35 bg-gold/10 text-foreground"
+                              : `
+                                border-gold/10 text-muted-foreground
+                                hover:border-gold/25 hover:bg-gold/5
+                              `,
+                          )}
+                          aria-controls={topicPanelId}
+                          aria-pressed={isActive}
+                        >
+                          {Icon && <Icon className="size-3" />}
+                          {t.title}
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </nav>
           </div>
 
           {/* Content panel */}

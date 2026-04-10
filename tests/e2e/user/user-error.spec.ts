@@ -4,6 +4,10 @@ import {
 } from "../fixtures/browser-utils";
 import { expect, test } from "../fixtures/test-utils";
 
+function useMockFixture<T>(fixture: T): T {
+  return fixture;
+}
+
 async function gotoMockedUserErrorPage(
   page: Parameters<typeof waitForAppReady>[0],
   url: string,
@@ -18,7 +22,7 @@ test.describe("User page error states (mocked API)", () => {
     page,
     mockRateLimitedApi,
   }) => {
-    void mockRateLimitedApi;
+    useMockFixture(mockRateLimitedApi);
 
     await gotoMockedUserErrorPage(page, "/user/RateLimitedUser");
 
@@ -43,7 +47,7 @@ test.describe("User page error states (mocked API)", () => {
     page,
     mockNetworkError,
   }) => {
-    void mockNetworkError;
+    useMockFixture(mockNetworkError);
 
     await gotoMockedUserErrorPage(page, "/user/NetworkErrorUser");
 

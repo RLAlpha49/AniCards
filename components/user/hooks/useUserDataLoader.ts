@@ -717,7 +717,9 @@ export function useUserDataLoader(options: {
   );
 
   useEffect(() => {
-    void load();
+    load().catch((error) => {
+      console.error("Unexpected error loading user data:", error);
+    });
   }, [load]);
 
   const reload = useCallback(() => {

@@ -7,6 +7,10 @@ import {
 } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
+function useMockFixture<T>(fixture: T): T {
+  return fixture;
+}
+
 async function waitForUserEditorReady(page: Page): Promise<void> {
   const editor = page.getByTestId("user-page-editor-main");
   await waitForUiReady(editor);
@@ -39,7 +43,7 @@ test.describe("User page", () => {
     page,
     mockSuccessfulApi,
   }) => {
-    void mockSuccessfulApi;
+    useMockFixture(mockSuccessfulApi);
 
     await test.step("Load the user page", async () => {
       await gotoReady(page, "/user/TestUser");
@@ -166,7 +170,7 @@ test.describe("User page", () => {
     page,
     mockSuccessfulApi,
   }, testInfo) => {
-    void mockSuccessfulApi;
+    useMockFixture(mockSuccessfulApi);
 
     await test.step("Load the mocked user editor", async () => {
       await gotoReady(page, "/user/TestUser");
@@ -207,7 +211,7 @@ test.describe("User page", () => {
     page,
     mockSuccessfulApi,
   }) => {
-    void mockSuccessfulApi;
+    useMockFixture(mockSuccessfulApi);
 
     await test.step("Load the mocked user editor", async () => {
       await gotoReady(page, "/user/TestUser");
