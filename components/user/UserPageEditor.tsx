@@ -1895,6 +1895,20 @@ function SelectedBulkActionsToolbarGate() {
   return selectedCount > 0 ? <LazyBulkActionsToolbar /> : null;
 }
 
+function canSaveEditorChanges(params: {
+  userId: string | null;
+  isDirty: boolean;
+  isSaving: boolean;
+  hasConflict: boolean;
+}) {
+  return (
+    Boolean(params.userId) &&
+    params.isDirty &&
+    !params.isSaving &&
+    !params.hasConflict
+  );
+}
+
 export function UserPageEditor({
   routeUsername,
 }: Readonly<{
@@ -2199,8 +2213,12 @@ export function UserPageEditor({
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
   const showConflictNotice = saveConflict != null;
 
-  const canSaveNow =
-    Boolean(userId) && isDirty && !isSaving && !showConflictNotice;
+  const canSaveNow = canSaveEditorChanges({
+    userId,
+    isDirty,
+    isSaving,
+    hasConflict: showConflictNotice,
+  });
   const canDiscardNow = isDirty && !isSaving;
 
   const handleApplyStarterStyle = useCallback(
