@@ -103,72 +103,109 @@ const loadActivityStatsTemplates = createLazyLoader(async () => {
   };
 });
 
-const loadComparativeDistributionTemplates = createLazyLoader(async () => {
-  const [
-    animeMangaOverviewModule,
-    countryDiversityModule,
-    formatPreferenceOverviewModule,
-    genreDiversityModule,
-    lengthPreferenceModule,
-    releaseEraPreferenceModule,
-    scoreCompareAnimeMangaModule,
-    startYearMomentumModule,
-  ] = await Promise.all([
-    import("@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/country-diversity-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/length-preference-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template"),
-    import("@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template"),
-  ]);
+const loadAnimeMangaOverviewTemplateModule = createLazyLoader(async () => {
+  const { animeMangaOverviewTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template");
 
-  return {
-    animeMangaOverviewTemplate:
-      animeMangaOverviewModule.animeMangaOverviewTemplate,
-    countryDiversityTemplate: countryDiversityModule.countryDiversityTemplate,
-    formatPreferenceOverviewTemplate:
-      formatPreferenceOverviewModule.formatPreferenceOverviewTemplate,
-    genreDiversityTemplate: genreDiversityModule.genreDiversityTemplate,
-    lengthPreferenceTemplate: lengthPreferenceModule.lengthPreferenceTemplate,
-    releaseEraPreferenceTemplate:
-      releaseEraPreferenceModule.releaseEraPreferenceTemplate,
-    scoreCompareAnimeMangaTemplate:
-      scoreCompareAnimeMangaModule.scoreCompareAnimeMangaTemplate,
-    startYearMomentumTemplate:
-      startYearMomentumModule.startYearMomentumTemplate,
-  };
+  return { animeMangaOverviewTemplate };
 });
 
-const loadCompletionProgressTemplates = createLazyLoader(async () => {
-  const [
-    currentlyWatchingReadingModule,
-    milestonesModule,
-    mostRewatchedModule,
-    personalRecordsModule,
-    planningBacklogModule,
-    statusCompletionOverviewModule,
-  ] = await Promise.all([
-    import("@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template"),
-    import("@/lib/svg-templates/completion-progress-stats/milestones-template"),
-    import("@/lib/svg-templates/completion-progress-stats/most-rewatched-template"),
-    import("@/lib/svg-templates/completion-progress-stats/personal-records-template"),
-    import("@/lib/svg-templates/completion-progress-stats/planning-backlog-template"),
-    import("@/lib/svg-templates/completion-progress-stats/status-completion-overview-template"),
-  ]);
+const loadCountryDiversityTemplateModule = createLazyLoader(async () => {
+  const { countryDiversityTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/country-diversity-template");
 
-  return {
-    currentlyWatchingReadingTemplate:
-      currentlyWatchingReadingModule.currentlyWatchingReadingTemplate,
-    milestonesTemplate: milestonesModule.milestonesTemplate,
-    mostRewatchedTemplate: mostRewatchedModule.mostRewatchedTemplate,
-    personalRecordsTemplate: personalRecordsModule.personalRecordsTemplate,
-    planningBacklogTemplate: planningBacklogModule.planningBacklogTemplate,
-    statusCompletionOverviewTemplate:
-      statusCompletionOverviewModule.statusCompletionOverviewTemplate,
-  };
+  return { countryDiversityTemplate };
 });
+
+const loadFormatPreferenceOverviewTemplateModule = createLazyLoader(
+  async () => {
+    const { formatPreferenceOverviewTemplate } =
+      await import("@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template");
+
+    return { formatPreferenceOverviewTemplate };
+  },
+);
+
+const loadGenreDiversityTemplateModule = createLazyLoader(async () => {
+  const { genreDiversityTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template");
+
+  return { genreDiversityTemplate };
+});
+
+const loadLengthPreferenceTemplateModule = createLazyLoader(async () => {
+  const { lengthPreferenceTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/length-preference-template");
+
+  return { lengthPreferenceTemplate };
+});
+
+const loadReleaseEraPreferenceTemplateModule = createLazyLoader(async () => {
+  const { releaseEraPreferenceTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template");
+
+  return { releaseEraPreferenceTemplate };
+});
+
+const loadScoreCompareAnimeMangaTemplateModule = createLazyLoader(async () => {
+  const { scoreCompareAnimeMangaTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template");
+
+  return { scoreCompareAnimeMangaTemplate };
+});
+
+const loadStartYearMomentumTemplateModule = createLazyLoader(async () => {
+  const { startYearMomentumTemplate } =
+    await import("@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template");
+
+  return { startYearMomentumTemplate };
+});
+
+const loadCurrentlyWatchingReadingTemplateModule = createLazyLoader(
+  async () => {
+    const { currentlyWatchingReadingTemplate } =
+      await import("@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template");
+
+    return { currentlyWatchingReadingTemplate };
+  },
+);
+
+const loadMilestonesTemplateModule = createLazyLoader(async () => {
+  const { milestonesTemplate } =
+    await import("@/lib/svg-templates/completion-progress-stats/milestones-template");
+
+  return { milestonesTemplate };
+});
+
+const loadMostRewatchedTemplateModule = createLazyLoader(async () => {
+  const { mostRewatchedTemplate } =
+    await import("@/lib/svg-templates/completion-progress-stats/most-rewatched-template");
+
+  return { mostRewatchedTemplate };
+});
+
+const loadPersonalRecordsTemplateModule = createLazyLoader(async () => {
+  const { personalRecordsTemplate } =
+    await import("@/lib/svg-templates/completion-progress-stats/personal-records-template");
+
+  return { personalRecordsTemplate };
+});
+
+const loadPlanningBacklogTemplateModule = createLazyLoader(async () => {
+  const { planningBacklogTemplate } =
+    await import("@/lib/svg-templates/completion-progress-stats/planning-backlog-template");
+
+  return { planningBacklogTemplate };
+});
+
+const loadStatusCompletionOverviewTemplateModule = createLazyLoader(
+  async () => {
+    const { statusCompletionOverviewTemplate } =
+      await import("@/lib/svg-templates/completion-progress-stats/status-completion-overview-template");
+
+    return { statusCompletionOverviewTemplate };
+  },
+);
 
 const loadDistributionTemplates = createLazyLoader(async () => {
   const { distributionTemplate } =
@@ -212,19 +249,25 @@ const loadMediaStatsTemplateModule = createLazyLoader(async () => {
   return { mediaStatsTemplate };
 });
 
-const loadProfileFavoriteTemplates = createLazyLoader(async () => {
-  const [favoritesGridModule, favoritesSummaryModule, profileOverviewModule] =
-    await Promise.all([
-      import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template"),
-      import("@/lib/svg-templates/profile-favorite-stats/favorites-summary-template"),
-      import("@/lib/svg-templates/profile-favorite-stats/profile-overview-template"),
-    ]);
+const loadFavoritesGridTemplateModule = createLazyLoader(async () => {
+  const { favoritesGridTemplate } =
+    await import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template");
 
-  return {
-    favoritesGridTemplate: favoritesGridModule.favoritesGridTemplate,
-    favoritesSummaryTemplate: favoritesSummaryModule.favoritesSummaryTemplate,
-    profileOverviewTemplate: profileOverviewModule.profileOverviewTemplate,
-  };
+  return { favoritesGridTemplate };
+});
+
+const loadFavoritesSummaryTemplateModule = createLazyLoader(async () => {
+  const { favoritesSummaryTemplate } =
+    await import("@/lib/svg-templates/profile-favorite-stats/favorites-summary-template");
+
+  return { favoritesSummaryTemplate };
+});
+
+const loadProfileOverviewTemplateModule = createLazyLoader(async () => {
+  const { profileOverviewTemplate } =
+    await import("@/lib/svg-templates/profile-favorite-stats/profile-overview-template");
+
+  return { profileOverviewTemplate };
 });
 
 const loadSocialMilestonesTemplateModule = createLazyLoader(async () => {
@@ -681,7 +724,7 @@ async function generateAnimeMangaOverviewCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { animeMangaOverviewTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadAnimeMangaOverviewTemplateModule();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -703,7 +746,7 @@ async function generateScoreCompareAnimeMangaCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { scoreCompareAnimeMangaTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadScoreCompareAnimeMangaTemplateModule();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -725,7 +768,7 @@ async function generateCountryDiversityCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { countryDiversityTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadCountryDiversityTemplateModule();
   return countryDiversityTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -743,8 +786,7 @@ async function generateGenreDiversityCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { genreDiversityTemplate } =
-    await loadComparativeDistributionTemplates();
+  const { genreDiversityTemplate } = await loadGenreDiversityTemplateModule();
   return genreDiversityTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -763,7 +805,7 @@ async function generateFormatPreferenceOverviewCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { formatPreferenceOverviewTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadFormatPreferenceOverviewTemplateModule();
   return formatPreferenceOverviewTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -782,7 +824,7 @@ async function generateReleaseEraPreferenceCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { releaseEraPreferenceTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadReleaseEraPreferenceTemplateModule();
   return releaseEraPreferenceTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -801,7 +843,7 @@ async function generateStartYearMomentumCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { startYearMomentumTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadStartYearMomentumTemplateModule();
   return startYearMomentumTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -820,7 +862,7 @@ async function generateLengthPreferenceCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { lengthPreferenceTemplate } =
-    await loadComparativeDistributionTemplates();
+    await loadLengthPreferenceTemplateModule();
   return lengthPreferenceTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -949,7 +991,7 @@ function generateFormatDistributionCard(
 
 /**
  * Generate a Source Material Distribution card showing counts by adaptation source.
- * Data is computed from the user's anime CURRENT + COMPLETED lists.
+ * Uses the render-safe aggregate totals stored on the user record.
  * @source
  */
 async function generateSourceMaterialDistributionCard(
@@ -983,7 +1025,7 @@ async function generateSourceMaterialDistributionCard(
 
 /**
  * Generate an Anime Seasonal Preference card showing counts by release season.
- * Data is computed from the user's anime CURRENT + COMPLETED lists.
+ * Uses the render-safe aggregate totals stored on the user record.
  * @source
  */
 async function generateSeasonalPreferenceCard(
@@ -1257,7 +1299,7 @@ async function generateProfileOverviewCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { profileOverviewTemplate } = await loadProfileFavoriteTemplates();
+  const { profileOverviewTemplate } = await loadProfileOverviewTemplateModule();
   const user = userRecord.stats?.User;
 
   if (!user?.statistics) {
@@ -1290,7 +1332,8 @@ async function generateFavoritesSummaryCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { favoritesSummaryTemplate } = await loadProfileFavoriteTemplates();
+  const { favoritesSummaryTemplate } =
+    await loadFavoritesSummaryTemplateModule();
   const user = userRecord.stats?.User;
 
   if (!user?.favourites) {
@@ -1317,19 +1360,21 @@ async function generateFavoritesGridCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { favoritesGridTemplate } = await loadProfileFavoriteTemplates();
   const user = userRecord.stats?.User;
 
   if (!user?.favourites) {
     throw new CardDataError("Not Found: Missing user favourites data", 404);
   }
 
-  const embeddedFavourites = await embedFavoritesGridImages(
-    user.favourites,
-    variant as FavoritesGridVariant,
-    params.favoritesGridRows,
-    params.favoritesGridCols,
-  );
+  const [{ favoritesGridTemplate }, embeddedFavourites] = await Promise.all([
+    loadFavoritesGridTemplateModule(),
+    embedFavoritesGridImages(
+      user.favourites,
+      variant as FavoritesGridVariant,
+      params.favoritesGridRows,
+      params.favoritesGridCols,
+    ),
+  ]);
 
   return favoritesGridTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1434,7 +1479,7 @@ async function generateStatusCompletionOverviewCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { statusCompletionOverviewTemplate } =
-    await loadCompletionProgressTemplates();
+    await loadStatusCompletionOverviewTemplateModule();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -1466,7 +1511,7 @@ async function generateMilestonesCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { milestonesTemplate } = await loadCompletionProgressTemplates();
+  const { milestonesTemplate } = await loadMilestonesTemplateModule();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -1495,7 +1540,7 @@ async function generatePersonalRecordsCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { personalRecordsTemplate } = await loadCompletionProgressTemplates();
+  const { personalRecordsTemplate } = await loadPersonalRecordsTemplateModule();
 
   const animeCompleted = extractMediaListEntries(
     userRecord.stats?.animeCompleted,
@@ -1529,7 +1574,7 @@ async function generatePlanningBacklogCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { planningBacklogTemplate } = await loadCompletionProgressTemplates();
+  const { planningBacklogTemplate } = await loadPlanningBacklogTemplateModule();
 
   const animePlanning = extractMediaListEntries(
     userRecord.stats?.animePlanning,
@@ -1559,7 +1604,7 @@ async function generateMostRewatchedCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { mostRewatchedTemplate } = await loadCompletionProgressTemplates();
+  const { mostRewatchedTemplate } = await loadMostRewatchedTemplateModule();
 
   const animeRewatched = extractMediaListEntries(
     userRecord.stats?.animeRewatched,
@@ -1588,7 +1633,7 @@ async function generateCurrentlyWatchingReadingCard(
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
   const { currentlyWatchingReadingTemplate } =
-    await loadCompletionProgressTemplates();
+    await loadCurrentlyWatchingReadingTemplateModule();
 
   const typedVariant = variant as CurrentlyWatchingReadingVariant;
 
@@ -1742,6 +1787,7 @@ async function generateReviewStatsCard(
 
 /**
  * Generate a Studio Collaboration card showing top studio co-occurrence pairs.
+ * Uses the render-safe aggregate totals stored on the user record.
  * @source
  */
 async function generateStudioCollaborationCard(

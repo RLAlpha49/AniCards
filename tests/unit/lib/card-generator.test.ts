@@ -129,6 +129,181 @@ console.log(
     expect(result.svg).toContain('data-template="media"');
   });
 
+  it("loads only the requested template module inside split families and caches it once", async () => {
+    const comparativeCardConfig = {
+      ...cardConfig,
+      cardName: "animeMangaOverview",
+    };
+    const milestonesCardConfig = {
+      ...cardConfig,
+      cardName: "milestones",
+    };
+    const profileOverviewCardConfig = {
+      ...cardConfig,
+      cardName: "profileOverview",
+    };
+
+    const probeScript = `
+import { mock } from "bun:test";
+
+mock.module("@/lib/utils/milestones", () => ({
+  calculateMilestones: mock(() => ({ milestone: 100 })),
+}));
+
+const loadAnimeMangaOverviewModule = mock(() => ({
+  animeMangaOverviewTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="anime-manga-overview" />',
+  ),
+}));
+const loadCountryDiversityModule = mock(() => ({
+  countryDiversityTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="country-diversity" />',
+  ),
+}));
+const loadMilestonesModule = mock(() => ({
+  milestonesTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="milestones" />',
+  ),
+}));
+const loadCurrentlyWatchingReadingModule = mock(() => ({
+  currentlyWatchingReadingTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="current" />',
+  ),
+}));
+const loadProfileOverviewModule = mock(() => ({
+  profileOverviewTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="profile-overview" />',
+  ),
+}));
+const loadFavoritesGridModule = mock(() => ({
+  favoritesGridTemplate: mock(
+    () => '<!--ANICARDS_TRUSTED_SVG--><svg data-template="favorites-grid" />',
+  ),
+}));
+
+mock.module(
+  "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template",
+  loadAnimeMangaOverviewModule,
+);
+mock.module(
+  "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template",
+  loadCountryDiversityModule,
+);
+mock.module(
+  "@/lib/svg-templates/completion-progress-stats/milestones-template",
+  loadMilestonesModule,
+);
+mock.module(
+  "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template",
+  loadCurrentlyWatchingReadingModule,
+);
+mock.module(
+  "@/lib/svg-templates/profile-favorite-stats/profile-overview-template",
+  loadProfileOverviewModule,
+);
+mock.module(
+  "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template",
+  loadFavoritesGridModule,
+);
+
+const { default: generateCardSvg } = await import("@/lib/card-generator");
+
+const comparativeSvg1 = await generateCardSvg(
+  ${JSON.stringify(comparativeCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+const comparativeSvg2 = await generateCardSvg(
+  ${JSON.stringify(comparativeCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+const milestonesSvg1 = await generateCardSvg(
+  ${JSON.stringify(milestonesCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+const milestonesSvg2 = await generateCardSvg(
+  ${JSON.stringify(milestonesCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+const profileSvg1 = await generateCardSvg(
+  ${JSON.stringify(profileOverviewCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+const profileSvg2 = await generateCardSvg(
+  ${JSON.stringify(profileOverviewCardConfig)},
+  ${JSON.stringify(userRecord)},
+  "default",
+);
+
+console.log(
+  JSON.stringify({
+    comparativeRequestedCalls: loadAnimeMangaOverviewModule.mock.calls.length,
+    comparativeSiblingCalls: loadCountryDiversityModule.mock.calls.length,
+    completionRequestedCalls: loadMilestonesModule.mock.calls.length,
+    completionSiblingCalls: loadCurrentlyWatchingReadingModule.mock.calls.length,
+    profileRequestedCalls: loadProfileOverviewModule.mock.calls.length,
+    profileSiblingCalls: loadFavoritesGridModule.mock.calls.length,
+    comparativeSvg1,
+    comparativeSvg2,
+    milestonesSvg1,
+    milestonesSvg2,
+    profileSvg1,
+    profileSvg2,
+  }),
+);
+`;
+
+    const subprocess = Bun.spawnSync({
+      cmd: [process.execPath, "run", "-"],
+      cwd: process.cwd(),
+      stdin: new Blob([probeScript]),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+
+    expect(subprocess.exitCode).toBe(0);
+    expect(stderr).toBe("");
+
+    const result = JSON.parse(stdout) as {
+      comparativeRequestedCalls: number;
+      comparativeSiblingCalls: number;
+      completionRequestedCalls: number;
+      completionSiblingCalls: number;
+      profileRequestedCalls: number;
+      profileSiblingCalls: number;
+      comparativeSvg1: string;
+      comparativeSvg2: string;
+      milestonesSvg1: string;
+      milestonesSvg2: string;
+      profileSvg1: string;
+      profileSvg2: string;
+    };
+
+    expect(result.comparativeRequestedCalls).toBe(1);
+    expect(result.comparativeSiblingCalls).toBe(0);
+    expect(result.completionRequestedCalls).toBe(1);
+    expect(result.completionSiblingCalls).toBe(0);
+    expect(result.profileRequestedCalls).toBe(1);
+    expect(result.profileSiblingCalls).toBe(0);
+    expect(result.comparativeSvg1).toContain(
+      'data-template="anime-manga-overview"',
+    );
+    expect(result.comparativeSvg2).toContain(
+      'data-template="anime-manga-overview"',
+    );
+    expect(result.milestonesSvg1).toContain('data-template="milestones"');
+    expect(result.milestonesSvg2).toContain('data-template="milestones"');
+    expect(result.profileSvg1).toContain('data-template="profile-overview"');
+    expect(result.profileSvg2).toContain('data-template="profile-overview"');
+  });
+
   it("initializes the server pretext runtime before rendering cards", async () => {
     const probeScript = `
 import { mock } from "bun:test";
