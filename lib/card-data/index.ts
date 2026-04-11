@@ -7,6 +7,7 @@ export {
   resolveEffectiveColorPreset,
 } from "./config";
 export {
+  fetchStoredCardsRecord,
   fetchUserData,
   fetchUserDataForCard,
   fetchUserDataForCardWithState,

@@ -495,6 +495,57 @@ describe("useUserDataLoader", () => {
     expect(result.current.loadingPhase).toBe("complete");
   });
 
+  it("forwards saved cardOrder into editor initialization when card data loads successfully", async () => {
+    pathname = "/user/Alex";
+    routeSearchParams = new URLSearchParams();
+
+    const fetchMock = mock(async (input: RequestInfo | URL) => {
+      const requestUrl = getRequestUrl(input);
+
+      if (requestUrl.startsWith("/api/get-user?")) {
+        return createSuccessfulBootstrapResponse();
+      }
+
+      if (requestUrl === "/api/error-reports") {
+        return createJsonResponse({ recorded: true });
+      }
+
+      throw new Error(`Unexpected card-order request: ${requestUrl}`);
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    fetchUserCardsMock.mockImplementation(async () => ({
+      userId: 42,
+      cards: [{ cardName: "animeStats", titleColor: "#000" }],
+      cardOrder: ["favoritesGrid", "animeStats"],
+      updatedAt: "2026-04-03T14:00:00.000Z",
+    }));
+
+    renderHook(() =>
+      useUserDataLoader({
+        routeUsername: "Alex",
+        startSetup: mock(async () => ({
+          success: true as const,
+          userId: 42,
+          username: "Alex",
+        })),
+      }),
+    );
+
+    await flushLoader();
+
+    expect(editorStoreActions.initializeFromServerData).toHaveBeenCalledWith(
+      "42",
+      "Alex",
+      "https://example.com/avatar.png",
+      [{ cardName: "animeStats", titleColor: "#000" }],
+      undefined,
+      expect.any(Array),
+      "2026-04-03T14:00:00.000Z",
+      ["favoritesGrid", "animeStats"],
+    );
+  });
+
   it("seeds default cards behind a retryable load error when saved-card bootstrap fails", async () => {
     const { consoleError } = allowConsoleWarningsAndErrors();
 

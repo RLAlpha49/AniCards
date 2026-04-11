@@ -82,6 +82,7 @@ const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
 const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
+const USER_REFRESH_INDEX_REPAIR_BATCH_SIZE = 25;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 const USER_BOUNDED_SECTIONS = [
   "activity",
@@ -282,6 +283,13 @@ interface UserAggregates {
 export interface DeleteUserRecordResult {
   deletedKeys: string[];
   usernameIndexKeys: string[];
+}
+
+interface UserRefreshIndexRepairResult {
+  indexedUserCount: number;
+  prunedRegistryUserIds: string[];
+  removedIndexedUserIds: string[];
+  repairedUserIds: string[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */
@@ -557,19 +565,6 @@ export function normalizeUsernameIndexValue(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function normalizeTrackedUsernameAliases(values: Iterable<unknown>): string[] {
-  const aliases = new Set<string>();
-
-  for (const value of values) {
-    const normalized = normalizeUsernameIndexValue(value);
-    if (normalized) {
-      aliases.add(normalized);
-    }
-  }
-
-  return [...aliases];
-}
-
 function normalizeUserAggregateKeyArray(value: unknown): UserAggregateKey[] {
   if (!Array.isArray(value)) {
     return [];
@@ -695,24 +690,6 @@ function buildPublicUserRecordMetadata(
     ...(state.snapshot ? { snapshot: state.snapshot } : {}),
     completeness: state.completeness ?? buildDefaultUserPayloadCompleteness(),
   };
-}
-
-function buildUsernameIndexKeys(aliases: Iterable<string>): string[] {
-  return [...aliases].map((alias) => getUsernameIndexKey(alias));
-}
-
-async function readTrackedUsernameAliases(
-  userId: string | number,
-  currentState?: PersistedUserState | null,
-): Promise<string[]> {
-  const storedAliases = await redisSetClient.smembers(
-    getUserUsernameAliasSetKey(userId),
-  );
-
-  return normalizeTrackedUsernameAliases([
-    ...(Array.isArray(storedAliases) ? storedAliases : []),
-    currentState?.normalizedUsername,
-  ]);
 }
 
 async function readTrackedUserIds(): Promise<string[]> {
@@ -1716,6 +1693,154 @@ async function rebuildUserRefreshIndex(): Promise<number> {
   return validStates.length;
 }
 
+async function repairMissingUserRefreshIndexEntries(
+  userIds: string[],
+): Promise<
+  Pick<
+    UserRefreshIndexRepairResult,
+    "prunedRegistryUserIds" | "repairedUserIds"
+  >
+> {
+  const prunedRegistryUserIds: string[] = [];
+  const repairedUserIds: string[] = [];
+
+  if (userIds.length === 0) {
+    return {
+      prunedRegistryUserIds,
+      repairedUserIds,
+    };
+  }
+
+  const states = await Promise.all(
+    userIds.map(async (candidateUserId) => {
+      try {
+        return {
+          state: await getPersistedUserState(candidateUserId),
+          userId: candidateUserId,
+        };
+      } catch (error) {
+        if (error instanceof UserDataIntegrityError) {
+          logPrivacySafe(
+            "warn",
+            "User Data",
+            "Skipping corrupt user while repairing stale-user index drift",
+            {
+              userId: candidateUserId,
+              error: error.message,
+            },
+          );
+          return {
+            state: undefined,
+            userId: candidateUserId,
+          };
+        }
+
+        throw error;
+      }
+    }),
+  );
+
+  const validStates: PersistedUserState[] = [];
+  states.forEach(({ state, userId }) => {
+    if (state === null) {
+      prunedRegistryUserIds.push(userId);
+      return;
+    }
+
+    if (!state) {
+      return;
+    }
+
+    validStates.push(state);
+    repairedUserIds.push(state.userId);
+  });
+
+  if (validStates.length > 0) {
+    const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
+    validStates.forEach((state) => {
+      pipeline.zadd(USER_REFRESH_INDEX_KEY, {
+        score: getUpdatedAtScore(state.updatedAt),
+        member: state.userId,
+      });
+    });
+    await pipeline.exec();
+  }
+
+  if (prunedRegistryUserIds.length > 0) {
+    await redisSetClient.srem(
+      USER_REFRESH_REGISTRY_KEY,
+      ...prunedRegistryUserIds,
+    );
+  }
+
+  return {
+    prunedRegistryUserIds,
+    repairedUserIds,
+  };
+}
+
+async function repairUserRefreshIndexDrift(
+  trackedUserIds: string[],
+  indexedUserCount: number,
+): Promise<UserRefreshIndexRepairResult> {
+  const indexedUserIds =
+    indexedUserCount > 0
+      ? (
+          await redisSortedSetClient.zrange(
+            USER_REFRESH_INDEX_KEY,
+            0,
+            Math.max(0, indexedUserCount - 1),
+          )
+        ).map(String)
+      : [];
+  const trackedUserIdSet = new Set(trackedUserIds);
+  const indexedUserIdSet = new Set(indexedUserIds);
+  const missingUserIds = trackedUserIds
+    .filter((userId) => !indexedUserIdSet.has(userId))
+    .slice(0, USER_REFRESH_INDEX_REPAIR_BATCH_SIZE);
+  const removedIndexedUserIds = indexedUserIds.filter(
+    (userId) => !trackedUserIdSet.has(userId),
+  );
+  const { prunedRegistryUserIds, repairedUserIds } =
+    await repairMissingUserRefreshIndexEntries(missingUserIds);
+
+  if (removedIndexedUserIds.length > 0) {
+    await redisSortedSetClient.zrem(
+      USER_REFRESH_INDEX_KEY,
+      ...removedIndexedUserIds,
+    );
+  }
+
+  if (
+    repairedUserIds.length > 0 ||
+    prunedRegistryUserIds.length > 0 ||
+    removedIndexedUserIds.length > 0
+  ) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Incrementally repaired stale-user index drift",
+      {
+        indexedCount: indexedUserCount,
+        prunedRegistryUserIds: prunedRegistryUserIds.join(","),
+        registryCount: trackedUserIds.length,
+        removedIndexedUserIds: removedIndexedUserIds.join(","),
+        repairedUserIds: repairedUserIds.join(","),
+        repairBatchSize: USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
+      },
+    );
+  }
+
+  return {
+    indexedUserCount: Number(
+      await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
+    ),
+    prunedRegistryUserIds,
+    removedIndexedUserIds,
+    repairedUserIds,
+  };
+}
+
 export async function listStalestUserIds(
   limit: number,
 ): Promise<{ userIds: string[]; totalUsers: number }> {
@@ -1725,6 +1850,16 @@ export async function listStalestUserIds(
 
   if (totalUsers === 0) {
     totalUsers = await rebuildUserRefreshIndex();
+  } else {
+    const trackedUserIds = await readTrackedUserIds();
+
+    if (trackedUserIds.length !== totalUsers) {
+      const repairResult = await repairUserRefreshIndexDrift(
+        trackedUserIds,
+        totalUsers,
+      );
+      totalUsers = repairResult.indexedUserCount;
+    }
   }
 
   if (totalUsers === 0 || limit <= 0) {
@@ -2295,6 +2430,132 @@ end
 return {1}
 `;
 
+const DELETE_USER_RECORD_LUA = `
+local function parse_json_object(raw)
+  if type(raw) ~= "string" or string.len(raw) == 0 then
+    return nil
+  end
+
+  local ok, decoded = pcall(cjson.decode, raw)
+  if not ok or type(decoded) ~= "table" then
+    return nil
+  end
+
+  return decoded
+end
+
+local function normalize_username(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+
+  local normalized = string.lower(value)
+  normalized = string.gsub(normalized, "^%s+", "")
+  normalized = string.gsub(normalized, "%s+$", "")
+  if string.len(normalized) == 0 then
+    return nil
+  end
+
+  return normalized
+end
+
+local function delete_key(key, deletedKeys)
+  if type(key) ~= "string" or string.len(key) == 0 then
+    return
+  end
+
+  if tonumber(redis.call("DEL", key)) > 0 then
+    table.insert(deletedKeys, key)
+  end
+end
+
+local ok, decodedParts = pcall(cjson.decode, ARGV[2])
+local allParts = ok and type(decodedParts) == "table" and decodedParts or {}
+local commitPointer = parse_json_object(redis.call("GET", KEYS[1]))
+local splitMeta = parse_json_object(redis.call("GET", KEYS[2]))
+local legacyRecord = parse_json_object(redis.call("GET", KEYS[4]))
+local aliasMap = {}
+local aliasList = {}
+local deletedKeys = {}
+local removedAliasKeys = {}
+local userId = ARGV[1]
+
+local function record_alias(value)
+  local normalized = normalize_username(value)
+  if normalized and not aliasMap[normalized] then
+    aliasMap[normalized] = true
+    table.insert(aliasList, normalized)
+  end
+end
+
+for _, alias in ipairs(redis.call("SMEMBERS", KEYS[3])) do
+  record_alias(alias)
+end
+
+if commitPointer then
+  record_alias(commitPointer["usernameNormalized"])
+  record_alias(commitPointer["username"])
+end
+
+if splitMeta then
+  record_alias(splitMeta["usernameNormalized"])
+  record_alias(splitMeta["username"])
+end
+
+if legacyRecord then
+  record_alias(legacyRecord["usernameNormalized"])
+  record_alias(legacyRecord["username"])
+end
+
+for _, partName in ipairs(allParts) do
+  delete_key("user:" .. userId .. ":" .. partName, deletedKeys)
+end
+
+if commitPointer then
+  local snapshotKeyPrefix =
+    type(commitPointer["snapshotKeyPrefix"]) == "string"
+      and commitPointer["snapshotKeyPrefix"]
+      or nil
+  if snapshotKeyPrefix then
+    for _, partName in ipairs(allParts) do
+      delete_key(snapshotKeyPrefix .. ":" .. partName, deletedKeys)
+    end
+  end
+
+  local previousSnapshotKeyPrefix =
+    type(commitPointer["previousSnapshotKeyPrefix"]) == "string"
+      and commitPointer["previousSnapshotKeyPrefix"]
+      or nil
+  if previousSnapshotKeyPrefix then
+    for _, partName in ipairs(allParts) do
+      delete_key(previousSnapshotKeyPrefix .. ":" .. partName, deletedKeys)
+    end
+  end
+end
+
+delete_key(KEYS[1], deletedKeys)
+delete_key(KEYS[3], deletedKeys)
+delete_key(KEYS[4], deletedKeys)
+delete_key(KEYS[5], deletedKeys)
+delete_key(KEYS[6], deletedKeys)
+
+for _, alias in ipairs(aliasList) do
+  local aliasKey = "username:" .. alias
+  local aliasOwner = redis.call("GET", aliasKey)
+  if aliasOwner == userId then
+    if tonumber(redis.call("DEL", aliasKey)) > 0 then
+      table.insert(removedAliasKeys, aliasKey)
+      table.insert(deletedKeys, aliasKey)
+    end
+  end
+end
+
+redis.call("SREM", KEYS[7], userId)
+redis.call("ZREM", KEYS[8], userId)
+
+return {1, cjson.encode(deletedKeys), cjson.encode(removedAliasKeys)}
+`;
+
 type SaveUserRecordScriptResult =
   | {
       didWrite: true;
@@ -2388,6 +2649,65 @@ function parseSaveUserRecordScriptResult(
     userId,
     "Unexpected result from saveUserRecord atomic write",
   );
+}
+
+function parseScriptStringArray(
+  userId: string,
+  value: unknown,
+  context: string,
+): string[] {
+  if (typeof value !== "string") {
+    throw new UserDataIntegrityError(userId, context);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    throw new UserDataIntegrityError(userId, context);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new UserDataIntegrityError(userId, context);
+  }
+
+  return parsed.filter(
+    (candidate): candidate is string =>
+      typeof candidate === "string" && candidate.length > 0,
+  );
+}
+
+function parseDeleteUserRecordScriptResult(
+  userId: string,
+  result: unknown,
+): DeleteUserRecordResult {
+  if (!Array.isArray(result)) {
+    throw new UserDataIntegrityError(
+      userId,
+      "Unexpected result from deleteUserRecord atomic delete",
+    );
+  }
+
+  const status = normalizeScriptStatus(result[0]);
+  if (status !== 1) {
+    throw new UserDataIntegrityError(
+      userId,
+      "Unexpected result from deleteUserRecord atomic delete",
+    );
+  }
+
+  return {
+    deletedKeys: parseScriptStringArray(
+      userId,
+      result[1],
+      "Unexpected result from deleteUserRecord atomic delete",
+    ),
+    usernameIndexKeys: parseScriptStringArray(
+      userId,
+      result[2],
+      "Unexpected result from deleteUserRecord atomic delete",
+    ),
+  };
 }
 
 /**
@@ -2527,36 +2847,6 @@ export async function repairStaleUsernameAlias(options: {
  * scanning the global username namespace. For older records that predate this
  * tracking key, we fall back to the currently persisted normalized username.
  */
-async function findUsernameIndexKeysForUser(
-  userId: string | number,
-): Promise<string[]> {
-  let currentState: PersistedUserState | null = null;
-
-  try {
-    currentState = await getPersistedUserState(userId);
-  } catch (error) {
-    if (error instanceof UserDataIntegrityError) {
-      logPrivacySafe(
-        "warn",
-        "User Data",
-        "Continuing delete with username-alias fallback after persisted state read failed",
-        {
-          userId,
-          error: error.message,
-        },
-      );
-    } else {
-      throw error;
-    }
-  }
-
-  const usernameAliases = await readTrackedUsernameAliases(
-    userId,
-    currentState,
-  );
-  return buildUsernameIndexKeys(usernameAliases);
-}
-
 /**
  * Deletes all persisted keys owned by a user record.
  *
@@ -2569,65 +2859,31 @@ export async function deleteUserRecord(
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
 ): Promise<DeleteUserRecordResult> {
-  const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
   const normalizedUserId = String(userId);
-  const keys = ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
-  const commitPointer = await readUserCommitPointer(userId).catch((error) => {
-    if (error instanceof UserDataIntegrityError) {
-      logPrivacySafe(
-        "warn",
-        "User Data",
-        "Continuing delete after commit-pointer read failed",
-        {
-          userId,
-          error: error.message,
-        },
-      );
-      return null;
-    }
-
-    throw error;
-  });
-
-  if (commitPointer?.snapshotKeyPrefix) {
-    keys.push(
-      ...ALL_USER_DATA_PARTS.map((part) =>
-        getUserSnapshotPartKey(commitPointer.snapshotKeyPrefix!, part),
-      ),
-    );
-  }
-
-  if (commitPointer?.previousSnapshotKeyPrefix) {
-    keys.push(
-      ...ALL_USER_DATA_PARTS.map((part) =>
-        getUserSnapshotPartKey(commitPointer.previousSnapshotKeyPrefix!, part),
-      ),
-    );
-  }
-
-  keys.push(
-    getUserCommitKey(userId),
-    getUserUsernameAliasSetKey(userId),
-    `user:${userId}`,
-    `cards:${userId}`,
-    `failed_updates:${userId}`,
-    ...usernameIndexKeys,
+  const deleteResult = parseDeleteUserRecordScriptResult(
+    normalizedUserId,
+    await redisClient.eval(
+      DELETE_USER_RECORD_LUA,
+      [
+        getUserCommitKey(normalizedUserId),
+        getUserDataKey(normalizedUserId, "meta"),
+        getUserUsernameAliasSetKey(normalizedUserId),
+        `user:${normalizedUserId}`,
+        `cards:${normalizedUserId}`,
+        `failed_updates:${normalizedUserId}`,
+        USER_REFRESH_REGISTRY_KEY,
+        USER_REFRESH_INDEX_KEY,
+      ],
+      [normalizedUserId, JSON.stringify([...ALL_USER_DATA_PARTS])],
+    ),
   );
-  await Promise.all([
-    redisClient.del(...keys),
-    redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, normalizedUserId),
-    redisSetClient.srem(USER_REFRESH_REGISTRY_KEY, normalizedUserId),
-  ]);
   await auditUserLifecycleEvent({
     action: "delete",
     triggerSource: options?.triggerSource ?? "user_data_delete",
     userId,
   });
 
-  return {
-    deletedKeys: keys,
-    usernameIndexKeys,
-  };
+  return deleteResult;
 }
 
 /**

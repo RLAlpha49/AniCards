@@ -188,6 +188,11 @@ type EvalSavePayload = Record<string, unknown> & {
   snapshotKeyPrefix: string;
 };
 
+type EvalDeletePayload = {
+  allParts: string[];
+  userId: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -206,6 +211,88 @@ function normalizeEvalPresentParts(value: unknown): string[] {
   return value.filter(
     (part): part is string => typeof part === "string" && part.length > 0,
   );
+}
+
+function normalizeEvalUsername(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function parseEvalJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseEvalDeletePayload(args: unknown[]): EvalDeletePayload | null {
+  const [rawUserId, rawAllParts] = args;
+  if (typeof rawUserId !== "string") {
+    return null;
+  }
+
+  if (typeof rawAllParts !== "string") {
+    return {
+      allParts: [],
+      userId: rawUserId,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawAllParts) as unknown;
+    return {
+      allParts: normalizeEvalPresentParts(parsed),
+      userId: rawUserId,
+    };
+  } catch {
+    return {
+      allParts: [],
+      userId: rawUserId,
+    };
+  }
+}
+
+function buildEvalStoredCardsUserSnapshotFromRecord(options: {
+  record: Record<string, unknown> | null;
+  tokenKey?: string;
+}): Record<string, unknown> | undefined {
+  if (!options.record) {
+    return undefined;
+  }
+
+  const snapshot: Record<string, unknown> = {};
+  const revision = options.record.revision;
+  const updatedAt = options.record.updatedAt;
+  const committedAt = options.record.committedAt;
+  const token = options.tokenKey ? options.record[options.tokenKey] : undefined;
+
+  if (typeof revision === "number" && revision > 0) {
+    snapshot.revision = revision;
+  }
+
+  if (typeof updatedAt === "string" && updatedAt.length > 0) {
+    snapshot.updatedAt = updatedAt;
+  }
+
+  if (typeof committedAt === "string" && committedAt.length > 0) {
+    snapshot.committedAt = committedAt;
+  }
+
+  if (typeof token === "string" && token.length > 0) {
+    snapshot.token = token;
+  }
+
+  return Object.keys(snapshot).length > 0 ? snapshot : undefined;
 }
 
 function buildEvalSaveMeta(options: {
@@ -387,6 +474,30 @@ function invokeSharedRedisMockZadd(
   )(key, entry);
 }
 
+function invokeSharedRedisMockSrem(
+  key: string,
+  ...members: string[]
+): Promise<unknown> {
+  return (
+    sharedRedisMockSrem as unknown as (
+      memberKey: string,
+      ...memberValues: string[]
+    ) => Promise<unknown>
+  )(key, ...members);
+}
+
+function invokeSharedRedisMockZrem(
+  key: string,
+  ...members: string[]
+): Promise<unknown> {
+  return (
+    sharedRedisMockZrem as unknown as (
+      zsetKey: string,
+      ...memberValues: string[]
+    ) => Promise<unknown>
+  )(key, ...members);
+}
+
 async function applyEvalAliasWrites(options: {
   aliasSetKey?: unknown;
   normalizedUsername?: string;
@@ -560,6 +671,194 @@ async function emulateAtomicUserSaveEval(
   return [1, payload.updatedAt, String(revision), snapshotToken];
 }
 
+async function emulateAtomicUserDeleteEval(
+  keys: unknown[],
+  args: unknown[],
+): Promise<unknown[]> {
+  const payload = parseEvalDeletePayload(args);
+  if (!payload) {
+    return [1, JSON.stringify([]), JSON.stringify([])];
+  }
+
+  const [
+    commitKey,
+    metaKey,
+    aliasSetKey,
+    legacyUserKey,
+    cardsKey,
+    failureKey,
+    registryKey,
+    refreshIndexKey,
+  ] = keys;
+  const deletedKeys: string[] = [];
+  const removedAliasKeys: string[] = [];
+  const aliasValues = new Set<string>();
+
+  const recordAlias = (value: unknown) => {
+    const normalized = normalizeEvalUsername(value);
+    if (normalized) {
+      aliasValues.add(normalized);
+    }
+  };
+
+  if (typeof aliasSetKey === "string") {
+    const trackedAliases = await invokeSharedRedisMockSmembers(aliasSetKey);
+    trackedAliases.forEach((alias) => {
+      recordAlias(alias);
+    });
+  }
+
+  const commitPointer =
+    typeof commitKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(commitKey))
+      : null;
+  const splitMeta =
+    typeof metaKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(metaKey))
+      : null;
+  const legacyRecord =
+    typeof legacyUserKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(legacyUserKey))
+      : null;
+
+  [commitPointer, splitMeta, legacyRecord].forEach((record) => {
+    if (!record) {
+      return;
+    }
+
+    recordAlias(record.usernameNormalized);
+    recordAlias(record.username);
+  });
+
+  payload.allParts.forEach((partName) => {
+    deletedKeys.push(`user:${payload.userId}:${partName}`);
+  });
+
+  const snapshotKeyPrefix =
+    typeof commitPointer?.snapshotKeyPrefix === "string"
+      ? commitPointer.snapshotKeyPrefix
+      : undefined;
+  if (snapshotKeyPrefix) {
+    payload.allParts.forEach((partName) => {
+      deletedKeys.push(`${snapshotKeyPrefix}:${partName}`);
+    });
+  }
+
+  const previousSnapshotKeyPrefix =
+    typeof commitPointer?.previousSnapshotKeyPrefix === "string"
+      ? commitPointer.previousSnapshotKeyPrefix
+      : undefined;
+  if (previousSnapshotKeyPrefix) {
+    payload.allParts.forEach((partName) => {
+      deletedKeys.push(`${previousSnapshotKeyPrefix}:${partName}`);
+    });
+  }
+
+  [commitKey, aliasSetKey, legacyUserKey, cardsKey, failureKey].forEach(
+    (key) => {
+      if (typeof key === "string") {
+        deletedKeys.push(key);
+      }
+    },
+  );
+
+  for (const alias of aliasValues) {
+    const aliasKey = `username:${alias}`;
+    const aliasOwner = await sharedRedisMockGet(aliasKey);
+    if (aliasOwner === payload.userId) {
+      deletedKeys.push(aliasKey);
+      removedAliasKeys.push(aliasKey);
+    }
+  }
+
+  if (deletedKeys.length > 0) {
+    await sharedRedisMockDel(...deletedKeys);
+  }
+  if (typeof registryKey === "string") {
+    await invokeSharedRedisMockSrem(registryKey, payload.userId);
+  }
+  if (typeof refreshIndexKey === "string") {
+    await invokeSharedRedisMockZrem(refreshIndexKey, payload.userId);
+  }
+
+  return [1, JSON.stringify(deletedKeys), JSON.stringify(removedAliasKeys)];
+}
+
+async function emulateAtomicStoreCardsEval(
+  keys: unknown[],
+  args: unknown[],
+): Promise<unknown[]> {
+  const [cardsKey, commitKey, metaKey, legacyUserKey] = keys;
+  const [rawExpectedUpdatedAt, rawSerializedCardData] = args;
+
+  if (
+    typeof cardsKey !== "string" ||
+    typeof rawSerializedCardData !== "string"
+  ) {
+    return [1];
+  }
+
+  const expectedUpdatedAt =
+    typeof rawExpectedUpdatedAt === "string" && rawExpectedUpdatedAt.length > 0
+      ? rawExpectedUpdatedAt
+      : undefined;
+
+  if (expectedUpdatedAt) {
+    const currentRecord = parseEvalJsonRecord(
+      await sharedRedisMockGet(cardsKey),
+    );
+    const currentUpdatedAt =
+      typeof currentRecord?.updatedAt === "string"
+        ? currentRecord.updatedAt
+        : undefined;
+
+    if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+      return [0, currentUpdatedAt];
+    }
+  }
+
+  const nextRecord = parseEvalJsonRecord(rawSerializedCardData);
+  if (!nextRecord) {
+    await sharedRedisMockSet(cardsKey, rawSerializedCardData);
+    return [1];
+  }
+
+  const commitPointer =
+    typeof commitKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(commitKey))
+      : null;
+  const splitMeta =
+    typeof metaKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(metaKey))
+      : null;
+  const legacyRecord =
+    typeof legacyUserKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(legacyUserKey))
+      : null;
+
+  const userSnapshot =
+    buildEvalStoredCardsUserSnapshotFromRecord({
+      record: commitPointer,
+      tokenKey: "snapshotToken",
+    }) ??
+    buildEvalStoredCardsUserSnapshotFromRecord({
+      record: splitMeta,
+      tokenKey: "snapshotToken",
+    }) ??
+    buildEvalStoredCardsUserSnapshotFromRecord({
+      record: legacyRecord,
+    });
+
+  if (userSnapshot) {
+    nextRecord.userSnapshot = userSnapshot;
+  } else {
+    Reflect.deleteProperty(nextRecord, "userSnapshot");
+  }
+
+  await sharedRedisMockSet(cardsKey, JSON.stringify(nextRecord));
+  return [1];
+}
+
 async function defaultRedisEval(
   _script: unknown,
   keys: unknown,
@@ -572,6 +871,17 @@ async function defaultRedisEval(
     if (parseEvalSavePayload(argList[0])) {
       return emulateAtomicUserSaveEval(keyList, argList[0]);
     }
+  }
+
+  if (keyList.length === 8 && argList.length === 2) {
+    const deletePayload = parseEvalDeletePayload(argList);
+    if (deletePayload) {
+      return emulateAtomicUserDeleteEval(keyList, argList);
+    }
+  }
+
+  if (keyList.length === 4 && argList.length === 2) {
+    return emulateAtomicStoreCardsEval(keyList, argList);
   }
 
   if (keyList.length === 1 && argList.length >= 2) {

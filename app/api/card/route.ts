@@ -29,6 +29,7 @@ import {
 import {
   buildCardConfigFromParams,
   CardDataError,
+  fetchStoredCardsRecord,
   fetchUserDataForCardWithState,
   fetchUserDataWithState,
   needsCardConfigFromDb,
@@ -45,6 +46,7 @@ import generateCardSvg from "@/lib/card-generator";
 import { trackUserActionError } from "@/lib/error-tracking";
 import {
   generateCacheKey,
+  getRemainingSvgCacheLifetimeMs,
   getSvgFromMemoryCache,
   getSvgFromSharedCache,
   releaseSvgRevalidationLock,
@@ -53,7 +55,7 @@ import {
   trackCacheMetric,
   tryAcquireSvgRevalidationLock,
 } from "@/lib/stores/svg-cache";
-import type { UserRecord } from "@/lib/types/records";
+import type { CardsRecord, UserRecord } from "@/lib/types/records";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   DEFAULT_CARD_BORDER_RADIUS,
@@ -761,13 +763,73 @@ function resolveCardSuccessCachePolicy(
     : CARD_CANONICAL_CACHE_POLICY;
 }
 
+function buildCardCacheKeyParams(
+  params: ValidatedParams,
+  normalizedGridCols: number,
+  normalizedGridRows: number,
+): Record<string, string | number | boolean | null | undefined> {
+  return {
+    animate: params.animationsEnabled,
+    variation: params.variationParam,
+    colorPreset: params.colorPresetParam,
+    titleColor: params.titleColorParam,
+    backgroundColor: params.backgroundColorParam,
+    textColor: params.textColorParam,
+    circleColor: params.circleColorParam,
+    borderColor: params.borderColorParam,
+    borderRadius: params.borderRadiusParam,
+    showFavorites: params.showFavoritesParam,
+    statusColors: params.statusColorsParam,
+    piePercentages: params.piePercentagesParam,
+    gridCols: normalizedGridCols,
+    gridRows: normalizedGridRows,
+  };
+}
+
+function buildSavedCardRenderCacheKey(
+  userId: number,
+  cardType: string,
+  params: Record<string, string | number | boolean | null | undefined>,
+  cardDoc: CardsRecord,
+): string {
+  return generateCacheKey(userId, cardType, {
+    ...params,
+    cardsUpdatedAt: cardDoc.updatedAt || undefined,
+    snapshotRevision: cardDoc.userSnapshot?.revision,
+    snapshotToken: cardDoc.userSnapshot?.token,
+    snapshotUpdatedAt: cardDoc.userSnapshot?.updatedAt,
+  });
+}
+
+function restoreSharedSvgEntryToMemoryCache(
+  cacheKey: string,
+  sharedCachedEntry: NonNullable<
+    Awaited<ReturnType<typeof getSvgFromSharedCache>>
+  >,
+  effectiveUserId: number,
+): void {
+  const remainingTtlMs = getRemainingSvgCacheLifetimeMs(sharedCachedEntry);
+  if (remainingTtlMs <= 0) {
+    return;
+  }
+
+  setSvgInMemoryCache(
+    cacheKey,
+    sharedCachedEntry.svg,
+    remainingTtlMs,
+    effectiveUserId,
+    sharedCachedEntry.borderRadius,
+  );
+}
+
 function scheduleStaleCacheRevalidation(args: {
   request: Request;
   params: ValidatedParams;
   effectiveUserId: number;
   cacheKey: string;
+  preloadedCardDoc?: CardsRecord;
 }): void {
-  const { request, params, effectiveUserId, cacheKey } = args;
+  const { request, params, effectiveUserId, cacheKey, preloadedCardDoc } = args;
 
   if (!tryAcquireSvgRevalidationLock(cacheKey)) {
     logPrivacySafe(
@@ -793,12 +855,10 @@ function scheduleStaleCacheRevalidation(args: {
       try {
         const sharedCachedEntry = await getSvgFromSharedCache(cacheKey);
         if (sharedCachedEntry) {
-          setSvgInMemoryCache(
+          restoreSharedSvgEntryToMemoryCache(
             cacheKey,
-            sharedCachedEntry.svg,
-            sharedCachedEntry.ttl,
+            sharedCachedEntry,
             effectiveUserId,
-            sharedCachedEntry.borderRadius,
           );
 
           logPrivacySafe(
@@ -817,6 +877,7 @@ function scheduleStaleCacheRevalidation(args: {
           effectiveUserId,
           Date.now(),
           cacheKey,
+          preloadedCardDoc ? { preloadedCardDoc } : undefined,
         );
 
         logPrivacySafe(
@@ -990,23 +1051,34 @@ export async function GET(request: Request) {
   };
   const normalizedGridCols = normalizeGridDim(params.gridColsParam);
   const normalizedGridRows = normalizeGridDim(params.gridRowsParam);
+  const needsDbCardConfig = needsCardConfigFromDb(params);
+  const cacheKeyParams = buildCardCacheKeyParams(
+    params,
+    normalizedGridCols,
+    normalizedGridRows,
+  );
 
-  const cacheKey = generateCacheKey(effectiveUserId, params.cardType, {
-    animate: params.animationsEnabled,
-    variation: params.variationParam,
-    colorPreset: params.colorPresetParam,
-    titleColor: params.titleColorParam,
-    backgroundColor: params.backgroundColorParam,
-    textColor: params.textColorParam,
-    circleColor: params.circleColorParam,
-    borderColor: params.borderColorParam,
-    borderRadius: params.borderRadiusParam,
-    showFavorites: params.showFavoritesParam,
-    statusColors: params.statusColorsParam,
-    piePercentages: params.piePercentagesParam,
-    gridCols: normalizedGridCols,
-    gridRows: normalizedGridRows,
-  });
+  let preloadedCardDoc: CardsRecord | undefined;
+  if (needsDbCardConfig) {
+    try {
+      preloadedCardDoc = await fetchStoredCardsRecord(effectiveUserId);
+    } catch (error) {
+      if (error instanceof CardDataError) {
+        return handleCardDataError(error, request, params.baseCardType);
+      }
+
+      throw error;
+    }
+  }
+
+  const cacheKey = preloadedCardDoc
+    ? buildSavedCardRenderCacheKey(
+        effectiveUserId,
+        params.cardType,
+        cacheKeyParams,
+        preloadedCardDoc,
+      )
+    : generateCacheKey(effectiveUserId, params.cardType, cacheKeyParams);
 
   if (isManualRefresh) {
     logPrivacySafe(
@@ -1027,6 +1099,7 @@ export async function GET(request: Request) {
           params,
           effectiveUserId,
           cacheKey,
+          preloadedCardDoc,
         });
 
         return createSuccessResponse(
@@ -1063,12 +1136,10 @@ export async function GET(request: Request) {
     const sharedCachedEntry = await getSvgFromSharedCache(cacheKey);
     if (sharedCachedEntry) {
       void trackCacheMetric(true, "redis");
-      setSvgInMemoryCache(
+      restoreSharedSvgEntryToMemoryCache(
         cacheKey,
-        sharedCachedEntry.svg,
-        sharedCachedEntry.ttl,
+        sharedCachedEntry,
         effectiveUserId,
-        sharedCachedEntry.borderRadius,
       );
 
       logPrivacySafe(
@@ -1102,6 +1173,7 @@ export async function GET(request: Request) {
     {
       manualRefresh: isManualRefresh,
       cachePolicy: successCachePolicy,
+      preloadedCardDoc,
     },
   );
 }
@@ -1160,6 +1232,9 @@ async function loadUserAndCardConfig(
   params: ValidatedParams,
   effectiveUserId: number,
   request: Request,
+  options?: {
+    preloadedCardDoc?: CardsRecord;
+  },
 ): Promise<
   | {
       userDoc: import("@/lib/types/records").UserRecord;
@@ -1170,7 +1245,13 @@ async function loadUserAndCardConfig(
   | { error: Response }
 > {
   if (needsDbCardConfig) {
-    const data = await fetchUserDataWithState(effectiveUserId, params.cardType);
+    const data = await fetchUserDataWithState(
+      effectiveUserId,
+      params.cardType,
+      {
+        preloadedCardDoc: options?.preloadedCardDoc,
+      },
+    );
     const { cardDoc } = data;
     let userDoc = data.userDoc;
 
@@ -1272,15 +1353,20 @@ async function generateCardResponse(
   options?: {
     manualRefresh?: boolean;
     cachePolicy?: CardSuccessCachePolicy;
+    preloadedCardDoc?: CardsRecord;
   },
 ): Promise<Response> {
   try {
-    const needsDbCardConfig = needsCardConfigFromDb(params);
+    const needsDbCardConfig =
+      options?.preloadedCardDoc !== undefined || needsCardConfigFromDb(params);
     const loadResult = await loadUserAndCardConfig(
       needsDbCardConfig,
       params,
       effectiveUserId,
       request,
+      {
+        preloadedCardDoc: options?.preloadedCardDoc,
+      },
     );
     if ("error" in loadResult) {
       return loadResult.error;

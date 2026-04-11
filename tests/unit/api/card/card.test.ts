@@ -168,6 +168,7 @@ function createMockCardData(
   extra: Record<string, unknown> = {},
 ) {
   return JSON.stringify({
+    updatedAt: "2026-04-10T00:00:00.000Z",
     cards: [
       {
         cardName,
@@ -316,14 +317,13 @@ function setupSuccessfulMocks(
   const cardName = getMockCardName(cardsData);
   const userParts = buildMockUserParts(userData, cardName);
 
-  // Shared SVG cache miss.
-  sharedRedisMockGet.mockResolvedValueOnce(null);
-
   if (options.useDbCardLookup === false) {
+    sharedRedisMockGet.mockResolvedValueOnce(null);
     sharedRedisMockGet.mockResolvedValueOnce(null);
   } else {
     sharedRedisMockGet
       .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
   }
 
@@ -621,8 +621,8 @@ describe("Card SVG Route", () => {
 
       sharedRedisMockGet
         .mockResolvedValueOnce("123")
-        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
       sharedRedisMockMget.mockResolvedValueOnce(
         buildMockUserParts(userData, "animeStats"),
@@ -973,8 +973,8 @@ describe("Card SVG Route", () => {
       );
 
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(cardsData);
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
 
       const metaPart = JSON.stringify({
         userId: "542244",
@@ -1059,8 +1059,8 @@ describe("Card SVG Route", () => {
       );
 
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(cardsData);
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
 
       const metaPart = JSON.stringify({
         userId: "542244",
@@ -1142,8 +1142,8 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("animeGenreSynergy", "default");
 
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(cardsData);
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
 
       const metaPart = JSON.stringify({
         userId: "542244",
@@ -1195,8 +1195,8 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("studioCollaboration", "default");
 
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(cardsData);
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
 
       const metaPart = JSON.stringify({
         userId: "542244",
@@ -1431,8 +1431,8 @@ describe("Card SVG Route", () => {
         ],
       });
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
       sharedRedisMockMget.mockResolvedValueOnce(
         buildMockUserParts(userData, "animeStats"),
@@ -1635,10 +1635,12 @@ describe("Card SVG Route", () => {
 
     it("should keep animated and non-animated renders in separate cache entries", async () => {
       const userId = 987654;
+      const cardsUpdatedAt = "2026-04-10T00:00:00.000Z";
       const animatedCacheKey = generateCacheKey(userId, "animeStats", {
         animate: true,
         gridCols: 3,
         gridRows: 3,
+        cardsUpdatedAt,
       });
       setSvgInMemoryCache(
         animatedCacheKey,
@@ -1651,7 +1653,8 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(userId, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      setupSuccessfulMocks(cardsData, userData);
+
+      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
       const animatedResponse = await GET(
         new Request(
@@ -1665,6 +1668,9 @@ describe("Card SVG Route", () => {
       expect(await getResponseText(animatedResponse)).toContain(
         'data-cache="animated"',
       );
+
+      resetSharedRouteMocks();
+      setupSuccessfulMocks(cardsData, userData);
 
       const staticResponse = await GET(
         new Request(
@@ -2993,6 +2999,10 @@ describe("Card SVG Route", () => {
       clearSvgCache();
       resetSharedRouteMocks();
       sharedRedisMockGet.mockImplementation(async (key: string) => {
+        if (key === "cards:542244") {
+          return cardsData;
+        }
+
         if (key === sharedCacheKey) {
           return sharedCachePayload;
         }
@@ -3008,13 +3018,16 @@ describe("Card SVG Route", () => {
     });
 
     it("should refresh stale memory entries from shared cache before re-rendering", async () => {
+      const cardsUpdatedAt = "2026-04-10T00:00:00.000Z";
       const cacheKey = generateCacheKey(542244, "animeStats", {
         animate: true,
         gridCols: 3,
         gridRows: 3,
+        cardsUpdatedAt,
       });
       const staleSvg = '<svg data-template="stale">Stale Memory</svg>';
       const sharedSvg = '<svg data-template="shared">Shared Fresh</svg>';
+      const cardsData = createMockCardData("animeStats", "default");
 
       setSvgInMemoryCache(cacheKey, staleSvg, 0, 542244, 4);
       await setSvgInSharedCache(
@@ -3031,6 +3044,10 @@ describe("Card SVG Route", () => {
 
       resetSharedRouteMocks();
       sharedRedisMockGet.mockImplementation(async (key: string) => {
+        if (key === "cards:542244") {
+          return cardsData;
+        }
+
         if (key === sharedCacheKey) {
           return sharedCachePayload;
         }
@@ -3080,9 +3097,7 @@ describe("Card SVG Route", () => {
     });
 
     it("should return server error when Redis throws", async () => {
-      sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockRejectedValueOnce(new Error("Redis error"));
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
@@ -3099,8 +3114,8 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("animeStats", "default");
 
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(cardsData);
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
       sharedRedisMockMget.mockRejectedValueOnce(
         new Error("Redis mget failure"),
       );
@@ -3149,8 +3164,8 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("animeStats", "default");
       const invalidUserData = "not-a-json";
       sharedRedisMockGet
-        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(invalidUserData);
 
       const req = new Request(

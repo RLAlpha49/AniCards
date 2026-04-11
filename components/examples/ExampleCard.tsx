@@ -187,7 +187,14 @@ export function ExampleCard({
         updatedAt: now,
       };
 
-      upsertSettingsTemplateInStorage(template);
+      const persistResult = upsertSettingsTemplateInStorage(template);
+      if (!persistResult.ok) {
+        toast.error("Couldn't save this style", {
+          description: persistResult.error,
+        });
+        return;
+      }
+
       queuePendingSettingsTemplateApply({
         templateId: template.id,
         templateName: template.name,

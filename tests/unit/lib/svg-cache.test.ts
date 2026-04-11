@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import {
   clearSvgCache,
+  getRemainingSvgCacheLifetimeMs,
   getSvgFromSharedCache,
   releaseSvgRevalidationLock,
   setSvgInSharedCache,
@@ -102,5 +103,29 @@ describe("svg-cache shared Redis compression", () => {
     clearSvgCache();
 
     expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(true);
+  });
+
+  it("reports only the remaining shared-cache lifetime for L1 refreshes", () => {
+    const now = Date.now();
+
+    expect(
+      getRemainingSvgCacheLifetimeMs(
+        {
+          cachedAt: now - 45_000,
+          ttl: 60_000,
+        },
+        now,
+      ),
+    ).toBe(15_000);
+
+    expect(
+      getRemainingSvgCacheLifetimeMs(
+        {
+          cachedAt: now - 61_000,
+          ttl: 60_000,
+        },
+        now,
+      ),
+    ).toBe(0);
   });
 });

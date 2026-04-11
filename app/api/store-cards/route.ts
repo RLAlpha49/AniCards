@@ -4,8 +4,8 @@
  *
  * The card editor does not resend every persisted field on each save, so this
  * route merges incoming changes with the existing Redis record, keeps omitted
- * per-card settings intact, and backfills newly supported card types to keep
- * older records forward-compatible.
+ * explicit per-card settings intact, and stores full card order separately so
+ * untouched disabled cards can be synthesized again at read/editor time.
  */
 import type { NextResponse } from "next/server";
 
@@ -99,21 +99,98 @@ function scheduleStoreCardsMetric(
 
 /**
  * Cached list of supported base card types.
- * Used to ensure stored Redis records are never empty/partial.
+ * Used to normalize persisted editor order and synthesize omitted defaults.
  */
 const SUPPORTED_BASE_CARD_TYPES = Object.keys(displayNames);
 
 /**
- * Ensures the stored record always contains every supported base card type.
- * Missing card types are added as disabled.
+ * Returns true when a merged stored card config needs explicit persistence.
+ * Untouched disabled cards are synthesized at read/editor time instead.
  */
-function ensureAllSupportedCardTypesPresent(
-  cardsMap: Map<string, StoredCardConfig>,
-): void {
-  for (const baseCardName of SUPPORTED_BASE_CARD_TYPES) {
-    if (cardsMap.has(baseCardName)) continue;
-    cardsMap.set(baseCardName, { cardName: baseCardName, disabled: true });
+function shouldPersistExplicitStoredCardConfig(
+  card: StoredCardConfig,
+): boolean {
+  if (card.disabled !== true) {
+    return true;
   }
+
+  if (card.variation && card.variation !== "default") {
+    return true;
+  }
+
+  if (card.useCustomSettings === true) {
+    return true;
+  }
+
+  return (
+    card.colorPreset !== undefined ||
+    card.titleColor !== undefined ||
+    card.backgroundColor !== undefined ||
+    card.textColor !== undefined ||
+    card.circleColor !== undefined ||
+    card.borderColor !== undefined ||
+    card.borderRadius !== undefined ||
+    card.showFavorites !== undefined ||
+    card.useStatusColors !== undefined ||
+    card.showPiePercentages !== undefined ||
+    card.gridCols !== undefined ||
+    card.gridRows !== undefined
+  );
+}
+
+function normalizeSupportedCardOrder(order?: readonly string[]): string[] {
+  if (!order || order.length === 0) return [];
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of order) {
+    if (!isValidCardType(item)) continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
+    normalized.push(item);
+  }
+
+  return normalized;
+}
+
+function buildPersistedCardOrder(opts: {
+  incomingCardOrder?: string[];
+  existingCardOrder?: string[];
+  existingCards: StoredCardConfig[];
+  mergedExplicitCardsByName: Map<string, StoredCardConfig>;
+}): string[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  const pushName = (name: string) => {
+    if (!isValidCardType(name) || seen.has(name)) return;
+    seen.add(name);
+    ordered.push(name);
+  };
+
+  for (const name of normalizeSupportedCardOrder(opts.incomingCardOrder)) {
+    pushName(name);
+  }
+
+  const fallbackExistingOrder =
+    opts.existingCardOrder && opts.existingCardOrder.length > 0
+      ? opts.existingCardOrder
+      : opts.existingCards.map((card) => card.cardName);
+
+  for (const name of normalizeSupportedCardOrder(fallbackExistingOrder)) {
+    pushName(name);
+  }
+
+  for (const name of opts.mergedExplicitCardsByName.keys()) {
+    pushName(name);
+  }
+
+  for (const name of SUPPORTED_BASE_CARD_TYPES) {
+    pushName(name);
+  }
+
+  return ordered;
 }
 
 /**
@@ -418,6 +495,38 @@ function sanitizeIncomingGlobalSettings(
   return Object.keys(sanitized).length ? { sanitized } : undefined;
 }
 
+function inferUseCustomSettings(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+): boolean {
+  if (typeof incoming.useCustomSettings === "boolean") {
+    return incoming.useCustomSettings;
+  }
+
+  if (typeof previous?.useCustomSettings === "boolean") {
+    return previous.useCustomSettings;
+  }
+
+  const baseCardType = (incoming.cardName || "").split("-")[0] || "";
+
+  return (
+    incoming.colorPreset !== undefined ||
+    incoming.titleColor !== undefined ||
+    incoming.backgroundColor !== undefined ||
+    incoming.textColor !== undefined ||
+    incoming.circleColor !== undefined ||
+    incoming.borderColor !== undefined ||
+    incoming.borderRadius !== undefined ||
+    incoming.showFavorites !== undefined ||
+    incoming.useStatusColors !== undefined ||
+    incoming.showPiePercentages !== undefined ||
+    ((baseCardType === "favoritesGrid" ||
+      previous?.gridCols !== undefined ||
+      previous?.gridRows !== undefined) &&
+      (incoming.gridCols !== undefined || incoming.gridRows !== undefined))
+  );
+}
+
 /**
  * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
  * Only saves individual colors when colorPreset is "custom" or not set.
@@ -432,8 +541,7 @@ function buildCardConfig(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
 ): StoredCardConfig {
-  const useCustomSettings =
-    incoming.useCustomSettings ?? previous?.useCustomSettings ?? true;
+  const useCustomSettings = inferUseCustomSettings(incoming, previous);
 
   const normalizedBorderRadius = useCustomSettings
     ? computeBorderRadius(incoming, previous)
@@ -525,44 +633,26 @@ function applyIncomingCards(
  * 3) Any newly-supported card types appended in SUPPORTED_BASE_CARD_TYPES order
  */
 function buildOrderedStoredCards(opts: {
-  incomingCards: StoredCardConfig[];
-  existingCards: StoredCardConfig[];
-  mergedCardsByName: Map<string, StoredCardConfig>;
-  cardOrder?: string[];
+  persistedCardOrder: string[];
+  mergedExplicitCardsByName: Map<string, StoredCardConfig>;
 }): StoredCardConfig[] {
   const ordered: StoredCardConfig[] = [];
   const seen = new Set<string>();
 
   const pushByName = (name: string) => {
     if (seen.has(name)) return;
-    const merged = opts.mergedCardsByName.get(name);
+    const merged = opts.mergedExplicitCardsByName.get(name);
     if (!merged) return;
     ordered.push(merged);
     seen.add(name);
   };
 
-  const shouldUseIncomingOrder =
-    opts.incomingCards.length > 0 &&
-    (opts.existingCards.length === 0 ||
-      opts.incomingCards.length >= opts.existingCards.length);
-
-  let primaryOrder: string[];
-  if (opts.cardOrder && opts.cardOrder.length > 0) {
-    primaryOrder = opts.cardOrder;
-  } else if (shouldUseIncomingOrder) {
-    primaryOrder = opts.incomingCards.map((c) => c.cardName);
-  } else {
-    primaryOrder = opts.existingCards.map((c) => c.cardName);
+  for (const name of opts.persistedCardOrder) {
+    pushByName(name);
   }
 
-  for (const name of primaryOrder) pushByName(name);
-
-  for (const card of opts.existingCards) {
-    pushByName(card.cardName);
-  }
-
-  for (const baseCardName of SUPPORTED_BASE_CARD_TYPES) {
-    pushByName(baseCardName);
+  for (const name of opts.mergedExplicitCardsByName.keys()) {
+    pushByName(name);
   }
 
   return ordered;
@@ -694,24 +784,130 @@ type ParsedStoreCardsBody = {
 };
 
 const STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA = `
+local function parse_json_object(raw)
+  if type(raw) ~= "string" or string.len(raw) == 0 then
+    return nil
+  end
+
+  local ok, decoded = pcall(cjson.decode, raw)
+  if not ok or type(decoded) ~= "table" then
+    return nil
+  end
+
+  return decoded
+end
+
+local function build_user_snapshot()
+  local commitPointer = parse_json_object(redis.call("GET", KEYS[2]))
+  if commitPointer then
+    local snapshot = {}
+    local hasValue = false
+    local revision = tonumber(commitPointer["revision"])
+    local updatedAt = type(commitPointer["updatedAt"]) == "string" and commitPointer["updatedAt"] or nil
+    local committedAt = type(commitPointer["committedAt"]) == "string" and commitPointer["committedAt"] or nil
+    local token = type(commitPointer["snapshotToken"]) == "string" and commitPointer["snapshotToken"] or nil
+
+    if revision and revision > 0 then
+      snapshot["revision"] = revision
+      hasValue = true
+    end
+    if updatedAt and string.len(updatedAt) > 0 then
+      snapshot["updatedAt"] = updatedAt
+      hasValue = true
+    end
+    if committedAt and string.len(committedAt) > 0 then
+      snapshot["committedAt"] = committedAt
+      hasValue = true
+    end
+    if token and string.len(token) > 0 then
+      snapshot["token"] = token
+      hasValue = true
+    end
+
+    if hasValue then
+      return snapshot
+    end
+  end
+
+  local splitMeta = parse_json_object(redis.call("GET", KEYS[3]))
+  if splitMeta then
+    local snapshot = {}
+    local hasValue = false
+    local revision = tonumber(splitMeta["revision"])
+    local updatedAt = type(splitMeta["updatedAt"]) == "string" and splitMeta["updatedAt"] or nil
+    local committedAt = type(splitMeta["committedAt"]) == "string" and splitMeta["committedAt"] or nil
+    local token = type(splitMeta["snapshotToken"]) == "string" and splitMeta["snapshotToken"] or nil
+
+    if revision and revision > 0 then
+      snapshot["revision"] = revision
+      hasValue = true
+    end
+    if updatedAt and string.len(updatedAt) > 0 then
+      snapshot["updatedAt"] = updatedAt
+      hasValue = true
+    end
+    if committedAt and string.len(committedAt) > 0 then
+      snapshot["committedAt"] = committedAt
+      hasValue = true
+    end
+    if token and string.len(token) > 0 then
+      snapshot["token"] = token
+      hasValue = true
+    end
+
+    if hasValue then
+      return snapshot
+    end
+  end
+
+  local legacyRecord = parse_json_object(redis.call("GET", KEYS[4]))
+  if legacyRecord then
+    local updatedAt = type(legacyRecord["updatedAt"]) == "string" and legacyRecord["updatedAt"] or nil
+    if updatedAt and string.len(updatedAt) > 0 then
+      return {
+        updatedAt = updatedAt,
+      }
+    end
+  end
+
+  return nil
+end
+
+local function write_next_record()
+  local nextRecord = parse_json_object(ARGV[2])
+  if not nextRecord then
+    redis.call("SET", KEYS[1], ARGV[2])
+    return
+  end
+
+  local userSnapshot = build_user_snapshot()
+  if userSnapshot then
+    nextRecord["userSnapshot"] = userSnapshot
+  else
+    nextRecord["userSnapshot"] = nil
+  end
+
+  redis.call("SET", KEYS[1], cjson.encode(nextRecord))
+end
+
 local current = redis.call("GET", KEYS[1])
 if not current then
-  redis.call("SET", KEYS[1], ARGV[2])
+  write_next_record()
   return {1}
 end
 
 local ok, decoded = pcall(cjson.decode, current)
 if not ok or type(decoded) ~= "table" then
-  redis.call("SET", KEYS[1], ARGV[2])
+  write_next_record()
   return {1}
 end
 
 local currentUpdatedAt = decoded["updatedAt"]
-if type(currentUpdatedAt) == "string" and string.len(currentUpdatedAt) > 0 and currentUpdatedAt ~= ARGV[1] then
+if type(ARGV[1]) == "string" and string.len(ARGV[1]) > 0 and type(currentUpdatedAt) == "string" and string.len(currentUpdatedAt) > 0 and currentUpdatedAt ~= ARGV[1] then
   return {0, currentUpdatedAt}
 end
 
-redis.call("SET", KEYS[1], ARGV[2])
+write_next_record()
 return {1}
 `;
 
@@ -934,26 +1130,31 @@ function parseStoreCardsAtomicWriteResult(
 
 async function storeCardsRecord(params: {
   cardsKey: string;
+  userId: number;
   serializedCardData: string;
   ifMatchUpdatedAt?: string;
   shouldEnforceAtomicCheck: boolean;
 }): Promise<StoreCardsAtomicWriteResult> {
   const {
     cardsKey,
+    userId,
     serializedCardData,
     ifMatchUpdatedAt,
     shouldEnforceAtomicCheck,
   } = params;
 
-  if (!ifMatchUpdatedAt || !shouldEnforceAtomicCheck) {
-    await redisClient.set(cardsKey, serializedCardData);
-    return { didWrite: true };
-  }
-
   const result = await redisClient.eval(
     STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA,
-    [cardsKey],
-    [ifMatchUpdatedAt, serializedCardData],
+    [
+      cardsKey,
+      `user:${userId}:commit`,
+      `user:${userId}:meta`,
+      `user:${userId}`,
+    ],
+    [
+      ifMatchUpdatedAt && shouldEnforceAtomicCheck ? ifMatchUpdatedAt : "",
+      serializedCardData,
+    ],
   );
 
   return parseStoreCardsAtomicWriteResult(result);
@@ -1018,6 +1219,7 @@ function buildMergedGlobalSettings(
 async function assembleStoredCardsAndGlobalSettings(params: {
   incomingCards: StoredCardConfig[];
   existingCards: StoredCardConfig[];
+  existingCardOrder?: string[];
   existingGlobalSettings?: GlobalCardSettings;
   cardOrder?: string[];
   globalSettings?: Partial<GlobalCardSettings>;
@@ -1027,6 +1229,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
 }): Promise<
   | {
       orderedStoredCards: StoredCardConfig[];
+      persistedCardOrder: string[];
       mergedGlobalSettings?: GlobalCardSettings;
     }
   | { errorResponse: NextResponse }
@@ -1034,6 +1237,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   const {
     incomingCards,
     existingCards,
+    existingCardOrder,
     existingGlobalSettings,
     cardOrder,
     globalSettings,
@@ -1071,13 +1275,22 @@ async function assembleStoredCardsAndGlobalSettings(params: {
 
   applyIncomingCards(existingCardsMap, incomingCards);
 
-  ensureAllSupportedCardTypesPresent(existingCardsMap);
+  const mergedExplicitCardsByName = new Map<string, StoredCardConfig>();
+  for (const [cardName, card] of existingCardsMap) {
+    if (!shouldPersistExplicitStoredCardConfig(card)) continue;
+    mergedExplicitCardsByName.set(cardName, card);
+  }
+
+  const persistedCardOrder = buildPersistedCardOrder({
+    incomingCardOrder: cardOrder,
+    existingCardOrder,
+    existingCards,
+    mergedExplicitCardsByName,
+  });
 
   const orderedStoredCards = buildOrderedStoredCards({
-    incomingCards,
-    existingCards,
-    mergedCardsByName: existingCardsMap,
-    cardOrder,
+    persistedCardOrder,
+    mergedExplicitCardsByName,
   });
 
   const effectiveBorderRadius = computeEffectiveBorderRadius(
@@ -1114,7 +1327,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
       gridRows: effectiveGridRows,
     });
 
-  return { orderedStoredCards, mergedGlobalSettings };
+  return { orderedStoredCards, mergedGlobalSettings, persistedCardOrder };
 }
 
 /**
@@ -1298,12 +1511,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       cardsKey,
     );
+    const existingCardOrder = existingRecord?.cardOrder;
 
     const existingGlobalSettings = existingRecord?.globalSettings;
 
     const assembly = await assembleStoredCardsAndGlobalSettings({
       incomingCards: incomingCardsTyped,
       existingCards,
+      existingCardOrder,
       existingGlobalSettings,
       cardOrder,
       globalSettings,
@@ -1312,7 +1527,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     });
     if ("errorResponse" in assembly) return assembly.errorResponse;
-    const { orderedStoredCards, mergedGlobalSettings } = assembly;
+    const { orderedStoredCards, mergedGlobalSettings, persistedCardOrder } =
+      assembly;
 
     const colorValidationError = await validateCardColors(
       orderedStoredCards,
@@ -1322,20 +1538,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     if (colorValidationError) return colorValidationError;
 
-    const persistedUserState = await getPersistedUserState(userId);
     const cardData: CardsRecord = {
       userId,
       cards: orderedStoredCards,
+      ...(persistedCardOrder.length > 0
+        ? { cardOrder: persistedCardOrder }
+        : {}),
       globalSettings: mergedGlobalSettings,
       updatedAt: new Date().toISOString(),
       schemaVersion: CARDS_RECORD_SCHEMA_VERSION,
-      ...(persistedUserState?.snapshot
-        ? { userSnapshot: persistedUserState.snapshot }
-        : {}),
     };
 
     const storeResult = await storeCardsRecord({
       cardsKey,
+      userId,
       serializedCardData: JSON.stringify(cardData),
       ifMatchUpdatedAt,
       shouldEnforceAtomicCheck: ifMatchCheck.shouldEnforceAtomicCheck,
@@ -1356,6 +1572,24 @@ export async function POST(request: Request): Promise<NextResponse> {
       "successful_requests",
       request,
     );
+
+    let persistedUserState: Awaited<
+      ReturnType<typeof getPersistedUserState>
+    > | null = null;
+    try {
+      persistedUserState = await getPersistedUserState(userId);
+    } catch (error) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Stored cards succeeded but persisted user state could not be reloaded for the protected-write grant",
+        {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        request,
+      );
+    }
 
     const protectedWriteGrantHeader =
       await createProtectedWriteGrantCookieHeader({

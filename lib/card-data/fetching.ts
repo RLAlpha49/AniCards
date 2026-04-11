@@ -150,6 +150,33 @@ function normalizeStoredCardsRecordUpdatedAt(options: {
   return undefined;
 }
 
+function normalizeStoredCardsRecordCardOrder(
+  value: unknown,
+): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of value) {
+    if (!isNonEmptyString(item)) {
+      continue;
+    }
+
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export function parseStoredCardsRecord(
   rawValue: unknown,
   context: string,
@@ -226,11 +253,15 @@ export function parseStoredCardsRecord(
   const normalizedUserSnapshot = normalizeCardsRecordUserSnapshot(
     parsedValue.userSnapshot,
   );
+  const normalizedCardOrder = normalizeStoredCardsRecordCardOrder(
+    parsedValue.cardOrder,
+  );
   const globalSettings = parsedValue.globalSettings;
 
   return {
     userId: storedUserId,
     cards: parsedValue.cards,
+    ...(normalizedCardOrder ? { cardOrder: normalizedCardOrder } : {}),
     ...(globalSettings == null ? {} : { globalSettings }),
     updatedAt,
     ...(typeof parsedValue.schemaVersion === "number" &&
@@ -239,6 +270,50 @@ export function parseStoredCardsRecord(
       : {}),
     ...(normalizedUserSnapshot ? { userSnapshot: normalizedUserSnapshot } : {}),
   };
+}
+
+export async function fetchStoredCardsRecord(
+  numericUserId: number,
+): Promise<CardsRecord> {
+  const cardsDataResult = await redisClient.get(`cards:${numericUserId}`).then(
+    (value) => ({ ok: true as const, value }),
+    (error) => ({ ok: false as const, error }),
+  );
+
+  if (!cardsDataResult.ok) {
+    const { error } = cardsDataResult;
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    }
+
+    throw error;
+  }
+
+  const cardsDataStr = cardsDataResult.value;
+
+  if (!cardsDataStr || cardsDataStr === "null") {
+    throw new CardDataError("Not Found: User data not found", 404);
+  }
+
+  try {
+    return parseStoredCardsRecord(
+      cardsDataStr as string,
+      `Card SVG: cards:${numericUserId}`,
+      numericUserId,
+      {
+        allowLegacyMissingUpdatedAt: true,
+        allowLegacyMissingUserId: true,
+      },
+    );
+  } catch {
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
+    ).catch(() => {});
+    throw new CardDataError("Server Error: Corrupted card configuration", 500);
+  }
 }
 
 /**
@@ -346,34 +421,8 @@ export async function fetchUserData(
   };
 }
 
-function matchesRequestedUserSnapshot(
-  state: PersistedUserState | null,
-  expectedSnapshot: CardsRecord["userSnapshot"],
-): boolean {
-  if (!expectedSnapshot?.token && !expectedSnapshot?.updatedAt) {
-    return true;
-  }
-
-  return Boolean(
-    (expectedSnapshot?.token &&
-      state?.snapshot?.token === expectedSnapshot.token) ||
-    (expectedSnapshot?.updatedAt &&
-      state?.snapshot?.updatedAt === expectedSnapshot.updatedAt) ||
-    (expectedSnapshot?.updatedAt &&
-      state?.updatedAt === expectedSnapshot.updatedAt),
-  );
-}
-
-export async function fetchUserDataWithState(
-  numericUserId: number,
-  cardName?: string,
-): Promise<{
-  cardDoc: CardsRecord;
-  userDoc: UserRecord;
-  userReadState: PersistedUserState | null;
-  snapshotMatched: boolean;
-}> {
-  const parts = cardName
+function getRequestedUserDataParts(cardName?: string): UserDataPart[] {
+  return cardName
     ? getPartsForCard(cardName)
     : ([
         "meta",
@@ -386,79 +435,36 @@ export async function fetchUserDataWithState(
         "rewatched",
         "completed",
       ] as UserDataPart[]);
+}
 
-  const cardsDataPromise = redisClient.get(`cards:${numericUserId}`).then(
-    (value) => ({ ok: true as const, value }),
-    (error) => ({ ok: false as const, error }),
+async function fetchUserDataForStoredCardRecord(params: {
+  cardDoc: CardsRecord;
+  cardName?: string;
+  numericUserId: number;
+}): Promise<{
+  userDoc: UserRecord;
+  userReadState: PersistedUserState | null;
+  snapshotMatched: boolean;
+}> {
+  const { cardDoc, cardName, numericUserId } = params;
+  const parts = getRequestedUserDataParts(cardName);
+
+  const hasRequestedSnapshot = Boolean(
+    cardDoc.userSnapshot?.token || cardDoc.userSnapshot?.updatedAt,
   );
 
-  const optimisticUserDataPromise = fetchUserDataSnapshot(
-    numericUserId,
-    parts,
-    { audit: false },
-  ).then(
-    (value) => ({ ok: true as const, value }),
-    (error) => ({ ok: false as const, error }),
-  );
-
-  const cardsDataResult = await cardsDataPromise;
-
-  if (!cardsDataResult.ok) {
-    const { error } = cardsDataResult;
-    if (isRedisBackplaneUnavailable(error)) {
-      throw new CardDataError(
-        "Server Error: Card data is temporarily unavailable",
-        503,
-      );
-    }
-
-    throw error;
-  }
-
-  const cardsDataStr = cardsDataResult.value;
-
-  if (!cardsDataStr || cardsDataStr === "null") {
-    throw new CardDataError("Not Found: User data not found", 404);
-  }
-
-  let cardDoc: CardsRecord;
+  let userDataPartsResult;
   try {
-    cardDoc = parseStoredCardsRecord(
-      cardsDataStr as string,
-      `Card SVG: cards:${numericUserId}`,
-      numericUserId,
-      {
-        allowLegacyMissingUpdatedAt: true,
-        allowLegacyMissingUserId: true,
-      },
-    );
-  } catch {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
-    ).catch(() => {});
-    throw new CardDataError("Server Error: Corrupted card configuration", 500);
-  }
-
-  let userDataPartsResult = await optimisticUserDataPromise;
-
-  if (
-    !matchesRequestedUserSnapshot(
-      userDataPartsResult.ok ? userDataPartsResult.value.state : null,
-      cardDoc.userSnapshot,
-    )
-  ) {
     userDataPartsResult = await fetchUserDataSnapshot(numericUserId, parts, {
-      expectedSnapshotToken: cardDoc.userSnapshot?.token,
-      expectedUpdatedAt: cardDoc.userSnapshot?.updatedAt,
       audit: false,
-    }).then(
-      (value) => ({ ok: true as const, value }),
-      (error) => ({ ok: false as const, error }),
-    );
-  }
-
-  if (!userDataPartsResult.ok) {
-    const { error } = userDataPartsResult;
+      ...(hasRequestedSnapshot
+        ? {
+            expectedSnapshotToken: cardDoc.userSnapshot?.token,
+            expectedUpdatedAt: cardDoc.userSnapshot?.updatedAt,
+          }
+        : {}),
+    });
+  } catch (error) {
     if (error instanceof CardDataError) throw error;
 
     if (isRedisBackplaneUnavailable(error)) {
@@ -474,7 +480,7 @@ export async function fetchUserDataWithState(
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 
-  const userDataParts = userDataPartsResult.value.parts;
+  const userDataParts = userDataPartsResult.parts;
 
   if (!userDataParts.meta) {
     throw new CardDataError("Not Found: User data not found", 404);
@@ -492,9 +498,38 @@ export async function fetchUserDataWithState(
   }
 
   return {
+    userDoc,
+    userReadState: userDataPartsResult.state,
+    snapshotMatched: userDataPartsResult.snapshotMatched,
+  };
+}
+
+export async function fetchUserDataWithState(
+  numericUserId: number,
+  cardName?: string,
+  options?: {
+    preloadedCardDoc?: CardsRecord;
+  },
+): Promise<{
+  cardDoc: CardsRecord;
+  userDoc: UserRecord;
+  userReadState: PersistedUserState | null;
+  snapshotMatched: boolean;
+}> {
+  const cardDoc =
+    options?.preloadedCardDoc ?? (await fetchStoredCardsRecord(numericUserId));
+
+  const { userDoc, userReadState, snapshotMatched } =
+    await fetchUserDataForStoredCardRecord({
+      cardDoc,
+      cardName,
+      numericUserId,
+    });
+
+  return {
     cardDoc,
     userDoc,
-    userReadState: userDataPartsResult.value.state,
-    snapshotMatched: userDataPartsResult.value.snapshotMatched,
+    userReadState,
+    snapshotMatched,
   };
 }

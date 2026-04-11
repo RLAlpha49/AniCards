@@ -43,6 +43,20 @@ function createSplitCommit(userId: string) {
   });
 }
 
+function createSnapshotAwareSplitCommit(userId: string, snapshotToken: string) {
+  return JSON.stringify({
+    userId,
+    storageFormat: "split-user-v2",
+    schemaVersion: 2,
+    revision: 3,
+    createdAt: "2026-03-27T00:00:00.000Z",
+    updatedAt: "2026-03-27T00:00:01.000Z",
+    committedAt: "2026-03-27T00:00:02.000Z",
+    snapshotToken,
+    snapshotKeyPrefix: `user:${userId}:snapshot:${snapshotToken}`,
+  });
+}
+
 function createMetaPart(userId: string) {
   return JSON.stringify({
     userId,
@@ -76,7 +90,7 @@ describe("card-data fetchUserData", () => {
     mock.clearAllMocks();
   });
 
-  it("starts card and user reads together before either one resolves", async () => {
+  it("waits for the stored card record before loading the requested snapshot once", async () => {
     const cardsDeferred = createDeferred<string | null>();
     const userDeferred = createDeferred<Array<string | null>>();
 
@@ -86,13 +100,18 @@ describe("card-data fetchUserData", () => {
       }
 
       if (key === "user:42:commit") {
-        return Promise.resolve(createSplitCommit("42"));
+        return Promise.resolve(
+          createSnapshotAwareSplitCommit("42", "snapshot-42"),
+        );
       }
 
       return Promise.resolve(null);
     });
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
-      expect(keys).toEqual(["user:42:meta", "user:42:statistics"]);
+      expect(keys).toEqual([
+        "user:42:snapshot:snapshot-42:meta",
+        "user:42:snapshot:snapshot-42:statistics",
+      ]);
       return userDeferred.promise;
     });
 
@@ -105,30 +124,43 @@ describe("card-data fetchUserData", () => {
     await flushMicrotasks();
 
     expect(sharedRedisMockGet).toHaveBeenCalledWith("cards:42");
-    expect(sharedRedisMockMget).toHaveBeenCalledWith(
-      "user:42:meta",
-      "user:42:statistics",
-    );
-    expect(resolved).toBe(false);
-
-    userDeferred.resolve([createMetaPart("42"), createStatisticsPart()]);
-    await Promise.resolve();
-
+    expect(sharedRedisMockMget).not.toHaveBeenCalled();
     expect(resolved).toBe(false);
 
     cardsDeferred.resolve(
       JSON.stringify({
         userId: 42,
         updatedAt: "2026-03-27T00:00:03.000Z",
+        userSnapshot: {
+          token: "snapshot-42",
+          revision: 3,
+          updatedAt: "2026-03-27T00:00:01.000Z",
+          committedAt: "2026-03-27T00:00:02.000Z",
+        },
         cards: [],
       }),
     );
+    await flushMicrotasks();
+
+    expect(sharedRedisMockMget).toHaveBeenCalledWith(
+      "user:42:snapshot:snapshot-42:meta",
+      "user:42:snapshot:snapshot-42:statistics",
+    );
+    expect(resolved).toBe(false);
+
+    userDeferred.resolve([createMetaPart("42"), createStatisticsPart()]);
 
     const result = await fetchPromise;
 
     expect(result.cardDoc).toEqual({
       userId: 42,
       updatedAt: "2026-03-27T00:00:03.000Z",
+      userSnapshot: {
+        token: "snapshot-42",
+        revision: 3,
+        updatedAt: "2026-03-27T00:00:01.000Z",
+        committedAt: "2026-03-27T00:00:02.000Z",
+      },
       cards: [],
     });
     expect(result.userDoc).toMatchObject({ userId: "42" });

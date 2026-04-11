@@ -345,6 +345,7 @@ async function handleFailureTracking(
       "Cron Job",
       "Removed user after repeated AniList 404 responses",
       {
+        deletedKeyCount: deleteResult.deletedKeys.length,
         userId,
         removedUsernameIndexKeys: deleteResult.usernameIndexKeys.join(","),
       },

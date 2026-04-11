@@ -18,6 +18,13 @@ export interface PendingSettingsTemplateApply {
   queuedAt: number;
 }
 
+export type SettingsTemplatesStorageResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+const SETTINGS_TEMPLATES_STORAGE_ERROR =
+  "Couldn't save template changes in this browser. Check storage permissions and try again.";
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -45,8 +52,13 @@ export function readSettingsTemplatesFromStorage(): SettingsTemplateV1[] {
 
 export function writeSettingsTemplatesToStorage(
   templates: SettingsTemplateV1[],
-): void {
-  if (globalThis.window === undefined) return;
+): SettingsTemplatesStorageResult {
+  if (globalThis.window === undefined) {
+    return {
+      ok: false,
+      error: SETTINGS_TEMPLATES_STORAGE_ERROR,
+    };
+  }
 
   try {
     const payload = makeSettingsExport({
@@ -59,8 +71,12 @@ export function writeSettingsTemplatesToStorage(
       SETTINGS_TEMPLATES_STORAGE_KEY,
       JSON.stringify(payload),
     );
+    return { ok: true };
   } catch {
-    // Ignore persistence issues (private mode, quota, disabled storage, etc.).
+    return {
+      ok: false,
+      error: SETTINGS_TEMPLATES_STORAGE_ERROR,
+    };
   }
 }
 
@@ -86,13 +102,18 @@ export function upsertSettingsTemplate(
 
 export function upsertSettingsTemplateInStorage(
   template: SettingsTemplateV1,
-): SettingsTemplateV1[] {
+):
+  | { ok: true; templates: SettingsTemplateV1[] }
+  | { ok: false; error: string } {
   const next = upsertSettingsTemplate(
     readSettingsTemplatesFromStorage(),
     template,
   );
-  writeSettingsTemplatesToStorage(next);
-  return next;
+  const writeResult = writeSettingsTemplatesToStorage(next);
+  if (!writeResult.ok) {
+    return writeResult;
+  }
+  return { ok: true, templates: next };
 }
 
 export function queuePendingSettingsTemplateApply(

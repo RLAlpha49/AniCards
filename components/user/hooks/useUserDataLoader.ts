@@ -545,6 +545,7 @@ export function useUserDataLoader(options: {
           cardsResult.globalSettings,
           ALL_CARD_IDS,
           cardsResult.updatedAt ?? null,
+          cardsResult.cardOrder,
         );
       }
 

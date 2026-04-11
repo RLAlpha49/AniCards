@@ -14,9 +14,11 @@ import {
   sharedRedisMockScan,
   sharedRedisMockSet,
   sharedRedisMockSmembers,
+  sharedRedisMockSrem,
   sharedRedisMockZadd,
   sharedRedisMockZcard,
   sharedRedisMockZrange,
+  sharedRedisMockZrem,
 } from "@/tests/unit/__setup__";
 
 const {
@@ -245,16 +247,20 @@ describe("user-data persistence", () => {
     sharedRedisMockLtrim.mockReset();
     sharedRedisMockSadd.mockReset();
     sharedRedisMockSmembers.mockReset();
+    sharedRedisMockSrem.mockReset();
     sharedRedisMockScan.mockReset();
     sharedRedisMockZadd.mockReset();
     sharedRedisMockZcard.mockReset();
     sharedRedisMockZrange.mockReset();
+    sharedRedisMockZrem.mockReset();
     sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockScan.mockResolvedValue([0, []]);
     sharedRedisMockSmembers.mockResolvedValue([]);
+    sharedRedisMockSrem.mockResolvedValue(1);
     sharedRedisMockZadd.mockResolvedValue(1);
     sharedRedisMockZcard.mockResolvedValue(0);
     sharedRedisMockZrange.mockResolvedValue([]);
+    sharedRedisMockZrem.mockResolvedValue(1);
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
       keys.map(() => null),
     );
@@ -1056,6 +1062,10 @@ describe("user-data persistence", () => {
         );
       }
 
+      if (key === "username:userfive") {
+        return Promise.resolve("5");
+      }
+
       return Promise.resolve(null);
     });
 
@@ -1083,6 +1093,35 @@ describe("user-data persistence", () => {
       "username:userfive",
     );
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
+  });
+
+  it("only removes username aliases that still belong to the deleted user", async () => {
+    sharedRedisMockSmembers.mockResolvedValueOnce(["userfive", "shared-alias"]);
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "username:userfive") {
+        return Promise.resolve("5");
+      }
+
+      if (key === "username:shared-alias") {
+        return Promise.resolve("99");
+      }
+
+      return Promise.resolve(null);
+    });
+
+    const result = await deleteUserRecord("5");
+    const deletedKeys = (sharedRedisMockDel.mock.calls.at(-1) ?? []).map(
+      String,
+    );
+
+    expect(result.usernameIndexKeys).toEqual(["username:userfive"]);
+    expect(deletedKeys).toContain("username:userfive");
+    expect(deletedKeys).not.toContain("username:shared-alias");
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith("users:known-ids", "5");
+    expect(sharedRedisMockZrem).toHaveBeenCalledWith(
+      "users:stale-by-updated-at",
+      "5",
+    );
   });
 
   it("rebuilds the stale-user index from tracked user ids without a global scan", async () => {
@@ -1133,5 +1172,107 @@ describe("user-data persistence", () => {
       "users:stale-by-updated-at",
       expect.objectContaining({ member: "9", score: expect.any(Number) }),
     );
+  });
+
+  it("incrementally repairs missing stale-user index members when the registry outgrows the sorted set", async () => {
+    sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
+      const key = String(args[0] ?? "");
+
+      if (key === "users:known-ids") {
+        return ["9", "5", "7"];
+      }
+
+      return [];
+    });
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:5:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "5",
+            revision: 2,
+            updatedAt: "2026-03-27T00:00:05.000Z",
+          }),
+        );
+      }
+
+      if (key === "user:7:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "7",
+            revision: 3,
+            updatedAt: "2026-03-27T00:00:07.000Z",
+          }),
+        );
+      }
+
+      if (key === "user:9:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "9",
+            revision: 4,
+            updatedAt: "2026-03-27T00:00:09.000Z",
+          }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockZcard.mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+    sharedRedisMockZrange.mockResolvedValueOnce(["5", "9"]);
+    sharedRedisMockZrange.mockResolvedValueOnce(["5", "7"]);
+
+    const result = await listStalestUserIds(2);
+
+    expect(result).toEqual({ userIds: ["5", "7"], totalUsers: 3 });
+    expect(sharedRedisMockSmembers).toHaveBeenCalledWith("users:known-ids");
+    expect(sharedRedisMockZadd).toHaveBeenCalledWith(
+      "users:stale-by-updated-at",
+      expect.objectContaining({ member: "7", score: expect.any(Number) }),
+    );
+    expect(sharedRedisMockZrem).not.toHaveBeenCalled();
+    expect(sharedRedisMockScan).not.toHaveBeenCalled();
+  });
+
+  it("prunes orphaned registry entries and stale sorted-set members during cardinality repair", async () => {
+    sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
+      const key = String(args[0] ?? "");
+
+      if (key === "users:known-ids") {
+        return ["5", "7"];
+      }
+
+      return [];
+    });
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:5:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "5",
+            revision: 2,
+            updatedAt: "2026-03-27T00:00:05.000Z",
+          }),
+        );
+      }
+
+      if (key === "user:7:commit") {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockZcard.mockResolvedValueOnce(3).mockResolvedValueOnce(1);
+    sharedRedisMockZrange.mockResolvedValueOnce(["5", "9", "11"]);
+    sharedRedisMockZrange.mockResolvedValueOnce(["5"]);
+
+    const result = await listStalestUserIds(1);
+
+    expect(result).toEqual({ userIds: ["5"], totalUsers: 1 });
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith("users:known-ids", "7");
+    expect(sharedRedisMockZrem).toHaveBeenCalledWith(
+      "users:stale-by-updated-at",
+      "9",
+      "11",
+    );
+    expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });
 });

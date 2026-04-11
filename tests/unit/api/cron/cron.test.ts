@@ -155,6 +155,15 @@ function mockUserRecords(
     (left, right) => (daysOldById?.[right] ?? 0) - (daysOldById?.[left] ?? 0),
   );
   mockStaleUserIndex(staleOrderedUserIds.slice(0, 5), userIds.length);
+  sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
+    const key = String(args[0] ?? "");
+
+    if (key === "users:known-ids") {
+      return userIds.map(String);
+    }
+
+    return [];
+  });
   sharedRedisMockGet.mockImplementation((key: string) => {
     if (key.startsWith("failed_updates:")) {
       return Promise.resolve(null);
@@ -538,6 +547,10 @@ describe("Cron API Route", () => {
     mockUserRecords(["123"]);
     sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
       const key = getStringValue(args[0]);
+      if (key === "users:known-ids") {
+        return ["123"];
+      }
+
       if (key === "user:123:username-aliases") {
         return ["user123", "old-user123"];
       }
@@ -547,6 +560,10 @@ describe("Cron API Route", () => {
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "failed_updates:123") {
         return Promise.resolve("2");
+      }
+
+      if (key === "username:user123" || key === "username:old-user123") {
+        return Promise.resolve("123");
       }
 
       const commitMatch = /^user:(\d+):commit$/.exec(key);

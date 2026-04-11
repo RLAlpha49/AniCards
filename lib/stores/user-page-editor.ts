@@ -93,6 +93,10 @@ export type LocalEditsPatch = {
   cardOrder?: string[];
 };
 
+export type SettingsTemplateMutationResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 type DirtyCardIdMap = Record<string, true>;
 
 type DirtyTrackerState = {
@@ -467,6 +471,7 @@ export interface UserPageEditorActions {
     globalSettings?: ServerGlobalSettings,
     allCardIds?: readonly string[],
     serverUpdatedAt?: string | null,
+    cardOrder?: readonly string[],
   ) => void;
 
   // Reset store
@@ -482,12 +487,22 @@ export interface UserPageEditorActions {
   ) => void;
   copySettingsFromCard: (sourceCardId: string, targetCardId: string) => void;
 
-  createSettingsTemplate: (name: string, snapshot: SettingsSnapshot) => void;
-  renameSettingsTemplate: (templateId: string, name: string) => void;
-  deleteSettingsTemplate: (templateId: string) => void;
+  createSettingsTemplate: (
+    name: string,
+    snapshot: SettingsSnapshot,
+  ) => SettingsTemplateMutationResult;
+  renameSettingsTemplate: (
+    templateId: string,
+    name: string,
+  ) => SettingsTemplateMutationResult;
+  deleteSettingsTemplate: (
+    templateId: string,
+  ) => SettingsTemplateMutationResult;
   applySettingsTemplateToGlobal: (templateId: string) => void;
   applySettingsTemplateToCard: (cardId: string, templateId: string) => void;
-  importSettingsTemplates: (templates: SettingsTemplateV1[]) => void;
+  importSettingsTemplates: (
+    templates: SettingsTemplateV1[],
+  ) => SettingsTemplateMutationResult;
   exportSettingsTemplates: () => SettingsExportV1;
 
   getEffectiveColors: (cardId: string) => ColorValue[];
@@ -800,8 +815,9 @@ function ensureCardConfig(
  * Ensures the cardConfigs record contains an entry for every known card ID.
  * Missing cards default to disabled and inherit global settings.
  *
- * This is critical for new users (or missing Redis records), so bulk actions
- * like "Enable All" can operate on a complete set.
+ * This is critical for new users, minimal explicit-config records, or missing
+ * Redis records, so bulk actions like "Enable All" can operate on a complete
+ * set.
  * @source
  */
 function seedMissingCardConfigs(
@@ -1375,6 +1391,17 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           false,
           actionName ?? "setWithDirty",
         );
+      };
+
+      const persistSettingsTemplates = (
+        templates: SettingsTemplateV1[],
+      ): SettingsTemplateMutationResult => {
+        const persistenceResult = writeSettingsTemplatesToStorage(templates);
+        if (!persistenceResult.ok) {
+          return persistenceResult;
+        }
+
+        return { ok: true };
       };
 
       return {
@@ -2238,6 +2265,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           globalSettings,
           allCardIds,
           serverUpdatedAt,
+          cardOrder,
         ) => {
           const result = processServerCards(cards, globalSettings);
           const seededCardConfigs = seedMissingCardConfigs(
@@ -2254,7 +2282,10 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               ? allCardIds
               : DEFAULT_CARD_ORDER;
 
-          const serverOrder = cards.map((c) => c.cardName);
+          const serverOrder =
+            cardOrder && cardOrder.length > 0
+              ? cardOrder
+              : cards.map((c) => c.cardName);
           const nextCardOrder = normalizeCardOrder(serverOrder, allowedIds);
 
           const nextBaselineGlobal = buildGlobalSettingsSnapshot({
@@ -2415,7 +2446,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
 
         createSettingsTemplate: (name, snapshot) => {
           const trimmed = name.trim();
-          if (!trimmed) return;
+          if (!trimmed) {
+            return { ok: false, error: "Template name is required." };
+          }
 
           const now = Date.now();
           const template: SettingsTemplateV1 = {
@@ -2427,29 +2460,56 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           };
 
           const next = [...get().settingsTemplates, template];
-          writeSettingsTemplatesToStorage(next);
+          const persistenceResult = persistSettingsTemplates(next);
+          if (!persistenceResult.ok) {
+            return persistenceResult;
+          }
+
           set({ settingsTemplates: next }, false, "createSettingsTemplate");
+          return { ok: true };
         },
 
         renameSettingsTemplate: (templateId, name) => {
           const trimmed = name.trim();
-          if (!trimmed) return;
+          if (!trimmed) {
+            return { ok: false, error: "Template name is required." };
+          }
 
-          const next = get().settingsTemplates.map((t) =>
+          const existing = get().settingsTemplates;
+          if (!existing.some((template) => template.id === templateId)) {
+            return { ok: false, error: "Template not found." };
+          }
+
+          const next = existing.map((t) =>
             t.id === templateId
               ? { ...t, name: trimmed.slice(0, 80), updatedAt: Date.now() }
               : t,
           );
-          writeSettingsTemplatesToStorage(next);
+
+          const persistenceResult = persistSettingsTemplates(next);
+          if (!persistenceResult.ok) {
+            return persistenceResult;
+          }
+
           set({ settingsTemplates: next }, false, "renameSettingsTemplate");
+          return { ok: true };
         },
 
         deleteSettingsTemplate: (templateId) => {
-          const next = get().settingsTemplates.filter(
-            (t) => t.id !== templateId,
-          );
-          writeSettingsTemplatesToStorage(next);
+          const existing = get().settingsTemplates;
+          if (!existing.some((template) => template.id === templateId)) {
+            return { ok: false, error: "Template not found." };
+          }
+
+          const next = existing.filter((t) => t.id !== templateId);
+
+          const persistenceResult = persistSettingsTemplates(next);
+          if (!persistenceResult.ok) {
+            return persistenceResult;
+          }
+
           set({ settingsTemplates: next }, false, "deleteSettingsTemplate");
+          return { ok: true };
         },
 
         applySettingsTemplateToGlobal: (templateId) => {
@@ -2465,6 +2525,10 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
         },
 
         importSettingsTemplates: (templates) => {
+          if (templates.length === 0) {
+            return { ok: true };
+          }
+
           const existing = get().settingsTemplates;
           const usedIds = new Set(existing.map((t) => t.id));
 
@@ -2475,8 +2539,13 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             merged.push({ ...t, id, updatedAt: Date.now() });
           }
 
-          writeSettingsTemplatesToStorage(merged);
+          const persistenceResult = persistSettingsTemplates(merged);
+          if (!persistenceResult.ok) {
+            return persistenceResult;
+          }
+
           set({ settingsTemplates: merged }, false, "importSettingsTemplates");
+          return { ok: true };
         },
 
         exportSettingsTemplates: () => {

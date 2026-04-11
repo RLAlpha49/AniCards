@@ -47,6 +47,19 @@ interface CompressedPersistedCachedSvgEntry extends PersistedCachedSvgEntryBase 
   svgCompressed: string;
 }
 
+function getCacheEntryExpiresAt(
+  entry: Pick<CachedSvgEntry, "cachedAt" | "ttl">,
+): number {
+  return entry.cachedAt + entry.ttl;
+}
+
+export function getRemainingSvgCacheLifetimeMs(
+  entry: Pick<CachedSvgEntry, "cachedAt" | "ttl">,
+  now: number = Date.now(),
+): number {
+  return Math.max(0, getCacheEntryExpiresAt(entry) - now);
+}
+
 /**
  * In-memory LRU cache for frequently accessed SVG cards.
  * Serves as a fast layer before Redis checks.

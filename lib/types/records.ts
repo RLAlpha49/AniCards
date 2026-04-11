@@ -570,10 +570,14 @@ export interface GlobalCardSettings {
   gridRows?: number;
 }
 
-/** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */
+/**
+ * Cards record in storage containing a userId, explicit stored card configs,
+ * optional full editor order, and update timestamp. @source
+ */
 export interface CardsRecord {
   userId: number;
   cards: StoredCardConfig[];
+  cardOrder?: string[];
   globalSettings?: GlobalCardSettings;
   updatedAt: string;
   schemaVersion?: number;

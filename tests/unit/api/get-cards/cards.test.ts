@@ -22,17 +22,20 @@ function delay(ms: number) {
 function createStoredCardsRecord({
   userId = 123,
   cards = [],
+  cardOrder,
   globalSettings,
   updatedAt = "2026-03-28T00:00:00.000Z",
 }: {
   userId?: number;
   cards?: Array<Record<string, unknown>>;
+  cardOrder?: string[];
   globalSettings?: Record<string, unknown>;
   updatedAt?: string;
 } = {}) {
   return {
     userId,
     cards,
+    ...(cardOrder === undefined ? {} : { cardOrder }),
     ...(globalSettings === undefined ? {} : { globalSettings }),
     updatedAt,
   };
@@ -154,6 +157,7 @@ describe("Cards API GET Endpoint", () => {
       const cardData = createStoredCardsRecord({
         userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
+        cardOrder: ["favoritesGrid", "animeStats"],
       });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {

@@ -136,28 +136,13 @@ describe("Store Cards API POST Endpoint", () => {
     };
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
-    sharedRedisMockEval.mockReset();
+    sharedRedisMockEval.mockClear();
     sharedRedisMockIncr.mockReset();
     sharedRatelimitMockLimit.mockReset();
     sharedRatelimitMockSlidingWindow.mockClear();
 
     sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockSet.mockResolvedValue(true);
-    sharedRedisMockEval.mockImplementation(
-      async (_script: unknown, keys: unknown, args: unknown) => {
-        const [cardsKey] = Array.isArray(keys) ? keys : [];
-        const [, serializedCardData] = Array.isArray(args) ? args : [];
-
-        if (
-          typeof cardsKey === "string" &&
-          typeof serializedCardData === "string"
-        ) {
-          await sharedRedisMockSet(cardsKey, serializedCardData);
-        }
-
-        return [1];
-      },
-    );
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
   });
@@ -567,7 +552,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
       expect(sharedRedisMockEval).toHaveBeenCalledWith(
         expect.any(String),
-        [`cards:${userId}`],
+        [
+          `cards:${userId}`,
+          `user:${userId}:commit`,
+          `user:${userId}:meta`,
+          `user:${userId}`,
+        ],
         [currentUpdatedAt, expect.any(String)],
       );
       expect(sharedRedisMockSet).toHaveBeenCalledWith(
@@ -668,15 +658,19 @@ describe("Store Cards API POST Endpoint", () => {
 
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedData.userId).toBe(userId);
-      expect(storedData.cards).toHaveLength(Object.keys(displayNames).length);
+      expect(storedData.cards).toHaveLength(1);
 
-      const storedNames = new Set(
-        (storedData.cards as Array<{ cardName: string }>).map(
-          (c) => c.cardName,
-        ),
+      const storedNames = (storedData.cards as Array<{ cardName: string }>).map(
+        (c) => c.cardName,
       );
+      expect(storedNames).toEqual(["animeStats"]);
+
+      expect(storedData.cardOrder).toHaveLength(
+        Object.keys(displayNames).length,
+      );
+      const storedOrder = new Set(storedData.cardOrder as Array<string>);
       for (const name of Object.keys(displayNames)) {
-        expect(storedNames.has(name)).toBe(true);
+        expect(storedOrder.has(name)).toBe(true);
       }
 
       const animeStats = (
@@ -712,15 +706,8 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
-
-      const animeStats = (stored.cards as Array<Record<string, unknown>>).find(
-        (c) => c.cardName === "animeStats",
-      );
-      expect(animeStats).toMatchObject({
-        cardName: "animeStats",
-        disabled: true,
-      });
+      expect(stored.cards).toEqual([]);
+      expect(stored.cardOrder).toHaveLength(Object.keys(displayNames).length);
     });
 
     it("should preserve previous settings when a card is disabled", async () => {
@@ -786,7 +773,7 @@ describe("Store Cards API POST Endpoint", () => {
       });
     });
 
-    it("should backfill all supported cards when incoming cards is empty", async () => {
+    it("should persist an empty explicit-config set when incoming cards is empty", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 987;
       const req = createRequest({ userId, statsData: {}, cards: [] });
@@ -795,12 +782,93 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
+      expect(stored.cards).toEqual([]);
+      expect(stored.cardOrder).toHaveLength(Object.keys(displayNames).length);
+    });
 
-      const disabledCount = (
-        stored.cards as Array<{ disabled?: boolean }>
-      ).filter((c) => c.disabled === true).length;
-      expect(disabledCount).toBe(Object.keys(displayNames).length);
+    it("should persist full cardOrder separately from explicit card configs", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 654;
+      const requestedOrder = ["favoritesGrid", "animeStats", "animeGenres"];
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cardOrder: requestedOrder,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toHaveLength(1);
+      expect(stored.cards[0]).toMatchObject({ cardName: "animeStats" });
+      expect(stored.cardOrder.slice(0, requestedOrder.length)).toEqual(
+        requestedOrder,
+      );
+    });
+
+    it("should capture the committed user snapshot inside the atomic card write", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 655;
+
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === `cards:${userId}`) {
+          return Promise.resolve(null);
+        }
+
+        if (key === `user:${userId}:commit`) {
+          return Promise.resolve(
+            JSON.stringify({
+              userId: String(userId),
+              storageFormat: "split-user-v2",
+              schemaVersion: 2,
+              revision: 7,
+              updatedAt: "2026-04-10T12:34:56.000Z",
+              committedAt: "2026-04-10T12:35:00.000Z",
+              snapshotToken: "snapshot-655",
+            }),
+          );
+        }
+
+        return Promise.resolve(null);
+      });
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.userSnapshot).toEqual({
+        token: "snapshot-655",
+        revision: 7,
+        updatedAt: "2026-04-10T12:34:56.000Z",
+        committedAt: "2026-04-10T12:35:00.000Z",
+      });
     });
 
     it("should accept up to the allowed number of card types", async () => {
@@ -852,14 +920,13 @@ describe("Store Cards API POST Endpoint", () => {
       );
 
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedData.cards).toHaveLength(Object.keys(displayNames).length);
-
-      const storedNames = new Set(
-        (storedData.cards as Array<{ cardName: string }>).map(
-          (c) => c.cardName,
-        ),
+      expect(storedData.cards).toEqual([]);
+      expect(storedData.cardOrder).toHaveLength(
+        Object.keys(displayNames).length,
       );
-      expect(storedNames.has("invalidCardType")).toBe(false);
+
+      const storedOrder = new Set(storedData.cardOrder as Array<string>);
+      expect(storedOrder.has("invalidCardType")).toBe(false);
     });
 
     it("should accept duplicate entries that don't increase unique types", async () => {
@@ -2465,7 +2532,8 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
+      expect(stored.cards).toHaveLength(3);
+      expect(stored.cardOrder).toHaveLength(Object.keys(displayNames).length);
 
       const storedNames = new Set(
         (stored.cards as Array<{ cardName: string }>).map((c) => c.cardName),

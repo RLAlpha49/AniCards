@@ -46,6 +46,31 @@ function isStrictPositiveIntegerString(value: unknown): value is string {
   return typeof value === "string" && /^[1-9]\d*$/.test(value.trim());
 }
 
+function normalizeCardOrder(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of value) {
+    if (typeof item !== "string") {
+      continue;
+    }
+
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function normalizeFetchUserCardsSuccess(
   payload: unknown,
 ): FetchUserCardsSuccess | null {
@@ -60,6 +85,7 @@ function normalizeFetchUserCardsSuccess(
   const data = payload as {
     userId?: unknown;
     cards?: unknown;
+    cardOrder?: unknown;
     globalSettings?: ServerGlobalSettings;
     updatedAt?: unknown;
   };
@@ -73,6 +99,7 @@ function normalizeFetchUserCardsSuccess(
 
   const updatedAt =
     typeof data.updatedAt === "string" ? data.updatedAt.trim() : "";
+  const cardOrder = normalizeCardOrder(data.cardOrder);
 
   if (userId === null || !Array.isArray(data.cards) || updatedAt.length === 0) {
     return null;
@@ -81,6 +108,7 @@ function normalizeFetchUserCardsSuccess(
   return {
     userId,
     cards: data.cards as ServerCardData[],
+    ...(cardOrder ? { cardOrder } : {}),
     ...(data.globalSettings === undefined
       ? {}
       : { globalSettings: data.globalSettings }),

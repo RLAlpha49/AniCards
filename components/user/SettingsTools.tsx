@@ -65,6 +65,11 @@ type SettingsToolsProps =
 
 type ExportKind = "current" | "templates" | "all";
 
+type InlineFeedback = {
+  message: string;
+  tone: "error" | "success";
+};
+
 function buildExportFilename(exp: SettingsExportV1): string {
   const date = new Date(exp.exportedAt);
   const y = date.getFullYear();
@@ -110,6 +115,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [templateFeedback, setTemplateFeedback] =
+    useState<InlineFeedback | null>(null);
 
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -262,6 +269,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     (raw: string) => {
       setImportError(null);
       setImportSuccess(null);
+      setTemplateFeedback(null);
 
       const parsed = parseSettingsExportJson(raw);
       if (!parsed.ok) {
@@ -277,14 +285,26 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
       const exp = parsed.value.value;
       if (exp.scope === "templates") {
-        importSettingsTemplates(exp.templates);
+        const importResult = importSettingsTemplates(exp.templates);
+        if (!importResult.ok) {
+          setImportError(importResult.error);
+          return;
+        }
         setImportSuccess(`Imported ${exp.templates.length} template(s).`);
         return;
       }
 
       if (exp.scope === "all") {
-        importSettingsTemplates(exp.templates);
         applySnapshotToTarget(exp.global);
+
+        const importResult = importSettingsTemplates(exp.templates);
+        if (!importResult.ok) {
+          setImportError(
+            `Imported settings applied, but ${importResult.error}`,
+          );
+          return;
+        }
+
         setImportSuccess("Imported global settings + templates.");
         return;
       }
@@ -321,13 +341,29 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     const trimmed = templateName.trim();
     if (!trimmed) return;
 
+    setImportError(null);
+    setImportSuccess(null);
+    setTemplateFeedback(null);
+
     const snapshot =
       props.mode === "global"
         ? getGlobalSettingsSnapshot()
         : getCardSettingsSnapshot(props.cardId);
 
-    createSettingsTemplate(trimmed, snapshot);
+    const createResult = createSettingsTemplate(trimmed, snapshot);
+    if (!createResult.ok) {
+      setTemplateFeedback({
+        message: createResult.error,
+        tone: "error",
+      });
+      return;
+    }
+
     setTemplateName("");
+    setTemplateFeedback({
+      message: `Saved template "${trimmed.slice(0, 80)}".`,
+      tone: "success",
+    });
   }, [
     createSettingsTemplate,
     getCardSettingsSnapshot,
@@ -335,6 +371,33 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     props,
     templateName,
   ]);
+
+  const handleDeleteTemplate = useCallback(() => {
+    if (!selectedTemplateId) return;
+
+    setImportError(null);
+    setImportSuccess(null);
+    setTemplateFeedback(null);
+
+    const selectedTemplateName =
+      templateOptions.find((template) => template.id === selectedTemplateId)
+        ?.name ?? "template";
+    const deleteResult = deleteSettingsTemplate(selectedTemplateId);
+
+    if (!deleteResult.ok) {
+      setTemplateFeedback({
+        message: deleteResult.error,
+        tone: "error",
+      });
+      return;
+    }
+
+    setSelectedTemplateId("");
+    setTemplateFeedback({
+      message: `Deleted template "${selectedTemplateName}".`,
+      tone: "success",
+    });
+  }, [deleteSettingsTemplate, selectedTemplateId, templateOptions]);
 
   const handleApplyTemplate = useCallback(() => {
     if (!selectedTemplateId) return;
@@ -546,19 +609,28 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => {
-                              if (!selectedTemplateId) return;
-                              deleteSettingsTemplate(selectedTemplateId);
-                              setSelectedTemplateId("");
-                            }}
-                          >
+                          <AlertDialogAction onClick={handleDeleteTemplate}>
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
+
+                  {templateFeedback ? (
+                    templateFeedback.tone === "error" ? (
+                      <p role="alert" className="text-sm text-red-600">
+                        {templateFeedback.message}
+                      </p>
+                    ) : (
+                      <output
+                        className="text-sm text-green-600"
+                        aria-live="polite"
+                      >
+                        {templateFeedback.message}
+                      </output>
+                    )
+                  ) : null}
                 </div>
               </ToolGroup>
 
