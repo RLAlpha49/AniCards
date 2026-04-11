@@ -7,7 +7,8 @@ import {
   sharedRedisMockLtrim,
   sharedRedisMockMget,
   sharedRedisMockRpush,
-  sharedRedisMockScan,
+  sharedRedisMockSmembers,
+  sharedRedisMockSrem,
 } from "@/tests/unit/__setup__";
 
 const { GET, POST } = await import("@/app/api/cron/analytics-reporting/route");
@@ -46,12 +47,13 @@ function createCronRequest(
 }
 
 function setupAnalyticsData(values: Record<string, string | null>) {
-  const keys = Object.keys(values);
+  const keys = Object.keys(values).sort();
+  const dataKeys = keys.filter((key) => key !== "analytics:reports");
   sharedRedisMockLrange.mockResolvedValueOnce([]);
   sharedRedisMockLrange.mockResolvedValueOnce([]);
-  sharedRedisMockScan.mockResolvedValueOnce([0, keys]);
+  sharedRedisMockSmembers.mockResolvedValueOnce(keys);
   sharedRedisMockMget.mockResolvedValueOnce(
-    keys.map((key) => values[key] ?? null),
+    dataKeys.map((key) => values[key] ?? null),
   );
   sharedRedisMockMget.mockResolvedValueOnce([null, null]);
   sharedRedisMockGet.mockResolvedValueOnce(null);
@@ -114,12 +116,15 @@ describe("Analytics & Reporting Cron API", () => {
     };
     delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
     sharedRedisMockGet.mockReset();
-    sharedRedisMockScan.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLrange.mockReset();
     sharedRedisMockLtrim.mockReset();
+    sharedRedisMockSmembers.mockReset();
+    sharedRedisMockSrem.mockReset();
     sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockSmembers.mockResolvedValue([]);
+    sharedRedisMockSrem.mockResolvedValue(1);
   });
 
   afterEach(() => {
@@ -217,9 +222,9 @@ describe("Analytics & Reporting Cron API", () => {
       "analytics:api:errors": 25,
     });
     expect(sharedRedisMockMget).toHaveBeenCalledWith(
-      "analytics:visits",
-      "analytics:api:requests",
       "analytics:api:errors",
+      "analytics:api:requests",
+      "analytics:visits",
     );
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "analytics:reports",
@@ -264,12 +269,16 @@ describe("Analytics & Reporting Cron API", () => {
     expect(report.raw_data["analytics:missing_metric"]).toBe(0);
     expect(report.summary.missing_metric).toBe(0);
     expect(report.raw_data["analytics:custom"]).toEqual({ count: 50 });
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith(
+      "analytics:reporting:index",
+      "analytics:missing_metric",
+    );
   });
 
   it("surfaces error-report ring-buffer saturation metrics in the cron summary", async () => {
     sharedRedisMockLrange.mockResolvedValueOnce([]);
     sharedRedisMockLrange.mockResolvedValueOnce([]);
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
     sharedRedisMockGet.mockResolvedValueOnce(null);
@@ -350,7 +359,7 @@ describe("Analytics & Reporting Cron API", () => {
         route: "/user/Alex?tab=cards",
       }),
     ]);
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
     sharedRedisMockGet.mockResolvedValueOnce(
@@ -505,7 +514,7 @@ describe("Analytics & Reporting Cron API", () => {
         generatedAt: "2026-03-27T10:30:00.000Z",
       }),
     ]);
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
@@ -566,7 +575,7 @@ describe("Analytics & Reporting Cron API", () => {
         generatedAt: "2026-03-27T10:30:00.000Z",
       }),
     ]);
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["30", "1"]);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
@@ -584,15 +593,15 @@ describe("Analytics & Reporting Cron API", () => {
     });
   });
 
-  it("returns 500 when Redis scan, mget, or report persistence fails", async () => {
-    sharedRedisMockScan.mockRejectedValueOnce(new Error("scan failed"));
+  it("returns 500 when Redis index reads, mget, or report persistence fails", async () => {
+    sharedRedisMockSmembers.mockRejectedValueOnce(new Error("smembers failed"));
     await expectApiErrorResponse(
       await POST(createCronRequest()),
       500,
       "Analytics and reporting job failed",
     );
 
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockRejectedValueOnce(new Error("mget failed"));
     await expectApiErrorResponse(
       await POST(createCronRequest()),
@@ -600,7 +609,7 @@ describe("Analytics & Reporting Cron API", () => {
       "Analytics and reporting job failed",
     );
 
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockRpush.mockRejectedValueOnce(new Error("rpush failed"));
     await expectApiErrorResponse(
@@ -609,7 +618,7 @@ describe("Analytics & Reporting Cron API", () => {
       "Analytics and reporting job failed",
     );
 
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockRejectedValueOnce(new Error("ltrim failed"));

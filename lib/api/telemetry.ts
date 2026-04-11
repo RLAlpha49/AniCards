@@ -4,6 +4,7 @@ import { logPrivacySafe } from "@/lib/api/logging";
 type AnalyticsRedisPipeline = {
   incr: (key: string) => AnalyticsRedisPipeline;
   expire: (key: string, seconds: number) => AnalyticsRedisPipeline;
+  sadd: (key: string, ...members: string[]) => AnalyticsRedisPipeline;
   exec: () => Promise<unknown>;
 };
 
@@ -59,6 +60,7 @@ type PendingLowValueAnalyticsBatch = {
 };
 
 export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
+export const ANALYTICS_REPORTING_INDEX_KEY = "analytics:reporting:index";
 const pendingLowValueAnalyticsBatches = new Map<
   string,
   PendingLowValueAnalyticsBatch
@@ -225,6 +227,7 @@ export async function incrementAnalytics(
   try {
     await redisClient.incr(storageKey);
     await redisClient.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
+    await redisClient.sadd(ANALYTICS_REPORTING_INDEX_KEY, storageKey);
   } catch (error) {
     logPrivacySafe(
       "warn",
@@ -249,6 +252,7 @@ export async function incrementAnalyticsBatch(
   const storageKeys = metricList.map((metric) =>
     buildAnalyticsStorageKey(metric, options?.now),
   );
+  const uniqueStorageKeys = [...new Set(storageKeys)];
 
   if (storageKeys.length === 0) {
     return;
@@ -262,6 +266,8 @@ export async function incrementAnalyticsBatch(
       pipeline.incr(storageKey);
       pipeline.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
     }
+
+    pipeline.sadd(ANALYTICS_REPORTING_INDEX_KEY, ...uniqueStorageKeys);
 
     await pipeline.exec();
   } catch (error) {
@@ -300,6 +306,9 @@ export async function incrementAnalyticsBatchCounts(
     metric,
     storageKey: buildAnalyticsStorageKey(metric, options?.now),
   }));
+  const uniqueStorageKeys = [
+    ...new Set(storageEntries.map(({ storageKey }) => storageKey)),
+  ];
 
   try {
     const pipeline =
@@ -312,6 +321,8 @@ export async function incrementAnalyticsBatchCounts(
 
       pipeline.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
     }
+
+    pipeline.sadd(ANALYTICS_REPORTING_INDEX_KEY, ...uniqueStorageKeys);
 
     await pipeline.exec();
   } catch (error) {
@@ -385,6 +396,38 @@ export function scheduleAnalyticsBatch(
       taskName: options?.taskName ?? "analytics batch",
     },
   );
+}
+
+export function scheduleDeferredAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  const metricList = Array.from(metrics).filter((metric) => metric.length > 0);
+
+  if (metricList.length === 0) {
+    return;
+  }
+
+  if (isUnitTestRuntime()) {
+    scheduleAnalyticsBatch(metricList, options);
+    return;
+  }
+
+  const pendingIncrement = createDeferredTelemetryTask(() =>
+    incrementAnalyticsBatch(metricList, {
+      endpoint: options?.endpoint,
+      logContext: options?.logContext,
+      now: options?.now,
+      request: options?.request,
+    }),
+  );
+
+  scheduleTelemetryTask(() => pendingIncrement, {
+    endpoint: options?.endpoint,
+    forceRequestContext: options?.forceRequestContext,
+    request: options?.request,
+    taskName: options?.taskName ?? "deferred analytics batch",
+  });
 }
 
 function getPendingLowValueAnalyticsBatch(

@@ -23,11 +23,13 @@ import {
 } from "@/lib/api/request-proof";
 import {
   ANALYTICS_COUNTER_TTL_SECONDS,
+  ANALYTICS_REPORTING_INDEX_KEY,
   buildAnalyticsStorageKey,
   flushScheduledTelemetryTasksForTests,
   incrementAnalytics,
   incrementAnalyticsBatch,
   incrementAnalyticsBatchCounts,
+  scheduleDeferredAnalyticsBatch,
   scheduleLowValueAnalyticsIncrement,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
@@ -39,6 +41,7 @@ import {
   sharedRedisMockIncrRaw,
   sharedRedisMockPipeline,
   sharedRedisMockPipelineExec,
+  sharedRedisMockSadd,
 } from "@/tests/unit/__setup__";
 
 function createApiRequest(headers?: Record<string, string>): Request {
@@ -96,6 +99,8 @@ describe("api module hardening", () => {
     sharedRedisMockIncrRaw.mockResolvedValue(1);
     sharedRedisMockExpire.mockReset();
     sharedRedisMockExpire.mockResolvedValue(1);
+    sharedRedisMockSadd.mockReset();
+    sharedRedisMockSadd.mockResolvedValue(1);
     sharedRedisMockPipeline.mockReset();
     sharedRedisMockPipelineExec.mockReset();
     sharedRedisMockPipelineExec.mockResolvedValue([]);
@@ -391,6 +396,10 @@ describe("api module hardening", () => {
       storageKey,
       ANALYTICS_COUNTER_TTL_SECONDS,
     );
+    expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+      ANALYTICS_REPORTING_INDEX_KEY,
+      storageKey,
+    );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
   });
 
@@ -581,6 +590,11 @@ describe("api module hardening", () => {
       "analytics:test_api:cache_misses:redis:month:2026-03",
       ANALYTICS_COUNTER_TTL_SECONDS,
     );
+    expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+      ANALYTICS_REPORTING_INDEX_KEY,
+      "analytics:test_api:cache_misses:month:2026-03",
+      "analytics:test_api:cache_misses:redis:month:2026-03",
+    );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:cache_misses",
     );
@@ -628,9 +642,15 @@ describe("api module hardening", () => {
           "analytics:test_api:rate_limit_errors:month:2026-03",
       ),
     ).toHaveLength(1);
+    expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+      ANALYTICS_REPORTING_INDEX_KEY,
+      "analytics:test_api:failed_requests:month:2026-03",
+      "analytics:test_api:rate_limit_errors:month:2026-03",
+    );
   });
 
   it("buffers low-value analytics signals behind a single waitUntil batch outside unit-test runtime", async () => {
+    const now = new Date("2026-03-27T12:00:00.000Z");
     const requestContextSymbol = Symbol.for("@next/request-context");
     const globalWithRequestContext = globalThis as typeof globalThis & {
       [key: symbol]:
@@ -657,11 +677,13 @@ describe("api module hardening", () => {
     try {
       scheduleLowValueAnalyticsIncrement("analytics:test_api:failed_requests", {
         endpoint: "Test API",
+        now,
         request: createApiRequest(),
         taskName: "failed-requests-1",
       });
       scheduleLowValueAnalyticsIncrement("analytics:test_api:failed_requests", {
         endpoint: "Test API",
+        now,
         request: createApiRequest(),
         taskName: "failed-requests-2",
       });
@@ -669,6 +691,7 @@ describe("api module hardening", () => {
         "analytics:test_api:validation_rejects",
         {
           endpoint: "Test API",
+          now,
           request: createApiRequest(),
           taskName: "validation-rejects",
         },
@@ -692,6 +715,73 @@ describe("api module hardening", () => {
             (call as unknown[])[0] === "analytics:test_api:validation_rejects",
         ),
       ).toHaveLength(1);
+      expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+        ANALYTICS_REPORTING_INDEX_KEY,
+        "analytics:test_api:failed_requests:month:2026-03",
+        "analytics:test_api:validation_rejects:month:2026-03",
+      );
+    } finally {
+      globalWithRequestContext[requestContextSymbol] = originalRequestContext;
+    }
+  });
+
+  it("defers analytics batches off the request path while preserving reporting-index writes", async () => {
+    const now = new Date("2026-03-27T12:00:00.000Z");
+    const requestContextSymbol = Symbol.for("@next/request-context");
+    const globalWithRequestContext = globalThis as typeof globalThis & {
+      [key: symbol]:
+        | {
+            get?: () => {
+              waitUntil?: (promise: Promise<unknown>) => void;
+            };
+          }
+        | undefined;
+    };
+    const originalRequestContext =
+      globalWithRequestContext[requestContextSymbol];
+    const scheduledPromises: Promise<unknown>[] = [];
+
+    disableUnitTestRuntimeForThisTest();
+    globalWithRequestContext[requestContextSymbol] = {
+      get: () => ({
+        waitUntil: (promise) => {
+          scheduledPromises.push(promise);
+        },
+      }),
+    };
+
+    try {
+      scheduleDeferredAnalyticsBatch(
+        [
+          "analytics:test_api:successful_requests",
+          "analytics:test_api:successful_requests:animeStats",
+        ],
+        {
+          endpoint: "Test API",
+          now,
+          request: createApiRequest(),
+          taskName: "deferred-successful-requests",
+        },
+      );
+
+      expect(scheduledPromises).toHaveLength(1);
+      expect(sharedRedisMockPipeline).not.toHaveBeenCalled();
+
+      await Promise.allSettled(scheduledPromises);
+
+      expect(sharedRedisMockPipeline).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockPipelineExec).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:test_api:successful_requests",
+      );
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:test_api:successful_requests:animeStats",
+      );
+      expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+        ANALYTICS_REPORTING_INDEX_KEY,
+        "analytics:test_api:successful_requests:month:2026-03",
+        "analytics:test_api:successful_requests:animeStats:month:2026-03",
+      );
     } finally {
       globalWithRequestContext[requestContextSymbol] = originalRequestContext;
     }

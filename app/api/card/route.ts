@@ -24,6 +24,7 @@ import {
 import {
   buildAnalyticsMetricKey,
   incrementAnalyticsBatch,
+  scheduleDeferredAnalyticsBatch,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 import {
@@ -592,7 +593,10 @@ async function trackFailedRequest(
  */
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
   const metric = buildAnalyticsMetricKey("card_svg", "successful_requests");
-  await incrementAnalyticsBatch([metric, `${metric}:${baseCardType}`]);
+  scheduleDeferredAnalyticsBatch([metric, `${metric}:${baseCardType}`], {
+    endpoint: "Card SVG",
+    taskName: "card-svg-successful-requests",
+  });
 }
 
 /**
@@ -1460,7 +1464,7 @@ async function generateCardResponse(
       );
     }
 
-    await trackSuccessfulRequest(params.baseCardType);
+    void trackSuccessfulRequest(params.baseCardType);
     return createSuccessResponse(svgContent, request, cardConfig.borderRadius, {
       cacheSource: options?.manualRefresh ? "refresh" : "render",
       cachePolicy:

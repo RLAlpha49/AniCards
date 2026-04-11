@@ -1,10 +1,11 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
-import { redisClient, scanAllKeys } from "@/lib/api/clients";
+import { redisClient } from "@/lib/api/clients";
 import { apiJsonHeaders } from "@/lib/api/cors";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { initializeApiRequest } from "@/lib/api/request-guards";
+import { ANALYTICS_REPORTING_INDEX_KEY } from "@/lib/api/telemetry";
 import {
   authorizeCronRequest,
   fetchUpstreamWithRetry,
@@ -67,7 +68,6 @@ interface ErrorSpikeAlertSummary {
   delivery: ErrorSpikeAlertDelivery;
 }
 
-const ANALYTICS_KEYS_PATTERN = "analytics:*";
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
 const DEFAULT_REPORT_READ_LIMIT = 10;
 const MAX_STORED_ANALYTICS_REPORTS = 50;
@@ -93,17 +93,49 @@ function checkCronAuthorization(request: Request): Response | null {
  */
 async function fetchAnalyticsData(
   redisClient: UpstashRedis,
+  options?: {
+    endpoint?: string;
+    request?: Request;
+  },
 ): Promise<AnalyticsData> {
-  const analyticsKeysAll = await scanAllKeys(ANALYTICS_KEYS_PATTERN);
-  const analyticsKeys = analyticsKeysAll.filter(
-    (key) => key !== ANALYTICS_REPORTS_KEY,
-  );
+  const analyticsKeys = (
+    await redisClient.smembers(ANALYTICS_REPORTING_INDEX_KEY)
+  )
+    .filter(
+      (key) =>
+        key !== ANALYTICS_REPORTING_INDEX_KEY && key !== ANALYTICS_REPORTS_KEY,
+    )
+    .sort();
 
   if (analyticsKeys.length === 0) {
     return {};
   }
 
   const values = await redisClient.mget(...analyticsKeys);
+
+  const staleAnalyticsKeys = analyticsKeys.filter(
+    (_, index) => values[index] === null || values[index] === undefined,
+  );
+
+  if (staleAnalyticsKeys.length > 0) {
+    try {
+      await redisClient.srem(
+        ANALYTICS_REPORTING_INDEX_KEY,
+        ...staleAnalyticsKeys,
+      );
+    } catch (error) {
+      logPrivacySafe(
+        "warn",
+        options?.endpoint ?? "Analytics & Reporting",
+        "Failed to prune stale analytics index members",
+        {
+          staleKeyCount: staleAnalyticsKeys.length,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options?.request,
+      );
+    }
+  }
 
   return Object.fromEntries(
     analyticsKeys.map((key, index) => [
@@ -867,7 +899,10 @@ export async function POST(request: Request) {
       request,
       endpoint,
     );
-    const analyticsData = await fetchAnalyticsData(redisClient);
+    const analyticsData = await fetchAnalyticsData(redisClient, {
+      endpoint,
+      request,
+    });
 
     const summary = groupAnalyticsData(analyticsData);
 
