@@ -24,6 +24,81 @@ const ITEM_NAME_SEGMENTER =
     : null;
 const MAX_NAME_GRAPHEMES = 15;
 
+type MixedFavoritesGridCategory =
+  | "anime"
+  | "manga"
+  | "characters"
+  | "staff"
+  | "studios";
+
+type MixedFavoritesGridAvailableCounts = Record<
+  MixedFavoritesGridCategory,
+  number
+>;
+
+const MIXED_FAVORITES_GRID_CATEGORY_ORDER = [
+  "anime",
+  "manga",
+  "characters",
+  "staff",
+  "studios",
+] as const satisfies readonly MixedFavoritesGridCategory[];
+
+function normalizeMixedFavoritesGridCount(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.trunc(value));
+}
+
+function buildMixedFavoritesGridCategorySequence(
+  availableCounts: MixedFavoritesGridAvailableCounts,
+  limit: number,
+): MixedFavoritesGridCategory[] {
+  const normalizedLimit = Math.max(0, Math.trunc(limit));
+  const remainingCounts: MixedFavoritesGridAvailableCounts = {
+    anime: normalizeMixedFavoritesGridCount(availableCounts.anime),
+    manga: normalizeMixedFavoritesGridCount(availableCounts.manga),
+    characters: normalizeMixedFavoritesGridCount(availableCounts.characters),
+    staff: normalizeMixedFavoritesGridCount(availableCounts.staff),
+    studios: normalizeMixedFavoritesGridCount(availableCounts.studios),
+  };
+  const categories: MixedFavoritesGridCategory[] = [];
+  let startIndex = 0;
+
+  while (categories.length < normalizedLimit) {
+    const before = categories.length;
+
+    for (
+      let offset = 0;
+      offset < MIXED_FAVORITES_GRID_CATEGORY_ORDER.length &&
+      categories.length < normalizedLimit;
+      offset += 1
+    ) {
+      const category =
+        MIXED_FAVORITES_GRID_CATEGORY_ORDER[
+          (startIndex + offset) % MIXED_FAVORITES_GRID_CATEGORY_ORDER.length
+        ];
+
+      if (remainingCounts[category] <= 0) {
+        continue;
+      }
+
+      remainingCounts[category] -= 1;
+      categories.push(category);
+    }
+
+    if (categories.length === before) {
+      break;
+    }
+
+    startIndex = (startIndex + 1) % MIXED_FAVORITES_GRID_CATEGORY_ORDER.length;
+  }
+
+  return categories;
+}
+
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,
  * or characters as a visual grid with cover images.
@@ -163,39 +238,6 @@ export const favoritesGridTemplate = (data: {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const takeInterleavedMixed = (
-    anime: GridItem[],
-    manga: GridItem[],
-    characters: GridItem[],
-    staff: GridItem[],
-    studios: GridItem[],
-    limit: number,
-  ): GridItem[] => {
-    // Round-robin across pools until we hit `limit` or all pools are empty.
-    const pools: GridItem[][] = [
-      [...anime],
-      [...manga],
-      [...characters],
-      [...staff],
-      [...studios],
-    ];
-    const result: GridItem[] = [];
-
-    let poolIndex = 0;
-    while (result.length < limit) {
-      const before = result.length;
-      for (let i = 0; i < pools.length && result.length < limit; i++) {
-        const pool = pools[(poolIndex + i) % pools.length];
-        const next = pool.shift();
-        if (next) result.push(next);
-      }
-      poolIndex = (poolIndex + 1) % pools.length;
-      if (result.length === before) break;
-    }
-
-    return result;
-  };
-
   let gridItems: GridItem[] = [];
 
   if (variant === "anime") {
@@ -209,14 +251,41 @@ export const favoritesGridTemplate = (data: {
   } else if (variant === "studios") {
     gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
-    gridItems = takeInterleavedMixed(
-      buildAnimeItems(),
-      buildMangaItems(),
-      buildCharacterItems(),
-      buildStaffItems(),
-      buildStudioItems(),
+    const animeItems = buildAnimeItems();
+    const mangaItems = buildMangaItems();
+    const characterItems = buildCharacterItems();
+    const staffItems = buildStaffItems();
+    const studioItems = buildStudioItems();
+    const itemsByCategory = {
+      anime: animeItems,
+      manga: mangaItems,
+      characters: characterItems,
+      staff: staffItems,
+      studios: studioItems,
+    } satisfies Record<MixedFavoritesGridCategory, GridItem[]>;
+    const nextIndexByCategory: MixedFavoritesGridAvailableCounts = {
+      anime: 0,
+      manga: 0,
+      characters: 0,
+      staff: 0,
+      studios: 0,
+    };
+
+    gridItems = buildMixedFavoritesGridCategorySequence(
+      {
+        anime: animeItems.length,
+        manga: mangaItems.length,
+        characters: characterItems.length,
+        staff: staffItems.length,
+        studios: studioItems.length,
+      },
       gridCapacity,
-    );
+    ).flatMap((category) => {
+      const nextIndex = nextIndexByCategory[category];
+      nextIndexByCategory[category] += 1;
+      const item = itemsByCategory[category][nextIndex];
+      return item ? [item] : [];
+    });
   }
 
   // Always render a full grid; if items are missing, fill with placeholders.

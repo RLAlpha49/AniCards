@@ -58,6 +58,28 @@ interface FetchImageAsDataUrlOptions {
 
 type EmbedImageOptions = FetchImageAsDataUrlOptions;
 
+const IMAGE_EMBED_CONCURRENCY_LIMIT = 4;
+
+type MixedFavoritesGridCategory =
+  | "anime"
+  | "manga"
+  | "characters"
+  | "staff"
+  | "studios";
+
+type MixedFavoritesGridRenderCounts = Record<
+  MixedFavoritesGridCategory,
+  number
+>;
+
+const MIXED_FAVORITES_GRID_CATEGORY_ORDER = [
+  "anime",
+  "manga",
+  "characters",
+  "staff",
+  "studios",
+] as const satisfies readonly MixedFavoritesGridCategory[];
+
 export const imageDataUrlCache = new Map<string, ImageCacheEntry>();
 let imageDataUrlCacheBytes = 0;
 const imageDataUrlInflightCache = new Map<string, Promise<string | null>>();
@@ -272,6 +294,15 @@ async function writeSharedCachedDataUrl(
   }
 }
 
+function scheduleSharedCachedDataUrlWrite(
+  urlString: string,
+  entry: ImageCacheEntry,
+): void {
+  queueMicrotask(() => {
+    void writeSharedCachedDataUrl(urlString, entry).catch(() => undefined);
+  });
+}
+
 /** Clears all local image data URL caches. Intended for tests. */
 export function clearImageDataUrlCaches(): void {
   imageDataUrlCache.clear();
@@ -371,13 +402,19 @@ export async function fetchImageAsDataUrl(
       const dataUrl = `data:${contentType};base64,${base64}`;
       const byteLength = getDataUrlByteLength(dataUrl);
       const expiresAt = Date.now() + IMAGE_DATA_URL_CACHE_TTL_MS;
-
-      setMemoryCachedDataUrl(urlString, dataUrl, expiresAt, byteLength);
-      await writeSharedCachedDataUrl(urlString, {
+      const cacheEntry = {
         dataUrl,
         expiresAt,
         byteLength,
-      });
+      } satisfies ImageCacheEntry;
+
+      setMemoryCachedDataUrl(
+        urlString,
+        cacheEntry.dataUrl,
+        cacheEntry.expiresAt,
+        cacheEntry.byteLength,
+      );
+      scheduleSharedCachedDataUrlWrite(urlString, cacheEntry);
 
       return dataUrl;
     } catch {
@@ -403,9 +440,10 @@ export async function fetchImageAsDataUrl(
  * limit is calculated as `gridRows * gridCols`. This allows layouts other than the
  * base 3x3 (e.g., 5x2).
  *
- * For the "mixed" variant, this tries to fill the grid capacity by pulling from
- * whichever categories have remaining items (i.e., if a category doesn't have
- * enough, it will take more from others when possible).
+ * For the "mixed" variant, embedding follows the same rotating round-robin slot
+ * order the SVG template uses. Studio tiles still consume mixed-grid slots even
+ * though they do not trigger remote image work, so only the first renderable
+ * anime, manga, character, and staff items are embedded.
  */
 
 /**
@@ -414,6 +452,113 @@ export async function fetchImageAsDataUrl(
 function clampGridDim(n: number | undefined, fallback: number): number {
   if (typeof n !== "number" || !Number.isFinite(n)) return fallback;
   return Math.max(1, Math.min(5, Math.trunc(n)));
+}
+
+function createQueueCursor<T>(items: T[]): () => T | null {
+  let nextIndex = 0;
+
+  return () => {
+    if (nextIndex >= items.length) {
+      return null;
+    }
+
+    const next = items[nextIndex];
+    nextIndex += 1;
+    return next;
+  };
+}
+
+async function mapWithConcurrencyLimit<T, TResult>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<TResult>,
+): Promise<TResult[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const queue = items.map((item, index) => ({ item, index }));
+  const results = new Array<TResult>(items.length);
+  const getNextQueueEntry = createQueueCursor(queue);
+  const normalizedLimit = Number.isFinite(limit)
+    ? Math.max(1, Math.trunc(limit))
+    : 1;
+
+  const worker = async () => {
+    while (true) {
+      const next = getNextQueueEntry();
+      if (!next) {
+        break;
+      }
+
+      results[next.index] = await mapper(next.item, next.index);
+    }
+  };
+
+  await Promise.all(
+    new Array(Math.min(normalizedLimit, queue.length))
+      .fill(null)
+      .map(() => worker()),
+  );
+
+  return results;
+}
+
+function computeMixedFavoritesGridRenderCounts(
+  capacity: number,
+  availableCounts: MixedFavoritesGridRenderCounts,
+): MixedFavoritesGridRenderCounts {
+  const normalizedCapacity = Math.max(0, Math.trunc(capacity));
+  const counts: MixedFavoritesGridRenderCounts = {
+    anime: 0,
+    manga: 0,
+    characters: 0,
+    staff: 0,
+    studios: 0,
+  };
+  const remainingCounts: MixedFavoritesGridRenderCounts = {
+    anime: Math.max(0, Math.trunc(availableCounts.anime)),
+    manga: Math.max(0, Math.trunc(availableCounts.manga)),
+    characters: Math.max(0, Math.trunc(availableCounts.characters)),
+    staff: Math.max(0, Math.trunc(availableCounts.staff)),
+    studios: Math.max(0, Math.trunc(availableCounts.studios)),
+  };
+
+  let startIndex = 0;
+  let selected = 0;
+
+  while (selected < normalizedCapacity) {
+    let progressed = false;
+
+    for (
+      let offset = 0;
+      offset < MIXED_FAVORITES_GRID_CATEGORY_ORDER.length &&
+      selected < normalizedCapacity;
+      offset += 1
+    ) {
+      const category =
+        MIXED_FAVORITES_GRID_CATEGORY_ORDER[
+          (startIndex + offset) % MIXED_FAVORITES_GRID_CATEGORY_ORDER.length
+        ];
+
+      if (remainingCounts[category] <= 0) {
+        continue;
+      }
+
+      remainingCounts[category] -= 1;
+      counts[category] += 1;
+      selected += 1;
+      progressed = true;
+    }
+
+    if (!progressed) {
+      break;
+    }
+
+    startIndex = (startIndex + 1) % MIXED_FAVORITES_GRID_CATEGORY_ORDER.length;
+  }
+
+  return counts;
 }
 
 /**
@@ -458,11 +603,13 @@ async function embedCoverNodesWithLimit<
 >(nodes: T[], limit: number, options: EmbedImageOptions = {}): Promise<T[]> {
   const head = nodes.slice(0, limit);
   const tail = nodes.slice(limit);
-  const embeddedHead = await Promise.all(
-    head.map(async (n) => ({
+  const embeddedHead = await mapWithConcurrencyLimit(
+    head,
+    IMAGE_EMBED_CONCURRENCY_LIMIT,
+    async (n) => ({
       ...n,
       coverImage: await embedCover(n.coverImage, options),
-    })),
+    }),
   );
   return [...embeddedHead, ...tail];
 }
@@ -475,11 +622,13 @@ async function embedCharacterNodesWithLimit<
 >(nodes: T[], limit: number, options: EmbedImageOptions = {}): Promise<T[]> {
   const head = nodes.slice(0, limit);
   const tail = nodes.slice(limit);
-  const embeddedHead = await Promise.all(
-    head.map(async (n) => ({
+  const embeddedHead = await mapWithConcurrencyLimit(
+    head,
+    IMAGE_EMBED_CONCURRENCY_LIMIT,
+    async (n) => ({
       ...n,
       image: await embedImage(n.image, options),
-    })),
+    }),
   );
   return [...embeddedHead, ...tail];
 }
@@ -488,8 +637,10 @@ export async function embedMediaListCoverImages(
   entries: MediaListEntry[],
   options: EmbedImageOptions = {},
 ): Promise<MediaListEntry[]> {
-  return Promise.all(
-    entries.map(async (entry) => {
+  return mapWithConcurrencyLimit(
+    entries,
+    IMAGE_EMBED_CONCURRENCY_LIMIT,
+    async (entry) => {
       const coverImage = entry.media.coverImage;
       if (!coverImage) return entry;
 
@@ -500,62 +651,8 @@ export async function embedMediaListCoverImages(
           coverImage: await embedCover(coverImage, options),
         },
       };
-    }),
+    },
   );
-}
-
-/**
- * Compute how many items to take from each available category when filling a mixed grid.
- * The algorithm splits evenly across present categories, then distributes remainder
- * in rounds to categories that still have spare items available.
- */
-function computeMixedCounts(
-  capacity: number,
-  animeAvailable: number,
-  mangaAvailable: number,
-  charactersAvailable: number,
-  staffAvailable: number,
-): Record<"anime" | "manga" | "characters" | "staff", number> {
-  const counts: Record<"anime" | "manga" | "characters" | "staff", number> = {
-    anime: 0,
-    manga: 0,
-    characters: 0,
-    staff: 0,
-  };
-
-  const categories = [
-    { key: "anime" as const, available: animeAvailable },
-    { key: "manga" as const, available: mangaAvailable },
-    { key: "characters" as const, available: charactersAvailable },
-    { key: "staff" as const, available: staffAvailable },
-  ].filter((c) => c.available > 0);
-
-  if (categories.length === 0) return counts;
-
-  const totalAvailable =
-    animeAvailable + mangaAvailable + charactersAvailable + staffAvailable;
-  const targetTotal = Math.min(capacity, totalAvailable);
-  const base = Math.floor(targetTotal / categories.length);
-  let remainder = targetTotal - base * categories.length;
-
-  for (const c of categories) {
-    counts[c.key] = Math.min(base, c.available);
-  }
-
-  while (remainder > 0) {
-    let progressed = false;
-    for (const c of categories) {
-      if (remainder <= 0) break;
-      if (counts[c.key] < c.available) {
-        counts[c.key] += 1;
-        remainder -= 1;
-        progressed = true;
-      }
-    }
-    if (!progressed) break;
-  }
-
-  return counts;
 }
 
 /**
@@ -659,81 +756,78 @@ export async function embedFavoritesGridImages(
     const mangaNodes = favourites.manga?.nodes ?? [];
     const characterNodes = favourites.characters?.nodes ?? [];
     const staffNodes = favourites.staff?.nodes ?? [];
+    const studioNodes = favourites.studios?.nodes ?? [];
+    const animeSection = favourites.anime;
+    const mangaSection = favourites.manga;
+    const charactersSection = favourites.characters;
+    const staffSection = favourites.staff;
 
     const totalAvailable =
       animeNodes.length +
       mangaNodes.length +
       characterNodes.length +
-      staffNodes.length;
+      staffNodes.length +
+      studioNodes.length;
     if (totalAvailable === 0) {
       return {
         ...favourites,
-        anime: favourites.anime
-          ? { ...favourites.anime, nodes: animeNodes }
+        anime: animeSection
+          ? { ...animeSection, nodes: animeNodes }
           : undefined,
-        manga: favourites.manga
-          ? { ...favourites.manga, nodes: mangaNodes }
+        manga: mangaSection
+          ? { ...mangaSection, nodes: mangaNodes }
           : undefined,
-        characters: favourites.characters
-          ? { ...favourites.characters, nodes: characterNodes }
+        characters: charactersSection
+          ? { ...charactersSection, nodes: characterNodes }
           : undefined,
-        staff: favourites.staff
-          ? { ...favourites.staff, nodes: staffNodes }
+        staff: staffSection
+          ? { ...staffSection, nodes: staffNodes }
           : { nodes: [] },
       };
     }
 
-    const counts = computeMixedCounts(
-      capacity,
-      animeNodes.length,
-      mangaNodes.length,
-      characterNodes.length,
-      staffNodes.length,
-    );
+    const counts = computeMixedFavoritesGridRenderCounts(capacity, {
+      anime: animeNodes.length,
+      manga: mangaNodes.length,
+      characters: characterNodes.length,
+      staff: staffNodes.length,
+      studios: studioNodes.length,
+    });
 
-    const anime = favourites.anime
-      ? {
-          ...favourites.anime,
-          nodes: await embedCoverNodesWithLimit(
-            animeNodes,
-            counts.anime,
-            options,
-          ),
-        }
-      : undefined;
-    const manga = favourites.manga
-      ? {
-          ...favourites.manga,
-          nodes: await embedCoverNodesWithLimit(
-            mangaNodes,
-            counts.manga,
-            options,
-          ),
-        }
-      : undefined;
-    const characters = favourites.characters
-      ? {
-          ...favourites.characters,
-          nodes: await embedCharacterNodesWithLimit(
+    const [anime, manga, characters, staff] = await Promise.all([
+      animeSection
+        ? embedCoverNodesWithLimit(animeNodes, counts.anime, options).then(
+            (nodes) => ({
+              ...animeSection,
+              nodes,
+            }),
+          )
+        : Promise.resolve(undefined),
+      mangaSection
+        ? embedCoverNodesWithLimit(mangaNodes, counts.manga, options).then(
+            (nodes) => ({
+              ...mangaSection,
+              nodes,
+            }),
+          )
+        : Promise.resolve(undefined),
+      charactersSection
+        ? embedCharacterNodesWithLimit(
             characterNodes,
             counts.characters,
             options,
-          ),
-        }
-      : undefined;
-
-    const staffLimit =
-      counts.staff && counts.staff > 0
-        ? counts.staff
-        : Math.min(staffNodes.length, capacity);
-    const staff = {
-      ...(favourites.staff ?? { nodes: [] }),
-      nodes: await embedCharacterNodesWithLimit(
-        staffNodes,
-        staffLimit,
-        options,
+          ).then((nodes) => ({
+            ...charactersSection,
+            nodes,
+          }))
+        : Promise.resolve(undefined),
+      embedCharacterNodesWithLimit(staffNodes, counts.staff, options).then(
+        (nodes) => ({
+          ...(staffSection ?? { nodes: [] }),
+          nodes,
+        }),
       ),
-    };
+    ]);
 
     return { ...favourites, anime, manga, characters, staff };
   }

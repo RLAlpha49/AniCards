@@ -5,6 +5,7 @@ import { sharedRedisMockGet, sharedRedisMockSet } from "@/tests/unit/__setup__";
 const {
   clearImageDataUrlCaches,
   embedFavoritesGridImages,
+  embedMediaListCoverImages,
   fetchImageAsDataUrl,
   getImageDataUrlMemoryCacheSizeBytes,
   IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES,
@@ -18,6 +19,12 @@ function createSizedDataUrl(targetBytes: number): string {
   const prefixBytes = Buffer.byteLength(prefix, "utf8");
   const payloadBytes = Math.max(0, targetBytes - prefixBytes);
   return `${prefix}${"A".repeat(payloadBytes)}`;
+}
+
+async function flushMicrotasks(turns = 12): Promise<void> {
+  for (let index = 0; index < turns; index += 1) {
+    await Promise.resolve();
+  }
 }
 
 describe("image-utils shared asset cache", () => {
@@ -188,6 +195,9 @@ describe("image-utils shared asset cache", () => {
     expect(secondResult).toBe(firstResult);
     expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await flushMicrotasks();
+
     expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
 
     const [cacheKey, serializedEntry] = sharedRedisMockSet.mock.calls[0] as [
@@ -198,6 +208,54 @@ describe("image-utils shared asset cache", () => {
     expect(JSON.parse(serializedEntry)).toMatchObject({
       dataUrl: firstResult,
     });
+  });
+
+  it("returns once the in-memory cache is primed instead of waiting on shared-cache persistence", async () => {
+    const imageUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/background-cache-write.jpg";
+
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+
+    let rejectSharedCacheWrite: ((reason?: unknown) => void) | undefined;
+    sharedRedisMockSet.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSharedCacheWrite = reject;
+        }),
+    );
+
+    const fetchMock = mock().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type" ? "image/png" : null,
+      },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const resultPromise = fetchImageAsDataUrl(imageUrl);
+
+    const settledResult = await Promise.race([
+      resultPromise.then((value) => ({
+        state: "resolved" as const,
+        value,
+      })),
+      (async () => {
+        await flushMicrotasks();
+        return { state: "pending" as const };
+      })(),
+    ]);
+
+    expect(settledResult.state).toBe("resolved");
+    if (settledResult.state === "resolved") {
+      expect(settledResult.value).toMatch(/^data:image\/png;base64,/);
+    }
+
+    expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
+
+    rejectSharedCacheWrite?.(new Error("shared cache unavailable"));
+    await flushMicrotasks();
   });
 
   it("skips shared-cache writes for oversized data URLs", async () => {
@@ -323,5 +381,199 @@ describe("image-utils shared asset cache", () => {
       "https://s4.anilist.co/file/anilistcdn/media/anime/1.jpg",
       expect.any(Object),
     );
+  });
+
+  it("only embeds mixed favorites entries that render in the template round-robin order", async () => {
+    const animeOneUrl =
+      "https://s4.anilist.co/file/anilistcdn/media/anime/101.jpg";
+    const animeTwoUrl =
+      "https://s4.anilist.co/file/anilistcdn/media/anime/102.jpg";
+    const mangaOneUrl =
+      "https://s4.anilist.co/file/anilistcdn/media/manga/201.jpg";
+    const mangaTwoUrl =
+      "https://s4.anilist.co/file/anilistcdn/media/manga/202.jpg";
+    const characterOneUrl =
+      "https://s4.anilist.co/file/anilistcdn/character/301.jpg";
+    const characterTwoUrl =
+      "https://s4.anilist.co/file/anilistcdn/character/302.jpg";
+    const staffOneUrl = "https://s4.anilist.co/file/anilistcdn/staff/401.jpg";
+    const staffTwoUrl = "https://s4.anilist.co/file/anilistcdn/staff/402.jpg";
+
+    const favourites = {
+      anime: {
+        nodes: [
+          {
+            id: 101,
+            title: { romaji: "Anime One" },
+            coverImage: { large: animeOneUrl },
+          },
+          {
+            id: 102,
+            title: { romaji: "Anime Two" },
+            coverImage: { large: animeTwoUrl },
+          },
+        ],
+      },
+      manga: {
+        nodes: [
+          {
+            id: 201,
+            title: { romaji: "Manga One" },
+            coverImage: { large: mangaOneUrl },
+          },
+          {
+            id: 202,
+            title: { romaji: "Manga Two" },
+            coverImage: { large: mangaTwoUrl },
+          },
+        ],
+      },
+      characters: {
+        nodes: [
+          {
+            id: 301,
+            name: { full: "Character One" },
+            image: { large: characterOneUrl },
+          },
+          {
+            id: 302,
+            name: { full: "Character Two" },
+            image: { large: characterTwoUrl },
+          },
+        ],
+      },
+      staff: {
+        nodes: [
+          {
+            id: 401,
+            name: { full: "Staff One" },
+            image: { large: staffOneUrl },
+          },
+          {
+            id: 402,
+            name: { full: "Staff Two" },
+            image: { large: staffTwoUrl },
+          },
+        ],
+      },
+      studios: {
+        nodes: [
+          { id: 501, name: "Studio One" },
+          { id: 502, name: "Studio Two" },
+        ],
+      },
+    };
+
+    sharedRedisMockGet.mockResolvedValue(null);
+
+    const fetchMock = mock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      type: "basic",
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type" ? "image/png" : null,
+      },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await embedFavoritesGridImages(favourites, "mixed", 2, 3);
+
+    const fetchedUrls = fetchMock.mock.calls
+      .map((call) => call[0] as string)
+      .sort();
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchedUrls).toEqual(
+      [
+        animeOneUrl,
+        mangaOneUrl,
+        mangaTwoUrl,
+        characterOneUrl,
+        staffOneUrl,
+      ].sort(),
+    );
+
+    expect(result.anime?.nodes?.[0]?.coverImage?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.anime?.nodes?.[1]?.coverImage?.large).toBe(animeTwoUrl);
+    expect(result.manga?.nodes?.[0]?.coverImage?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.manga?.nodes?.[1]?.coverImage?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.characters?.nodes?.[0]?.image?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.characters?.nodes?.[1]?.image?.large).toBe(characterTwoUrl);
+    expect(result.staff?.nodes?.[0]?.image?.large).toMatch(
+      /^data:image\/png;base64,/,
+    );
+    expect(result.staff?.nodes?.[1]?.image?.large).toBe(staffTwoUrl);
+  });
+
+  it("bounds concurrent media cover embedding work on cold misses", async () => {
+    const entries = Array.from({ length: 6 }, (_, index) => ({
+      id: index + 1,
+      progress: index + 1,
+      media: {
+        id: index + 100,
+        title: { romaji: `Entry ${index + 1}` },
+        coverImage: {
+          large: `https://s4.anilist.co/file/anilistcdn/media/anime/${index + 100}.jpg`,
+        },
+      },
+    }));
+
+    sharedRedisMockGet.mockResolvedValue(null);
+
+    let activeFetches = 0;
+    let peakFetches = 0;
+    const releaseFetches: Array<() => void> = [];
+    const fetchMock = mock(
+      () =>
+        new Promise((resolve) => {
+          activeFetches += 1;
+          peakFetches = Math.max(peakFetches, activeFetches);
+          releaseFetches.push(() => {
+            activeFetches -= 1;
+            resolve({
+              ok: true,
+              status: 200,
+              type: "basic",
+              headers: {
+                get: (name: string) =>
+                  name.toLowerCase() === "content-type" ? "image/png" : null,
+              },
+              arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+            });
+          });
+        }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const embedPromise = embedMediaListCoverImages(entries);
+
+    await flushMicrotasks();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(peakFetches).toBe(4);
+
+    while (releaseFetches.length > 0) {
+      releaseFetches.shift()?.();
+      await flushMicrotasks(4);
+    }
+
+    const result = await embedPromise;
+
+    expect(result).toHaveLength(entries.length);
+    expect(fetchMock).toHaveBeenCalledTimes(entries.length);
+    expect(peakFetches).toBe(4);
+    for (const entry of result) {
+      expect(entry.media.coverImage?.large).toMatch(/^data:image\/png;base64,/);
+    }
   });
 });

@@ -336,6 +336,89 @@ describe("svg template renderers", () => {
     expect(svg).toContain("item-placeholder");
   });
 
+  it("keeps studios in the mixed favorites round-robin order", () => {
+    const favourites = {
+      anime: {
+        nodes: [
+          {
+            id: 1,
+            title: { english: "Anime One" },
+            coverImage: { large: "data:image/png;base64,anime-one" },
+          },
+          {
+            id: 2,
+            title: { english: "Anime Two" },
+            coverImage: { large: "data:image/png;base64,anime-two" },
+          },
+        ],
+      },
+      manga: {
+        nodes: [
+          {
+            id: 3,
+            title: { english: "Manga One" },
+            coverImage: { large: "data:image/png;base64,manga-one" },
+          },
+          {
+            id: 4,
+            title: { english: "Manga Two" },
+            coverImage: { large: "data:image/png;base64,manga-two" },
+          },
+        ],
+      },
+      characters: {
+        nodes: [
+          {
+            id: 5,
+            name: { full: "Character One" },
+            image: { large: "data:image/png;base64,character-one" },
+          },
+          {
+            id: 6,
+            name: { full: "Character Two" },
+            image: { large: "data:image/png;base64,character-two" },
+          },
+        ],
+      },
+      staff: {
+        nodes: [
+          {
+            id: 7,
+            name: { full: "Staff One" },
+            image: { large: "data:image/png;base64,staff-one" },
+          },
+          {
+            id: 8,
+            name: { full: "Staff Two" },
+            image: { large: "data:image/png;base64,staff-two" },
+          },
+        ],
+      },
+      studios: {
+        nodes: [
+          { id: 9, name: "Studio One" },
+          { id: 10, name: "Studio Two" },
+        ],
+      },
+    } as UserFavourites;
+
+    const svg = favoritesGridTemplate({
+      username: testUsername,
+      variant: "mixed",
+      styles: baseStyles,
+      favourites,
+      gridCols: 3,
+      gridRows: 2,
+    });
+
+    expect(svg).toContain(
+      "Anime One, Manga One, Character One, Staff One, Studio One, Manga Two.",
+    );
+    expect(svg).not.toContain(
+      "Anime Two, Character Two, Staff Two, Studio Two",
+    );
+  });
+
   it("omits remote cover URLs from currently watching cards", () => {
     const animeCurrent = [
       {
