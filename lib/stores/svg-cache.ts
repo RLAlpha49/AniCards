@@ -1,17 +1,22 @@
-import { gunzipSync, gzipSync } from "node:zlib";
+import { promisify } from "node:util";
+import { gunzip, gzip } from "node:zlib";
 
 import { LRUCache } from "lru-cache";
 
 import { redisClient } from "@/lib/api/clients";
 import {
   buildAnalyticsMetricKey,
-  incrementAnalyticsBatch,
+  scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 
 const DEFAULT_MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_SHARED_TTL_MS = 24 * 60 * 60 * 1000;
 const SHARED_CACHE_KEY_PREFIX = "svg-cache";
 const SHARED_CACHE_COMPRESSION = "gzip-base64-v1" as const;
+const SHARED_CACHE_COMPRESSION_MIN_BYTES = 8 * 1024;
+
+const gzipAsync = promisify(gzip);
+const gunzipAsync = promisify(gunzip);
 
 type CacheMetricSource = "memory" | "redis";
 
@@ -259,12 +264,20 @@ function isCompressedPersistedCachedSvgEntry(
   );
 }
 
-function compressSvg(svg: string): string {
-  return gzipSync(Buffer.from(svg, "utf-8")).toString("base64");
+function shouldCompressSharedSvg(svg: string): boolean {
+  return Buffer.byteLength(svg, "utf-8") >= SHARED_CACHE_COMPRESSION_MIN_BYTES;
 }
 
-function decompressSvg(svgCompressed: string): string {
-  return gunzipSync(Buffer.from(svgCompressed, "base64")).toString("utf-8");
+async function compressSvg(svg: string): Promise<string> {
+  const compressedSvg = await gzipAsync(Buffer.from(svg, "utf-8"));
+  return compressedSvg.toString("base64");
+}
+
+async function decompressSvg(svgCompressed: string): Promise<string> {
+  const decompressedSvg = await gunzipAsync(
+    Buffer.from(svgCompressed, "base64"),
+  );
+  return decompressedSvg.toString("utf-8");
 }
 
 /**
@@ -296,10 +309,12 @@ export async function getSvgFromSharedCache(
       return null;
     }
 
+    const decompressedSvg = await decompressSvg(parsed.svgCompressed);
+
     return {
       cachedAt: parsed.cachedAt,
       ttl: parsed.ttl,
-      svg: decompressSvg(parsed.svgCompressed),
+      svg: decompressedSvg,
       isStale: false,
       ...(typeof parsed.borderRadius === "number"
         ? { borderRadius: parsed.borderRadius }
@@ -328,13 +343,23 @@ export async function setSvgInSharedCache(
   userId?: number,
   borderRadius?: number,
 ): Promise<void> {
-  const entry: CompressedPersistedCachedSvgEntry = {
-    compression: SHARED_CACHE_COMPRESSION,
-    svgCompressed: compressSvg(svg),
+  const entryBase: PersistedCachedSvgEntryBase = {
     cachedAt: Date.now(),
     ttl,
     ...(typeof borderRadius === "number" ? { borderRadius } : {}),
   };
+  const entry:
+    | LegacyPersistedCachedSvgEntry
+    | CompressedPersistedCachedSvgEntry = shouldCompressSharedSvg(svg)
+    ? {
+        ...entryBase,
+        compression: SHARED_CACHE_COMPRESSION,
+        svgCompressed: await compressSvg(svg),
+      }
+    : {
+        ...entryBase,
+        svg,
+      };
 
   try {
     await redisClient.set(getSharedCacheKey(cacheKey), JSON.stringify(entry), {
@@ -424,5 +449,12 @@ export async function trackCacheMetric(
   const includeOverall = options?.includeOverall ?? true;
 
   const metrics = includeOverall ? [metric, suffixedMetric] : [suffixedMetric];
-  await incrementAnalyticsBatch(metrics);
+  scheduleLowValueAnalyticsBatch(metrics, {
+    endpoint: "Card SVG",
+    logContext: {
+      metricType,
+      source,
+    },
+    taskName: `card-svg-${metricType}-${source}`,
+  });
 }

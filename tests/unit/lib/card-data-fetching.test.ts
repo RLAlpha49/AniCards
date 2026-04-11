@@ -73,6 +73,8 @@ function createStatisticsPart() {
   });
 }
 
+type LoadedUserDoc = Awaited<ReturnType<typeof fetchUserData>>["userDoc"];
+
 describe("card-data fetchUserData", () => {
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
@@ -219,6 +221,87 @@ describe("card-data fetchUserData", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:card_svg:corrupted_card_records",
     );
+  });
+
+  it("loads only meta and aggregates for aggregate-backed saved-card renders", async () => {
+    const cases: Array<{
+      aggregatePart: string;
+      assertUserDoc: (userDoc: LoadedUserDoc) => void;
+      cardName:
+        | "animeSourceMaterialDistribution"
+        | "animeSeasonalPreference"
+        | "studioCollaboration";
+    }> = [
+      {
+        cardName: "animeSourceMaterialDistribution",
+        aggregatePart: JSON.stringify({
+          animeSourceMaterialDistributionTotals: [
+            { source: "MANGA", count: 3 },
+          ],
+        }),
+        assertUserDoc: (userDoc) => {
+          expect(
+            userDoc.aggregates?.animeSourceMaterialDistributionTotals,
+          ).toEqual([{ source: "MANGA", count: 3 }]);
+        },
+      },
+      {
+        cardName: "animeSeasonalPreference",
+        aggregatePart: JSON.stringify({
+          animeSeasonalPreferenceTotals: [{ season: "WINTER", count: 5 }],
+        }),
+        assertUserDoc: (userDoc) => {
+          expect(userDoc.aggregates?.animeSeasonalPreferenceTotals).toEqual([
+            { season: "WINTER", count: 5 },
+          ]);
+        },
+      },
+      {
+        cardName: "studioCollaboration",
+        aggregatePart: JSON.stringify({
+          studioCollaborationTotals: [{ a: "Bones", b: "MAPPA", count: 2 }],
+        }),
+        assertUserDoc: (userDoc) => {
+          expect(userDoc.aggregates?.studioCollaborationTotals).toEqual([
+            { a: "Bones", b: "MAPPA", count: 2 },
+          ]);
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      sharedRedisMockGet.mockReset();
+      sharedRedisMockMget.mockReset();
+      sharedRedisMockIncr.mockReset();
+      sharedRedisMockIncr.mockResolvedValue(1);
+
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === "cards:42") {
+          return Promise.resolve(
+            JSON.stringify({
+              userId: 42,
+              updatedAt: "2026-03-27T00:00:03.000Z",
+              cards: [{ cardName: testCase.cardName }],
+            }),
+          );
+        }
+
+        if (key === "user:42:commit") {
+          return Promise.resolve(createSplitCommit("42"));
+        }
+
+        return Promise.resolve(null);
+      });
+      sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
+        expect(keys).toEqual(["user:42:meta", "user:42:aggregates"]);
+        return [createMetaPart("42"), testCase.aggregatePart];
+      });
+
+      const result = await fetchUserData(42, testCase.cardName);
+
+      expect(result.userDoc.userId).toBe("42");
+      testCase.assertUserDoc(result.userDoc);
+    }
   });
 });
 

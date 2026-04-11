@@ -991,44 +991,7 @@ describe("Card SVG Route", () => {
         ],
       });
 
-      const currentPart = JSON.stringify({
-        animeCurrent: {
-          lists: [
-            {
-              name: "All",
-              entries: [
-                {
-                  id: 1,
-                  media: { id: 1, title: { romaji: "X" }, source: "OTHER" },
-                },
-              ],
-            },
-          ],
-        },
-      });
-
-      const completedPart = JSON.stringify({
-        animeCompleted: {
-          lists: [
-            {
-              name: "All",
-              entries: [
-                {
-                  id: 2,
-                  media: { id: 2, title: { romaji: "Y" }, source: "OTHER" },
-                },
-              ],
-            },
-          ],
-        },
-      });
-
-      sharedRedisMockMget.mockResolvedValueOnce([
-        metaPart,
-        currentPart,
-        completedPart,
-        aggregatesPart,
-      ]);
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart, aggregatesPart]);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1039,6 +1002,10 @@ describe("Card SVG Route", () => {
 
       const res = await GET(req);
       expect(res.status).toBe(200);
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        "user:542244:meta",
+        "user:542244:aggregates",
+      );
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
       const callArgs = (
@@ -1077,44 +1044,7 @@ describe("Card SVG Route", () => {
         ],
       });
 
-      const currentPart = JSON.stringify({
-        animeCurrent: {
-          lists: [
-            {
-              name: "All",
-              entries: [
-                {
-                  id: 1,
-                  media: { id: 1, title: { romaji: "X" }, season: "FALL" },
-                },
-              ],
-            },
-          ],
-        },
-      });
-
-      const completedPart = JSON.stringify({
-        animeCompleted: {
-          lists: [
-            {
-              name: "All",
-              entries: [
-                {
-                  id: 2,
-                  media: { id: 2, title: { romaji: "Y" }, season: "FALL" },
-                },
-              ],
-            },
-          ],
-        },
-      });
-
-      sharedRedisMockMget.mockResolvedValueOnce([
-        metaPart,
-        currentPart,
-        completedPart,
-        aggregatesPart,
-      ]);
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart, aggregatesPart]);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1125,6 +1055,10 @@ describe("Card SVG Route", () => {
 
       const res = await GET(req);
       expect(res.status).toBe(200);
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        "user:542244:meta",
+        "user:542244:aggregates",
+      );
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
       const callArgs = (
@@ -1213,15 +1147,7 @@ describe("Card SVG Route", () => {
         ],
       });
 
-      const completedPart = JSON.stringify({
-        animeCompleted: { lists: [] },
-      });
-
-      sharedRedisMockMget.mockResolvedValueOnce([
-        metaPart,
-        completedPart,
-        aggregatesPart,
-      ]);
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart, aggregatesPart]);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1232,6 +1158,10 @@ describe("Card SVG Route", () => {
 
       const res = await GET(req);
       expect(res.status).toBe(200);
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        "user:542244:meta",
+        "user:542244:aggregates",
+      );
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
       const callArgs = (
@@ -2991,10 +2921,19 @@ describe("Card SVG Route", () => {
         svgCompressed?: string;
       };
 
-      expect(parsedSharedCachePayload.compression).toBe("gzip-base64-v1");
-      expect(parsedSharedCachePayload.svg).toBeUndefined();
-      expect(parsedSharedCachePayload.svgCompressed).toBeTruthy();
-      expect(parsedSharedCachePayload.svgCompressed).not.toContain("<svg");
+      const usesCompressedPayload =
+        parsedSharedCachePayload.compression === "gzip-base64-v1" &&
+        typeof parsedSharedCachePayload.svgCompressed === "string";
+
+      if (usesCompressedPayload) {
+        expect(parsedSharedCachePayload.svg).toBeUndefined();
+        expect(parsedSharedCachePayload.svgCompressed).toBeTruthy();
+        expect(parsedSharedCachePayload.svgCompressed).not.toContain("<svg");
+      } else {
+        expect(parsedSharedCachePayload.compression).toBeUndefined();
+        expect(parsedSharedCachePayload.svg).toContain("<svg");
+        expect(parsedSharedCachePayload.svgCompressed).toBeUndefined();
+      }
 
       clearSvgCache();
       resetSharedRouteMocks();
