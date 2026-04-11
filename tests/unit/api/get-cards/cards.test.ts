@@ -145,6 +145,9 @@ describe("Cards API GET Endpoint", () => {
       expect(res.status).toBe(404);
       const json = await getResponseJson(res);
       expect(json.error).toBe("Cards not found");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:cards_api:failed_requests",
+      );
     });
 
     it("should successfully return card data when present", async () => {

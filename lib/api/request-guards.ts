@@ -19,8 +19,7 @@ import {
 } from "@/lib/api/request-proof";
 import {
   buildAnalyticsMetricKey,
-  incrementAnalytics,
-  scheduleTelemetryTask,
+  scheduleLowValueAnalyticsIncrement,
 } from "@/lib/api/telemetry";
 
 function incrementFailedRequestMetric(
@@ -29,10 +28,10 @@ function incrementFailedRequestMetric(
   request: Request,
 ): void {
   const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-  scheduleTelemetryTask(() => incrementAnalytics(metric), {
+  scheduleLowValueAnalyticsIncrement(metric, {
     endpoint: endpointName,
-    taskName: metric,
     request,
+    taskName: metric,
   });
 }
 

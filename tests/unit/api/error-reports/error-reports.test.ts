@@ -5,9 +5,11 @@ import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
 } from "@/lib/api/request-proof";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { ERROR_REPORT_REQUEST_MAX_BYTES } from "@/lib/error-tracking";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
   sharedRedisMockLtrim,
@@ -222,6 +224,135 @@ describe("error reports API route", () => {
     expect(report.metadata?.currentUpdatedAt).toBe("2026-04-02T12:34:56.000Z");
   });
 
+  it("preserves only safe recovery action URLs from client payloads", async () => {
+    const response = await POST(
+      createRequest({
+        source: "client_hook",
+        userAction: "user_page_load",
+        message: "Recovery suggestions should preserve safe links only",
+        category: "server_error",
+        recoverySuggestions: [
+          {
+            title: "Go home",
+            description: "Return to the AniCards homepage and try again.",
+            actionLabel: "Go home",
+            actionUrl: "/?from=error",
+          },
+          {
+            title: "Visit AniList",
+            description: "Open AniList directly to confirm upstream status.",
+            actionLabel: "Visit AniList",
+            actionUrl: "https://anilist.co",
+          },
+          {
+            title: "Reject HTTP link",
+            description: "HTTP recovery links should be dropped.",
+            actionLabel: "Unsafe",
+            actionUrl: "http://example.com/recovery",
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+        actionUrl?: string;
+      }>;
+    };
+
+    expect(report.suggestions).toEqual([
+      {
+        title: "Go home",
+        description: "Return to the AniCards homepage and try again.",
+        actionLabel: "Go home",
+        actionUrl: "/?from=error",
+      },
+      {
+        title: "Visit AniList",
+        description: "Open AniList directly to confirm upstream status.",
+        actionLabel: "Visit AniList",
+        actionUrl: "https://anilist.co/",
+      },
+      {
+        title: "Reject HTTP link",
+        description: "HTTP recovery links should be dropped.",
+        actionLabel: "Unsafe",
+      },
+    ]);
+  });
+
+  it("accepts analytics instrumentation reports and preserves client incident identity", async () => {
+    const incidentId = "rep-analytics-incident-12345";
+    const occurredAt = 1_776_057_602_500;
+
+    const response = await POST(
+      createRequest({
+        id: incidentId,
+        timestamp: occurredAt,
+        source: "analytics_instrumentation",
+        userAction: "analytics_pageview_dispatch",
+        message: "Failed to fetch analytics beacon",
+        category: "network_error",
+        retryable: true,
+        requestId: "req-analytics-route-12345",
+        errorName: "TypeError",
+        metadata: {
+          analyticsFailureBucket: "network",
+          analyticsFailureCount: 3,
+          analyticsSuppressedDuplicates: 1,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      id?: string;
+      timestamp?: number;
+      source: string;
+      category: string;
+      retryable: boolean;
+    };
+
+    expect(report.id).toBe(incidentId);
+    expect(report.timestamp).toBe(occurredAt);
+    expect(report.source).toBe("analytics_instrumentation");
+    expect(report.category).toBe("network_error");
+    expect(report.retryable).toBe(true);
+  });
+
+  it("records accepted error-report telemetry with bounded source and category metrics", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+
+    try {
+      const response = await POST(createRequest());
+
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(response.status).toBe(200);
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining([
+          "analytics:error_reports:accepted_reports",
+          "analytics:error_reports:accepted_reports:source:react_error_boundary",
+          "analytics:error_reports:accepted_reports:category:network_error",
+        ]),
+      );
+    } finally {
+      observedIncrements.release();
+    }
+  });
+
   it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
     sharedRatelimitMockLimit.mockResolvedValueOnce({
       success: false,
@@ -341,14 +472,65 @@ describe("error reports API route", () => {
   });
 
   it("rejects missing required fields", async () => {
-    const response = await POST(
-      createRequest({
-        source: "react_error_boundary",
-      }),
-    );
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
+    const observedIncrements = captureSharedRedisIncrCalls();
 
-    expect(response.status).toBe(400);
-    expect((await response.json()).error).toBe("Invalid error report payload");
+    try {
+      const response = await POST(
+        createRequest(
+          {
+            source: "client_hook",
+            userAction: "submit_error_feedback",
+          },
+          {
+            "x-request-id": "req-error-reject-12345",
+          },
+        ),
+      );
+
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toBe(
+        "Invalid error report payload",
+      );
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining(["analytics:error_reports:rejected_reports"]),
+      );
+
+      const logCall = consoleWarn.mock.calls.at(-1) as [string] | undefined;
+      expect(logCall).toBeDefined();
+
+      const logEntry = JSON.parse(String(logCall?.[0])) as {
+        context?: {
+          issueCount?: number;
+          issueFields?: string;
+          source?: string;
+          userAction?: string;
+        };
+        endpoint?: string;
+        message?: string;
+        method?: string;
+        path?: string;
+        requestId?: string;
+      };
+
+      expect(logEntry).toMatchObject({
+        endpoint: "Error Reports API",
+        message: "Rejected invalid error report payload",
+        method: "POST",
+        path: "/api/error-reports",
+        requestId: "req-error-reject-12345",
+        context: expect.objectContaining({
+          issueCount: 1,
+          issueFields: "message",
+          source: "client_hook",
+          userAction: "submit_error_feedback",
+        }),
+      });
+    } finally {
+      observedIncrements.release();
+    }
   });
 
   it("persists redacted error text and minimized metadata", async () => {

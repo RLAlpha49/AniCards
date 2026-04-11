@@ -274,6 +274,37 @@ describe("card-data resolveUserIdFromUsername", () => {
 
     expect(sharedRedisMockGet).toHaveBeenCalledWith("username:test-user");
     expect(userId).toBe(42);
+
+    const consoleLogCalls = (
+      console.log as unknown as {
+        mock: {
+          calls: Array<[string]>;
+        };
+      }
+    ).mock.calls;
+
+    expect(consoleLogCalls).toHaveLength(2);
+
+    const searchLog = JSON.parse(String(consoleLogCalls[0]?.[0])) as {
+      message?: string;
+      context?: {
+        username?: string;
+      };
+    };
+    const resolvedLog = JSON.parse(String(consoleLogCalls[1]?.[0])) as {
+      message?: string;
+      context?: {
+        username?: string;
+        userId?: string;
+      };
+    };
+
+    expect(searchLog.message).toBe("Searching username index");
+    expect(searchLog.context?.username).toBe("te***(9)");
+    expect(resolvedLog.message).toBe("Resolved lookup by username");
+    expect(resolvedLog.context?.username).toBe("te***(9)");
+    expect(resolvedLog.context?.userId).toBe("id:***42");
+    expect(JSON.stringify([searchLog, resolvedLog])).not.toContain("test-user");
   });
 
   it("returns null for missing or non-numeric username index entries", async () => {

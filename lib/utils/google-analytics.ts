@@ -61,6 +61,13 @@ interface SafeTrackOptions {
   metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>;
 }
 
+interface AnalyticsFallbackLogOptions {
+  category: ErrorCategory;
+  error: unknown;
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue>;
+  userAction: AnalyticsInstrumentationUserAction;
+}
+
 const isAsciiLowerAlphaNumeric = (char: string): boolean => {
   const code = char.codePointAt(0);
 
@@ -325,6 +332,50 @@ const sanitizeAnalyticsTelemetryMetadata = (
     : undefined;
 };
 
+const getCurrentAnalyticsPagePath = (): string | undefined => {
+  if (globalThis.location === undefined) {
+    return undefined;
+  }
+
+  return normalizeAnalyticsPage({
+    pathname: globalThis.location.pathname,
+    search: globalThis.location.search,
+  }).pagePath;
+};
+
+const logAnalyticsInstrumentationFallback = (
+  options: AnalyticsFallbackLogOptions,
+): void => {
+  const normalizedError = normalizeAnalyticsFailureError(
+    options.error,
+    "Analytics instrumentation fallback logging failed",
+  );
+
+  const safeContext = sanitizeAnalyticsTelemetryMetadata({
+    analyticsReporterFailureBucket: classifyAnalyticsError(
+      `${normalizedError.name} ${normalizedError.message}`,
+    ),
+    analyticsReporterFailureName: sanitizeAnalyticsToken(
+      normalizedError.name,
+      "error",
+    ),
+    analyticsReporterPhase: "bootstrap",
+    category: options.category,
+    userAction: options.userAction,
+    ...options.metadata,
+  });
+
+  console.warn(
+    JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "warn",
+      endpoint: "AnalyticsTelemetry",
+      message: "Failed to report analytics instrumentation failure",
+      ...(safeContext ? { context: safeContext } : {}),
+    }),
+  );
+};
+
 const trimAnalyticsFailureBuckets = (now: number): void => {
   for (const [key, bucket] of analyticsFailureBuckets) {
     if (now - bucket.lastSeenAt > ANALYTICS_FAILURE_BUCKET_TTL_MS) {
@@ -446,12 +497,13 @@ export const reportAnalyticsInstrumentationFailure = (
       });
     })
     .catch((error) => {
-      if (process.env.NODE_ENV === "development") {
-        console.error(
-          "[AnalyticsTelemetry] Failed to report analytics instrumentation failure:",
-          error,
-        );
-      }
+      logAnalyticsInstrumentationFallback({
+        category:
+          options.category ?? mapAnalyticsErrorBucketToCategory(errorBucket),
+        error,
+        metadata,
+        userAction: options.userAction,
+      });
     });
 };
 
@@ -592,10 +644,24 @@ export function setAnalyticsConsentState(
 ): void {
   cachedConsentState = nextState;
 
-  try {
-    getStorage()?.setItem(ANALYTICS_CONSENT_STORAGE_KEY, nextState);
-  } catch {
-    // Ignore storage failures; in-memory consent still applies for this tab.
+  if (globalThis.window !== undefined) {
+    try {
+      globalThis.window.localStorage.setItem(
+        ANALYTICS_CONSENT_STORAGE_KEY,
+        nextState,
+      );
+    } catch (error) {
+      void reportAnalyticsInstrumentationFailure({
+        userAction: "analytics_consent_update",
+        error,
+        metadata: {
+          analyticsConsentPersistence: "local_storage",
+          consentGranted: nextState === "granted",
+          consentState: nextState,
+          pagePath: getCurrentAnalyticsPagePath(),
+        },
+      });
+    }
   }
 
   updateAnalyticsConsentMode(nextState === "granted");

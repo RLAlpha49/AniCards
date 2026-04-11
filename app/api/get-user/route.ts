@@ -15,7 +15,10 @@ import { parseStrictPositiveInteger } from "@/lib/api/primitives";
 import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write-grants";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { initializeApiRequest } from "@/lib/api/request-guards";
-import { incrementAnalytics } from "@/lib/api/telemetry";
+import {
+  scheduleAnalyticsIncrement,
+  scheduleLowValueAnalyticsIncrement,
+} from "@/lib/api/telemetry";
 import { isValidUsername } from "@/lib/api/validation";
 import {
   ALL_USER_DATA_PARTS,
@@ -37,8 +40,22 @@ const USER_API_ENDPOINT = "User API";
 const USER_API_FAILED_METRIC = "analytics:user_api:failed_requests";
 const USER_API_SUCCESS_METRIC = "analytics:user_api:successful_requests";
 
-function trackUserApiMetric(metric: string): void {
-  incrementAnalytics(metric).catch(() => {});
+function trackUserApiMetric(
+  metric: string,
+  request: Request,
+  options?: {
+    lowValue?: boolean;
+  },
+): void {
+  const scheduleMetric = options?.lowValue
+    ? scheduleLowValueAnalyticsIncrement
+    : scheduleAnalyticsIncrement;
+
+  scheduleMetric(metric, {
+    endpoint: USER_API_ENDPOINT,
+    request,
+    taskName: metric,
+  });
 }
 
 function respondWithUserApiError(
@@ -48,8 +65,10 @@ function respondWithUserApiError(
   logMessage: string,
   context?: Record<string, unknown>,
 ): Response {
-  logPrivacySafe("warn", USER_API_ENDPOINT, logMessage, context);
-  trackUserApiMetric(USER_API_FAILED_METRIC);
+  logPrivacySafe("warn", USER_API_ENDPOINT, logMessage, context, request);
+  trackUserApiMetric(USER_API_FAILED_METRIC, request, {
+    lowValue: true,
+  });
   return apiErrorResponse(request, status, error);
 }
 
@@ -177,7 +196,9 @@ async function handleStaleUsernameAlias(
     state,
   });
 
-  trackUserApiMetric(USER_API_FAILED_METRIC);
+  trackUserApiMetric(USER_API_FAILED_METRIC, request, {
+    lowValue: true,
+  });
   return apiErrorResponse(request, 404, "User not found");
 }
 
@@ -248,6 +269,9 @@ export async function GET(request: Request) {
         },
         request,
       );
+      trackUserApiMetric(USER_API_FAILED_METRIC, request, {
+        lowValue: true,
+      });
       return apiErrorResponse(request, 404, "User not found");
     }
 
@@ -284,7 +308,7 @@ export async function GET(request: Request) {
       },
       request,
     );
-    trackUserApiMetric(USER_API_SUCCESS_METRIC);
+    trackUserApiMetric(USER_API_SUCCESS_METRIC, request);
 
     const protectedWriteGrantHeader =
       await createProtectedWriteGrantCookieHeader({

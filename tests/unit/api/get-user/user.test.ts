@@ -370,6 +370,9 @@ describe("User API GET Endpoint", () => {
 
     it("should return 404 when split user record is not found", async () => {
       await expectError("userId=123", 404, "User not found");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:user_api:failed_requests",
+      );
     });
 
     it("should return 500 when Redis throws during split fetch", async () => {

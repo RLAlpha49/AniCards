@@ -6,6 +6,7 @@
  * @source
  */
 
+import { requestClientJson } from "@/lib/api/client-fetch";
 import { redisClient } from "@/lib/api/clients";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
@@ -18,11 +19,12 @@ import {
   type ErrorReportMetadataValue,
   sanitizeErrorReportMetadata,
   sanitizeErrorReportRoute,
+  sanitizeErrorReportStackTrace,
   sanitizeErrorReportText,
   sanitizeOptionalText,
   truncateText,
 } from "@/lib/error-report-sanitization";
-import { getStructuredResponseError, parseResponsePayload } from "@/lib/utils";
+import { getStructuredResponseError } from "@/lib/utils";
 
 export type ErrorReportSource =
   | "user_action"
@@ -37,6 +39,7 @@ type ErrorReportEnvironment = "client" | "server";
 type SerializableMetadataValue = ErrorReportMetadataValue;
 
 interface ReportErrorOptions {
+  id?: string;
   userAction: string;
   error: unknown;
   category?: ErrorCategory;
@@ -139,6 +142,14 @@ const MAX_RECOVERY_SUGGESTIONS = 6;
 const MAX_RECOVERY_SUGGESTION_TITLE_LENGTH = 120;
 const MAX_RECOVERY_SUGGESTION_DESCRIPTION_LENGTH = 240;
 const MAX_RECOVERY_SUGGESTION_ACTION_LABEL_LENGTH = 80;
+const MAX_RECOVERY_SUGGESTION_ACTION_URL_LENGTH = 1024;
+const RECOVERY_SUGGESTION_INTERNAL_URL_BASE = "https://anicards.local";
+const CLIENT_ERROR_REPORT_DELIVERY_TIMEOUT_MS = 5_000;
+const CLIENT_ERROR_REPORT_DURABLE_OUTCOME_USER_ACTION =
+  "client_error_report_delivery_outcomes";
+const CLIENT_ERROR_REPORT_DURABLE_OUTCOME_MESSAGE =
+  "Client error report queue observed local delivery outcomes before durable reporting resumed.";
+const MAX_CLIENT_ERROR_REPORT_DURABLE_OUTCOME_SAMPLES = 5;
 
 function roundRatio(value: number): number {
   return Number(value.toFixed(4));
@@ -212,6 +223,10 @@ type ClientErrorReportQueueDropReason =
   | "queue_expired"
   | "max_attempts";
 
+type ClientErrorReportDeliveryOutcomeReason =
+  | ClientErrorReportQueueDropReason
+  | "non_retryable_delivery";
+
 interface ClientErrorReportQueueTriage {
   source: ErrorReportSource;
   userAction: string;
@@ -219,6 +234,7 @@ interface ClientErrorReportQueueTriage {
   route?: string;
   requestId?: string;
   digest?: string;
+  statusCode?: number;
   errorName: string;
   technicalMessage: string;
 }
@@ -229,6 +245,20 @@ interface ClientErrorReportQueueEvent extends ClientErrorReportQueueTriage {
   attempts?: number;
 }
 
+interface ClientErrorReportDeliveryOutcomeEvent extends ClientErrorReportQueueTriage {
+  reason: ClientErrorReportDeliveryOutcomeReason;
+  timestamp: number;
+  attempts?: number;
+}
+
+interface ClientErrorReportPendingDurableOutcomes {
+  nonRetryableDeliveryCount: number;
+  queueEvictedCount: number;
+  queueExpiredCount: number;
+  queueMaxAttemptsCount: number;
+  recentOutcomes: ClientErrorReportDeliveryOutcomeEvent[];
+}
+
 interface ClientErrorReportQueueStats {
   storage: ClientErrorReportQueueStorageKind;
   totalQueued: number;
@@ -236,14 +266,16 @@ interface ClientErrorReportQueueStats {
   totalEvicted: number;
   totalExpired: number;
   totalDroppedAfterMaxAttempts: number;
+  totalNonRetryableDeliveryFailures: number;
   totalRateLimited: number;
   recentDrops: ClientErrorReportQueueEvent[];
 }
 
 interface ClientErrorReportQueueState {
-  version: 1;
+  version: 2;
   reports: QueuedClientErrorReport[];
   stats: ClientErrorReportQueueStats;
+  pendingDurableOutcomes: ClientErrorReportPendingDurableOutcomes;
 }
 
 interface ClientErrorReportStorageHandle {
@@ -302,68 +334,10 @@ class ClientErrorReportDeliveryError extends Error {
 }
 
 let isFlushingQueuedClientErrorReports = false;
+let isFlushingPendingClientErrorReportOutcomes = false;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isWhitespaceCodePoint(codePoint: number | undefined): boolean {
-  return (
-    codePoint === 0x20 ||
-    codePoint === 0x09 ||
-    codePoint === 0x0a ||
-    codePoint === 0x0d ||
-    codePoint === 0x0c ||
-    codePoint === 0x0b
-  );
-}
-
-function sanitizeStackFrame(line: string): string | undefined {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("at ")) return undefined;
-
-  const frameText = trimmed.slice(3).trimStart();
-  let frameLabelEnd = frameText.length;
-
-  for (let index = 1; index < frameText.length; index++) {
-    if (
-      frameText.codePointAt(index) === 0x28 &&
-      isWhitespaceCodePoint(frameText.codePointAt(index - 1))
-    ) {
-      let whitespaceStart = index - 1;
-
-      while (
-        whitespaceStart > 0 &&
-        isWhitespaceCodePoint(frameText.codePointAt(whitespaceStart - 1))
-      ) {
-        whitespaceStart--;
-      }
-
-      frameLabelEnd = whitespaceStart;
-      break;
-    }
-  }
-
-  const frameLabel = frameText.slice(0, frameLabelEnd).trim();
-  if (!frameLabel) return "at <frame>";
-
-  return `at ${truncateText(frameLabel.replaceAll(/\s+/g, " "), 160)}`;
-}
-
-function sanitizeStackTrace(
-  value: string | undefined,
-  maxLength: number,
-): string | undefined {
-  if (typeof value !== "string") return undefined;
-
-  const frames = value
-    .split(/\r?\n/)
-    .map((line) => sanitizeStackFrame(line))
-    .filter((line): line is string => typeof line === "string")
-    .slice(0, 12);
-
-  if (frames.length === 0) return undefined;
-  return truncateText(frames.join("\n"), maxLength);
 }
 
 function sanitizeUserAction(userAction: string): string {
@@ -383,6 +357,18 @@ function sanitizeRequestId(value: unknown): string | undefined {
   }
 
   return trimmed;
+}
+
+function sanitizeIncidentId(value: unknown): string | undefined {
+  return sanitizeRequestId(value);
+}
+
+function normalizeErrorReportTimestamp(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    return undefined;
+  }
+
+  return Math.trunc(value);
 }
 
 function getRetryAfterMs(retryAfterHeader: string | null): number | undefined {
@@ -415,6 +401,42 @@ function resolveReportRequestId(
     sanitizeRequestId(options.requestId) ??
     sanitizeRequestId(options.metadata?.requestId)
   );
+}
+
+function sanitizeRecoverySuggestionActionUrl(
+  value: unknown,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > MAX_RECOVERY_SUGGESTION_ACTION_URL_LENGTH
+  ) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith("/")) {
+    if (trimmed.startsWith("//")) {
+      return undefined;
+    }
+
+    try {
+      const parsed = new URL(trimmed, RECOVERY_SUGGESTION_INTERNAL_URL_BASE);
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return undefined;
+    }
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function sanitizeRecoverySuggestions(
@@ -454,12 +476,16 @@ function sanitizeRecoverySuggestions(
           normalizeRelativeRoutes: false,
         },
       );
+      const actionUrl = sanitizeRecoverySuggestionActionUrl(
+        suggestion.actionUrl,
+      );
 
       return [
         {
           title,
           description,
           ...(actionLabel ? { actionLabel } : {}),
+          ...(actionUrl ? { actionUrl } : {}),
         } satisfies RecoverySuggestion,
       ];
     });
@@ -527,16 +553,17 @@ function resolveErrorStack(
   error: unknown,
   explicitStack?: string,
 ): string | undefined {
-  const sanitizedExplicitStack = sanitizeStackTrace(
-    explicitStack,
-    MAX_STACK_LENGTH,
-  );
+  const sanitizedExplicitStack = sanitizeErrorReportStackTrace(explicitStack, {
+    maxLength: MAX_STACK_LENGTH,
+  });
   if (sanitizedExplicitStack) {
     return sanitizedExplicitStack;
   }
 
   return error instanceof Error
-    ? sanitizeStackTrace(error.stack, MAX_STACK_LENGTH)
+    ? sanitizeErrorReportStackTrace(error.stack, {
+        maxLength: MAX_STACK_LENGTH,
+      })
     : undefined;
 }
 
@@ -567,8 +594,8 @@ function buildStructuredErrorReport(
   );
 
   return {
-    id: crypto.randomUUID(),
-    timestamp: options.timestamp ?? Date.now(),
+    id: sanitizeIncidentId(options.id) ?? crypto.randomUUID(),
+    timestamp: normalizeErrorReportTimestamp(options.timestamp) ?? Date.now(),
     environment: globalThis.window === undefined ? "server" : "client",
     source: options.source ?? "user_action",
     userAction: sanitizeUserAction(options.userAction),
@@ -583,10 +610,9 @@ function buildStructuredErrorReport(
     errorName: resolveErrorName(options.error, options.errorName),
     digest: sanitizeOptionalText(options.digest, 120),
     stack: resolveErrorStack(options.error, options.stack),
-    componentStack: sanitizeStackTrace(
-      options.componentStack,
-      MAX_STACK_LENGTH,
-    ),
+    componentStack: sanitizeErrorReportStackTrace(options.componentStack, {
+      maxLength: MAX_STACK_LENGTH,
+    }),
     metadata: sanitizeErrorReportMetadata(options.metadata),
   };
 }
@@ -957,6 +983,7 @@ function buildClientErrorReportQueueTriage(
     route: report.route,
     requestId: report.requestId,
     digest: report.digest,
+    statusCode: report.statusCode,
     errorName: report.errorName,
     technicalMessage: truncateText(
       report.technicalMessage,
@@ -1017,6 +1044,12 @@ function parseClientErrorReportQueueTriage(
     ...(typeof value.digest === "string"
       ? { digest: sanitizeOptionalText(value.digest, 120) }
       : {}),
+    ...(typeof value.statusCode === "number" &&
+    Number.isInteger(value.statusCode) &&
+    value.statusCode >= 400 &&
+    value.statusCode <= 599
+      ? { statusCode: value.statusCode }
+      : {}),
   };
 }
 
@@ -1066,6 +1099,13 @@ function buildClientErrorReportQueueTriageFromBody(
         typeof parsed.digest === "string"
           ? sanitizeOptionalText(parsed.digest, 120)
           : undefined,
+      statusCode:
+        typeof parsed.statusCode === "number" &&
+        Number.isInteger(parsed.statusCode) &&
+        parsed.statusCode >= 400 &&
+        parsed.statusCode <= 599
+          ? parsed.statusCode
+          : undefined,
       errorName:
         typeof parsed.errorName === "string"
           ? (sanitizeErrorReportText(parsed.errorName, 120, {
@@ -1095,8 +1135,19 @@ function createClientErrorReportQueueStats(
     totalEvicted: 0,
     totalExpired: 0,
     totalDroppedAfterMaxAttempts: 0,
+    totalNonRetryableDeliveryFailures: 0,
     totalRateLimited: 0,
     recentDrops: [],
+  };
+}
+
+function buildEmptyClientErrorReportPendingDurableOutcomes(): ClientErrorReportPendingDurableOutcomes {
+  return {
+    nonRetryableDeliveryCount: 0,
+    queueEvictedCount: 0,
+    queueExpiredCount: 0,
+    queueMaxAttemptsCount: 0,
+    recentOutcomes: [],
   };
 }
 
@@ -1104,9 +1155,10 @@ function buildClientErrorReportQueueState(
   storage: ClientErrorReportQueueStorageKind,
 ): ClientErrorReportQueueState {
   return {
-    version: 1,
+    version: 2,
     reports: [],
     stats: createClientErrorReportQueueStats(storage),
+    pendingDurableOutcomes: buildEmptyClientErrorReportPendingDurableOutcomes(),
   };
 }
 
@@ -1181,6 +1233,11 @@ function parseClientErrorReportQueueStats(
       Number.isFinite(value.totalDroppedAfterMaxAttempts)
         ? Math.max(0, Math.trunc(value.totalDroppedAfterMaxAttempts))
         : 0,
+    totalNonRetryableDeliveryFailures:
+      typeof value.totalNonRetryableDeliveryFailures === "number" &&
+      Number.isFinite(value.totalNonRetryableDeliveryFailures)
+        ? Math.max(0, Math.trunc(value.totalNonRetryableDeliveryFailures))
+        : 0,
     totalRateLimited:
       typeof value.totalRateLimited === "number" &&
       Number.isFinite(value.totalRateLimited)
@@ -1190,6 +1247,85 @@ function parseClientErrorReportQueueStats(
       0,
       MAX_CLIENT_ERROR_REPORT_QUEUE_DROP_SAMPLES,
     ),
+  };
+}
+
+function parseClientErrorReportDeliveryOutcomeEvent(
+  value: unknown,
+): ClientErrorReportDeliveryOutcomeEvent | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const triage = parseClientErrorReportQueueTriage(value);
+  if (!triage) {
+    return undefined;
+  }
+
+  const reason =
+    typeof value.reason === "string"
+      ? (value.reason as ClientErrorReportDeliveryOutcomeReason)
+      : undefined;
+  const timestamp =
+    typeof value.timestamp === "number" && Number.isFinite(value.timestamp)
+      ? Math.max(0, Math.trunc(value.timestamp))
+      : undefined;
+
+  if (!reason || !timestamp) {
+    return undefined;
+  }
+
+  return {
+    ...triage,
+    reason,
+    timestamp,
+    ...(typeof value.attempts === "number" &&
+    Number.isInteger(value.attempts) &&
+    value.attempts >= 0
+      ? { attempts: Math.trunc(value.attempts) }
+      : {}),
+  };
+}
+
+function parseClientErrorReportPendingDurableOutcomes(
+  value: unknown,
+): ClientErrorReportPendingDurableOutcomes {
+  if (!isRecord(value)) {
+    return buildEmptyClientErrorReportPendingDurableOutcomes();
+  }
+
+  const recentOutcomes = Array.isArray(value.recentOutcomes)
+    ? value.recentOutcomes
+        .map((entry) => parseClientErrorReportDeliveryOutcomeEvent(entry))
+        .filter(
+          (entry): entry is ClientErrorReportDeliveryOutcomeEvent =>
+            entry !== undefined,
+        )
+        .slice(0, MAX_CLIENT_ERROR_REPORT_DURABLE_OUTCOME_SAMPLES)
+    : [];
+
+  return {
+    nonRetryableDeliveryCount:
+      typeof value.nonRetryableDeliveryCount === "number" &&
+      Number.isFinite(value.nonRetryableDeliveryCount)
+        ? Math.max(0, Math.trunc(value.nonRetryableDeliveryCount))
+        : 0,
+    queueEvictedCount:
+      typeof value.queueEvictedCount === "number" &&
+      Number.isFinite(value.queueEvictedCount)
+        ? Math.max(0, Math.trunc(value.queueEvictedCount))
+        : 0,
+    queueExpiredCount:
+      typeof value.queueExpiredCount === "number" &&
+      Number.isFinite(value.queueExpiredCount)
+        ? Math.max(0, Math.trunc(value.queueExpiredCount))
+        : 0,
+    queueMaxAttemptsCount:
+      typeof value.queueMaxAttemptsCount === "number" &&
+      Number.isFinite(value.queueMaxAttemptsCount)
+        ? Math.max(0, Math.trunc(value.queueMaxAttemptsCount))
+        : 0,
+    recentOutcomes,
   };
 }
 
@@ -1279,6 +1415,9 @@ function parseClientErrorReportQueueState(
         )
     : [];
   state.stats = parseClientErrorReportQueueStats(rawValue.stats, storage);
+  state.pendingDurableOutcomes = parseClientErrorReportPendingDurableOutcomes(
+    rawValue.pendingDurableOutcomes,
+  );
   return state;
 }
 
@@ -1290,6 +1429,54 @@ function appendClientErrorReportQueueEvent(
     0,
     MAX_CLIENT_ERROR_REPORT_QUEUE_DROP_SAMPLES,
   );
+}
+
+function appendClientErrorReportDeliveryOutcomeEvent(
+  events: ClientErrorReportDeliveryOutcomeEvent[],
+  event: ClientErrorReportDeliveryOutcomeEvent,
+): ClientErrorReportDeliveryOutcomeEvent[] {
+  return [event, ...events].slice(
+    0,
+    MAX_CLIENT_ERROR_REPORT_DURABLE_OUTCOME_SAMPLES,
+  );
+}
+
+function hasPendingClientErrorReportDeliveryOutcomes(
+  pendingDurableOutcomes: ClientErrorReportPendingDurableOutcomes,
+): boolean {
+  return (
+    pendingDurableOutcomes.nonRetryableDeliveryCount > 0 ||
+    pendingDurableOutcomes.queueEvictedCount > 0 ||
+    pendingDurableOutcomes.queueExpiredCount > 0 ||
+    pendingDurableOutcomes.queueMaxAttemptsCount > 0 ||
+    pendingDurableOutcomes.recentOutcomes.length > 0
+  );
+}
+
+function recordClientErrorReportPendingDurableOutcome(
+  state: ClientErrorReportQueueState,
+  event: ClientErrorReportDeliveryOutcomeEvent,
+): void {
+  switch (event.reason) {
+    case "non_retryable_delivery":
+      state.pendingDurableOutcomes.nonRetryableDeliveryCount += 1;
+      break;
+    case "queue_evicted":
+      state.pendingDurableOutcomes.queueEvictedCount += 1;
+      break;
+    case "queue_expired":
+      state.pendingDurableOutcomes.queueExpiredCount += 1;
+      break;
+    case "max_attempts":
+      state.pendingDurableOutcomes.queueMaxAttemptsCount += 1;
+      break;
+  }
+
+  state.pendingDurableOutcomes.recentOutcomes =
+    appendClientErrorReportDeliveryOutcomeEvent(
+      state.pendingDurableOutcomes.recentOutcomes,
+      event,
+    );
 }
 
 function recordClientErrorReportQueueDrop(
@@ -1320,6 +1507,7 @@ function recordClientErrorReportQueueDrop(
     state.stats.recentDrops,
     event,
   );
+  recordClientErrorReportPendingDurableOutcome(state, event);
 }
 
 function normalizeClientErrorReportQueueState(
@@ -1413,8 +1601,10 @@ function shouldPersistClientErrorReportQueueState(
     state.stats.totalEvicted > 0 ||
     state.stats.totalExpired > 0 ||
     state.stats.totalDroppedAfterMaxAttempts > 0 ||
+    state.stats.totalNonRetryableDeliveryFailures > 0 ||
     state.stats.totalRateLimited > 0 ||
-    state.stats.recentDrops.length > 0
+    state.stats.recentDrops.length > 0 ||
+    hasPendingClientErrorReportDeliveryOutcomes(state.pendingDurableOutcomes)
   );
 }
 
@@ -1540,6 +1730,8 @@ function buildClientErrorReportQueueMetadata(
     clientQueueTotalEvicted: state.stats.totalEvicted,
     clientQueueTotalDropped:
       state.stats.totalExpired + state.stats.totalDroppedAfterMaxAttempts,
+    clientQueueTotalNonRetryableDeliveryFailures:
+      state.stats.totalNonRetryableDeliveryFailures,
     clientQueueTotalRateLimited: state.stats.totalRateLimited,
     clientQueued: options.queued,
     clientQueueAttempts: Math.max(0, Math.trunc(options.queueAttempts)),
@@ -1608,6 +1800,8 @@ function buildClientErrorReportBody(
   requestId?: string;
 } {
   let body = JSON.stringify({
+    id: report.id,
+    timestamp: report.timestamp,
     source: report.source,
     userAction: report.userAction,
     message: report.technicalMessage,
@@ -1767,8 +1961,8 @@ function toClientErrorReportDeliveryError(
 
 async function createClientErrorReportResponseError(
   response: Response,
+  payload: unknown,
 ): Promise<ClientErrorReportDeliveryError> {
-  const payload = await parseResponsePayload(response);
   const structuredError = getStructuredResponseError(response, payload);
 
   return new ClientErrorReportDeliveryError(structuredError.message, {
@@ -1807,19 +2001,23 @@ async function deliverClientErrorReport(
         headers["X-Request-Id"] = report.requestId;
       }
 
-      const response = await globalThis.fetch(CLIENT_ERROR_REPORTS_ENDPOINT, {
-        method: "POST",
-        headers,
-        body: report.body,
-        credentials: "same-origin",
-        keepalive: true,
-      });
+      const { response, payload } = await requestClientJson(
+        CLIENT_ERROR_REPORTS_ENDPOINT,
+        {
+          method: "POST",
+          headers,
+          body: report.body,
+          credentials: "same-origin",
+          keepalive: true,
+          timeoutMs: CLIENT_ERROR_REPORT_DELIVERY_TIMEOUT_MS,
+        },
+      );
 
       if (response.ok) {
         return;
       }
 
-      lastError = await createClientErrorReportResponseError(response);
+      lastError = await createClientErrorReportResponseError(response, payload);
     } catch (error) {
       lastError = toClientErrorReportDeliveryError(error);
     }
@@ -1923,6 +2121,142 @@ async function replayQueuedClientErrorReport(
       store.state,
     );
   }
+}
+
+function buildClientErrorReportDeliveryOutcomeSummaryMetadata(
+  pendingDurableOutcomes: ClientErrorReportPendingDurableOutcomes,
+): Record<string, SerializableMetadataValue> {
+  const metadata: Record<string, SerializableMetadataValue> = {
+    clientDeliveryOutcomeNonRetryableCount:
+      pendingDurableOutcomes.nonRetryableDeliveryCount,
+    clientDeliveryOutcomeQueueEvictedCount:
+      pendingDurableOutcomes.queueEvictedCount,
+    clientDeliveryOutcomeQueueExpiredCount:
+      pendingDurableOutcomes.queueExpiredCount,
+    clientDeliveryOutcomeQueueMaxAttemptsCount:
+      pendingDurableOutcomes.queueMaxAttemptsCount,
+    clientDeliveryOutcomeRecentCount:
+      pendingDurableOutcomes.recentOutcomes.length,
+  };
+
+  pendingDurableOutcomes.recentOutcomes.forEach((outcome, index) => {
+    const prefix = `clientDeliveryOutcome${index + 1}`;
+
+    metadata[`${prefix}Reason`] = outcome.reason;
+    metadata[`${prefix}Source`] = outcome.source;
+    metadata[`${prefix}UserAction`] = outcome.userAction;
+    metadata[`${prefix}Category`] = outcome.category;
+    metadata[`${prefix}ErrorName`] = outcome.errorName;
+    metadata[`${prefix}Timestamp`] = outcome.timestamp;
+
+    if (typeof outcome.statusCode === "number") {
+      metadata[`${prefix}StatusCode`] = outcome.statusCode;
+    }
+
+    if (typeof outcome.attempts === "number") {
+      metadata[`${prefix}Attempts`] = outcome.attempts;
+    }
+
+    if (typeof outcome.requestId === "string") {
+      metadata[`${prefix}RequestId`] = outcome.requestId;
+    }
+
+    if (typeof outcome.route === "string") {
+      metadata[`${prefix}Route`] = outcome.route;
+    }
+  });
+
+  return metadata;
+}
+
+function buildClientErrorReportDeliveryOutcomeSummaryReport(
+  pendingDurableOutcomes: ClientErrorReportPendingDurableOutcomes,
+): StructuredErrorReport {
+  return buildStructuredErrorReport({
+    source: "client_hook",
+    userAction: CLIENT_ERROR_REPORT_DURABLE_OUTCOME_USER_ACTION,
+    error: CLIENT_ERROR_REPORT_DURABLE_OUTCOME_MESSAGE,
+    category: "unknown",
+    retryable: false,
+    metadata: buildClientErrorReportDeliveryOutcomeSummaryMetadata(
+      pendingDurableOutcomes,
+    ),
+  });
+}
+
+function recordNonRetryableClientErrorReportDeliveryOutcome(
+  report: StructuredErrorReport,
+  deliveryError: ClientErrorReportDeliveryError,
+): void {
+  const store = loadClientErrorReportQueueStore();
+  if (!store) {
+    return;
+  }
+
+  store.state.stats.totalNonRetryableDeliveryFailures += 1;
+  recordClientErrorReportPendingDurableOutcome(store.state, {
+    ...buildClientErrorReportQueueTriage(report),
+    reason: "non_retryable_delivery",
+    timestamp: Date.now(),
+    ...(typeof deliveryError.statusCode === "number"
+      ? { statusCode: deliveryError.statusCode }
+      : {}),
+  });
+  saveClientErrorReportQueueStore(store);
+}
+
+async function flushPendingClientErrorReportOutcomes(): Promise<void> {
+  if (
+    isFlushingPendingClientErrorReportOutcomes ||
+    !canUseClientErrorReportQueue()
+  ) {
+    return;
+  }
+
+  const store = loadClientErrorReportQueueStore();
+  if (
+    !store ||
+    !hasPendingClientErrorReportDeliveryOutcomes(
+      store.state.pendingDurableOutcomes,
+    )
+  ) {
+    return;
+  }
+
+  isFlushingPendingClientErrorReportOutcomes = true;
+
+  try {
+    const summaryReport = buildClientErrorReportDeliveryOutcomeSummaryReport(
+      store.state.pendingDurableOutcomes,
+    );
+
+    await deliverClientErrorReport(
+      buildClientErrorReportBody(summaryReport),
+      1,
+    );
+
+    store.state.pendingDurableOutcomes =
+      buildEmptyClientErrorReportPendingDurableOutcomes();
+    saveClientErrorReportQueueStore(store);
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        "[ErrorTracking] Failed to flush pending client error report delivery outcomes.",
+        error,
+      );
+    }
+  } finally {
+    isFlushingPendingClientErrorReportOutcomes = false;
+  }
+}
+
+export async function flushClientErrorReportBacklog(): Promise<void> {
+  if (!canUseClientErrorReportQueue()) {
+    return;
+  }
+
+  await flushQueuedClientErrorReports();
+  await flushPendingClientErrorReportOutcomes();
 }
 
 async function flushQueuedClientErrorReports(): Promise<void> {
@@ -2113,6 +2447,7 @@ async function postStructuredErrorReport(
   try {
     await deliverClientErrorReport(clientReport);
     await flushQueuedClientErrorReports();
+    await flushPendingClientErrorReportOutcomes();
   } catch (error) {
     const deliveryError = toClientErrorReportDeliveryError(error);
 
@@ -2133,6 +2468,8 @@ async function postStructuredErrorReport(
             }
           : {}),
       });
+    } else {
+      recordNonRetryableClientErrorReportDeliveryOutcome(report, deliveryError);
     }
 
     if (process.env.NODE_ENV === "development") {
@@ -2186,7 +2523,29 @@ export async function reportStructuredError(
   try {
     return await recordStructuredErrorOrThrow(options);
   } catch (error) {
-    console.error("[ErrorTracking] Failed to report structured error:", error);
+    logPrivacySafe(
+      "error",
+      "ErrorTracking",
+      "Failed to report structured error",
+      {
+        source: options.source,
+        userAction: options.userAction,
+        category: options.category,
+        requestId: options.requestId,
+        route: options.route,
+        error,
+        ...(error instanceof Error && error.stack
+          ? { stack: error.stack }
+          : {}),
+      },
+    );
+
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        "[ErrorTracking] Failed to report structured error:",
+        error,
+      );
+    }
     return null;
   }
 }

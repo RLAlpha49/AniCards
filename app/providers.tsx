@@ -1,10 +1,11 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
-import type React from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { Toaster } from "@/components/ui/Toaster";
 import { TooltipProvider } from "@/components/ui/Tooltip";
+import { flushClientErrorReportBacklog } from "@/lib/error-tracking";
 
 /**
  * Provides common app-level providers used throughout the app.
@@ -19,7 +20,21 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 export function Providers({
   children,
   nonce,
-}: Readonly<{ children: React.ReactNode; nonce?: string }>) {
+}: Readonly<{ children: ReactNode; nonce?: string }>) {
+  useEffect(() => {
+    void flushClientErrorReportBacklog();
+
+    const handleOnline = () => {
+      void flushClientErrorReportBacklog();
+    };
+
+    globalThis.window.addEventListener("online", handleOnline);
+
+    return () => {
+      globalThis.window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
   return (
     <ThemeProvider
       attribute="class"

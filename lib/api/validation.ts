@@ -23,6 +23,8 @@ import {
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_\-\s]*$/;
+const MAX_RECOVERY_SUGGESTION_ACTION_URL_LENGTH = 1024;
+const RECOVERY_SUGGESTION_INTERNAL_URL_BASE = "https://anicards.local";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -148,6 +150,40 @@ function sanitizeErrorReportRouteInput(value: unknown): unknown {
   }
 
   return sanitizeErrorReportRoute(value);
+}
+
+function sanitizeErrorReportActionUrlInput(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > MAX_RECOVERY_SUGGESTION_ACTION_URL_LENGTH
+  ) {
+    return undefined;
+  }
+
+  if (trimmed.startsWith("/")) {
+    if (trimmed.startsWith("//")) {
+      return undefined;
+    }
+
+    try {
+      const parsed = new URL(trimmed, RECOVERY_SUGGESTION_INTERNAL_URL_BASE);
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return undefined;
+    }
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function sanitizeErrorReportMetadataInput(
@@ -568,6 +604,7 @@ export const storeCardsRequestSchema = z
 const errorReportSourceSchema = z.enum([
   "user_action",
   "client_hook",
+  "analytics_instrumentation",
   "react_error_boundary",
   "app_router_error_boundary",
   "api_route",
@@ -587,11 +624,38 @@ const recoverySuggestionSchema = z
     title: sanitizeRequiredErrorReportText(120),
     description: sanitizeRequiredErrorReportText(240),
     actionLabel: sanitizeOptionalErrorReportText(80),
+    actionUrl: z.preprocess(
+      sanitizeErrorReportActionUrlInput,
+      z
+        .string()
+        .min(1)
+        .max(MAX_RECOVERY_SUGGESTION_ACTION_URL_LENGTH)
+        .optional(),
+    ),
   })
   .strip();
 
 export const errorReportPayloadSchema = z
   .object({
+    id: z
+      .preprocess((value) => {
+        if (typeof value !== "string") {
+          return undefined;
+        }
+
+        const trimmed = value.trim();
+        return REQUEST_ID_PATTERN.test(trimmed) ? trimmed : undefined;
+      }, z.string().regex(REQUEST_ID_PATTERN).optional())
+      .optional(),
+    timestamp: z
+      .preprocess((value) => {
+        if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+          return undefined;
+        }
+
+        return value > 0 ? value : undefined;
+      }, z.number().int().positive().optional())
+      .optional(),
     source: errorReportSourceSchema.optional(),
     userAction: sanitizeRequiredErrorReportText(120),
     message: sanitizeRequiredErrorReportText(2_000),

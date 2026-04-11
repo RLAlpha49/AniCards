@@ -12,9 +12,9 @@ import {
 } from "@/lib/api/request-proof";
 import {
   buildAnalyticsMetricKey,
-  incrementAnalytics,
   isUnitTestRuntime,
-  scheduleTelemetryTask,
+  scheduleAnalyticsIncrement,
+  scheduleLowValueAnalyticsIncrement,
 } from "@/lib/api/telemetry";
 
 export interface RateLimitIdentity {
@@ -314,20 +314,20 @@ function createRateLimitUnavailableResponse(
   );
 
   const failureMetric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-  scheduleTelemetryTask(() => incrementAnalytics(failureMetric), {
+  scheduleLowValueAnalyticsIncrement(failureMetric, {
     endpoint: endpointName,
-    taskName: failureMetric,
     request,
+    taskName: failureMetric,
   });
 
   const availabilityMetric = buildAnalyticsMetricKey(
     endpointKey,
     options.metricSuffix,
   );
-  scheduleTelemetryTask(() => incrementAnalytics(availabilityMetric), {
+  scheduleAnalyticsIncrement(availabilityMetric, {
     endpoint: endpointName,
-    taskName: availabilityMetric,
     request,
+    taskName: availabilityMetric,
   });
 
   return apiErrorResponse(
@@ -374,10 +374,10 @@ export async function checkRateLimit(
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    scheduleLowValueAnalyticsIncrement(metric, {
       endpoint: endpointName,
-      taskName: metric,
       request,
+      taskName: metric,
     });
 
     return apiErrorResponse(request, 503, "Client IP could not be verified", {
@@ -447,10 +447,10 @@ export async function checkRateLimit(
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "rate_limit_errors");
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    scheduleAnalyticsIncrement(metric, {
       endpoint: endpointName,
-      taskName: metric,
       request,
+      taskName: metric,
     });
     throw error;
   }
@@ -499,10 +499,10 @@ export async function checkRateLimit(
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "rate_limit_timeouts");
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    scheduleAnalyticsIncrement(metric, {
       endpoint: endpointName,
-      taskName: metric,
       request,
+      taskName: metric,
     });
   }
 
@@ -519,10 +519,10 @@ export async function checkRateLimit(
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    scheduleLowValueAnalyticsIncrement(metric, {
       endpoint: endpointName,
-      taskName: metric,
       request,
+      taskName: metric,
     });
 
     return apiErrorResponse(request, 429, "Too many requests", {

@@ -15,7 +15,10 @@ import { logPrivacySafe } from "@/lib/api/logging";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
 import { initializeApiRequest } from "@/lib/api/request-guards";
-import { incrementAnalytics } from "@/lib/api/telemetry";
+import {
+  scheduleAnalyticsIncrement,
+  scheduleLowValueAnalyticsIncrement,
+} from "@/lib/api/telemetry";
 import {
   fetchUpstreamWithRetry,
   UpstreamTransportError,
@@ -32,6 +35,9 @@ const SVG_FETCH_TIMEOUT_MS = 5_000;
 const SVG_MAX_BYTES = 1_000_000;
 const SVG_MAX_DIMENSION_PX = 4_096;
 const SVG_MAX_RASTER_PIXELS = 16_777_216;
+const CONVERT_API_ENDPOINT = "Convert API";
+const CONVERT_API_FAILED_METRIC = "analytics:convert_api:failed_requests";
+const CONVERT_API_SUCCESS_METRIC = "analytics:convert_api:successful_requests";
 
 type ConvertResponseMode = "binary" | "json";
 
@@ -865,7 +871,15 @@ function createConvertErrorResponse(
     },
     request,
   );
-  incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+  const scheduleMetric =
+    error.statusCode >= 500
+      ? scheduleAnalyticsIncrement
+      : scheduleLowValueAnalyticsIncrement;
+  scheduleMetric(CONVERT_API_FAILED_METRIC, {
+    endpoint,
+    request,
+    taskName: CONVERT_API_FAILED_METRIC,
+  });
   return apiErrorResponse(request, error.statusCode, error.message);
 }
 
@@ -971,8 +985,22 @@ function isUrlAuthorized(
   return true;
 }
 
-function recordConvertFailureMetric(): void {
-  incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+function recordConvertFailureMetric(
+  request: NextRequest,
+  options?: {
+    endpoint?: string;
+    lowValue?: boolean;
+  },
+): void {
+  const scheduleMetric = options?.lowValue
+    ? scheduleLowValueAnalyticsIncrement
+    : scheduleAnalyticsIncrement;
+
+  scheduleMetric(CONVERT_API_FAILED_METRIC, {
+    endpoint: options?.endpoint ?? CONVERT_API_ENDPOINT,
+    request,
+    taskName: CONVERT_API_FAILED_METRIC,
+  });
 }
 
 function createSvgFetchErrorResponse(
@@ -985,7 +1013,9 @@ function createSvgFetchErrorResponse(
     headers?: Record<string, string>;
   },
 ): { errorResponse: NextResponse } {
-  recordConvertFailureMetric();
+  recordConvertFailureMetric(request, {
+    lowValue: true,
+  });
   return {
     errorResponse: apiErrorResponse(request, status, message, {
       headers: options?.headers,
@@ -1050,7 +1080,9 @@ function handleFetchSvgContentError(
     },
     request,
   );
-  recordConvertFailureMetric();
+  recordConvertFailureMetric(request, {
+    lowValue: err instanceof ConvertRouteError,
+  });
 
   if (err instanceof ConvertRouteError) {
     return {
@@ -1190,7 +1222,7 @@ function binaryWithCors(
 export async function POST(request: NextRequest) {
   const init = await initializeApiRequest(
     request,
-    "Convert API",
+    CONVERT_API_ENDPOINT,
     "convert_api",
     ratelimit,
     {
@@ -1280,9 +1312,11 @@ export async function POST(request: NextRequest) {
       { requestedFormat, durationMs: conversionDuration },
       request,
     );
-    incrementAnalytics("analytics:convert_api:successful_requests").catch(
-      () => {},
-    );
+    scheduleAnalyticsIncrement(CONVERT_API_SUCCESS_METRIC, {
+      endpoint,
+      request,
+      taskName: CONVERT_API_SUCCESS_METRIC,
+    });
 
     if (responseMode === "binary") {
       return binaryWithCors(convertedBuffer, mimeType, request);
@@ -1304,7 +1338,7 @@ export async function POST(request: NextRequest) {
       error as Error,
       endpoint,
       startTime,
-      "analytics:convert_api:failed_requests",
+      CONVERT_API_FAILED_METRIC,
       "Conversion failed",
       request,
     );

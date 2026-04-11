@@ -17,11 +17,28 @@ import {
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
   buildAnalyticsMetricKey,
-  incrementAnalytics,
-  scheduleTelemetryTask,
+  scheduleLowValueAnalyticsIncrement,
 } from "@/lib/api/telemetry";
 
 const DEFAULT_JSON_BODY_LIMIT_BYTES = 512 * 1024;
+
+function scheduleFailedRequestMetric(
+  request: Request,
+  options: {
+    endpointKey: string;
+    endpointName: string;
+  },
+): void {
+  const metric = buildAnalyticsMetricKey(
+    options.endpointKey,
+    "failed_requests",
+  );
+  scheduleLowValueAnalyticsIncrement(metric, {
+    endpoint: options.endpointName,
+    request,
+    taskName: metric,
+  });
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -93,15 +110,7 @@ export async function readJsonRequestBody<T>(
       request,
     );
 
-    const metric = buildAnalyticsMetricKey(
-      options.endpointKey,
-      "failed_requests",
-    );
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
-      endpoint: options.endpointName,
-      taskName: metric,
-      request,
-    });
+    scheduleFailedRequestMetric(request, options);
 
     return {
       success: false,
@@ -113,15 +122,7 @@ export async function readJsonRequestBody<T>(
   try {
     rawBody = await request.text();
   } catch {
-    const metric = buildAnalyticsMetricKey(
-      options.endpointKey,
-      "failed_requests",
-    );
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
-      endpoint: options.endpointName,
-      taskName: metric,
-      request,
-    });
+    scheduleFailedRequestMetric(request, options);
 
     return {
       success: false,
@@ -144,15 +145,7 @@ export async function readJsonRequestBody<T>(
       request,
     );
 
-    const metric = buildAnalyticsMetricKey(
-      options.endpointKey,
-      "failed_requests",
-    );
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
-      endpoint: options.endpointName,
-      taskName: metric,
-      request,
-    });
+    scheduleFailedRequestMetric(request, options);
 
     return {
       success: false,
@@ -166,15 +159,7 @@ export async function readJsonRequestBody<T>(
       data: JSON.parse(rawBody) as T,
     };
   } catch {
-    const metric = buildAnalyticsMetricKey(
-      options.endpointKey,
-      "failed_requests",
-    );
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
-      endpoint: options.endpointName,
-      taskName: metric,
-      request,
-    });
+    scheduleFailedRequestMetric(request, options);
 
     return {
       success: false,

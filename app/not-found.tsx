@@ -1,7 +1,13 @@
 import { Compass, Home, Search, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 
+import {
+  buildAnalyticsMetricKey,
+  scheduleLowValueAnalyticsBatch,
+} from "@/lib/api/telemetry";
+import { sanitizeErrorReportRoute } from "@/lib/error-report-sanitization";
 import { NOINDEX_ROBOTS } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -38,7 +44,68 @@ const RECOVERY_LINKS = [
   },
 ] as const;
 
-export default function NotFound() {
+const NOT_FOUND_TELEMETRY_ENDPOINT = "Not Found Page";
+const NOT_FOUND_RENDERED_METRIC = buildAnalyticsMetricKey(
+  "not_found_page",
+  "rendered",
+);
+
+function resolveMissingRouteBucket(route: string | undefined): string {
+  if (!route) {
+    return "unknown";
+  }
+
+  const pathname = route.split("?", 1)[0] ?? route;
+
+  if (pathname === "/") return "home";
+  if (pathname === "/about") return "about";
+  if (pathname === "/contact") return "contact";
+  if (pathname === "/examples") return "examples";
+  if (pathname === "/privacy") return "privacy";
+  if (pathname === "/projects") return "projects";
+  if (pathname === "/search") return "search";
+  if (pathname === "/user" || pathname.startsWith("/user/")) {
+    return "user";
+  }
+  if (pathname.startsWith("/StatCards/")) {
+    return "statcards";
+  }
+  if (pathname.startsWith("/api/")) {
+    return "api";
+  }
+
+  const segmentCount = pathname.split("/").filter(Boolean).length;
+  return segmentCount >= 2 ? "nested" : "other";
+}
+
+async function recordNotFoundTelemetry(): Promise<void> {
+  const requestHeaders = await headers();
+  const routeCandidates = [
+    requestHeaders.get("x-invoke-path"),
+    requestHeaders.get("x-matched-path"),
+    requestHeaders.get("x-next-url"),
+    requestHeaders.get("next-url"),
+  ];
+  const resolvedRoute = routeCandidates
+    .map((candidate) => sanitizeErrorReportRoute(candidate ?? undefined))
+    .find((candidate) => candidate !== undefined);
+  const routeBucket = resolveMissingRouteBucket(resolvedRoute);
+
+  scheduleLowValueAnalyticsBatch(
+    [
+      NOT_FOUND_RENDERED_METRIC,
+      buildAnalyticsMetricKey("not_found_page", "route_bucket", routeBucket),
+    ],
+    {
+      endpoint: NOT_FOUND_TELEMETRY_ENDPOINT,
+      taskName: NOT_FOUND_RENDERED_METRIC,
+    },
+  );
+}
+
+export default async function NotFound() {
+  await recordNotFoundTelemetry();
+
   return (
     <main className="relative isolate overflow-hidden">
       <div

@@ -2,6 +2,28 @@ import { normalizeAnalyticsPage } from "@/lib/utils/google-analytics";
 
 export type ErrorReportMetadataValue = string | number | boolean | null;
 
+export interface SanitizeErrorReportStackTraceOptions {
+  maxLength?: number;
+  maxFrames?: number;
+  separator?: string;
+  frameMaxLength?: number;
+}
+
+export interface SanitizePrivacySafeLogValueOptions {
+  maxLength?: number;
+  stackMaxLength?: number;
+  stackMaxFrames?: number;
+  stackSeparator?: string;
+  stackFrameMaxLength?: number;
+}
+
+const DEFAULT_LOG_TEXT_MAX_LENGTH = 120;
+const DEFAULT_LOG_STACK_FRAME_MAX_LENGTH = 80;
+const DEFAULT_LOG_STACK_MAX_FRAMES = 5;
+const DEFAULT_LOG_STACK_MAX_LENGTH = 200;
+const DEFAULT_STACK_FRAME_MAX_LENGTH = 160;
+const DEFAULT_STACK_MAX_FRAMES = 12;
+const DEFAULT_STACK_MAX_LENGTH = 8_000;
 const MAX_METADATA_KEY_LENGTH = 64;
 const MAX_METADATA_VALUE_LENGTH = 160;
 const MAX_METADATA_ENTRIES = 12;
@@ -81,6 +103,139 @@ function isSensitiveMetadataKey(value: string): boolean {
   );
 }
 
+function isStackWhitespace(char: string): boolean {
+  return (
+    char === " " ||
+    char === "\t" ||
+    char === "\n" ||
+    char === "\r" ||
+    char === "\f" ||
+    char === "\v"
+  );
+}
+
+function collapseStackWhitespace(value: string): string {
+  let normalized = "";
+  let lastWasWhitespace = false;
+
+  for (const char of value) {
+    if (isStackWhitespace(char)) {
+      if (!lastWasWhitespace) {
+        normalized += " ";
+      }
+      lastWasWhitespace = true;
+      continue;
+    }
+
+    normalized += char;
+    lastWasWhitespace = false;
+  }
+
+  return normalized;
+}
+
+function coerceUnknownToLogString(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
+    return String(value);
+  }
+
+  if (value instanceof Error) {
+    const parts = [value.name, value.message].filter(
+      (part): part is string => typeof part === "string" && part.length > 0,
+    );
+
+    return parts.length > 0 ? parts.join(": ") : "Error";
+  }
+
+  if (typeof value === "function") {
+    return value.name ? `[Function ${value.name}]` : "[Function]";
+  }
+
+  if (Array.isArray(value)) {
+    return `[Array(${value.length})]`;
+  }
+
+  if (typeof value === "object") {
+    const constructorName = value?.constructor?.name;
+    if (constructorName && constructorName !== "Object") {
+      return `[${constructorName}]`;
+    }
+
+    return "[Object]";
+  }
+
+  return String(value);
+}
+
+export function redactIp(ip: string): string {
+  const normalized = ip.trim();
+  if (!normalized || normalized === "unknown") {
+    return "unknown";
+  }
+
+  if (normalized === "127.0.0.1" || normalized === "::1") {
+    return "loopback";
+  }
+
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(
+    normalized,
+  );
+  if (ipv4Match) {
+    const [a, b, c, d] = ipv4Match.slice(1).map(Number);
+    const validOctets = [a, b, c, d].every(
+      (octet) => octet >= 0 && octet <= 255,
+    );
+
+    if (!validOctets) {
+      return "invalid_ip";
+    }
+
+    const isPrivateRange =
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168);
+
+    if (isPrivateRange) {
+      return "private_ipv4";
+    }
+
+    return `${a}.${b}.x.x`;
+  }
+
+  if (normalized.includes(":")) {
+    return "ipv6";
+  }
+
+  return "redacted";
+}
+
+export function redactUserIdentifier(value: unknown): string {
+  if (value === undefined || value === null) {
+    return "missing";
+  }
+
+  const normalized = coerceUnknownToLogString(value).trim();
+  if (!normalized) {
+    return "missing";
+  }
+
+  if (/^\d+$/.test(normalized)) {
+    return `id:***${normalized.slice(-2)}`;
+  }
+
+  const prefix = normalized.slice(0, Math.min(2, normalized.length));
+  return `${prefix}${normalized.length > 2 ? "***" : "*"}(${normalized.length})`;
+}
+
 export function sanitizeErrorReportRoute(
   route: string | undefined,
 ): string | undefined {
@@ -145,6 +300,138 @@ export function sanitizeErrorReportText(
     .replaceAll(/\s+/g, " ");
 
   return truncateText(sanitized, maxLength);
+}
+
+function sanitizeStackFrame(
+  line: string,
+  frameMaxLength: number,
+): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("at ")) {
+    return undefined;
+  }
+
+  const frameText = trimmed.slice(3).trimStart();
+  if (!frameText) {
+    return "at <frame>";
+  }
+
+  let frameLabelEnd = frameText.length;
+  for (let index = 0; index < frameText.length; index += 1) {
+    if (frameText[index] !== "(") {
+      continue;
+    }
+
+    let whitespaceStart = index - 1;
+    while (
+      whitespaceStart >= 0 &&
+      isStackWhitespace(frameText[whitespaceStart])
+    ) {
+      whitespaceStart -= 1;
+    }
+
+    if (whitespaceStart < index - 1) {
+      frameLabelEnd = whitespaceStart + 1;
+      break;
+    }
+  }
+
+  const frameLabel = frameText.slice(0, frameLabelEnd).trim();
+  if (!frameLabel) {
+    return "at <frame>";
+  }
+
+  return `at ${truncateText(collapseStackWhitespace(frameLabel), frameMaxLength)}`;
+}
+
+export function sanitizeErrorReportStackTrace(
+  value: string | undefined,
+  options?: SanitizeErrorReportStackTraceOptions,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const frames = value
+    .split(/\r?\n/)
+    .map((line) =>
+      sanitizeStackFrame(
+        line,
+        options?.frameMaxLength ?? DEFAULT_STACK_FRAME_MAX_LENGTH,
+      ),
+    )
+    .filter((line): line is string => typeof line === "string")
+    .slice(0, options?.maxFrames ?? DEFAULT_STACK_MAX_FRAMES);
+
+  if (frames.length === 0) {
+    return undefined;
+  }
+
+  return truncateText(
+    frames.join(options?.separator ?? "\n"),
+    options?.maxLength ?? DEFAULT_STACK_MAX_LENGTH,
+  );
+}
+
+export function sanitizePrivacySafeLogValue(
+  key: string,
+  value: unknown,
+  options?: SanitizePrivacySafeLogValueOptions,
+): ErrorReportMetadataValue | undefined {
+  const normalizedKey = normalizeMetadataKey(key.trim());
+  const normalizedValue = coerceUnknownToLogString(value);
+
+  if (normalizedKey.includes("ip")) {
+    return redactIp(normalizedValue);
+  }
+
+  if (
+    normalizedKey.includes("user_id") ||
+    normalizedKey.includes("username") ||
+    normalizedKey.includes("identifier")
+  ) {
+    return redactUserIdentifier(value);
+  }
+
+  if (normalizedKey === "request_id") {
+    return sanitizeOptionalText(normalizedValue, 120);
+  }
+
+  if (
+    normalizedKey === "route" ||
+    normalizedKey === "path" ||
+    normalizedKey.endsWith("_route") ||
+    normalizedKey.endsWith("_path")
+  ) {
+    return (
+      sanitizeErrorReportRoute(normalizedValue) ??
+      sanitizeErrorReportText(
+        normalizedValue,
+        options?.maxLength ?? DEFAULT_LOG_TEXT_MAX_LENGTH,
+      )
+    );
+  }
+
+  if (normalizedKey.includes("stack")) {
+    return sanitizeErrorReportStackTrace(normalizedValue, {
+      maxLength: options?.stackMaxLength ?? DEFAULT_LOG_STACK_MAX_LENGTH,
+      maxFrames: options?.stackMaxFrames ?? DEFAULT_LOG_STACK_MAX_FRAMES,
+      separator: options?.stackSeparator ?? " | ",
+      frameMaxLength:
+        options?.stackFrameMaxLength ?? DEFAULT_LOG_STACK_FRAME_MAX_LENGTH,
+    });
+  }
+
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  return sanitizeErrorReportText(
+    normalizedValue,
+    options?.maxLength ?? DEFAULT_LOG_TEXT_MAX_LENGTH,
+  );
 }
 
 export function sanitizeErrorReportMetadata(

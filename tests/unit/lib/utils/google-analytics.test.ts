@@ -369,4 +369,36 @@ describe("google analytics privacy utilities", () => {
       }),
     });
   });
+
+  it("reports analytics consent persistence failures with bounded route metadata", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: {
+          ...createStorageMock(),
+          setItem: () => {
+            throw new Error("localStorage write blocked");
+          },
+        } as Storage,
+        gtag: gtagMock,
+        dispatchEvent: dispatchEventMock,
+      } as unknown as Window,
+      configurable: true,
+      writable: true,
+    });
+
+    setAnalyticsConsentState("granted");
+    await waitForReportedAnalyticsCalls(fetchMock, 1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_consent_update",
+      metadata: expect.objectContaining({
+        analyticsConsentPersistence: "local_storage",
+        consentGranted: true,
+        consentState: "granted",
+        pagePath: "/",
+      }),
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  flushClientErrorReportBacklog,
   getErrorReportBufferSnapshot,
   trackUserActionError,
 } from "@/lib/error-tracking";
@@ -53,9 +54,22 @@ function readStoredClientQueueState(storageState: Map<string, string>): {
     totalEvicted: number;
     totalExpired: number;
     totalDroppedAfterMaxAttempts: number;
+    totalNonRetryableDeliveryFailures: number;
     totalRateLimited: number;
     recentDrops: Array<{
       reason: string;
+    }>;
+  };
+  pendingDurableOutcomes: {
+    nonRetryableDeliveryCount: number;
+    queueEvictedCount: number;
+    queueExpiredCount: number;
+    queueMaxAttemptsCount: number;
+    recentOutcomes: Array<{
+      reason: string;
+      statusCode?: number;
+      source?: string;
+      userAction?: string;
     }>;
   };
 } {
@@ -73,9 +87,22 @@ function readStoredClientQueueState(storageState: Map<string, string>): {
       totalEvicted: number;
       totalExpired: number;
       totalDroppedAfterMaxAttempts: number;
+      totalNonRetryableDeliveryFailures: number;
       totalRateLimited: number;
       recentDrops: Array<{
         reason: string;
+      }>;
+    };
+    pendingDurableOutcomes: {
+      nonRetryableDeliveryCount: number;
+      queueEvictedCount: number;
+      queueExpiredCount: number;
+      queueMaxAttemptsCount: number;
+      recentOutcomes: Array<{
+        reason: string;
+        statusCode?: number;
+        source?: string;
+        userAction?: string;
       }>;
     };
   };
@@ -85,6 +112,8 @@ describe("error tracking", () => {
   const originalWindow = globalThis.window;
   const originalLocation = globalThis.location;
   const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
@@ -127,6 +156,16 @@ describe("error tracking", () => {
     });
     Object.defineProperty(globalThis, "fetch", {
       value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "setTimeout", {
+      value: originalSetTimeout,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "clearTimeout", {
+      value: originalClearTimeout,
       configurable: true,
       writable: true,
     });
@@ -233,6 +272,88 @@ describe("error tracking", () => {
 
     expect(payload.retryable).toBe(false);
     expect(payload.suggestions).toEqual(suggestions);
+  });
+
+  it("preserves safe recovery action URLs while stripping unsafe ones", async () => {
+    const suggestions = [
+      {
+        title: "Go home",
+        description: "Return to the AniCards home page and retry there.",
+        actionLabel: "Go home",
+        actionUrl: "/?from=error",
+      },
+      {
+        title: "Visit AniList",
+        description: "Open AniList directly to confirm the upstream status.",
+        actionLabel: "Visit AniList",
+        actionUrl: "https://anilist.co",
+      },
+      {
+        title: "Unsafe HTTP link",
+        description: "HTTP recovery links should not be persisted.",
+        actionLabel: "Do not persist",
+        actionUrl: "http://example.com/recovery",
+      },
+      {
+        title: "Unsafe script link",
+        description: "Script URLs should not be persisted.",
+        actionLabel: "Do not persist",
+        actionUrl: "javascript:alert(1)",
+      },
+    ];
+
+    const report = await trackUserActionError(
+      "user_page_load",
+      new Error("Recovery guidance should preserve safe links only"),
+      "server_error",
+      {
+        recoverySuggestions: suggestions,
+        source: "client_hook",
+      },
+    );
+
+    if (!report) {
+      throw new Error("Expected structured error report to be returned");
+    }
+
+    expect(report.suggestions).toEqual([
+      {
+        title: "Go home",
+        description: "Return to the AniCards home page and retry there.",
+        actionLabel: "Go home",
+        actionUrl: "/?from=error",
+      },
+      {
+        title: "Visit AniList",
+        description: "Open AniList directly to confirm the upstream status.",
+        actionLabel: "Visit AniList",
+        actionUrl: "https://anilist.co/",
+      },
+      {
+        title: "Unsafe HTTP link",
+        description: "HTTP recovery links should not be persisted.",
+        actionLabel: "Do not persist",
+      },
+      {
+        title: "Unsafe script link",
+        description: "Script URLs should not be persisted.",
+        actionLabel: "Do not persist",
+      },
+    ]);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const payload = JSON.parse(String(serializedReport)) as {
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+        actionUrl?: string;
+      }>;
+    };
+
+    expect(payload.suggestions).toEqual(report.suggestions);
   });
 
   it("redacts sensitive message fragments and drops sensitive metadata before persistence", async () => {
@@ -584,7 +705,86 @@ describe("error tracking", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("queues failed client error reports and flushes them on the next success", async () => {
+  it("treats client delivery timeouts as retryable queue failures", async () => {
+    const localStorageState = new Map<string, string>();
+    const fetchMock = mock((_: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal;
+
+      return new Promise<Response>((_resolve, reject) => {
+        if (!(signal instanceof AbortSignal)) {
+          reject(new Error("Expected an abort signal for timeout coverage."));
+          return;
+        }
+
+        if (signal.aborted) {
+          reject(signal.reason);
+          return;
+        }
+
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    });
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "setTimeout", {
+      value: ((
+        handler: TimerHandler,
+        _timeout?: number,
+        ...args: unknown[]
+      ) => {
+        queueMicrotask(() => {
+          if (typeof handler === "function") {
+            handler(...args);
+          }
+        });
+
+        return 1 as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "clearTimeout", {
+      value: (() => undefined) as typeof clearTimeout,
+      configurable: true,
+      writable: true,
+    });
+
+    const report = await trackUserActionError(
+      "render_component_tree",
+      new Error("Timed out while uploading client telemetry"),
+      "timeout",
+      { source: "react_error_boundary" },
+    );
+
+    expect(report).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+      reports: [expect.any(Object)],
+      stats: {
+        totalQueued: 1,
+      },
+    });
+  });
+
+  it("flushes queued client error reports through the backlog helper while preserving client incident identity", async () => {
     const localStorageState = new Map<string, string>();
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 503 })),
@@ -608,13 +808,14 @@ describe("error tracking", () => {
       writable: true,
     });
 
-    await trackUserActionError(
+    const report = await trackUserActionError(
       "render_component_tree",
       new Error("Failed to fetch user Alex profile"),
       "network_error",
       { source: "react_error_boundary" },
     );
 
+    expect(report).not.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(
       localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
@@ -628,18 +829,33 @@ describe("error tracking", () => {
       totalDelivered: 0,
     });
 
+    const queuedPayload = JSON.parse(String(queuedState.reports[0]?.body)) as {
+      id?: string;
+      timestamp?: number;
+    };
+
+    expect(queuedPayload.id).toBe(report?.id);
+    expect(queuedPayload.timestamp).toBe(report?.timestamp);
+
     fetchMock.mockImplementation(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
 
-    await trackUserActionError(
-      "render_component_tree_retry",
-      new Error("Retry delivery after queue"),
-      "network_error",
-      { source: "react_error_boundary" },
-    );
+    await flushClientErrorReportBacklog();
 
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const flushedCalls = fetchMock.mock.calls as unknown as Array<
+      [RequestInfo | URL, RequestInit | undefined]
+    >;
+    const flushedRequestInit = flushedCalls.at(-1)?.[1];
+    const flushedPayload = parseRequestInitJson<{
+      id?: string;
+      timestamp?: number;
+    }>(flushedRequestInit);
+
+    expect(flushedPayload.id).toBe(report?.id);
+    expect(flushedPayload.timestamp).toBe(report?.timestamp);
     expect(readStoredClientQueueState(localStorageState)).toMatchObject({
       reports: [],
       stats: {
@@ -707,7 +923,7 @@ describe("error tracking", () => {
     expect(queueState.stats.recentDrops[0]?.reason).toBe("queue_evicted");
   });
 
-  it("does not queue permanent client error report failures", async () => {
+  it("persists and flushes bounded non-retryable delivery outcomes without queueing the failed report", async () => {
     const localStorageState = new Map<string, string>();
     const fetchMock = mock(() =>
       Promise.resolve(
@@ -755,9 +971,60 @@ describe("error tracking", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(
-      localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
-    ).toBeUndefined();
+
+    const storedState = readStoredClientQueueState(localStorageState);
+    expect(storedState.reports).toHaveLength(0);
+    expect(storedState.stats).toMatchObject({
+      totalQueued: 0,
+      totalNonRetryableDeliveryFailures: 1,
+    });
+    expect(storedState.pendingDurableOutcomes).toMatchObject({
+      nonRetryableDeliveryCount: 1,
+    });
+    expect(storedState.pendingDurableOutcomes.recentOutcomes[0]).toMatchObject({
+      reason: "non_retryable_delivery",
+      statusCode: 400,
+      source: "react_error_boundary",
+      userAction: "render_component_tree",
+    });
+
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+
+    await flushClientErrorReportBacklog();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const summaryCalls = fetchMock.mock.calls as unknown as Array<
+      [RequestInfo | URL, RequestInit | undefined]
+    >;
+    const summaryPayload = parseRequestInitJson<Record<string, unknown>>(
+      summaryCalls.at(-1)?.[1],
+    );
+
+    expect(summaryPayload).toMatchObject({
+      source: "client_hook",
+      userAction: "client_error_report_delivery_outcomes",
+      category: "unknown",
+      metadata: expect.objectContaining({
+        clientDeliveryOutcomeNonRetryableCount: 1,
+        clientDeliveryOutcome1Reason: "non_retryable_delivery",
+        clientDeliveryOutcome1StatusCode: 400,
+        clientDeliveryOutcome1Source: "react_error_boundary",
+        clientDeliveryOutcome1UserAction: "render_component_tree",
+      }),
+    });
+    expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+      reports: [],
+      pendingDurableOutcomes: {
+        nonRetryableDeliveryCount: 0,
+        queueEvictedCount: 0,
+        queueExpiredCount: 0,
+        queueMaxAttemptsCount: 0,
+        recentOutcomes: [],
+      },
+    });
   });
 
   it("defers queued client error report replay until Retry-After elapses", async () => {

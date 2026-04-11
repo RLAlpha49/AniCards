@@ -18,6 +18,7 @@ import {
   allowConsoleWarningsAndErrors,
   getRequestInputUrl,
   sharedRatelimitMockLimit,
+  sharedRedisMockIncr,
 } from "@/tests/unit/__setup__";
 
 const originalApiSecretToken = process.env.API_SECRET_TOKEN;
@@ -890,6 +891,9 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error).toBe("Invalid format parameter");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:convert_api:failed_requests",
+      );
     });
 
     it("should handle successful_requests analytics on successful conversion", async () => {
@@ -919,6 +923,9 @@ describe("Convert API POST Endpoint", () => {
       const data = await res.json();
       expect(data.format).toBe("png");
       expect(data.imageDataUrl).toBeDefined();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:convert_api:successful_requests",
+      );
     });
 
     it("should handle failed_requests analytics when fetch fails", async () => {
@@ -938,6 +945,9 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(502);
       const data = await res.json();
       expect(data.error).toBe("Failed to fetch SVG");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:convert_api:failed_requests",
+      );
     });
   });
 

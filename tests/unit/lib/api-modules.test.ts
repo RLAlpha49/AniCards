@@ -27,6 +27,8 @@ import {
   flushScheduledTelemetryTasksForTests,
   incrementAnalytics,
   incrementAnalyticsBatch,
+  incrementAnalyticsBatchCounts,
+  scheduleLowValueAnalyticsIncrement,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 import {
@@ -392,6 +394,122 @@ describe("api module hardening", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
   });
 
+  it("logs request-scoped breadcrumbs when analytics increments fail", async () => {
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
+
+    sharedRedisMockIncrRaw.mockRejectedValueOnce(
+      new Error("Redis unavailable"),
+    );
+
+    await incrementAnalytics("analytics:error_reports:rejected_reports", {
+      endpoint: "Error Reports API",
+      logContext: {
+        issueCount: 2,
+        source: "client_hook",
+        userAction: "render_component_tree",
+      },
+      request: createApiRequest({
+        "x-request-id": "req-error-report-reject-12345",
+      }),
+    });
+
+    const logCall = consoleWarn.mock.calls.at(-1) as [string] | undefined;
+    expect(logCall).toBeDefined();
+
+    const logEntry = JSON.parse(String(logCall?.[0])) as {
+      context?: {
+        error?: string;
+        issueCount?: number;
+        metric?: string;
+        source?: string;
+        storageKey?: string;
+        userAction?: string;
+      };
+      endpoint?: string;
+      message?: string;
+      method?: string;
+      path?: string;
+      requestId?: string;
+    };
+
+    expect(logEntry).toMatchObject({
+      endpoint: "Error Reports API",
+      message: "Failed to increment analytics",
+      method: "POST",
+      path: "/api/test",
+      requestId: "req-error-report-reject-12345",
+      context: expect.objectContaining({
+        error: "Redis unavailable",
+        issueCount: 2,
+        metric: "analytics:error_reports:rejected_reports",
+        source: "client_hook",
+        userAction: "render_component_tree",
+      }),
+    });
+  });
+
+  it("logs request-scoped breadcrumbs when analytics batch increments fail", async () => {
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
+
+    sharedRedisMockPipelineExec.mockRejectedValueOnce(
+      new Error("Pipeline unavailable"),
+    );
+
+    await incrementAnalyticsBatch(
+      [
+        "analytics:error_reports:accepted_reports",
+        "analytics:error_reports:accepted_reports:source:react_error_boundary",
+        "analytics:error_reports:accepted_reports:category:network_error",
+      ],
+      {
+        endpoint: "Error Reports API",
+        logContext: {
+          category: "network_error",
+          requestId: "req-payload-telemetry-12345",
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+        },
+        request: createApiRequest({
+          "x-request-id": "req-ingestion-telemetry-99999",
+        }),
+      },
+    );
+
+    const logCall = consoleWarn.mock.calls.at(-1) as [string] | undefined;
+    expect(logCall).toBeDefined();
+
+    const logEntry = JSON.parse(String(logCall?.[0])) as {
+      context?: {
+        category?: string;
+        error?: string;
+        metricCount?: number;
+        metricPreview?: string;
+        source?: string;
+        userAction?: string;
+      };
+      endpoint?: string;
+      message?: string;
+      method?: string;
+      path?: string;
+      requestId?: string;
+    };
+
+    expect(logEntry).toMatchObject({
+      endpoint: "Error Reports API",
+      message: "Failed to increment analytics batch",
+      method: "POST",
+      path: "/api/test",
+      requestId: "req-payload-telemetry-12345",
+      context: expect.objectContaining({
+        category: "network_error",
+        error: "Pipeline unavailable",
+        metricCount: 3,
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+      }),
+    });
+  });
+
   it("falls back to immediate telemetry scheduling when waitUntil throws", async () => {
     const requestContextSymbol = Symbol.for("@next/request-context");
     const globalWithRequestContext = globalThis as typeof globalThis & {
@@ -471,6 +589,114 @@ describe("api module hardening", () => {
     );
   });
 
+  it("deduplicates expiry writes while honoring counted analytics batch entries", async () => {
+    const now = new Date("2026-03-27T12:00:00.000Z");
+
+    await incrementAnalyticsBatchCounts(
+      [
+        {
+          metric: "analytics:test_api:failed_requests",
+          count: 2,
+        },
+        {
+          metric: "analytics:test_api:rate_limit_errors",
+          count: 1,
+        },
+      ],
+      { now },
+    );
+
+    expect(sharedRedisMockPipeline).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockPipelineExec).toHaveBeenCalledTimes(1);
+    expect(
+      sharedRedisMockIncr.mock.calls.filter(
+        (call) =>
+          (call as unknown[])[0] === "analytics:test_api:failed_requests",
+      ),
+    ).toHaveLength(2);
+    expect(
+      sharedRedisMockExpire.mock.calls.filter(
+        (call) =>
+          (call as unknown[])[0] ===
+          "analytics:test_api:failed_requests:month:2026-03",
+      ),
+    ).toHaveLength(1);
+    expect(
+      sharedRedisMockExpire.mock.calls.filter(
+        (call) =>
+          (call as unknown[])[0] ===
+          "analytics:test_api:rate_limit_errors:month:2026-03",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("buffers low-value analytics signals behind a single waitUntil batch outside unit-test runtime", async () => {
+    const requestContextSymbol = Symbol.for("@next/request-context");
+    const globalWithRequestContext = globalThis as typeof globalThis & {
+      [key: symbol]:
+        | {
+            get?: () => {
+              waitUntil?: (promise: Promise<unknown>) => void;
+            };
+          }
+        | undefined;
+    };
+    const originalRequestContext =
+      globalWithRequestContext[requestContextSymbol];
+    const scheduledPromises: Promise<unknown>[] = [];
+
+    disableUnitTestRuntimeForThisTest();
+    globalWithRequestContext[requestContextSymbol] = {
+      get: () => ({
+        waitUntil: (promise) => {
+          scheduledPromises.push(promise);
+        },
+      }),
+    };
+
+    try {
+      scheduleLowValueAnalyticsIncrement("analytics:test_api:failed_requests", {
+        endpoint: "Test API",
+        request: createApiRequest(),
+        taskName: "failed-requests-1",
+      });
+      scheduleLowValueAnalyticsIncrement("analytics:test_api:failed_requests", {
+        endpoint: "Test API",
+        request: createApiRequest(),
+        taskName: "failed-requests-2",
+      });
+      scheduleLowValueAnalyticsIncrement(
+        "analytics:test_api:validation_rejects",
+        {
+          endpoint: "Test API",
+          request: createApiRequest(),
+          taskName: "validation-rejects",
+        },
+      );
+
+      expect(scheduledPromises).toHaveLength(1);
+
+      await Promise.allSettled(scheduledPromises);
+
+      expect(sharedRedisMockPipeline).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockPipelineExec).toHaveBeenCalledTimes(1);
+      expect(
+        sharedRedisMockIncr.mock.calls.filter(
+          (call) =>
+            (call as unknown[])[0] === "analytics:test_api:failed_requests",
+        ),
+      ).toHaveLength(2);
+      expect(
+        sharedRedisMockIncr.mock.calls.filter(
+          (call) =>
+            (call as unknown[])[0] === "analytics:test_api:validation_rejects",
+        ),
+      ).toHaveLength(1);
+    } finally {
+      globalWithRequestContext[requestContextSymbol] = originalRequestContext;
+    }
+  });
+
   it("preserves safe public error detail exposed by structured errors", async () => {
     const error = Object.assign(new Error("private integrity detail"), {
       statusCode: 500,
@@ -528,6 +754,40 @@ describe("api module hardening", () => {
     expect(logEntry.context?.stack).not.toContain("file:///tmp/");
     expect(logEntry.context?.stack).not.toContain("file:///app/example.ts");
     expect(logEntry.context?.stack?.length).toBeLessThanOrEqual(200);
+  });
+
+  it("scrubs sensitive fragments from generic log context strings", () => {
+    const request = createApiRequest();
+    const error = new Error(
+      "Lookup failed for alex@example.com via https://example.com/reset?token=super-secret-token-value-1234567890",
+    );
+
+    handleError(
+      error,
+      "Test API",
+      Date.now() - 25,
+      "analytics:test_api:failed_requests",
+      "Fallback error",
+      request,
+    );
+
+    const consoleErrorCalls = (
+      console.error as unknown as { mock: { calls: Array<[string]> } }
+    ).mock.calls;
+    expect(consoleErrorCalls.length).toBeGreaterThan(0);
+
+    const logEntry = JSON.parse(String(consoleErrorCalls.at(-1)?.[0])) as {
+      context?: { error?: string };
+      message?: string;
+    };
+
+    expect(logEntry.message).toBe("Request failed");
+    expect(logEntry.context?.error).toContain("[redacted-email]");
+    expect(logEntry.context?.error).toContain("[redacted-url]");
+    expect(logEntry.context?.error).not.toContain("alex@example.com");
+    expect(logEntry.context?.error).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
   });
 
   it("maps Redis availability failures to a 503 degraded response when configured", async () => {
@@ -753,6 +1013,9 @@ describe("api module hardening", () => {
     expect(response?.headers.get("Access-Control-Expose-Headers")).toContain(
       "X-Request-Id",
     );
+
+    await flushScheduledTelemetryTasksForTests();
+
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
     );
@@ -776,6 +1039,9 @@ describe("api module hardening", () => {
       retryable: true,
       status: 503,
     });
+
+    await flushScheduledTelemetryTasksForTests();
+
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
     );
@@ -870,6 +1136,9 @@ describe("api module hardening", () => {
       retryable: true,
       status: 503,
     });
+
+    await flushScheduledTelemetryTasksForTests();
+
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:rate_limit_errors",
     );

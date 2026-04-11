@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { jsonWithCors } from "@/lib/api/cors";
 import { logPrivacySafe } from "@/lib/api/logging";
-import { incrementAnalytics } from "@/lib/api/telemetry";
+import { scheduleAnalyticsIncrement } from "@/lib/api/telemetry";
 import {
   type ErrorCategory,
   getErrorDetails,
@@ -245,7 +245,12 @@ export function handleError(
   }
 
   logPrivacySafe("error", endpoint, "Request failed", logPayload, request);
-  void incrementAnalytics(analyticsMetric);
+  scheduleAnalyticsIncrement(analyticsMetric, {
+    endpoint,
+    logContext,
+    request,
+    taskName: analyticsMetric,
+  });
 
   const handledError = resolveHandledApiErrorDetails(
     error,

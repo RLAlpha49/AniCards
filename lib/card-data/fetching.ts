@@ -1,5 +1,6 @@
 import { redisClient } from "@/lib/api/clients";
 import { isRedisBackplaneUnavailable } from "@/lib/api/errors";
+import { logPrivacySafe } from "@/lib/api/logging";
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
@@ -254,16 +255,17 @@ export async function resolveUserIdFromUsername(
   const normalizedUsername = normalizeUsernameIndexValue(username);
   if (!normalizedUsername) return null;
   const usernameIndexKey = `username:${normalizedUsername}`;
-  console.log(
-    `🔍 [Card Data] Searching user index for username: ${normalizedUsername}`,
-  );
+  logPrivacySafe("log", "Card Data", "Searching username index", {
+    username: normalizedUsername,
+  });
   const userIdFromIndex = await redisClient.get(usernameIndexKey);
   if (!userIdFromIndex) return null;
   const candidate = Number.parseInt(userIdFromIndex as string, 10);
   if (Number.isNaN(candidate)) return null;
-  console.log(
-    `✅ [Card Data] Resolved username ${normalizedUsername} to userId: ${candidate}`,
-  );
+  logPrivacySafe("log", "Card Data", "Resolved lookup by username", {
+    username: normalizedUsername,
+    userId: candidate,
+  });
   return candidate;
 }
 

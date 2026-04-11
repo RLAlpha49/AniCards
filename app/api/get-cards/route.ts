@@ -5,13 +5,34 @@ import { logPrivacySafe } from "@/lib/api/logging";
 import { parseStrictPositiveInteger } from "@/lib/api/primitives";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { initializeApiRequest } from "@/lib/api/request-guards";
-import { incrementAnalytics } from "@/lib/api/telemetry";
+import {
+  scheduleAnalyticsIncrement,
+  scheduleLowValueAnalyticsIncrement,
+} from "@/lib/api/telemetry";
 import { parseStoredCardsRecord } from "@/lib/card-data/fetching";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
 const CARDS_API_ENDPOINT = "Cards API";
 const CARDS_API_FAILED_METRIC = "analytics:cards_api:failed_requests";
 const CARDS_API_SUCCESS_METRIC = "analytics:cards_api:successful_requests";
+
+function trackCardsApiMetric(
+  metric: string,
+  request: Request,
+  options?: {
+    lowValue?: boolean;
+  },
+): void {
+  const scheduleMetric = options?.lowValue
+    ? scheduleLowValueAnalyticsIncrement
+    : scheduleAnalyticsIncrement;
+
+  scheduleMetric(metric, {
+    endpoint: CARDS_API_ENDPOINT,
+    request,
+    taskName: metric,
+  });
+}
 
 /**
  * Serves cached card configurations for the requested user from Redis.
@@ -49,6 +70,9 @@ export async function GET(request: Request) {
       undefined,
       request,
     );
+    trackCardsApiMetric(CARDS_API_FAILED_METRIC, request, {
+      lowValue: true,
+    });
     return apiErrorResponse(request, 400, "Missing user ID parameter");
   }
 
@@ -61,7 +85,9 @@ export async function GET(request: Request) {
       { userId },
       request,
     );
-    incrementAnalytics(CARDS_API_FAILED_METRIC).catch(() => {});
+    trackCardsApiMetric(CARDS_API_FAILED_METRIC, request, {
+      lowValue: true,
+    });
     return apiErrorResponse(request, 400, "Invalid user ID format", {
       category: "invalid_data",
       retryable: false,
@@ -89,6 +115,9 @@ export async function GET(request: Request) {
         { userId: numericUserId, durationMs: duration },
         request,
       );
+      trackCardsApiMetric(CARDS_API_FAILED_METRIC, request, {
+        lowValue: true,
+      });
       return apiErrorResponse(request, 404, "Cards not found");
     }
 
@@ -116,7 +145,7 @@ export async function GET(request: Request) {
       );
     }
 
-    incrementAnalytics(CARDS_API_SUCCESS_METRIC).catch(() => {});
+    trackCardsApiMetric(CARDS_API_SUCCESS_METRIC, request);
     return jsonWithCors(cardData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {

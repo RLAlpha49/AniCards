@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { logPrivacySafe } from "@/lib/api/logging";
 import { reportStructuredError } from "@/lib/error-tracking";
 import { safeTrack, trackError } from "@/lib/utils/google-analytics";
 
@@ -27,14 +28,32 @@ export function useAppRouterErrorBoundaryReporting(
   const { boundary, defaultErrorName, error, logLabel, userAction } = props;
 
   useEffect(() => {
-    console.error(logLabel, error);
+    const currentRoute = getCurrentRoute();
+
+    logPrivacySafe(
+      "error",
+      "AppRouterErrorBoundary",
+      "App Router error boundary caught route error",
+      {
+        boundary,
+        errorName: error.name ?? defaultErrorName,
+        error: error.message,
+        digest: error.digest,
+        route: currentRoute,
+        stack: error.stack,
+      },
+    );
+
+    if (process.env.NODE_ENV === "development") {
+      console.error(logLabel, error);
+    }
 
     void reportStructuredError({
       source: "app_router_error_boundary",
       userAction,
       error,
       digest: error.digest,
-      route: getCurrentRoute(),
+      route: currentRoute,
       metadata: {
         boundary,
       },

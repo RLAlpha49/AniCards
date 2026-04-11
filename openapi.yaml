@@ -1184,9 +1184,11 @@ paths:
       description: >-
         Validates and durably records privacy-safe structured client error
         reports before returning success. In production this route enforces
-        same-origin validation and a dedicated `3 requests / 10 s` limiter.
-        The server sanitizes the payload, ignores client-supplied `userId` and
-        `username`, and drops unsupported nested metadata values before
+        same-origin validation, a verified client IP, the shared request-proof
+        cookie, and a dedicated `3 requests / 10 s` limiter. The server
+        sanitizes the payload, ignores client-supplied `userId` and
+        `username`, preserves valid client incident `id` and `timestamp`
+        values, and drops unsupported nested metadata values before
         persistence.
       requestBody:
         required: true
@@ -1197,9 +1199,17 @@ paths:
             examples:
               reactBoundary:
                 value:
+                  id: "rep-client-incident-12345"
+                  timestamp: 1776057600000
                   source: "react_error_boundary"
                   userAction: "render_component_tree"
                   message: "Failed to fetch user Alex profile"
+                  category: "network_error"
+                  retryable: true
+                  recoverySuggestions:
+                    - title: "Retry the request"
+                      description: "Wait for the network to recover, then try loading the profile again."
+                      actionLabel: "Retry"
                   route: "/user/Alex?tab=cards"
                   requestId: "req-error-route-12345"
                   errorName: "TypeError"
@@ -1207,6 +1217,22 @@ paths:
                     boundary: "client_error_boundary"
                     tab: "cards"
                     retried: false
+              analyticsInstrumentation:
+                value:
+                  id: "rep-analytics-incident-12345"
+                  timestamp: 1776057602500
+                  source: "analytics_instrumentation"
+                  userAction: "analytics_pageview_dispatch"
+                  message: "Failed to fetch analytics beacon"
+                  category: "network_error"
+                  retryable: true
+                  requestId: "req-analytics-route-12345"
+                  errorName: "TypeError"
+                  metadata:
+                    analyticsFailureBucket: "network"
+                    analyticsFailureCount: 3
+                    analyticsSuppressedDuplicates: 1
+                    pagePath: "/user/[username]?filter=[redacted]"
       responses:
         "200":
           description: "Structured error report durably recorded"
@@ -2310,11 +2336,32 @@ components:
       required:
         - recorded
 
+    ErrorReportRequestRecoverySuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          minLength: 1
+          maxLength: 240
+        actionLabel:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required:
+        - title
+        - description
+
     ErrorReportSource:
       type: string
       enum:
         - "user_action"
         - "client_hook"
+        - "analytics_instrumentation"
         - "react_error_boundary"
         - "app_router_error_boundary"
         - "api_route"
@@ -2348,8 +2395,24 @@ components:
       description: >-
         Structured client error report durably recorded by `/api/error-reports`.
         `userAction` and `message` are required. Unknown top-level fields are
-        ignored, and client-supplied identifiers are not trusted or persisted.
+        ignored, client-supplied `userId` and `username` are discarded, and
+        valid client `id`, `timestamp`, `category`, `retryable`, and
+        `recoverySuggestions` values are sanitized then preserved.
       properties:
+        id:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{8,120}$"
+          description: >-
+            Optional stable client incident identifier. When omitted or
+            invalid, the runtime falls back to a generated incident ID.
+        timestamp:
+          type: integer
+          format: int64
+          minimum: 1
+          description: >-
+            Optional original client occurrence timestamp in Unix
+            milliseconds. When omitted or invalid, the runtime falls back to
+            the current report time.
         source:
           $ref: "#/components/schemas/ErrorReportSource"
         userAction:
@@ -2360,6 +2423,24 @@ components:
           type: string
           minLength: 1
           maxLength: 2000
+        category:
+          type: string
+          enum:
+            - "user_not_found"
+            - "rate_limited"
+            - "network_error"
+            - "invalid_data"
+            - "server_error"
+            - "timeout"
+            - "authentication"
+            - "unknown"
+        retryable:
+          type: boolean
+        recoverySuggestions:
+          type: array
+          maxItems: 6
+          items:
+            $ref: "#/components/schemas/ErrorReportRequestRecoverySuggestion"
         requestId:
           type: string
           pattern: "^[A-Za-z0-9._:-]{8,120}$"

@@ -6,6 +6,7 @@ import type { ErrorInfo, ReactNode } from "react";
 import { Component, useEffect, useId, useRef } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { logPrivacySafe } from "@/lib/api/logging";
 import { getErrorDetails, type RecoverySuggestion } from "@/lib/error-messages";
 import { reportStructuredError } from "@/lib/error-tracking";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  incidentReference?: string;
 }
 
 export interface ErrorFallbackModel {
@@ -296,9 +298,12 @@ export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
+  private pendingIncidentError: Error | null = null;
+
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
+    incidentReference: undefined,
   };
 
   /**
@@ -310,7 +315,12 @@ export class ErrorBoundary extends Component<
     return {
       hasError: true,
       error,
+      incidentReference: undefined,
     };
+  }
+
+  componentWillUnmount() {
+    this.pendingIncidentError = null;
   }
 
   /**
@@ -320,20 +330,63 @@ export class ErrorBoundary extends Component<
    * @source
    */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    const currentRoute =
+      globalThis.location === undefined
+        ? undefined
+        : `${globalThis.location.pathname}${globalThis.location.search}`;
+
+    this.pendingIncidentError = error;
+
+    logPrivacySafe(
+      "error",
+      "ErrorBoundary",
+      "React error boundary caught render error",
+      {
+        boundary: "client_error_boundary",
+        errorName: error.name,
+        error: error.message,
+        route: currentRoute,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack ?? undefined,
+      },
+    );
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    }
 
     void reportStructuredError({
       source: "react_error_boundary",
       userAction: "render_component_tree",
       error,
       componentStack: errorInfo.componentStack ?? undefined,
-      route:
-        globalThis.location === undefined
-          ? undefined
-          : `${globalThis.location.pathname}${globalThis.location.search}`,
+      route: currentRoute,
       metadata: {
         boundary: "client_error_boundary",
       },
+    }).then((report) => {
+      if (
+        !report?.id ||
+        this.pendingIncidentError !== error ||
+        !this.state.hasError ||
+        this.state.error !== error
+      ) {
+        return;
+      }
+
+      this.setState((currentState) => {
+        if (!currentState.hasError || currentState.error !== error) {
+          return null;
+        }
+
+        if (currentState.incidentReference === report.id) {
+          return null;
+        }
+
+        return {
+          incidentReference: report.id,
+        };
+      });
     });
 
     safeTrack(() =>
@@ -360,10 +413,13 @@ export class ErrorBoundary extends Component<
    * @source
    */
   resetErrorBoundary = () => {
+    this.pendingIncidentError = null;
+
     this.setState(
       {
         hasError: false,
         error: null,
+        incidentReference: undefined,
       },
       () => {
         this.props.onReset?.();
@@ -380,6 +436,7 @@ export class ErrorBoundary extends Component<
     return (
       <ErrorFallbackPanel
         error={this.state.error}
+        incidentReference={this.state.incidentReference}
         onRetry={this.resetErrorBoundary}
         retryLabel="Try Again"
       />
