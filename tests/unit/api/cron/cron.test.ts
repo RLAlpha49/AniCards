@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
-  captureSharedRedisRpushCalls,
   getStringValue,
   parseRequestInitJson,
   sharedRedisMockDel,
@@ -449,9 +448,15 @@ describe("Cron API Route", () => {
     });
   });
 
-  it("loads only meta before AniList resolves and defers the remaining split parts until success", async () => {
+  it("waits for bootstrap meta validation before starting AniList refresh and defers the remaining split parts until success", async () => {
     mockUserRecords(["123"]);
+    const deferredMetaParts = createDeferredPromise<(string | null)[]>();
     const deferredResponse = createDeferredPromise<Response>();
+
+    sharedRedisMockMget.mockImplementationOnce(async (...keys: string[]) => {
+      expect(keys).toEqual(["user:123:meta"]);
+      return deferredMetaParts.promise;
+    });
 
     globalThis.fetch = mock(
       () => deferredResponse.promise,
@@ -461,9 +466,17 @@ describe("Cron API Route", () => {
 
     await flushMicrotasks(12);
 
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
     expect(sharedRedisMockMget.mock.calls[0]).toEqual(["user:123:meta"]);
+
+    deferredMetaParts.resolve([
+      JSON.stringify(createStoredSplitUser("123").meta),
+    ]);
+
+    await flushMicrotasks(12);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
     deferredResponse.resolve(
       createJsonResponse(200, { data: createValidStatsPayload("123") }),
@@ -486,61 +499,24 @@ describe("Cron API Route", () => {
     ]);
   });
 
-  it("aborts the overlapping AniList refresh when bootstrap metadata loading fails", async () => {
+  it("skips AniList refreshes when bootstrap metadata loading fails", async () => {
     mockUserRecords(["123"]);
-    const capturedRpush = captureSharedRedisRpushCalls();
-    const fetchStarted = createDeferredPromise<void>();
-    let fetchSignal: AbortSignal | undefined;
 
-    globalThis.fetch = mock(
-      (_url: RequestInfo | URL, init?: RequestInit) =>
-        new Promise<Response>((_resolve, reject) => {
-          fetchSignal = init?.signal ?? undefined;
-          fetchStarted.resolve();
-          fetchSignal?.addEventListener(
-            "abort",
-            () => {
-              reject(
-                fetchSignal?.reason ??
-                  new DOMException("Aborted", "AbortError"),
-              );
-            },
-            { once: true },
-          );
-        }),
+    globalThis.fetch = mock(() =>
+      Promise.resolve(createJsonResponse(200, { data: {} })),
     ) as unknown as typeof fetch;
 
-    try {
-      sharedRedisMockMget.mockRejectedValueOnce(
-        new Error("Part fetch exploded"),
-      );
+    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
 
-      const responsePromise = POST(createCronRequest());
+    const response = await POST(createCronRequest());
 
-      await fetchStarted.promise;
-
-      const response = await responsePromise;
-
-      expect(response.status).toBe(200);
-      expect(await response.text()).toContain(
-        "Updated 0/1 users successfully. Failed: 0, Removed: 0",
-      );
-      expect(fetchSignal?.aborted).toBe(true);
-
-      await flushScheduledTelemetryTasksForTests();
-
-      // Note: Fails in CI
-      // const errorReportCall = capturedRpush.calls.find(
-      //   ([key]) => key === "telemetry:error-reports:v1",
-      // );
-      // expect(errorReportCall).toBeDefined();
-      // expect(errorReportCall).toEqual([
-      //   "telemetry:error-reports:v1",
-      //   expect.any(String),
-      // ]);
-    } finally {
-      capturedRpush.release();
-    }
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockMget.mock.calls[0]).toEqual(["user:123:meta"]);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {

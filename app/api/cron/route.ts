@@ -428,11 +428,20 @@ export async function POST(request: Request) {
         let stage: CronUserRefreshStage = "fetch_user_data_parts";
         let trackedUserId = id;
         const updateAbortController = new AbortController();
-        const updateResultPromise = updateUserStats(
-          id,
-          request,
-          updateAbortController.signal,
-        );
+        let updateResultPromise: Promise<UpdateResult> | null = null;
+
+        const getUpdateResultPromise = () => {
+          // Avoid spending AniList budget on records that already fail local
+          // bootstrap validation before we even know whether the stored entry is
+          // readable enough to refresh.
+          updateResultPromise ??= updateUserStats(
+            trackedUserId,
+            request,
+            updateAbortController.signal,
+          );
+
+          return updateResultPromise;
+        };
 
         try {
           // Meta is enough to identify the stored user and log context. The
@@ -473,7 +482,7 @@ export async function POST(request: Request) {
           );
 
           stage = "refresh_user_stats";
-          const updateResult = await updateResultPromise;
+          const updateResult = await getUpdateResultPromise();
 
           if (updateResult.success) {
             stage = "fetch_user_data_parts";
@@ -533,13 +542,16 @@ export async function POST(request: Request) {
             }
           }
         } catch (error) {
-          if (stage === "fetch_user_data_parts") {
+          if (stage === "fetch_user_data_parts" && updateResultPromise) {
+            const pendingUpdateResultPromise: Promise<UpdateResult> =
+              updateResultPromise;
+
             updateAbortController.abort(
               new Error(
-                "Aborted scheduled refresh after bootstrap metadata load failed",
+                "Aborted scheduled refresh after local user-data loading failed",
               ),
             );
-            await updateResultPromise.catch(() => undefined);
+            await pendingUpdateResultPromise.catch(() => undefined);
           }
 
           await reportCronUserRefreshError({
