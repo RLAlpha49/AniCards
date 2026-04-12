@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 
 import { getSiteUrl } from "@/lib/site-config";
 
+const PREVIEW_MEDIA_DISALLOW_PATHS = ["/api/", "/card.png", "/card.svg"];
+
 export default function robots(): MetadataRoute.Robots {
   const siteUrl = getSiteUrl();
 
@@ -10,7 +12,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/"],
+        disallow: [...PREVIEW_MEDIA_DISALLOW_PATHS],
       },
     ],
     sitemap: `${siteUrl}/sitemap.xml`,

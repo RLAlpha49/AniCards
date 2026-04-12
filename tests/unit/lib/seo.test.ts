@@ -9,6 +9,7 @@ import {
   getSearchPagePath,
   getSearchPagePrefillQuery,
   getSearchPageSEOConfig,
+  getStaticPageSocialPreviewImage,
   getUserPageSEOConfig,
   normalizeSearchLookupInput,
   seoConfigs,
@@ -121,20 +122,51 @@ describe("SEO metadata helpers", () => {
   it("keeps /search canonical while describing both username and user ID discovery", () => {
     const metadata = generateMetadata(seoConfigs.search);
     const openGraph = getOpenGraphMetadata(metadata);
+    const twitter = getTwitterMetadata(metadata);
+    const previewImage = getStaticPageSocialPreviewImage("search");
 
     expect(metadata.alternates?.canonical).toBe("/search");
     expect(metadata.description).toContain("username or numeric ID");
     expect(openGraph?.url).toBe(resolveSiteUrl("/search"));
+    expect(openGraph?.images).toEqual([previewImage]);
+    expect(twitter?.images).toEqual([previewImage]);
   });
 
   it("keeps the about page canonical and indexable", () => {
     const metadata = generateMetadata(seoConfigs.about);
     const openGraph = getOpenGraphMetadata(metadata);
     const robots = getRobotsMetadata(metadata);
+    const previewImage = getStaticPageSocialPreviewImage("about");
 
     expect(metadata.alternates?.canonical).toBe("/about");
     expect(openGraph?.url).toBe(resolveSiteUrl("/about"));
+    expect(openGraph?.images).toEqual([previewImage]);
     expect(robots?.index).toBe(true);
+  });
+
+  it("assigns distinct route-specific preview images to the static marketing pages", () => {
+    const pageKeys = [
+      "about",
+      "contact",
+      "examples",
+      "privacy",
+      "projects",
+      "search",
+    ] as const;
+    const previewImages = pageKeys.map((pageKey) => {
+      const metadata = generateMetadata(seoConfigs[pageKey]);
+      const openGraph = getOpenGraphMetadata(metadata);
+      const twitter = getTwitterMetadata(metadata);
+      const previewImage = getStaticPageSocialPreviewImage(pageKey);
+
+      expect(openGraph?.images).toEqual([previewImage]);
+      expect(twitter?.images).toEqual([previewImage]);
+
+      return previewImage;
+    });
+
+    expect(new Set(previewImages).size).toBe(previewImages.length);
+    expect(previewImages).not.toContain(getDefaultSocialPreviewImage());
   });
 
   it("normalizes the public /search mode contract and omits the default mode when possible", () => {
@@ -207,9 +239,11 @@ describe("SEO metadata helpers", () => {
     const metadata = generateMetadata(seoConfigs.privacy);
     const openGraph = getOpenGraphMetadata(metadata);
     const robots = getRobotsMetadata(metadata);
+    const previewImage = getStaticPageSocialPreviewImage("privacy");
 
     expect(metadata.alternates?.canonical).toBe("/privacy");
     expect(openGraph?.url).toBe(resolveSiteUrl("/privacy"));
+    expect(openGraph?.images).toEqual([previewImage]);
     expect(robots?.index).toBe(true);
   });
 });

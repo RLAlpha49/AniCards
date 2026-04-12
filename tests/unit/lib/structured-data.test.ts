@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { resolveSiteUrl, SITE_NAME } from "@/lib/site-config";
+import {
+  resolveSiteUrl,
+  SITE_LOGO_PATH,
+  SITE_NAME,
+  SITE_SAME_AS_LINKS,
+} from "@/lib/site-config";
 import {
   generateSiteStructuredData,
   generateStructuredData,
@@ -17,29 +22,52 @@ describe("structured data helpers", () => {
     ]);
   });
 
-  it("adds a SearchAction to the website entity for username lookups", () => {
+  it("adds SearchAction entries to the website entity for username and user ID lookups", () => {
     const entries = generateSiteStructuredData();
     const webSiteEntry = entries.find(
       (entry) => entry["@type"] === "WebSite",
     ) as {
-      potentialAction: {
+      potentialAction: Array<{
         "@type": string;
         target: {
           "@type": string;
           urlTemplate: string;
         };
         "query-input": string;
-      };
+      }>;
     };
 
-    expect(webSiteEntry.potentialAction).toEqual({
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: `${resolveSiteUrl("/search?mode=username")}&query={search_term_string}`,
+    expect(webSiteEntry.potentialAction).toEqual([
+      {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${resolveSiteUrl("/search?mode=username")}&query={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
       },
-      "query-input": "required name=search_term_string",
-    });
+      {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${resolveSiteUrl("/search?mode=userId")}&query={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
+    ]);
+  });
+
+  it("adds brand identity signals to the organization entity", () => {
+    const entries = generateSiteStructuredData();
+    const organizationEntry = entries.find(
+      (entry) => entry["@type"] === "Organization",
+    ) as {
+      logo?: string;
+      sameAs?: string[];
+    };
+
+    expect(organizationEntry.logo).toBe(resolveSiteUrl(SITE_LOGO_PATH));
+    expect(organizationEntry.sameAs).toEqual(SITE_SAME_AS_LINKS);
   });
 
   it("models /search as the public discovery surface for both lookup modes", () => {

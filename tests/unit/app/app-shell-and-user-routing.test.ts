@@ -14,6 +14,8 @@ import { siteMetadata as rootMetadata } from "@/lib/seo";
 import { getSiteUrl, resolveSiteUrl } from "@/lib/site-config";
 import { config as middlewareConfig, proxy } from "@/proxy";
 
+const PREVIEW_MEDIA_DISALLOW_PATHS = ["/api/", "/card.png", "/card.svg"];
+
 function treeContainsElementType(
   node: ReactNode,
   elementType: unknown,
@@ -117,13 +119,13 @@ describe("App shell server coverage", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
-  it("returns robots metadata that blocks API indexing and advertises the sitemap", () => {
+  it("returns robots metadata that blocks API and preview media indexing and advertises the sitemap", () => {
     expect(robots()).toEqual({
       rules: [
         {
           userAgent: "*",
           allow: "/",
-          disallow: ["/api/"],
+          disallow: [...PREVIEW_MEDIA_DISALLOW_PATHS],
         },
       ],
       sitemap: `${getSiteUrl()}/sitemap.xml`,

@@ -1,10 +1,39 @@
 import { NextResponse } from "next/server";
 
-import { getStaticSitemapEntries } from "@/lib/seo";
+import {
+  getStaticSitemapEntries,
+  getUserProfilePath,
+  type SitemapEntry,
+  USER_PROFILE_SITEMAP_ENTRY,
+} from "@/lib/seo";
+import { listPublicUserProfileSitemapEntries } from "@/lib/server/user-data";
 import { resolveSiteUrl } from "@/lib/site-config";
 
 const SITEMAP_CACHE_CONTROL =
   "public, s-maxage=3600, stale-while-revalidate=600";
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function renderSitemapEntry(entry: SitemapEntry): string {
+  const lastmod = entry.lastmod
+    ? `
+      <lastmod>${escapeXml(entry.lastmod)}</lastmod>`
+    : "";
+
+  return `
+    <url>
+      <loc>${escapeXml(resolveSiteUrl(entry.path))}</loc>${lastmod}
+      <changefreq>${entry.changefreq}</changefreq>
+      <priority>${entry.priority}</priority>
+    </url>`;
+}
 
 /**
  * Builds the sitemap XML string covering curated routes and returns it as a cacheable XML response.
@@ -12,15 +41,16 @@ const SITEMAP_CACHE_CONTROL =
  * @source
  */
 export async function GET() {
-  const urls = getStaticSitemapEntries()
-    .map((page) => {
-      return `
-    <url>
-      <loc>${resolveSiteUrl(page.path)}</loc>
-      <changefreq>${page.changefreq}</changefreq>
-      <priority>${page.priority}</priority>
-    </url>`;
-    })
+  const profileEntries = await listPublicUserProfileSitemapEntries();
+  const urls = [
+    ...getStaticSitemapEntries(),
+    ...profileEntries.map((entry) => ({
+      ...USER_PROFILE_SITEMAP_ENTRY,
+      path: getUserProfilePath(entry.username),
+      ...(entry.lastmod ? { lastmod: entry.lastmod } : {}),
+    })),
+  ]
+    .map(renderSitemapEntry)
     .join("");
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>

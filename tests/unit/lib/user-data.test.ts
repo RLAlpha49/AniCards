@@ -26,6 +26,7 @@ const {
   deleteUserRecord,
   fetchUserDataParts,
   getPersistedUserState,
+  listPublicUserProfileSitemapEntries,
   listStalestUserIds,
   reconstructPublicUserRecord,
   reconstructUserBootstrapRecord,
@@ -1230,6 +1231,73 @@ describe("user-data persistence", () => {
       expect.objectContaining({ member: "7", score: expect.any(Number) }),
     );
     expect(sharedRedisMockZrem).not.toHaveBeenCalled();
+    expect(sharedRedisMockScan).not.toHaveBeenCalled();
+  });
+
+  it("lists canonical public profile sitemap entries from tracked user state without a global scan", async () => {
+    sharedRedisMockSmembers.mockResolvedValueOnce(["9", "5", "7", "11"]);
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:5:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "5",
+            username: "ZetaUser",
+            updatedAt: "2026-03-27T00:00:05-05:00",
+          }),
+        );
+      }
+
+      if (key === "user:7:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "7",
+            updatedAt: "2026-03-27T00:00:07.000Z",
+          }),
+        );
+      }
+
+      if (key === "user:9:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "9",
+            username: "Alpha49",
+            updatedAt: "2026-03-27T00:00:09.000Z",
+          }),
+        );
+      }
+
+      if (key === "user:11") {
+        return Promise.resolve(
+          JSON.stringify(
+            createPersistedUserRecord({
+              userId: "11",
+              username: "Beta User",
+              updatedAt: "2026-03-27T00:00:11.000Z",
+            }),
+          ),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+
+    const result = await listPublicUserProfileSitemapEntries();
+
+    expect(result).toEqual([
+      {
+        username: "Alpha49",
+        lastmod: "2026-03-27T00:00:09.000Z",
+      },
+      {
+        username: "Beta User",
+        lastmod: "2026-03-27T00:00:11.000Z",
+      },
+      {
+        username: "ZetaUser",
+        lastmod: "2026-03-27T05:00:05.000Z",
+      },
+    ]);
+    expect(sharedRedisMockSmembers).toHaveBeenCalledWith("users:known-ids");
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });
 

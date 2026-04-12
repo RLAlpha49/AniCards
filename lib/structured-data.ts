@@ -1,3 +1,4 @@
+import { PROJECT_CATALOG } from "@/components/projects/constants";
 import {
   getSearchPagePath,
   SEARCH_PAGE_QUERY_PARAM,
@@ -7,36 +8,26 @@ import {
   buildCanonicalUrl,
   getSiteUrl,
   resolveSiteUrl,
+  SITE_AUTHOR_GITHUB_URL,
   SITE_AUTHOR_NAME,
+  SITE_CONTACT_EMAIL,
+  SITE_LOGO_PATH,
   SITE_NAME,
+  SITE_SAME_AS_LINKS,
 } from "@/lib/site-config";
 
 const JSON_LD_CONTEXT = "https://schema.org";
 const DEFAULT_LANGUAGE = "en-US";
-const CONTACT_EMAIL = "contact@alpha49.com";
-const AUTHOR_GITHUB_URL = "https://github.com/RLAlpha49";
-const REPOSITORY_URL = "https://github.com/RLAlpha49/AniCards";
 
-const PROJECT_COLLECTION_ITEMS = [
-  {
-    name: "AniCards",
-    description:
-      "Stat cards pulled straight from your AniList profile with flexible layouts, themes, and crisp SVG rendering.",
-    url: REPOSITORY_URL,
-  },
-  {
-    name: "Anilist Custom List Manager",
-    description:
-      "Rule-based sorting for AniList custom lists so anime and manga collections stay organized automatically.",
-    url: "https://github.com/RLAlpha49/Anilist-Custom-List-Manager",
-  },
-  {
-    name: "Kenmai to Anilist",
-    description:
-      "A migration tool that imports Kenmai exports and syncs them into AniList.",
-    url: "https://github.com/RLAlpha49/KenmeiToAnilist",
-  },
-] as const;
+const PROJECT_COLLECTION_ITEMS = PROJECT_CATALOG.map(
+  ({ description, name, url }) => ({
+    description,
+    name,
+    url,
+  }),
+);
+const SEARCH_ACTION_MODES = ["username", "userId"] as const;
+type SearchActionMode = (typeof SEARCH_ACTION_MODES)[number];
 
 type ThingReference = {
   "@id": string;
@@ -72,6 +63,8 @@ interface Organization {
   url: string;
   email: string;
   founder: ThingReference;
+  logo?: string;
+  sameAs?: string[];
 }
 
 interface WebSite {
@@ -82,7 +75,7 @@ interface WebSite {
   url: string;
   inLanguage: string;
   publisher: ThingReference;
-  potentialAction: SearchAction;
+  potentialAction: SearchAction | SearchAction[];
 }
 
 /**
@@ -230,7 +223,7 @@ function buildFounderEntry(siteUrl: string): Person {
     "@context": JSON_LD_CONTEXT,
     "@id": entityIds.founder,
     name: SITE_AUTHOR_NAME,
-    url: AUTHOR_GITHUB_URL,
+    url: SITE_AUTHOR_GITHUB_URL,
   };
 }
 
@@ -243,12 +236,14 @@ function buildOrganizationEntry(siteUrl: string): Organization {
     "@id": entityIds.organization,
     name: SITE_NAME,
     url: siteUrl,
-    email: CONTACT_EMAIL,
+    email: SITE_CONTACT_EMAIL,
     founder: buildReference(entityIds.founder),
+    logo: resolveSiteUrl(SITE_LOGO_PATH),
+    sameAs: SITE_SAME_AS_LINKS,
   };
 }
 
-function buildSearchActionUrlTemplate(mode: "username" | "userId") {
+function buildSearchActionUrlTemplate(mode: SearchActionMode) {
   const searchPath = getSearchPagePath({
     mode,
     includeDefaultMode: true,
@@ -258,36 +253,23 @@ function buildSearchActionUrlTemplate(mode: "username" | "userId") {
   return `${resolveSiteUrl(searchPath)}${separator}${SEARCH_PAGE_QUERY_PARAM}={${SEARCH_ACTION_TARGET_PARAMETER}}`;
 }
 
-function buildWebSiteSearchAction(): SearchAction {
+function buildSearchAction(mode: SearchActionMode): SearchAction {
   return {
     "@type": "SearchAction",
     target: {
       "@type": "EntryPoint",
-      urlTemplate: buildSearchActionUrlTemplate("username"),
+      urlTemplate: buildSearchActionUrlTemplate(mode),
     },
     "query-input": SEARCH_ACTION_QUERY_INPUT,
   };
 }
 
+function buildWebSiteSearchAction(): SearchAction[] {
+  return SEARCH_ACTION_MODES.map((mode) => buildSearchAction(mode));
+}
+
 function buildSearchPageActions(): SearchAction[] {
-  return [
-    {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: buildSearchActionUrlTemplate("username"),
-      },
-      "query-input": SEARCH_ACTION_QUERY_INPUT,
-    },
-    {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: buildSearchActionUrlTemplate("userId"),
-      },
-      "query-input": SEARCH_ACTION_QUERY_INPUT,
-    },
-  ];
+  return buildWebSiteSearchAction();
 }
 
 function buildWebSiteEntry(siteUrl: string): WebSite {

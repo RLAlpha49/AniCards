@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
+import { PROJECTS_PAGE_SOCIAL_PREVIEW } from "@/components/projects/constants";
 import { normalizePositiveIntegerString } from "@/lib/api/primitives";
+import { DEFAULT_EXAMPLE_USER_ID } from "@/lib/card-groups";
 import {
   buildCanonicalUrl,
   getSiteUrlObject,
@@ -31,6 +33,15 @@ interface SEOConfig {
   };
   canonical?: string;
   robots?: Metadata["robots"];
+  socialPreview?: StaticSocialPreviewConfig;
+}
+
+interface StaticSocialPreviewConfig {
+  cardType: string;
+  colorPreset?: string;
+  userId?: string;
+  username?: string;
+  variation?: string;
 }
 
 export type SEOPageKey = keyof typeof seoConfigs;
@@ -44,6 +55,13 @@ export type StaticSitemapChangeFrequency =
   | "weekly"
   | "monthly"
   | "yearly";
+
+export interface SitemapEntry {
+  path: string;
+  priority: number;
+  changefreq: StaticSitemapChangeFrequency;
+  lastmod?: string;
+}
 
 export const SEARCH_PAGE_MODE_PARAM = "mode";
 export const SEARCH_PAGE_QUERY_PARAM = "query";
@@ -74,10 +92,45 @@ export const NOINDEX_ROBOTS: Metadata["robots"] = {
 
 const DEFAULT_SOCIAL_PREVIEW_CARD_QUERY = {
   cardType: "animeStats",
-  userId: "542244",
+  userId: DEFAULT_EXAMPLE_USER_ID,
   variation: "compact",
   colorPreset: "anicardsDarkGradient",
-} as const;
+} as const satisfies StaticSocialPreviewConfig;
+
+const SEARCH_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "profileOverview",
+  colorPreset: "anilistDark",
+  userId: DEFAULT_EXAMPLE_USER_ID,
+  variation: "default",
+} as const satisfies StaticSocialPreviewConfig;
+
+const EXAMPLES_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "favoritesSummary",
+  colorPreset: "anicardsDarkGradient",
+  userId: DEFAULT_EXAMPLE_USER_ID,
+  variation: "default",
+} as const satisfies StaticSocialPreviewConfig;
+
+const ABOUT_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "socialStats",
+  colorPreset: "anicardsDarkGradient",
+  userId: DEFAULT_EXAMPLE_USER_ID,
+  variation: "default",
+} as const satisfies StaticSocialPreviewConfig;
+
+const CONTACT_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "recentActivitySummary",
+  colorPreset: "anilistDark",
+  userId: DEFAULT_EXAMPLE_USER_ID,
+  variation: "default",
+} as const satisfies StaticSocialPreviewConfig;
+
+const PRIVACY_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "statusCompletionOverview",
+  colorPreset: "anicardsDarkGradient",
+  userId: DEFAULT_EXAMPLE_USER_ID,
+  variation: "combined",
+} as const satisfies StaticSocialPreviewConfig;
 
 const SOCIAL_PREVIEW_IMAGE_PATH = "/card.png";
 const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
@@ -86,25 +139,45 @@ const SEARCH_LOOKUP_MODE_USER_ID_ALIASES = new Set(["userid", "user-id"]);
 const ANILIST_PROFILE_HOSTS = new Set(["anilist.co", "www.anilist.co"]);
 const SEARCH_LOOKUP_USERNAME_PATTERN = /^[a-zA-Z0-9_\-\s]+$/;
 
-function resolveSocialPreviewImages(images?: readonly string[]): string[] {
-  const normalizedImages = (
-    images?.length ? [...images] : [getDefaultSocialPreviewImage()]
-  ).map(resolveSiteUrl);
+function buildStaticSocialPreviewImage(
+  params: StaticSocialPreviewConfig,
+): string {
+  return buildCanonicalUrl(SOCIAL_PREVIEW_IMAGE_PATH, {
+    cardType: params.cardType,
+    colorPreset: params.colorPreset,
+    userId: params.userId,
+    username: params.username,
+    variation: params.variation,
+  });
+}
 
-  return normalizedImages.length
-    ? normalizedImages
-    : [getDefaultSocialPreviewImage()];
+function resolveSocialPreviewImages(
+  images?: readonly string[],
+  fallbackImage: string = getDefaultSocialPreviewImage(),
+): string[] {
+  const normalizedImages = (images?.length ? [...images] : [fallbackImage]).map(
+    resolveSiteUrl,
+  );
+
+  return normalizedImages.length ? normalizedImages : [fallbackImage];
 }
 
 export function getDefaultSocialPreviewImage(): string {
-  return buildCanonicalUrl(
-    SOCIAL_PREVIEW_IMAGE_PATH,
-    DEFAULT_SOCIAL_PREVIEW_CARD_QUERY,
-  );
+  return buildStaticSocialPreviewImage(DEFAULT_SOCIAL_PREVIEW_CARD_QUERY);
 }
 
 export function getDefaultSocialPreviewImages(): string[] {
   return [getDefaultSocialPreviewImage()];
+}
+
+export function getStaticPageSocialPreviewImage(
+  pageKey: Exclude<SEOPageKey, "user">,
+): string {
+  const config = seoConfigs[pageKey];
+
+  return config.socialPreview
+    ? buildStaticSocialPreviewImage(config.socialPreview)
+    : getDefaultSocialPreviewImage();
 }
 
 /**
@@ -153,7 +226,7 @@ export function buildUserSocialPreviewImage(params: {
     return undefined;
   }
 
-  return buildCanonicalUrl(SOCIAL_PREVIEW_IMAGE_PATH, {
+  return buildStaticSocialPreviewImage({
     cardType: "profileOverview",
     colorPreset: "anilistDark",
     ...(normalizedUsername
@@ -459,9 +532,16 @@ export function generateMetadata(config: SEOConfig): Metadata {
   const canonicalReference = canonical?.trim();
   const openGraphReference = openGraph.url?.trim() || canonicalReference || "/";
   const openGraphUrl = resolveSiteUrl(openGraphReference);
-  const openGraphImages = resolveSocialPreviewImages(openGraph.images);
+  const fallbackSocialPreviewImage = config.socialPreview
+    ? buildStaticSocialPreviewImage(config.socialPreview)
+    : getDefaultSocialPreviewImage();
+  const openGraphImages = resolveSocialPreviewImages(
+    openGraph.images,
+    fallbackSocialPreviewImage,
+  );
   const twitterImages = resolveSocialPreviewImages(
     twitter.images ?? openGraph.images,
+    fallbackSocialPreviewImage,
   );
 
   const fullTitle = title.includes(SITE_NAME)
@@ -540,6 +620,7 @@ export const seoConfigs = {
       "weeb stats",
     ],
     canonical: "/",
+    socialPreview: DEFAULT_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   search: {
@@ -558,6 +639,7 @@ export const seoConfigs = {
       "user statistics",
     ],
     canonical: "/search",
+    socialPreview: SEARCH_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   examples: {
@@ -576,6 +658,7 @@ export const seoConfigs = {
       "anime cards showcase",
     ],
     canonical: "/examples",
+    socialPreview: EXAMPLES_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   contact: {
@@ -584,6 +667,7 @@ export const seoConfigs = {
       "Reach the AniCards maintainer for bug reports, collaboration notes, privacy requests, and feature ideas through the channel that fits the conversation.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
     canonical: "/contact",
+    socialPreview: CONTACT_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   projects: {
@@ -599,6 +683,7 @@ export const seoConfigs = {
       "anime applications",
     ],
     canonical: "/projects",
+    socialPreview: PROJECTS_PAGE_SOCIAL_PREVIEW,
   },
 
   privacy: {
@@ -613,6 +698,7 @@ export const seoConfigs = {
       "saved data",
     ],
     canonical: "/privacy",
+    socialPreview: PRIVACY_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   about: {
@@ -627,6 +713,7 @@ export const seoConfigs = {
       "project philosophy",
     ],
     canonical: "/about",
+    socialPreview: ABOUT_SOCIAL_PREVIEW_CARD_QUERY,
   },
 
   user: {
@@ -646,10 +733,16 @@ export const seoConfigs = {
   },
 } as const satisfies Record<string, SEOConfig>;
 
+export const USER_PROFILE_SITEMAP_ENTRY = {
+  changefreq: "weekly",
+  priority: 0.7,
+} as const satisfies Pick<SitemapEntry, "changefreq" | "priority">;
+
 type StaticSitemapEntryDef = {
   seoKey: Exclude<SEOPageKey, "user">;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
+  lastmod: string;
 };
 
 const staticSitemapEntryDefs = [
@@ -657,40 +750,47 @@ const staticSitemapEntryDefs = [
     seoKey: "home",
     priority: 1,
     changefreq: "daily",
+    lastmod: "2026-04-12T01:57:04.000Z",
   },
   {
     seoKey: "search",
     priority: 0.9,
     changefreq: "weekly",
+    lastmod: "2026-04-12T18:06:16.000Z",
   },
   {
     seoKey: "examples",
     priority: 0.85,
     changefreq: "weekly",
+    lastmod: "2026-03-30T05:30:55.000Z",
   },
   {
     seoKey: "projects",
     priority: 0.6,
     changefreq: "monthly",
+    lastmod: "2026-03-30T05:30:55.000Z",
   },
   {
     seoKey: "about",
     priority: 0.65,
     changefreq: "monthly",
+    lastmod: "2026-04-09T03:33:33.000Z",
   },
   {
     seoKey: "privacy",
     priority: 0.55,
     changefreq: "yearly",
+    lastmod: "2026-04-12T18:06:33.000Z",
   },
   {
     seoKey: "contact",
     priority: 0.6,
     changefreq: "yearly",
+    lastmod: "2026-03-30T05:30:55.000Z",
   },
 ] as const satisfies readonly StaticSitemapEntryDef[];
 
-export function getStaticSitemapEntries() {
+export function getStaticSitemapEntries(): SitemapEntry[] {
   return staticSitemapEntryDefs.map((entry) => ({
     ...entry,
     path: seoConfigs[entry.seoKey].canonical ?? "/",

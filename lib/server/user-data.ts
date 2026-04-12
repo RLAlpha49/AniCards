@@ -1878,6 +1878,134 @@ export async function listStalestUserIds(
   };
 }
 
+const PROFILE_SITEMAP_STATE_READ_BATCH_SIZE = 100;
+
+export interface PublicUserProfileSitemapEntry {
+  username: string;
+  lastmod?: string;
+}
+
+function normalizeSitemapLastmod(
+  value: string | undefined,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();
+}
+
+function chooseNewerSitemapLastmod(
+  current: string | undefined,
+  candidate: string | undefined,
+): string | undefined {
+  if (!current) {
+    return candidate;
+  }
+
+  if (!candidate) {
+    return current;
+  }
+
+  return Date.parse(candidate) > Date.parse(current) ? candidate : current;
+}
+
+export async function listPublicUserProfileSitemapEntries(): Promise<
+  PublicUserProfileSitemapEntry[]
+> {
+  const trackedUserIds = await readTrackedUserIds();
+
+  if (trackedUserIds.length === 0) {
+    return [];
+  }
+
+  const entriesByNormalizedUsername = new Map<
+    string,
+    PublicUserProfileSitemapEntry
+  >();
+
+  for (
+    let startIndex = 0;
+    startIndex < trackedUserIds.length;
+    startIndex += PROFILE_SITEMAP_STATE_READ_BATCH_SIZE
+  ) {
+    const userIdsBatch = trackedUserIds.slice(
+      startIndex,
+      startIndex + PROFILE_SITEMAP_STATE_READ_BATCH_SIZE,
+    );
+    const states = await Promise.all(
+      userIdsBatch.map(async (candidateUserId) => {
+        try {
+          return await getPersistedUserState(candidateUserId);
+        } catch (error) {
+          if (error instanceof UserDataIntegrityError) {
+            logPrivacySafe(
+              "warn",
+              "User Data",
+              "Skipping corrupt user while listing public profile sitemap entries",
+              {
+                userId: candidateUserId,
+                error: error.message,
+              },
+            );
+
+            return null;
+          }
+
+          throw error;
+        }
+      }),
+    );
+
+    states.forEach((state) => {
+      const username =
+        typeof state?.username === "string" ? state.username.trim() : "";
+      const normalizedUsername = normalizeUsernameIndexValue(username);
+
+      if (!normalizedUsername) {
+        return;
+      }
+
+      const candidateLastmod = normalizeSitemapLastmod(
+        state?.snapshot?.updatedAt ?? state?.updatedAt,
+      );
+      const previousEntry = entriesByNormalizedUsername.get(normalizedUsername);
+
+      if (!previousEntry) {
+        entriesByNormalizedUsername.set(
+          normalizedUsername,
+          candidateLastmod
+            ? { username, lastmod: candidateLastmod }
+            : { username },
+        );
+        return;
+      }
+
+      const nextLastmod = chooseNewerSitemapLastmod(
+        previousEntry.lastmod,
+        candidateLastmod,
+      );
+      const shouldUseCandidateUsername =
+        !previousEntry.lastmod ||
+        (candidateLastmod !== undefined && nextLastmod === candidateLastmod);
+
+      entriesByNormalizedUsername.set(normalizedUsername, {
+        username: shouldUseCandidateUsername
+          ? username
+          : previousEntry.username,
+        ...(nextLastmod ? { lastmod: nextLastmod } : {}),
+      });
+    });
+  }
+
+  return Array.from(entriesByNormalizedUsername.values()).toSorted((a, b) =>
+    a.username.localeCompare(b.username, undefined, {
+      sensitivity: "base",
+    }),
+  );
+}
+
 /**
  * Splits a full UserRecord into its constituent parts for granular storage.
  *
