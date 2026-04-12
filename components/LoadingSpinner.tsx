@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useId } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ interface LoadingSpinnerProps {
   text?: string;
   progress?: number;
   showProgressLabel?: boolean;
+  liveRegion?: "polite" | "assertive" | "off";
 }
 
 const sizeConfig = {
@@ -26,6 +28,15 @@ const sizeConfig = {
   md: { box: "h-10 w-10", viewBox: 48, textClass: "text-xs" },
   lg: { box: "h-16 w-16", viewBox: 48, textClass: "text-sm" },
 } as const;
+
+const LOADING_OVERLAY_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(", ");
 
 /**
  * A compact animated spinner with optional label and progress indicator.
@@ -39,12 +50,22 @@ export function LoadingSpinner({
   text,
   progress,
   showProgressLabel = false,
+  liveRegion = "polite",
 }: Readonly<LoadingSpinnerProps>) {
   const id = useId();
   const s = id.replaceAll(".", "-").replaceAll(":", "-");
   const cfg = sizeConfig[size];
   const hasProgress =
     progress !== undefined && progress >= 0 && progress <= 100;
+  const accessibilityProps =
+    liveRegion === "off"
+      ? { "aria-hidden": true }
+      : {
+          role: "status",
+          "aria-atomic": true,
+          "aria-busy": true,
+          "aria-live": liveRegion,
+        };
   const cx = 24;
   const r1 = 18;
   const r2 = 14;
@@ -55,8 +76,7 @@ export function LoadingSpinner({
 
   return (
     <output
-      aria-live="polite"
-      aria-busy="true"
+      {...accessibilityProps}
       className="inline-flex flex-col items-center gap-2.5"
     >
       <div className={cn(cfg.box, className, "relative")}>
@@ -263,34 +283,197 @@ export function LoadingSpinner({
 }
 
 interface LoadingOverlayProps {
+  title?: string;
   text?: string;
+  description?: string;
   children?: ReactNode;
 }
 
 export function LoadingOverlay({
+  title = "Loading in progress",
   text = "Generating your cards...",
+  description = "AniCards is still working. The rest of the page is temporarily unavailable until loading finishes.",
   children,
 }: Readonly<LoadingOverlayProps>) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const overlayRootRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const portalTarget = typeof document === "undefined" ? null : document.body;
+
   useEffect(() => {
+    if (portalTarget === null) {
+      return;
+    }
+
     const { body, documentElement } = document;
+    const dialogElement = dialogRef.current;
+    const overlayElement = overlayRootRef.current;
+
+    if (dialogElement === null || overlayElement === null) {
+      return;
+    }
+
+    const blockedElements = Array.from(body.children).filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element !== overlayElement,
+    );
+    const previousBlockingState = blockedElements.map((element) => ({
+      element,
+      hadAriaHidden: element.hasAttribute("aria-hidden"),
+      hadInert: element.hasAttribute("inert"),
+    }));
+    const previousActiveElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    for (const { element, hadAriaHidden, hadInert } of previousBlockingState) {
+      if (!hadAriaHidden) {
+        element.setAttribute("aria-hidden", "true");
+      }
+
+      if (!hadInert) {
+        element.setAttribute("inert", "");
+      }
+    }
+
+    const focusDialogHandle = requestAnimationFrame(() => {
+      dialogElement?.focus();
+    });
+
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        dialogElement.querySelectorAll<HTMLElement>(
+          LOADING_OVERLAY_FOCUSABLE_SELECTOR,
+        ),
+      );
+      const activeElement = document.activeElement;
+      const isFocusInsideDialog = Boolean(
+        activeElement instanceof HTMLElement &&
+        dialogElement.contains(activeElement),
+      );
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialogElement.focus();
+        return;
+      }
+
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements.at(-1) ?? firstFocusable;
+
+      if (event.shiftKey) {
+        if (
+          !isFocusInsideDialog ||
+          activeElement === firstFocusable ||
+          activeElement === dialogElement
+        ) {
+          event.preventDefault();
+          lastFocusable.focus();
+        }
+        return;
+      }
+
+      if (
+        !isFocusInsideDialog ||
+        activeElement === lastFocusable ||
+        activeElement === dialogElement
+      ) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    };
 
     body.classList.add("loading-overlay-open");
     documentElement.classList.add("loading-overlay-open");
+    document.addEventListener("keydown", handleDocumentKeyDown, true);
 
     return () => {
+      const activeElement = document.activeElement;
+      const focusStayedInsideDialog =
+        activeElement instanceof HTMLElement &&
+        dialogElement !== null &&
+        (activeElement === dialogElement ||
+          dialogElement.contains(activeElement));
+
+      cancelAnimationFrame(focusDialogHandle);
+      document.removeEventListener("keydown", handleDocumentKeyDown, true);
       body.classList.remove("loading-overlay-open");
       documentElement.classList.remove("loading-overlay-open");
-    };
-  }, []);
 
-  return (
-    <div className="
-      fixed inset-0 z-1000 flex items-center justify-center bg-background/85 backdrop-blur-md
-    ">
-      <div className="pointer-events-none flex flex-col items-center gap-4">
-        <LoadingSpinner size="lg" text={text} />
+      for (const {
+        element,
+        hadAriaHidden,
+        hadInert,
+      } of previousBlockingState) {
+        if (!hadAriaHidden) {
+          element.removeAttribute("aria-hidden");
+        }
+
+        if (!hadInert) {
+          element.removeAttribute("inert");
+        }
+      }
+
+      if (
+        previousActiveElement &&
+        previousActiveElement.isConnected &&
+        (focusStayedInsideDialog || activeElement === document.body)
+      ) {
+        previousActiveElement.focus();
+      }
+    };
+  }, [portalTarget]);
+
+  if (portalTarget === null) {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      ref={overlayRootRef}
+      data-loading-overlay="true"
+      className="
+        fixed inset-0 z-1000 flex items-center justify-center bg-background/85 backdrop-blur-md
+      "
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-busy="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+        className="
+          mx-6 flex max-w-sm flex-col items-center gap-4 border border-gold/15 bg-background/88 px-6
+          py-7 text-center shadow-[0_18px_60px_-18px_hsl(var(--gold)/0.25)]
+          focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold/60
+        "
+      >
+        <h2 id={titleId} className="sr-only">
+          {title}
+        </h2>
+        <p id={descriptionId} className="sr-only">
+          {description}
+        </p>
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {text}
+        </p>
+        <LoadingSpinner size="lg" text={text} liveRegion="off" />
         {children}
       </div>
-    </div>
+    </div>,
+    portalTarget,
   );
 }

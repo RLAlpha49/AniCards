@@ -6,6 +6,13 @@ import * as React from "react";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
+const ALERT_DIALOG_SAFE_AREA_PADDING = {
+  paddingTop: "max(0.5rem, calc(env(safe-area-inset-top) + 0.5rem))",
+  paddingRight: "max(0.5rem, calc(env(safe-area-inset-right) + 0.5rem))",
+  paddingBottom: "max(0.5rem, calc(env(safe-area-inset-bottom) + 0.5rem))",
+  paddingLeft: "max(0.5rem, calc(env(safe-area-inset-left) + 0.5rem))",
+} satisfies React.CSSProperties;
+
 /**
  * AlertDialog root primitive providing modal state for confirmation dialogs.
  * @source
@@ -57,22 +64,28 @@ const AlertDialogContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
-        "border-2 border-gold/15 bg-background",
-        "shadow-[0_24px_80px_-12px_hsl(var(--gold)/0.12),0_8px_24px_-4px_hsl(0_0%_0%/0.25)]",
-        "gap-4 p-6 duration-300",
-        "data-[state=closed]:animate-out data-[state=open]:animate-in",
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
-        "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
-        className,
-      )}
-      {...props}
-    />
+    <div
+      className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+      style={ALERT_DIALOG_SAFE_AREA_PADDING}
+    >
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          `
+            pointer-events-auto relative z-50 grid max-h-full w-full max-w-lg overflow-y-auto
+            overscroll-contain
+          `,
+          "border-2 border-gold/15 bg-background",
+          "shadow-[0_24px_80px_-12px_hsl(var(--gold)/0.12),0_8px_24px_-4px_hsl(0_0%_0%/0.25)]",
+          "gap-4 p-4 duration-300 sm:p-6",
+          "data-[state=closed]:animate-out data-[state=open]:animate-in",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          className,
+        )}
+        {...props}
+      />
+    </div>
   </AlertDialogPortal>
 ));
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
@@ -158,7 +171,11 @@ const AlertDialogAction = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Action
     ref={ref}
-    className={cn(buttonVariants(), className)}
+    className={cn(
+      buttonVariants(),
+      "w-full touch-manipulation-safe sm:w-auto",
+      className,
+    )}
     {...props}
   />
 ));
@@ -176,7 +193,11 @@ const AlertDialogCancel = React.forwardRef<
     ref={ref}
     className={cn(
       buttonVariants({ variant: "outline" }),
-      "mt-2 border-gold/20 hover:border-gold/40 hover:bg-gold/5 sm:mt-0",
+      `
+        mt-2 w-full touch-manipulation-safe border-gold/20
+        hover:border-gold/40 hover:bg-gold/5
+        sm:mt-0 sm:w-auto
+      `,
       className,
     )}
     {...props}
