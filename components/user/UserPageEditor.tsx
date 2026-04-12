@@ -40,8 +40,16 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
-import type { ReactElement, ReactNode } from "react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { shallow as shallowEqual } from "zustand/shallow";
@@ -80,7 +88,10 @@ import {
 } from "@/components/ui/Tooltip";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
 import { useMotionPreferences } from "@/hooks/useMotionPreferences";
-import { useUserPageDraftBackup } from "@/hooks/useUserPageDraftBackup";
+import {
+  flushUserPageDraftBackup,
+  useUserPageDraftBackup,
+} from "@/hooks/useUserPageDraftBackup";
 import {
   getMotionSafeScrollBehavior,
   NO_MOTION_TRANSITION,
@@ -100,6 +111,7 @@ import {
 import {
   consumePendingSettingsTemplateApply,
   readSettingsTemplatesFromStorage,
+  rememberLastSuccessfulUserPageRoute,
 } from "@/lib/user-page-settings-templates";
 import {
   EDITOR_STARTER_STYLES,
@@ -1313,11 +1325,156 @@ function usePendingSettingsTemplateApplication(params: {
   }, [params.isLoading, params.userId]);
 }
 
+const LEAVE_EDITOR_CONFIRMATION_MESSAGE =
+  "You have unsaved editor changes or a save in progress. If you leave now, AniCards may need to restore a local draft when you return. Leave this page?";
+const NON_PAGE_NAVIGATION_PROTOCOLS = new Set(["mailto:", "sms:", "tel:"]);
+
+export function shouldWarnBeforeLeavingEditor(params: {
+  isDirty: boolean;
+  isSaving: boolean;
+  hasConflict: boolean;
+}) {
+  return params.isDirty || params.isSaving || params.hasConflict;
+}
+
+export function shouldPromptForEditorNavigation(params: {
+  currentUrl: string;
+  nextHref: string | null | undefined;
+  target?: string | null;
+  download?: boolean;
+}) {
+  if (!params.nextHref || params.download) return false;
+  if (params.target && params.target !== "_self") return false;
+
+  const current = new URL(params.currentUrl, globalThis.location.origin);
+
+  let next: URL;
+  try {
+    next = new URL(params.nextHref, current);
+  } catch {
+    return false;
+  }
+
+  if (NON_PAGE_NAVIGATION_PROTOCOLS.has(next.protocol)) {
+    return false;
+  }
+
+  if (next.protocol !== "http:" && next.protocol !== "https:") {
+    return false;
+  }
+
+  if (next.origin !== current.origin) {
+    return true;
+  }
+
+  return next.pathname !== current.pathname;
+}
+
+function getClosestNavigatingAnchor(
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  if (!(target instanceof Element)) return null;
+
+  const anchor = target.closest("a[href]");
+  return anchor instanceof HTMLAnchorElement ? anchor : null;
+}
+
+function useUserPageEditorLeaveProtection(params: {
+  currentUrl: string;
+  isActive: boolean;
+  navigate: (href: string) => void;
+  userId: string | null;
+}) {
+  const currentUrlRef = useRef(params.currentUrl);
+
+  useEffect(() => {
+    currentUrlRef.current = params.currentUrl;
+  }, [params.currentUrl]);
+
+  useEffect(() => {
+    if (!params.isActive) {
+      return;
+    }
+
+    const confirmLeave = () =>
+      globalThis.window.confirm(LEAVE_EDITOR_CONFIRMATION_MESSAGE);
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      flushUserPageDraftBackup(params.userId);
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      const anchor = getClosestNavigatingAnchor(event.target);
+      if (!anchor) return;
+
+      if (
+        !shouldPromptForEditorNavigation({
+          currentUrl: currentUrlRef.current,
+          nextHref: anchor.getAttribute("href"),
+          target: anchor.getAttribute("target"),
+          download: anchor.hasAttribute("download"),
+        })
+      ) {
+        return;
+      }
+
+      if (!confirmLeave()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      flushUserPageDraftBackup(params.userId);
+    };
+
+    const handlePopState = () => {
+      const nextHref = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+
+      if (
+        !shouldPromptForEditorNavigation({
+          currentUrl: currentUrlRef.current,
+          nextHref,
+        })
+      ) {
+        return;
+      }
+
+      if (confirmLeave()) {
+        flushUserPageDraftBackup(params.userId);
+        return;
+      }
+
+      params.navigate(currentUrlRef.current);
+    };
+
+    globalThis.window.addEventListener("beforeunload", handleBeforeUnload);
+    globalThis.document.addEventListener("click", handleDocumentClick, true);
+    globalThis.window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      globalThis.window.removeEventListener("beforeunload", handleBeforeUnload);
+      globalThis.document.removeEventListener(
+        "click",
+        handleDocumentClick,
+        true,
+      );
+      globalThis.window.removeEventListener("popstate", handlePopState);
+    };
+  }, [params.isActive, params.navigate, params.userId]);
+}
+
 type RenderableCardType = (typeof statCardTypes)[number];
 
 const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
   props: Readonly<{
-    activeFilterCount: number;
     clearAllFilters: () => void;
     expandedGroups: Record<string, boolean>;
     filteredGroupTotals: Record<string, { total: number; enabled: number }>;
@@ -1325,6 +1482,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
     groupIcon: (groupName: string) => ReactNode;
     groupTotals: Record<string, { total: number; enabled: number }>;
     handleExpandedChange: (groupName: string, next: boolean) => void;
+    hasActiveFilters: boolean;
     isCardEnabled: (cardId: string) => boolean;
     isReorderMode: boolean;
     layoutVersion: number;
@@ -1374,7 +1532,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
             Clear search
           </Button>
 
-          {props.activeFilterCount > 1 ? (
+          {props.hasActiveFilters ? (
             <Button
               type="button"
               variant="outline"
@@ -2072,6 +2230,7 @@ export function UserPageEditor({
     visibleGroupNames,
     filteredCardCount,
     scopeCardCount,
+    hasActiveFilters,
     isCardEnabled,
     expandAll,
     collapseAll,
@@ -2209,9 +2368,29 @@ export function UserPageEditor({
     userId,
   });
 
+  useEffect(() => {
+    if (isLoading || loadError || !userId) {
+      return;
+    }
+
+    rememberLastSuccessfulUserPageRoute({
+      userId,
+      username,
+    });
+  }, [isLoading, loadError, userId, username]);
+
   const showDraftNotice =
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
   const showConflictNotice = saveConflict != null;
+  const shouldProtectUnsavedWork = useMemo(
+    () =>
+      shouldWarnBeforeLeavingEditor({
+        isDirty,
+        isSaving,
+        hasConflict: showConflictNotice,
+      }),
+    [isDirty, isSaving, showConflictNotice],
+  );
 
   const canSaveNow = canSaveEditorChanges({
     userId,
@@ -2298,6 +2477,23 @@ export function UserPageEditor({
 
   const router = useRouter();
   const pathname = usePathname();
+  const currentEditorUrl = useMemo(
+    () => (currentSearch ? `${pathname}?${currentSearch}` : pathname),
+    [currentSearch, pathname],
+  );
+  const navigate = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
+
+  useUserPageEditorLeaveProtection({
+    currentUrl: currentEditorUrl,
+    isActive: shouldProtectUnsavedWork,
+    navigate,
+    userId,
+  });
 
   useDebouncedEditorUrlSync({
     pathname,
@@ -2344,15 +2540,6 @@ export function UserPageEditor({
   const handleToggleReorderMode = useCallback(() => {
     setIsReorderMode((prev) => !prev);
   }, []);
-
-  const activeFilterCount = useMemo(
-    () =>
-      (query ? 1 : 0) +
-      (visibility === "all" ? 0 : 1) +
-      (selectedGroup === "All" ? 0 : 1) +
-      (customFilter === "all" ? 0 : 1),
-    [query, visibility, selectedGroup, customFilter],
-  );
 
   const groupIcon = useCallback(
     (groupName: string) => GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON,
@@ -2865,7 +3052,7 @@ export function UserPageEditor({
                     </span>
                     <span className="text-muted-foreground">cards in view</span>
                   </span>
-                  {activeFilterCount > 1 && (
+                  {hasActiveFilters && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -3101,7 +3288,6 @@ export function UserPageEditor({
             </motion.div>
 
             <EditorCardGroupsPanel
-              activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               expandedGroups={expandedGroups}
               filteredGroupTotals={filteredGroupTotals}
@@ -3109,6 +3295,7 @@ export function UserPageEditor({
               groupIcon={groupIcon}
               groupTotals={groupTotals}
               handleExpandedChange={handleExpandedChange}
+              hasActiveFilters={hasActiveFilters}
               isCardEnabled={isCardEnabled}
               isReorderMode={isReorderMode}
               layoutVersion={layoutVersion}

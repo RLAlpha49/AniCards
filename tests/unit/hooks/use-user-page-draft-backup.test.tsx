@@ -186,4 +186,36 @@ describe("useUserPageDraftBackup", () => {
 
     expect(readUserPageDraft("42")?.patch).toEqual(patch);
   });
+
+  it("flushes the latest dirty draft immediately when the page becomes hidden", () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          variant: "minimal",
+        }),
+      },
+    };
+
+    renderHook(() => useUserPageDraftBackup({ debounceMs: 750 }));
+
+    act(() => {
+      editorStore.setState({
+        isDirty: true,
+        localEditsPatch: patch,
+      });
+    });
+
+    Object.defineProperty(globalThis.document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+
+    act(() => {
+      globalThis.document.dispatchEvent(
+        new globalThis.window.Event("visibilitychange"),
+      );
+    });
+
+    expect(readUserPageDraft("42")?.patch).toEqual(patch);
+  });
 });

@@ -19,6 +19,26 @@ interface UseUserPageDraftBackupOptions {
 }
 
 /**
+ * Flushes the current dirty editor patch into local draft storage immediately.
+ * Useful as a last-chance fallback before in-app navigation or tab close.
+ */
+export function flushUserPageDraftBackup(
+  userId: string | null | undefined,
+): boolean {
+  if (!userId) return false;
+
+  const snapshot = useUserPageEditor.getState();
+  if (snapshot.userId !== userId) return false;
+  if (!snapshot.isDirty) return false;
+
+  const patch = buildLocalEditsPatch(snapshot);
+  if (!patch) return false;
+
+  writeUserPageDraft(userId, patch);
+  return true;
+}
+
+/**
  * Persist a localStorage draft of the user's unsaved editor changes.
  *
  * - Writes a minimal patch (diff vs. baseline) while the editor is dirty.
@@ -47,14 +67,7 @@ export function useUserPageDraftBackup(
     const flushDraftWrite = () => {
       clearTimer();
 
-      const snapshot = useUserPageEditor.getState();
-      if (snapshot.userId !== userId) return;
-      if (!snapshot.isDirty) return;
-
-      const patch = buildLocalEditsPatch(snapshot);
-      if (!patch) return;
-
-      writeUserPageDraft(userId, patch);
+      flushUserPageDraftBackup(userId);
     };
 
     const scheduleWrite = () => {

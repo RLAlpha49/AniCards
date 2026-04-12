@@ -212,6 +212,27 @@ export function parseCustomFilterParam(
     : "all";
 }
 
+export function summarizeCardFilters(params: {
+  query: string;
+  visibility: "all" | "enabled" | "disabled";
+  selectedGroup: string;
+  customFilter?: CustomFilter;
+}): {
+  activeFilterCount: number;
+  hasActiveFilters: boolean;
+} {
+  const activeFilterCount =
+    Number(params.query.trim().length > 0) +
+    Number(params.visibility !== "all") +
+    Number(params.selectedGroup !== "All") +
+    Number((params.customFilter ?? "all") !== "all");
+
+  return {
+    activeFilterCount,
+    hasActiveFilters: activeFilterCount > 0,
+  };
+}
+
 function filterCardsInGroup(
   cards: ReadonlyArray<(typeof statCardTypes)[0]>,
   matchesVisibility: (cardId: string) => boolean,
@@ -272,6 +293,17 @@ export function useCardFiltering({
     }
     return map;
   }, [cardOrder]);
+
+  const { activeFilterCount, hasActiveFilters } = useMemo(
+    () =>
+      summarizeCardFilters({
+        query,
+        visibility,
+        selectedGroup,
+        customFilter,
+      }),
+    [customFilter, query, selectedGroup, visibility],
+  );
 
   const cardGroups = useMemo(() => {
     // Keep the same category grouping, but sort within each category based on cardOrder.
@@ -503,6 +535,8 @@ export function useCardFiltering({
     visibleGroupNames,
     filteredCardCount,
     scopeCardCount,
+    activeFilterCount,
+    hasActiveFilters,
     isCardEnabled,
     expandAll,
     collapseAll,

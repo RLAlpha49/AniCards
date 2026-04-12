@@ -10,6 +10,7 @@ import {
   mock,
   vi,
 } from "bun:test";
+import type { ComponentProps, ReactNode } from "react";
 
 import { statCardTypes } from "@/lib/card-types";
 import {
@@ -19,16 +20,74 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
+type MotionDivProps = ComponentProps<"div"> & {
+  animate?: unknown;
+  exit?: unknown;
+  initial?: unknown;
+  transition?: unknown;
+  variants?: unknown;
+  whileHover?: unknown;
+  whileInView?: unknown;
+  whileTap?: unknown;
+  viewport?: unknown;
+};
+
+function omitStubProps<T extends object, K extends keyof T>(
+  props: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const next = { ...props };
+
+  for (const key of keys) {
+    Reflect.deleteProperty(next, key);
+  }
+
+  return next as Omit<T, K>;
+}
+
+mock.module("framer-motion", () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  motion: new Proxy(
+    {},
+    {
+      get:
+        () =>
+        ({ children, ...props }: MotionDivProps) => {
+          const divProps = omitStubProps(props, [
+            "animate",
+            "exit",
+            "initial",
+            "transition",
+            "variants",
+            "viewport",
+            "whileHover",
+            "whileInView",
+            "whileTap",
+          ] as const);
+
+          return <div {...divProps}>{children}</div>;
+        },
+    },
+  ),
+  useReducedMotion: () => false,
+}));
+
 installHappyDom("https://anicards.test/user/Alpha49");
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const {
   buildEditorUrl,
+  shouldPromptForEditorNavigation,
+  shouldWarnBeforeLeavingEditor,
   syncFiltersFromSearchParams,
   useDebouncedEditorUrlSync,
 } = await import("@/components/user/UserPageEditor");
-const { parseCardSearchQuery, tokenizeQuery, useCardFiltering } =
-  await import("@/components/user/hooks/useCardFiltering");
+const {
+  parseCardSearchQuery,
+  summarizeCardFilters,
+  tokenizeQuery,
+  useCardFiltering,
+} = await import("@/components/user/hooks/useCardFiltering");
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -126,6 +185,165 @@ describe("editor filter query semantics", () => {
         .flat()
         .map((card) => card.id),
     ).toEqual([secondCard.id]);
+  });
+
+  it("treats any non-default filter control as active", () => {
+    expect(
+      summarizeCardFilters({
+        query: "",
+        visibility: "all",
+        selectedGroup: "All",
+        customFilter: "all",
+      }),
+    ).toEqual({
+      activeFilterCount: 0,
+      hasActiveFilters: false,
+    });
+
+    expect(
+      summarizeCardFilters({
+        query: "seasonal",
+        visibility: "all",
+        selectedGroup: "All",
+        customFilter: "all",
+      }),
+    ).toEqual({
+      activeFilterCount: 1,
+      hasActiveFilters: true,
+    });
+
+    expect(
+      summarizeCardFilters({
+        query: "",
+        visibility: "all",
+        selectedGroup: "Core Stats",
+        customFilter: "all",
+      }).hasActiveFilters,
+    ).toBe(true);
+  });
+
+  it("exposes the shared active-filter flag from useCardFiltering", () => {
+    const firstCard = statCardTypes[0];
+
+    if (!firstCard) {
+      throw new Error("Expected at least one card type for filtering tests.");
+    }
+
+    const cardEnabledById = {
+      [firstCard.id]: true,
+    } satisfies Record<string, boolean>;
+
+    const { result, rerender } = renderHook(
+      (props: { query: string; selectedGroup: string }) =>
+        useCardFiltering({
+          cardEnabledById,
+          cardOrder: [firstCard.id],
+          customFilter: "all",
+          fuzzy: false,
+          query: props.query,
+          selectedGroup: props.selectedGroup,
+          visibility: "all",
+        }),
+      {
+        initialProps: {
+          query: "",
+          selectedGroup: "All",
+        },
+      },
+    );
+
+    expect(result.current.hasActiveFilters).toBe(false);
+
+    rerender({
+      query: "",
+      selectedGroup: firstCard.group,
+    });
+
+    expect(result.current.hasActiveFilters).toBe(true);
+  });
+});
+
+describe("editor leave-protection helpers", () => {
+  it("warns only while the editor is not safely persisted", () => {
+    expect(
+      shouldWarnBeforeLeavingEditor({
+        isDirty: false,
+        isSaving: false,
+        hasConflict: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldWarnBeforeLeavingEditor({
+        isDirty: true,
+        isSaving: false,
+        hasConflict: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldWarnBeforeLeavingEditor({
+        isDirty: false,
+        isSaving: true,
+        hasConflict: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldWarnBeforeLeavingEditor({
+        isDirty: false,
+        isSaving: false,
+        hasConflict: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("prompts only for route-changing or off-site navigation", () => {
+    const currentUrl = "/user/Alpha49?customFilter=customized";
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "/user/Alpha49?q=seasonal",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "/search",
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "https://example.com/elsewhere",
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "mailto:hello@example.com",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "/privacy",
+        target: "_blank",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPromptForEditorNavigation({
+        currentUrl,
+        nextHref: "/api/card?card=animeStats",
+        download: true,
+      }),
+    ).toBe(false);
   });
 });
 
