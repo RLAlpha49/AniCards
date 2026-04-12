@@ -17,6 +17,7 @@ import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
+import { getExamplesCatalog } from "./examples/examples-catalog";
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.home);
@@ -34,6 +35,8 @@ export default function HomePage() {
     return <LoadingPreview />;
   }
 
+  const totalCardTypes = getExamplesCatalog().totalCardTypes;
+
   return (
     <>
       <Suspense fallback={null}>
@@ -41,11 +44,14 @@ export default function HomePage() {
       </Suspense>
       <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
-        <HeroSection cards={HOME_HERO_PREVIEW_CARDS} />
+        <HeroSection
+          cards={HOME_HERO_PREVIEW_CARDS}
+          totalCardTypes={totalCardTypes}
+        />
         <CardMarquee rows={HOME_CARD_MARQUEE_ROWS} />
         <BentoFeatures />
-        <StatsRibbon />
-        <ProcessSteps />
+        <StatsRibbon totalCardTypes={totalCardTypes} />
+        <ProcessSteps totalCardTypes={totalCardTypes} />
         <HomeCTA />
       </div>
     </>

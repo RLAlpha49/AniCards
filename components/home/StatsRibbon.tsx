@@ -18,32 +18,6 @@ import {
   NO_MOTION_TRANSITION,
 } from "@/lib/animations";
 
-const STATS = [
-  { icon: Layers, value: "20+", label: "Card Types", countTo: 20, suffix: "+" },
-  {
-    icon: Sparkles,
-    value: "∞",
-    label: "Combinations",
-    countTo: null,
-    suffix: "",
-  },
-  {
-    icon: Zap,
-    value: "<1s",
-    label: "Render Time",
-    countTo: 1,
-    suffix: "s",
-    prefix: "<",
-  },
-  {
-    icon: Clock,
-    value: "24h",
-    label: "Data Refresh",
-    countTo: 24,
-    suffix: "h",
-  },
-] as const;
-
 function AnimatedCount({
   to,
   suffix,
@@ -62,7 +36,7 @@ function AnimatedCount({
   const count = useMotionValue(0);
   const rounded = useTransform(count, (v) => Math.round(v));
   const display = useTransform(rounded, (v) =>
-    to === null ? fallback : `${prefix ?? ""}${v}${suffix}`,
+    to === null ? fallback : `${prefix ?? ""}${v.toLocaleString()}${suffix}`,
   );
 
   useEffect(() => {
@@ -76,7 +50,11 @@ function AnimatedCount({
 
   if (reducedMotion) {
     return (
-      <span>{to === null ? fallback : `${prefix ?? ""}${to}${suffix}`}</span>
+      <span>
+        {to === null
+          ? fallback
+          : `${prefix ?? ""}${to.toLocaleString()}${suffix}`}
+      </span>
     );
   }
 
@@ -102,10 +80,45 @@ function AnimatedCount({
   return <motion.span>{display}</motion.span>;
 }
 
-export function StatsRibbon() {
+export function StatsRibbon({
+  totalCardTypes,
+}: Readonly<{
+  totalCardTypes: number;
+}>) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
   const prefersReducedMotion = useReducedMotion() ?? false;
+  const stats = [
+    {
+      icon: Layers,
+      value: totalCardTypes.toLocaleString(),
+      label: "Card Types",
+      countTo: totalCardTypes,
+      suffix: "",
+    },
+    {
+      icon: Sparkles,
+      value: "∞",
+      label: "Combinations",
+      countTo: null,
+      suffix: "",
+    },
+    {
+      icon: Zap,
+      value: "<1s",
+      label: "Render Time",
+      countTo: 1,
+      suffix: "s",
+      prefix: "<",
+    },
+    {
+      icon: Clock,
+      value: "24h",
+      label: "Data Refresh",
+      countTo: 24,
+      suffix: "h",
+    },
+  ] as const;
   const containerVariants = buildMotionSafeStaggerContainer({
     reducedMotion: prefersReducedMotion,
     staggerChildren: 0.1,
@@ -125,7 +138,7 @@ export function StatsRibbon() {
       className="mx-auto max-w-5xl border-y border-gold/25 bg-gold/2 px-6 py-12 sm:px-12"
     >
       <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-        {STATS.map((stat, i) => (
+        {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
             variants={itemVariants}

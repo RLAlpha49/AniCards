@@ -29,11 +29,14 @@ interface HeroCard {
 
 export function HeroSection({
   cards,
+  totalCardTypes,
 }: Readonly<{
   cards: readonly HeroCard[];
+  totalCardTypes: number;
 }>) {
   const previewColorPreset = usePreviewColorPreset();
   const prefersReducedMotion = useReducedMotion() ?? false;
+  const formattedCardTypeCount = totalCardTypes.toLocaleString();
   const staggerContainer = buildMotionSafeStaggerContainer({
     reducedMotion: prefersReducedMotion,
     staggerChildren: 0.12,
@@ -151,7 +154,7 @@ export function HeroSection({
           >
             <span>✦ Always Free</span>
             <span>✦ No Sign-Up</span>
-            <span>✦ 20+ Card Types</span>
+            <span>✦ {formattedCardTypeCount} Card Types</span>
           </motion.div>
         </motion.div>
 

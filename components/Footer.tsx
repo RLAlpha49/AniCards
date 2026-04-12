@@ -2,6 +2,7 @@
 
 import { ExternalLink, Mail, Scale, Shield } from "lucide-react";
 import Link from "next/link";
+import type { ReactElement } from "react";
 
 import {
   SimpleAniListIcon,
@@ -9,37 +10,30 @@ import {
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
 import {
+  SITE_REPOSITORY_URL,
+  SITE_SOCIAL_LINKS,
+  type SiteSocialLinkName,
+} from "@/lib/site-config";
+import {
   safeTrack,
   trackExternalLinkClick,
   trackNavigation,
 } from "@/lib/utils/google-analytics";
 
-const SOCIAL_LINKS = [
-  {
-    href: "https://anilist.co/user/Alpha49",
-    icon: SimpleAniListIcon,
-    name: "anilist",
-    label: "AniList Profile",
-  },
-  {
-    href: "https://discordid.netlify.app/?id=251479989378220044",
-    icon: SimpleDiscordIcon,
-    name: "discord",
-    label: "Discord",
-  },
-  {
-    href: "mailto:contact@alpha49.com",
-    icon: Mail,
-    name: "email",
-    label: "Email",
-  },
-  {
-    href: "https://github.com/RLAlpha49",
-    icon: SimpleGithubIcon,
-    name: "github",
-    label: "GitHub Profile",
-  },
-];
+type FooterIconProps = {
+  className?: string;
+  size?: number;
+};
+
+const SOCIAL_LINK_ICONS: Record<
+  SiteSocialLinkName,
+  (props: FooterIconProps) => ReactElement
+> = {
+  anilist: (props) => <SimpleAniListIcon {...props} />,
+  discord: (props) => <SimpleDiscordIcon {...props} />,
+  email: (props) => <Mail {...props} />,
+  github: (props) => <SimpleGithubIcon {...props} />,
+};
 
 export default function Footer() {
   return (
@@ -56,7 +50,7 @@ export default function Footer() {
             </span>
             <span className="text-gold/30">•</span>
             <Link
-              href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
+              href={`${SITE_REPOSITORY_URL}/blob/main/LICENSE`}
               className="
                 group inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
                 transition-colors
@@ -113,39 +107,45 @@ export default function Footer() {
           </div>
 
           <div className="flex items-center gap-3">
-            {SOCIAL_LINKS.map((link) => (
-              <div
-                key={link.name}
-                className="
-                  transition-transform duration-200
-                  motion-safe:hover:scale-[1.15]
-                  motion-reduce:transition-none
-                "
-              >
-                <Link
-                  href={link.href}
-                  target={link.name === "email" ? undefined : "_blank"}
-                  rel={
-                    link.name === "email" ? undefined : "noopener noreferrer"
-                  }
+            {SITE_SOCIAL_LINKS.map((link) => {
+              const Icon = SOCIAL_LINK_ICONS[link.name];
+
+              return (
+                <div
+                  key={link.name}
                   className="
-                    flex size-11 items-center justify-center rounded-full border border-gold/15
-                    text-foreground/40 transition-all
-                    hover:border-gold/40 hover:text-gold
-                    focus-visible:border-gold/40 focus-visible:text-gold focus-visible:ring-2
-                    focus-visible:ring-gold/50 focus-visible:ring-offset-2
-                    focus-visible:ring-offset-background focus-visible:outline-none
-                    md:size-9 md:rounded-none
+                    transition-transform duration-200
+                    motion-safe:hover:scale-[1.15]
+                    motion-reduce:transition-none
                   "
-                  onClick={() =>
-                    safeTrack(() => trackExternalLinkClick(link.name, "footer"))
-                  }
-                  aria-label={link.label}
                 >
-                  <link.icon size={16} />
-                </Link>
-              </div>
-            ))}
+                  <Link
+                    href={link.href}
+                    target={link.name === "email" ? undefined : "_blank"}
+                    rel={
+                      link.name === "email" ? undefined : "noopener noreferrer"
+                    }
+                    className="
+                      flex size-11 items-center justify-center rounded-full border border-gold/15
+                      text-foreground/40 transition-all
+                      hover:border-gold/40 hover:text-gold
+                      focus-visible:border-gold/40 focus-visible:text-gold focus-visible:ring-2
+                      focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                      focus-visible:ring-offset-background focus-visible:outline-none
+                      md:size-9 md:rounded-none
+                    "
+                    onClick={() =>
+                      safeTrack(() =>
+                        trackExternalLinkClick(link.name, "footer"),
+                      )
+                    }
+                    aria-label={link.label}
+                  >
+                    <Icon size={16} />
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

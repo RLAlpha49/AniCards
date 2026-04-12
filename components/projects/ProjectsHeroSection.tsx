@@ -9,6 +9,8 @@ import {
   NO_MOTION_TRANSITION,
 } from "@/lib/animations";
 
+import { PROJECT_HERO_STATS } from "./constants";
+
 export function ProjectsHeroSection() {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const orchestrate = buildMotionSafeStaggerContainer({
@@ -110,10 +112,7 @@ export function ProjectsHeroSection() {
             className="flex gap-8 sm:gap-12"
             aria-label="Project statistics"
           >
-            {[
-              { value: "3", label: "Projects" },
-              { value: "100%", label: "Open Source" },
-            ].map((stat) => (
+            {PROJECT_HERO_STATS.map((stat) => (
               <div key={stat.label} className="text-right">
                 <span className="block font-display text-2xl text-gold sm:text-3xl">
                   {stat.value}

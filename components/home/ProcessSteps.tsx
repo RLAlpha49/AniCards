@@ -11,31 +11,40 @@ import {
   NO_MOTION_TRANSITION,
 } from "@/lib/animations";
 
-const STEPS = [
-  {
-    num: "Ⅰ",
-    icon: Search,
-    title: "LOOK UP",
-    desc: "Drop in any AniList username — we grab your public profile data on the spot.",
-  },
-  {
-    num: "Ⅱ",
-    icon: Sparkles,
-    title: "BUILD",
-    desc: "Those numbers get shaped into 20+ distinct card designs, each one polished and ready to go.",
-  },
-  {
-    num: "Ⅲ",
-    icon: Palette,
-    title: "MAKE IT YOURS",
-    desc: "Dial in colors, layouts, and themes until it feels right. Then grab your pixel-perfect SVGs.",
-  },
-] as const;
+function getSteps(totalCardTypes: number) {
+  const formattedCardTypeCount = totalCardTypes.toLocaleString();
 
-export function ProcessSteps() {
+  return [
+    {
+      num: "Ⅰ",
+      icon: Search,
+      title: "LOOK UP",
+      desc: "Drop in any AniList username — we grab your public profile data on the spot.",
+    },
+    {
+      num: "Ⅱ",
+      icon: Sparkles,
+      title: "BUILD",
+      desc: `Those numbers get shaped into ${formattedCardTypeCount} distinct card types, each one polished and ready to go.`,
+    },
+    {
+      num: "Ⅲ",
+      icon: Palette,
+      title: "MAKE IT YOURS",
+      desc: "Dial in colors, layouts, and themes until it feels right. Then grab your pixel-perfect SVGs.",
+    },
+  ] as const;
+}
+
+export function ProcessSteps({
+  totalCardTypes,
+}: Readonly<{
+  totalCardTypes: number;
+}>) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
   const prefersReducedMotion = useReducedMotion() ?? false;
+  const steps = getSteps(totalCardTypes);
   const headingVariants = buildFadeUpVariants({
     reducedMotion: prefersReducedMotion,
     distance: 20,
@@ -109,7 +118,7 @@ export function ProcessSteps() {
           />
 
           <div className="relative z-10 grid gap-12 md:grid-cols-3 md:gap-0">
-            {STEPS.map((step, i) => (
+            {steps.map((step, i) => (
               <motion.div
                 key={step.title}
                 custom={i}
