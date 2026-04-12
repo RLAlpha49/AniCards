@@ -78,6 +78,85 @@ const sections = [
 
 const tocItems = sections.map((s) => ({ id: s.id, label: s.heading }));
 
+function PrivacyTableOfContents({
+  compact = false,
+}: Readonly<{ compact?: boolean }>) {
+  return (
+    <ol
+      className={
+        compact ? "space-y-2" : "space-y-4 border-l-2 border-gold/15 pl-5"
+      }
+    >
+      {tocItems.map((item, index) => (
+        <li key={item.id}>
+          <a
+            href={`#${item.id}`}
+            className={
+              compact
+                ? `
+                  group flex min-h-11 items-center gap-3 rounded-sm px-3 py-2 text-sm
+                  text-muted-foreground transition-colors
+                  hover:bg-gold/5 hover:text-gold
+                  focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-gold/50
+                `
+                : `
+                  group flex items-baseline gap-3 text-sm text-muted-foreground transition-colors
+                  hover:text-gold
+                  focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-gold/50
+                `
+            }
+          >
+            <span className="
+              font-display text-[0.6rem] tracking-[0.2em] text-gold/30 transition-colors
+              group-hover:text-gold/60
+            ">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <span>{item.label}</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function MobileRetentionCards({
+  items,
+}: Readonly<{
+  items: ReadonlyArray<{ label: string; detail: string }>;
+}>) {
+  return (
+    <div data-testid="privacy-retention-cards" className="space-y-4 md:hidden">
+      {items.map((row) => (
+        <article
+          key={row.label}
+          className="border border-gold/12 bg-background/60 p-4 backdrop-blur-sm"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <h3 className="text-base font-medium text-foreground">
+              {row.label}
+            </h3>
+            <span
+              aria-hidden="true"
+              className="
+                rounded-full border border-gold/15 px-2.5 py-1 font-display text-[0.55rem]
+                tracking-[0.25em] text-muted-foreground uppercase
+              "
+            >
+              Retention
+            </span>
+          </div>
+          <p className="mt-3 text-sm/relaxed text-muted-foreground">
+            {row.detail}
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default async function PrivacyPage() {
   if (SHOW_LOADING_PREVIEW) {
     return <LoadingPreview />;
@@ -187,28 +266,45 @@ export default async function PrivacyPage() {
               ">
                 Contents
               </p>
-              <ol className="space-y-4 border-l-2 border-gold/15 pl-5">
-                {tocItems.map((t, i) => (
-                  <li key={t.id}>
-                    <a
-                      href={`#${t.id}`}
-                      className="
-                        group flex items-baseline gap-3 text-sm text-muted-foreground
-                        transition-colors
-                        hover:text-gold
-                      "
-                    >
-                      <span className="
-                        font-display text-[0.6rem] tracking-[0.2em] text-gold/30 transition-colors
-                        group-hover:text-gold/60
-                      ">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      {t.label}
-                    </a>
-                  </li>
-                ))}
-              </ol>
+              <PrivacyTableOfContents />
+            </nav>
+          </SectionReveal>
+
+          <SectionReveal>
+            <nav aria-label="On this page" className="lg:hidden">
+              <details
+                data-testid="privacy-mobile-toc"
+                className="border border-gold/12 bg-background/60 backdrop-blur-sm"
+              >
+                <summary className="
+                  flex min-h-11 cursor-pointer touch-manipulation-safe list-none items-center
+                  justify-between gap-4 px-4 py-3
+                  focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-gold/50
+                  [&::-webkit-details-marker]:hidden
+                ">
+                  <div>
+                    <p className="
+                      font-display text-[0.6rem] tracking-[0.35em] text-muted-foreground uppercase
+                    ">
+                      On this page
+                    </p>
+                    <p className="mt-1 text-sm text-foreground/80">
+                      Jump to any section without the long scroll.
+                    </p>
+                  </div>
+                  <span className="
+                    shrink-0 rounded-full border border-gold/15 px-2.5 py-1 font-display
+                    text-[0.55rem] tracking-[0.25em] text-gold/75 uppercase
+                  ">
+                    {tocItems.length} sections
+                  </span>
+                </summary>
+
+                <div className="border-t border-gold/10 p-4">
+                  <PrivacyTableOfContents compact />
+                </div>
+              </details>
             </nav>
           </SectionReveal>
 
@@ -287,45 +383,69 @@ export default async function PrivacyPage() {
 
                   {/* Data table (section 03) — sharp corners, imperial style */}
                   {"items" in section && (
-                    <div className="
-                      mt-8 overflow-hidden border border-gold/12 bg-background/60 backdrop-blur-sm
-                    ">
-                      <table className="w-full text-left text-sm sm:text-base">
-                        <thead>
-                          <tr className="border-b border-gold/10 bg-gold/4">
-                            <th className="
-                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
-                              text-muted-foreground uppercase
-                              sm:text-xs
-                            ">
-                              Category
-                            </th>
-                            <th className="
-                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
-                              text-muted-foreground uppercase
-                              sm:text-xs
-                            ">
-                              Retention
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gold/8">
-                          {section.items.map((row) => (
-                            <tr key={row.label} className="group">
-                              <td className="
-                                w-1/4 px-6 py-4 align-top font-medium text-foreground
-                                transition-colors
-                                group-hover:text-gold
-                              ">
-                                {row.label}
-                              </td>
-                              <td className="px-6 py-4 text-muted-foreground">
-                                {row.detail}
-                              </td>
+                    <div className="mt-8 space-y-4">
+                      <MobileRetentionCards items={section.items} />
+
+                      <div
+                        data-testid="privacy-retention-table"
+                        aria-label="Retention limits table"
+                        tabIndex={0}
+                        className="
+                          hidden overflow-x-auto border border-gold/12 bg-background/60
+                          backdrop-blur-sm
+                          md:block
+                        "
+                      >
+                        <table className="w-full min-w-2xl text-left text-sm sm:text-base">
+                          <caption className="sr-only">
+                            Retention limits and cleanup windows for stored
+                            AniCards data.
+                          </caption>
+                          <thead>
+                            <tr className="border-b border-gold/10 bg-gold/4">
+                              <th
+                                scope="col"
+                                className="
+                                  px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                                  text-muted-foreground uppercase
+                                  sm:text-xs
+                                "
+                              >
+                                Category
+                              </th>
+                              <th
+                                scope="col"
+                                className="
+                                  px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                                  text-muted-foreground uppercase
+                                  sm:text-xs
+                                "
+                              >
+                                Retention
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gold/8">
+                            {section.items.map((row) => (
+                              <tr key={row.label} className="group">
+                                <th
+                                  scope="row"
+                                  className="
+                                    w-1/4 px-6 py-4 align-top font-medium text-foreground
+                                    transition-colors
+                                    group-hover:text-gold
+                                  "
+                                >
+                                  {row.label}
+                                </th>
+                                <td className="px-6 py-4 text-muted-foreground">
+                                  {row.detail}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </section>
