@@ -83,10 +83,10 @@ function AnimatedCount({
   if (to === null) {
     return (
       <motion.span
-        initial={reducedMotion ? false : { scale: 0.5, opacity: 0 }}
+        initial={false}
         animate={getMotionSafeAnimation(
           reducedMotion,
-          isInView ? { scale: 1, opacity: 1 } : {},
+          isInView ? { scale: 1, opacity: 1 } : undefined,
         )}
         transition={
           reducedMotion
@@ -119,8 +119,8 @@ export function StatsRibbon() {
   return (
     <motion.div
       variants={containerVariants}
-      initial="hidden"
-      animate={isInView ? "visible" : "hidden"}
+      initial={false}
+      animate={isInView ? "visible" : undefined}
       ref={ref}
       className="mx-auto max-w-5xl border-y border-gold/25 bg-gold/2 px-6 py-12 sm:px-12"
     >

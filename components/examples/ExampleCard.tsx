@@ -285,6 +285,7 @@ export function ExampleCard({
                 className="h-auto w-full"
                 width={variant.width}
                 height={variant.height}
+                mode="default"
               />
             ) : (
               <CardPreviewPlaceholder

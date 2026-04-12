@@ -28,6 +28,7 @@ type ImageWithSkeletonProps = {
   decoding?: "async" | "auto" | "sync";
   fetchPriority?: React.ImgHTMLAttributes<HTMLImageElement>["fetchPriority"];
   fixedDimensions?: boolean;
+  mode?: "default" | "lightweight";
 };
 
 type ImageDimensions = {
@@ -169,13 +170,15 @@ function getContainerStyle(
   return {};
 }
 
-/**
- * Image wrapper that displays a Skeleton while the image is loading.
- * Uses intrinsic dimensions when available to reserve responsive space and
- * lets the native image lifecycle drive visibility with a simple error fallback.
- * @source
- */
-export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
+function ImageErrorFallback() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+      <span className="text-sm text-gray-500">Failed to load</span>
+    </div>
+  );
+}
+
+function LightweightImageWithPlaceholder({
   src,
   alt,
   className,
@@ -187,7 +190,78 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   decoding = "async",
   fetchPriority,
   fixedDimensions = false,
-}) => {
+}: Readonly<ImageWithSkeletonProps>) {
+  const knownDimensions = getKnownDimensions(width, height);
+  const fallbackAspectRatio = knownDimensions
+    ? knownDimensions.width / knownDimensions.height
+    : 16 / 9;
+  const containerStyle = {
+    borderRadius: "4px",
+    ...getContainerStyle(knownDimensions, fallbackAspectRatio, fixedDimensions),
+  } satisfies React.CSSProperties;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const hasError = failedSrc === src;
+
+  return (
+    <div
+      className={`relative w-full overflow-hidden ${containerClassName ?? ""}`}
+      style={containerStyle}
+      data-image-state={hasError ? "error" : "lightweight"}
+    >
+      {!hasError ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[hsl(var(--foreground)/0.02)]"
+        >
+          <div className="
+            absolute inset-0
+            bg-[linear-gradient(135deg,hsl(var(--gold)/0.07),transparent_45%,hsl(var(--foreground)/0.04))]
+          " />
+          <div className="
+            absolute inset-x-[14%] top-[18%] h-px bg-linear-to-r from-transparent
+            via-[hsl(var(--gold)/0.22)] to-transparent
+          " />
+          <div className="
+            absolute inset-x-[18%] bottom-[18%] h-[12%] rounded-full
+            bg-[hsl(var(--foreground)/0.05)]
+          " />
+          <div className="
+            absolute -right-10 -bottom-12 size-28 rounded-full bg-[hsl(var(--gold)/0.08)] blur-3xl
+          " />
+        </div>
+      ) : null}
+      <img
+        src={src}
+        alt={alt}
+        className={`${className} ${hasError ? "opacity-0" : "opacity-100"}
+          transition-opacity duration-200
+        `}
+        style={{ borderRadius: "4px", ...style }}
+        width={width}
+        height={height}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        onError={() => setFailedSrc(src)}
+      />
+      {hasError ? <ImageErrorFallback /> : null}
+    </div>
+  );
+}
+
+function ManagedImageWithSkeleton({
+  src,
+  alt,
+  className,
+  style,
+  width,
+  height,
+  containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
+  fixedDimensions = false,
+}: Readonly<ImageWithSkeletonProps>) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [imageState, setImageState] = useState<ImageRenderState>(() =>
     getLoadingImageState(),
@@ -289,14 +363,64 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         onLoad={onImageLoad}
         onError={onImageError}
       />
-      {imageState.loadState === "error" && (
-        <div className="
-          absolute inset-0 flex items-center justify-center bg-gray-100
-          dark:bg-gray-800
-        ">
-          <span className="text-sm text-gray-500">Failed to load</span>
-        </div>
-      )}
+      {imageState.loadState === "error" && <ImageErrorFallback />}
     </div>
+  );
+}
+
+/**
+ * Image wrapper that displays a Skeleton while the image is loading.
+ * Uses intrinsic dimensions when available to reserve responsive space and
+ * lets the native image lifecycle drive visibility with a simple error fallback.
+ * @source
+ */
+export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
+  src,
+  alt,
+  className,
+  style,
+  width,
+  height,
+  containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
+  fixedDimensions = false,
+  mode = "default",
+}) => {
+  if (mode === "lightweight") {
+    return (
+      <LightweightImageWithPlaceholder
+        src={src}
+        alt={alt}
+        className={className}
+        style={style}
+        width={width}
+        height={height}
+        containerClassName={containerClassName}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        fixedDimensions={fixedDimensions}
+        mode={mode}
+      />
+    );
+  }
+
+  return (
+    <ManagedImageWithSkeleton
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      width={width}
+      height={height}
+      containerClassName={containerClassName}
+      loading={loading}
+      decoding={decoding}
+      fetchPriority={fetchPriority}
+      fixedDimensions={fixedDimensions}
+      mode={mode}
+    />
   );
 };

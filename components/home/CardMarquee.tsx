@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
@@ -11,8 +10,6 @@ import { buildFadeUpVariants, VIEWPORT_ONCE } from "@/lib/animations";
 import { selectThemePreviewUrl } from "@/lib/preview-theme";
 
 const MARQUEE_DURATION_MS = 45_000;
-const useIsomorphicLayoutEffect =
-  globalThis.window === undefined ? useEffect : useLayoutEffect;
 
 type MarqueeCard = {
   height: number;
@@ -30,11 +27,9 @@ function getRowDurationMs(cardCount: number, rowIndex: number) {
 
 function MarqueeGroup({
   cards,
-  interactive = true,
   previewColorPreset,
 }: Readonly<{
   cards: readonly MarqueeCard[];
-  interactive?: boolean;
   previewColorPreset: ReturnType<typeof usePreviewColorPreset>;
 }>) {
   return (
@@ -54,24 +49,15 @@ function MarqueeGroup({
               <ImageWithSkeleton
                 src={previewUrl}
                 alt=""
-                className={
-                  interactive
-                    ? `
-                      block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)]
-                      object-contain transition-all duration-200
-                      hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)]
-                      hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]
-                    `
-                    : `
-                      block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)]
-                      object-contain
-                    `
-                }
+                className="
+                  block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain
+                "
                 width={card.width}
                 height={card.height}
                 loading="lazy"
                 decoding="async"
                 fixedDimensions
+                mode="lightweight"
               />
             ) : (
               <CardPreviewPlaceholder
@@ -92,32 +78,24 @@ function MarqueeRow({
   cards,
   durationMs,
   previewColorPreset,
+  rowIndex,
   reverse = false,
   simplified = false,
 }: Readonly<{
   cards: readonly MarqueeCard[];
   durationMs: number;
   previewColorPreset: ReturnType<typeof usePreviewColorPreset>;
+  rowIndex: number;
   reverse?: boolean;
   simplified?: boolean;
 }>) {
-  const trackRef = useRef<HTMLDivElement>(null);
   const orderedCards = reverse ? [...cards].reverse() : cards;
-
-  useIsomorphicLayoutEffect(() => {
-    const track = trackRef.current;
-    const currentWindow = globalThis.window;
-    if (simplified || !track || !currentWindow) return;
-
-    track.style.animationDelay = `-${currentWindow.performance.now() % durationMs}ms`;
-  }, [durationMs, simplified]);
 
   if (simplified) {
     return (
       <div className="overflow-x-auto py-3" aria-hidden="true">
         <MarqueeGroup
           cards={orderedCards}
-          interactive={false}
           previewColorPreset={previewColorPreset}
         />
       </div>
@@ -127,9 +105,11 @@ function MarqueeRow({
   return (
     <div className="marquee-row" aria-hidden="true">
       <div
-        ref={trackRef}
         className={`marquee-track ${reverse ? "marquee-reverse" : "marquee-forward"}`}
-        style={{ animationDuration: `${durationMs}ms` }}
+        style={{
+          animationDuration: `${durationMs}ms`,
+          animationDelay: `-${Math.round(durationMs * 0.18 * (rowIndex + 1))}ms`,
+        }}
       >
         <MarqueeGroup
           cards={orderedCards}
@@ -175,6 +155,7 @@ export function CardMarquee({
             cards={row}
             durationMs={getRowDurationMs(row.length, index)}
             previewColorPreset={previewColorPreset}
+            rowIndex={index}
             reverse={index % 2 === 1}
             simplified={prefersSimplifiedMotion}
           />

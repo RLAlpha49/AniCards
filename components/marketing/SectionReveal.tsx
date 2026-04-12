@@ -39,9 +39,9 @@ export function SectionReveal({
   return (
     <motion.div
       variants={variants}
-      initial="hidden"
-      whileInView="visible"
-      viewport={VIEWPORT_ONCE}
+      initial={false}
+      whileInView={prefersSimplifiedMotion ? undefined : "visible"}
+      viewport={prefersSimplifiedMotion ? undefined : VIEWPORT_ONCE}
       className={className}
       style={style}
     >

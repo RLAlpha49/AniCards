@@ -1,30 +1,14 @@
-import { CARD_GROUPS } from "@/lib/card-groups";
 import { buildThemePreviewUrls } from "@/lib/card-preview";
 import { getPreviewCardDimensions } from "@/lib/card-preview-dimensions";
 import type { ThemePreviewUrls } from "@/lib/preview-theme";
 
 const MARQUEE_ROW_COUNT = 2;
-const MARQUEE_VARIATION_PRIORITY = [
-  "default",
-  "vertical",
-  "horizontal",
-  "compact",
-  "minimal",
-  "pie",
-  "donut",
-  "bar",
-  "radar",
-  "badges",
-  "split",
-  "combined",
-  "anime",
-  "manga",
-  "cumulative",
-] as const;
 
-type NormalizedVariation = {
-  variation: string;
+type HomePreviewSelection = {
+  cardType: string;
   extras?: Record<string, string>;
+  keyPrefix?: string;
+  variation: string;
 };
 
 export interface HomeHeroPreviewCard {
@@ -83,30 +67,27 @@ function getVariationSignature(extras?: Record<string, string>) {
     .join("-");
 }
 
-function normalizeVariation(
-  variationDef: (typeof CARD_GROUPS)[number]["variations"][number],
-): NormalizedVariation {
-  return typeof variationDef === "string"
-    ? { variation: variationDef, extras: undefined }
-    : variationDef;
-}
+function buildMarqueeCard({
+  cardType,
+  extras,
+  keyPrefix,
+  variation,
+}: Readonly<HomePreviewSelection>): HomeMarqueeCard {
+  const { h, w } = getPreviewCardDimensions(cardType, variation);
+  const variationSignature = getVariationSignature(extras);
 
-function pickMarqueeVariation(
-  variations: readonly (typeof CARD_GROUPS)[number]["variations"][number][],
-): NormalizedVariation | undefined {
-  const normalizedVariations = variations.map(normalizeVariation);
-
-  for (const candidate of MARQUEE_VARIATION_PRIORITY) {
-    const match = normalizedVariations.find(
-      (variation) => variation.variation === candidate,
-    );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  return normalizedVariations[0];
+  return {
+    height: h,
+    key: [keyPrefix ?? cardType, variation, variationSignature]
+      .filter(Boolean)
+      .join("-"),
+    previewUrls: buildThemePreviewUrls({
+      cardType,
+      variation,
+      extras,
+    }),
+    width: w,
+  };
 }
 
 export const HOME_HERO_PREVIEW_CARDS: readonly HomeHeroPreviewCard[] = [
@@ -130,39 +111,18 @@ export const HOME_HERO_PREVIEW_CARDS: readonly HomeHeroPreviewCard[] = [
   }),
 ] as const;
 
-const HOME_MARQUEE_CARDS_LAYOUT = CARD_GROUPS.flatMap((group) => {
-  if (group.cardType === "favoritesGrid") {
-    return [];
-  }
-
-  const normalizedVariation = pickMarqueeVariation(group.variations);
-  if (!normalizedVariation) {
-    return [];
-  }
-
-  const dimensions = getPreviewCardDimensions(
-    group.cardType,
-    normalizedVariation.variation,
-  );
-  const variationSignature = getVariationSignature(normalizedVariation.extras);
-
-  return [
-    {
-      height: dimensions.h,
-      key: [group.cardType, normalizedVariation.variation, variationSignature]
-        .filter(Boolean)
-        .join("-"),
-      previewUrls: buildThemePreviewUrls({
-        cardType: group.cardType,
-        variation: normalizedVariation.variation,
-        extras: normalizedVariation.extras,
-      }),
-      width: dimensions.w,
-    },
-  ];
-});
+const HOME_MARQUEE_CARD_SELECTION: readonly HomePreviewSelection[] = [
+  { cardType: "profileOverview", variation: "default" },
+  { cardType: "animeSeasonalPreference", variation: "radar" },
+  { cardType: "recentActivitySummary", variation: "default" },
+  { cardType: "statusCompletionOverview", variation: "combined" },
+  { cardType: "mostRewatched", variation: "anime" },
+  { cardType: "mangaStats", variation: "compact" },
+  { cardType: "animeSourceMaterialDistribution", variation: "bar" },
+  { cardType: "favoritesSummary", variation: "default" },
+] as const;
 
 export const HOME_CARD_MARQUEE_ROWS = buildMarqueeRows(
-  HOME_MARQUEE_CARDS_LAYOUT,
+  HOME_MARQUEE_CARD_SELECTION.map(buildMarqueeCard),
   MARQUEE_ROW_COUNT,
 );

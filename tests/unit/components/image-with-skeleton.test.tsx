@@ -169,6 +169,38 @@ describe("ImageWithSkeleton", () => {
     expect(wrapper.querySelector(".animate-pulse")).toBeNull();
   });
 
+  it("supports a lightweight mode for decorative previews without the managed slow-load state", () => {
+    const { container, getByText } = render(
+      <ImageWithSkeleton
+        src="/decorative-preview.svg"
+        alt="Decorative preview card"
+        className="h-auto w-full"
+        width={340}
+        height={205}
+        mode="lightweight"
+      />,
+    );
+
+    const wrapper = container.querySelector<HTMLElement>("[data-image-state]");
+    const image = container.querySelector("img");
+
+    if (!(image instanceof HTMLElement) || image.tagName !== "IMG") {
+      throw new Error(
+        "Expected lightweight ImageWithSkeleton to render an image element.",
+      );
+    }
+
+    expect(wrapper?.dataset.imageState).toBe("lightweight");
+    expect(wrapper?.getAttribute("style")).toContain("aspect-ratio");
+    expect(wrapper?.getAttribute("aria-busy")).toBeNull();
+    expect(wrapper?.querySelector(".animate-pulse")).toBeNull();
+
+    fireEvent.error(image);
+
+    expect(wrapper?.dataset.imageState).toBe("error");
+    expect(getByText(/failed to load/i)).toBeTruthy();
+  });
+
   it("treats cached images as loaded without waiting for a delayed settle", () => {
     const imagePrototype = Object.getPrototypeOf(
       globalThis.document.createElement("img"),

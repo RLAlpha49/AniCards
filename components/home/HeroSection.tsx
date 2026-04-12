@@ -67,7 +67,7 @@ export function HeroSection({
   };
 
   return (
-    <section className="relative min-h-[90vh] overflow-hidden px-6 sm:px-12">
+    <section className="relative min-h-home-hero overflow-hidden px-6 sm:px-12">
       <div className="pointer-events-none absolute inset-0">
         <div className="
           absolute top-1/4 left-1/2 size-150 -translate-1/2 rounded-full bg-[hsl(var(--gold)/0.06)]
@@ -82,7 +82,7 @@ export function HeroSection({
       ">
         <motion.div
           variants={staggerContainer}
-          initial="hidden"
+          initial={false}
           animate="visible"
         >
           <motion.p
@@ -172,7 +172,7 @@ export function HeroSection({
                 key={card.cardType}
                 custom={i}
                 variants={cardFloat}
-                initial="hidden"
+                initial={false}
                 animate="visible"
                 className="absolute hero-card-float shadow-2xl shadow-black/20 dark:shadow-black/50"
                 style={{
@@ -192,7 +192,9 @@ export function HeroSection({
                       width={card.width}
                       height={card.height}
                       loading={isPriorityPreview ? "eager" : "lazy"}
+                      decoding={isPriorityPreview ? "auto" : "async"}
                       fetchPriority={isPriorityPreview ? "high" : undefined}
+                      mode="lightweight"
                     />
                   ) : (
                     <CardPreviewPlaceholder

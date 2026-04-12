@@ -42,7 +42,7 @@ export function HomeCTA() {
       <motion.div
         className="relative z-10"
         variants={ctaContainer}
-        initial="hidden"
+        initial={false}
         whileInView="visible"
         viewport={VIEWPORT_ONCE}
       >

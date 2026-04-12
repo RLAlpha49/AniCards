@@ -48,6 +48,7 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
   --shell-viewport-min-height: 100vh;
+  --home-hero-min-height: 90vh;
   --background: 38 25% 96%;
   --foreground: 30 10% 15%;
   --card: 38 20% 98%;
@@ -113,6 +114,7 @@
   @supports (height: 100dvh) {
     :root {
       --shell-viewport-min-height: 100dvh;
+      --home-hero-min-height: 90dvh;
     }
   }
 }
@@ -242,6 +244,9 @@ button {
   min-height: var(--shell-viewport-min-height);
 }
 
+@utility min-h-home-hero {
+  min-height: var(--home-hero-min-height);
+}
 @utility touch-manipulation-safe {
   touch-action: manipulation;
 }

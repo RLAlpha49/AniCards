@@ -38,7 +38,7 @@ describe("home page preview data", () => {
 
     const flatCards = HOME_CARD_MARQUEE_ROWS.flat();
 
-    expect(flatCards.length).toBeGreaterThan(10);
+    expect(flatCards).toHaveLength(8);
     expect(new Set(flatCards.map((card) => card.key)).size).toBe(
       flatCards.length,
     );

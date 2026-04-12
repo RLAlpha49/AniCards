@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { BentoFeatures } from "@/components/home/BentoFeatures";
 import { CardMarquee } from "@/components/home/CardMarquee";
 import { HeroSection } from "@/components/home/HeroSection";
@@ -5,7 +7,6 @@ import { HomeCTA } from "@/components/home/HomeCTA";
 import { ProcessSteps } from "@/components/home/ProcessSteps";
 import { StatsRibbon } from "@/components/home/StatsRibbon";
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
-import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import {
@@ -20,39 +21,32 @@ import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.home);
 
-export default async function HomePage() {
+async function HomeStructuredData() {
+  const nonce = await getRequestNonce();
+
+  return (
+    <StructuredDataScript data={generateStructuredData("home")} nonce={nonce} />
+  );
+}
+
+export default function HomePage() {
   if (SHOW_LOADING_PREVIEW) {
     return <LoadingPreview />;
   }
 
-  const nonce = await getRequestNonce();
-
   return (
     <>
-      <StructuredDataScript
-        data={generateStructuredData("home")}
-        nonce={nonce}
-      />
-      <div className="relative min-h-screen">
+      <Suspense fallback={null}>
+        <HomeStructuredData />
+      </Suspense>
+      <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
-        <SectionReveal>
-          <HeroSection cards={HOME_HERO_PREVIEW_CARDS} />
-        </SectionReveal>
-        <SectionReveal>
-          <CardMarquee rows={HOME_CARD_MARQUEE_ROWS} />
-        </SectionReveal>
-        <SectionReveal>
-          <BentoFeatures />
-        </SectionReveal>
-        <SectionReveal>
-          <StatsRibbon />
-        </SectionReveal>
-        <SectionReveal>
-          <ProcessSteps />
-        </SectionReveal>
-        <SectionReveal>
-          <HomeCTA />
-        </SectionReveal>
+        <HeroSection cards={HOME_HERO_PREVIEW_CARDS} />
+        <CardMarquee rows={HOME_CARD_MARQUEE_ROWS} />
+        <BentoFeatures />
+        <StatsRibbon />
+        <ProcessSteps />
+        <HomeCTA />
       </div>
     </>
   );

@@ -85,16 +85,16 @@ export function ProcessSteps() {
         <div className="mb-16 text-center">
           <motion.h2
             variants={headingVariants}
-            initial="hidden"
-            animate={isInView ? "visible" : "hidden"}
+            initial={false}
+            animate={isInView ? "visible" : undefined}
             className="mb-4 font-display text-3xl text-foreground sm:text-4xl"
           >
             THE <span className="text-gold">PROCESS</span>
           </motion.h2>
           <motion.div
             variants={lineVariants}
-            initial="hidden"
-            animate={isInView ? "visible" : "hidden"}
+            initial={false}
+            animate={isInView ? "visible" : undefined}
             className="gold-line-thick mx-auto max-w-16"
           />
         </div>
@@ -114,8 +114,8 @@ export function ProcessSteps() {
                 key={step.title}
                 custom={i}
                 variants={stepVariants}
-                initial="hidden"
-                animate={isInView ? "visible" : "hidden"}
+                initial={false}
+                animate={isInView ? "visible" : undefined}
                 whileHover={getMotionSafeAnimation(prefersReducedMotion, {
                   y: -6,
                   transition: { duration: 0.3, ease: EASE_OUT_EXPO },
@@ -125,8 +125,8 @@ export function ProcessSteps() {
                 <motion.div
                   custom={i}
                   variants={stepIconVariants}
-                  initial="hidden"
-                  animate={isInView ? "visible" : "hidden"}
+                  initial={false}
+                  animate={isInView ? "visible" : undefined}
                   className="
                     relative z-10 mx-auto mb-6 flex size-28 flex-col items-center justify-center
                     rounded-full border-2 border-[hsl(var(--gold)/0.35)] bg-card

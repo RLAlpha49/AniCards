@@ -109,8 +109,8 @@ export function BentoFeatures() {
       <div className="mx-auto max-w-6xl">
         <motion.div
           variants={headingVariants}
-          initial="hidden"
-          animate={isInView ? "visible" : "hidden"}
+          initial={false}
+          animate={isInView ? "visible" : undefined}
           className="mb-14 text-center"
         >
           <motion.div
@@ -138,8 +138,8 @@ export function BentoFeatures() {
 
         <motion.div
           variants={featureContainerVariants}
-          initial="hidden"
-          animate={isInView ? "visible" : "hidden"}
+          initial={false}
+          animate={isInView ? "visible" : undefined}
           className="grid gap-4 md:auto-rows-[180px] md:grid-cols-3"
         >
           {FEATURES.map((f, i) => (
