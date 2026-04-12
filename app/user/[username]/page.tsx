@@ -1,3 +1,6 @@
+import "driver.js/dist/driver.css";
+import "katex/dist/katex.min.css";
+
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
