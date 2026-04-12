@@ -123,8 +123,12 @@ export const CardTileHeader = memo(function CardTileHeader({
                   onPointerEnter={prefetchMathTooltip}
                   onFocus={prefetchMathTooltip}
                   className={cn(
-                    "shrink-0 p-0.5 transition-colors",
-                    "text-muted-foreground hover:text-foreground",
+                    `
+                      flex size-11 shrink-0 touch-manipulation-safe items-center justify-center
+                      rounded-full text-muted-foreground transition-colors
+                      sm:size-6
+                    `,
+                    "hover:bg-gold/5 hover:text-foreground",
                     `
                       focus:outline-none
                       focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
@@ -132,7 +136,7 @@ export const CardTileHeader = memo(function CardTileHeader({
                   )}
                   aria-label={`Info about ${label}`}
                 >
-                  <Info className="size-3.5" aria-hidden="true" />
+                  <Info className="size-4 sm:size-3.5" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent
@@ -161,8 +165,9 @@ export const CardTileHeader = memo(function CardTileHeader({
             title="Drag to reorder"
             className={cn(
               `
-                flex size-10 items-center justify-center border border-gold/20 bg-background
-                text-muted-foreground shadow-sm transition-colors
+                flex size-11 touch-manipulation-safe items-center justify-center border
+                border-gold/20 bg-background text-muted-foreground shadow-sm transition-colors
+                sm:size-10
               `,
               "hover:bg-gold/5 hover:text-foreground",
               `
@@ -200,8 +205,9 @@ export const CardTileHeader = memo(function CardTileHeader({
               onClick={onOpenSettings}
               data-tour="card-settings"
               className="
-                size-9 p-0 transition-colors
+                size-11 touch-manipulation-safe p-0 transition-colors
                 hover:bg-gold/10 hover:text-gold
+                sm:size-9
                 dark:hover:bg-gold/10
               "
               title="Card settings"

@@ -82,7 +82,6 @@ describe("useCopyFeedback", () => {
   it("surfaces clipboard failures without leaving stale success state behind", async () => {
     const { consoleError } = allowConsoleWarningsAndErrors();
     const copyError = new Error("clipboard blocked");
-    clipboard.writeText.mockRejectedValue(copyError);
 
     const { result } = renderHook(() =>
       useCopyFeedback("/api/card?card=animeStats"),
@@ -92,7 +91,17 @@ describe("useCopyFeedback", () => {
       await result.current.handleCopy();
     });
 
-    expect(clipboard.writeText).toHaveBeenCalledWith(
+    expect(result.current.copiedFormat).toBe("url");
+    expect(result.current.error).toBeNull();
+
+    clipboard.writeText.mockRejectedValueOnce(copyError);
+
+    await act(async () => {
+      await result.current.handleCopy();
+    });
+
+    expect(clipboard.writeText).toHaveBeenNthCalledWith(
+      2,
       "https://anicards.test/api/card?card=animeStats",
     );
     expect(result.current.copiedFormat).toBeNull();

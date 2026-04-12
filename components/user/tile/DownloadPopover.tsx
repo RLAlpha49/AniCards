@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Loader2 } from "lucide-react";
+import { AlertCircle, Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -16,6 +16,7 @@ interface DownloadPopoverProps {
   onOpenChange: (open: boolean) => void;
   previewUrl: string | null;
   isDownloading: boolean;
+  downloadError?: string | null;
   onDownload: (format: CardDownloadFormat) => Promise<void> | void;
   downloadDescrId?: string;
   downloadTitle?: string;
@@ -28,6 +29,7 @@ export function DownloadPopover({
   onOpenChange,
   previewUrl,
   isDownloading,
+  downloadError,
   onDownload,
   downloadDescrId,
   downloadTitle,
@@ -51,6 +53,11 @@ export function DownloadPopover({
               : "size-10 rounded-full p-0 shadow-lg transition-all",
             "border border-gold/20 bg-background/80 text-foreground backdrop-blur-sm",
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
+            downloadError &&
+              `
+                border-red-300/50 bg-red-50/80 text-red-700
+                dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300
+              `,
             "disabled:cursor-not-allowed disabled:opacity-70",
             triggerClassName,
           )}
@@ -67,7 +74,10 @@ export function DownloadPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-44 border-gold/20 p-1.5 dark:border-gold/15"
+        className={cn(
+          downloadError ? "w-64" : "w-44",
+          "border-gold/20 p-1.5 dark:border-gold/15",
+        )}
         align="center"
       >
         <div className="flex flex-col gap-0.5">
@@ -130,6 +140,33 @@ export function DownloadPopover({
               Vector
             </span>
           </Button>
+
+          {downloadError ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="
+                mt-1 rounded-md border border-red-200/60 bg-red-50/80 p-2 text-xs text-red-700
+                dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300
+              "
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle
+                  className="mt-0.5 size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="font-medium text-red-800 dark:text-red-200">
+                    Download didn&apos;t start
+                  </p>
+                  <p className="mt-1 leading-relaxed">
+                    Try again, choose another format, or refresh the preview
+                    first.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

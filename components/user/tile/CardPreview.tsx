@@ -186,6 +186,8 @@ interface CardPreviewProps {
   convertingId: string;
   isDownloading: boolean;
   copiedFormat: "url" | "anilist" | "failed-list" | null;
+  copyError?: string | null;
+  downloadError?: string | null;
   copyPopoverOpen: boolean;
   setCopyPopoverOpen: (open: boolean) => void;
   downloadPopoverOpen: boolean;
@@ -209,6 +211,8 @@ export const CardPreview = memo(function CardPreview({
   convertingId,
   isDownloading,
   copiedFormat,
+  copyError,
+  downloadError,
   copyPopoverOpen,
   setCopyPopoverOpen,
   downloadPopoverOpen,
@@ -422,6 +426,7 @@ export const CardPreview = memo(function CardPreview({
                   onOpenChange={setCopyPopoverOpen}
                   previewUrl={previewUrl}
                   copiedFormat={copiedFormat}
+                  copyError={copyError}
                   onCopyUrl={onCopyUrl}
                   onCopyAniList={onCopyAniList}
                   previewUnavailableId={previewUnavailableId}
@@ -433,6 +438,7 @@ export const CardPreview = memo(function CardPreview({
                   onOpenChange={setDownloadPopoverOpen}
                   previewUrl={previewUrl}
                   isDownloading={isDownloading}
+                  downloadError={downloadError}
                   onDownload={onDownload}
                   downloadDescrId={downloadDescrId}
                   downloadTitle={downloadTitle}
@@ -483,6 +489,7 @@ export const CardPreview = memo(function CardPreview({
                 onOpenChange={setCopyPopoverOpen}
                 previewUrl={previewUrl}
                 copiedFormat={copiedFormat}
+                copyError={copyError}
                 onCopyUrl={onCopyUrl}
                 onCopyAniList={onCopyAniList}
                 previewUnavailableId={previewUnavailableId}
@@ -495,6 +502,7 @@ export const CardPreview = memo(function CardPreview({
                 onOpenChange={setDownloadPopoverOpen}
                 previewUrl={previewUrl}
                 isDownloading={isDownloading}
+                downloadError={downloadError}
                 onDownload={onDownload}
                 downloadDescrId={downloadDescrId}
                 downloadTitle={downloadTitle}

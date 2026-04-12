@@ -32,8 +32,15 @@ export function useCopyFeedback(previewUrl: string | null) {
   const handleCopy = useCallback(
     async (format: CopyFormat = "url") => {
       if (!previewUrl) return;
+
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+
       try {
         setError(null);
+        setCopiedFormat(null);
         const resolvedUrl = new URL(
           previewUrl,
           globalThis.location.origin,
@@ -42,11 +49,9 @@ export function useCopyFeedback(previewUrl: string | null) {
           format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
         await navigator.clipboard.writeText(textToCopy);
         setCopiedFormat(format);
-        if (copyTimerRef.current) {
-          clearTimeout(copyTimerRef.current);
-        }
         copyTimerRef.current = setTimeout(() => setCopiedFormat(null), 2000);
       } catch (error) {
+        setCopiedFormat(null);
         setError("Failed to copy to clipboard");
         console.error("Failed to copy to clipboard:", error);
       }

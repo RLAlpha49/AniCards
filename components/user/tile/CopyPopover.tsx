@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, ImageIcon, Link } from "lucide-react";
+import { AlertCircle, Check, Copy, ImageIcon, Link } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -15,6 +15,7 @@ interface CopyPopoverProps {
   onOpenChange: (open: boolean) => void;
   previewUrl: string | null;
   copiedFormat: "url" | "anilist" | "failed-list" | null;
+  copyError?: string | null;
   onCopyUrl: () => Promise<void> | void;
   onCopyAniList: () => Promise<void> | void;
   previewUnavailableId?: string;
@@ -27,6 +28,7 @@ export function CopyPopover({
   onOpenChange,
   previewUrl,
   copiedFormat,
+  copyError,
   onCopyUrl,
   onCopyAniList,
   previewUnavailableId,
@@ -59,6 +61,11 @@ export function CopyPopover({
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             copiedFormat &&
               "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
+            copyError &&
+              `
+                border-red-300/50 bg-red-50/80 text-red-700
+                dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-300
+              `,
             !previewUrl && "cursor-not-allowed opacity-80",
             triggerClassName,
           )}
@@ -77,7 +84,10 @@ export function CopyPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-48 border-gold/20 p-1.5 dark:border-gold/15"
+        className={cn(
+          copyError ? "w-64" : "w-48",
+          "border-gold/20 p-1.5 dark:border-gold/15",
+        )}
         align="center"
       >
         <div className="flex flex-col gap-0.5">
@@ -142,6 +152,33 @@ export function CopyPopover({
               {srCopiedMessage}
             </span>
           )}
+
+          {copyError ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="
+                mt-1 rounded-md border border-red-200/60 bg-red-50/80 p-2 text-xs text-red-700
+                dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300
+              "
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle
+                  className="mt-0.5 size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="font-medium text-red-800 dark:text-red-200">
+                    Copy didn&apos;t work
+                  </p>
+                  <p className="mt-1 leading-relaxed">
+                    Try again, or open the preview in a new tab and copy from
+                    there.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

@@ -86,6 +86,8 @@ type CardPreviewActionProps = Pick<
   React.ComponentProps<typeof CardPreview>,
   | "isDownloading"
   | "copiedFormat"
+  | "copyError"
+  | "downloadError"
   | "copyPopoverOpen"
   | "setCopyPopoverOpen"
   | "downloadPopoverOpen"
@@ -127,7 +129,12 @@ function CompareControls({
   if (!hasVariantOptions) return null;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", wrapperClassName)}>
+    <div
+      className={cn(
+        "flex w-full flex-wrap items-center gap-2 sm:w-auto",
+        wrapperClassName,
+      )}
+    >
       <Button
         type="button"
         variant={compareEnabled ? "default" : "outline"}
@@ -135,7 +142,7 @@ function CompareControls({
         aria-pressed={compareEnabled}
         onClick={onToggleCompare}
         className="
-          h-8 border-gold/30 text-gold/80
+          h-8 touch-manipulation-safe border-gold/30 text-gold/80
           hover:border-gold/50 hover:bg-gold/10 hover:text-gold
         "
         title="Compare variants"
@@ -147,7 +154,7 @@ function CompareControls({
       </Button>
 
       {compareEnabled ? (
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
           <Label
             htmlFor={compareSelectTriggerId}
             className="font-display text-xs tracking-wider text-gold/50 uppercase"
@@ -158,7 +165,11 @@ function CompareControls({
             <SelectTrigger
               id={compareSelectTriggerId}
               className={cn(
-                "h-8 w-40 border-gold/25 text-xs hover:border-gold/40",
+                `
+                  h-8 min-w-0 flex-1 touch-manipulation-safe border-gold/25 text-xs
+                  hover:border-gold/40
+                  sm:w-40 sm:flex-none
+                `,
                 selectTriggerClassName,
               )}
             >
@@ -220,7 +231,7 @@ function PreviewControlsBar({
           size="sm"
           onClick={onExpand}
           className="
-            h-8 border-gold/30 text-gold/80
+            h-8 touch-manipulation-safe border-gold/30 text-gold/80
             hover:border-gold/50 hover:bg-gold/10 hover:text-gold
           "
           title="Expand preview"
@@ -292,10 +303,7 @@ function ExpandedPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="
-        max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto rounded-none border-2
-        border-gold/20 p-0
-      ">
+      <DialogContent className="max-w-384 rounded-none border-2 border-gold/20 p-0">
         <AnimatePresence>
           {open && (
             <motion.div
@@ -659,7 +667,11 @@ export const CardTile = memo(function CardTile({
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
-  const { copiedFormat, handleCopy } = useCopyFeedback(previewUrl);
+  const {
+    copiedFormat,
+    handleCopy,
+    error: copyError,
+  } = useCopyFeedback(previewUrl);
 
   const handleCopyUrl = useCallback(() => handleCopy("url"), [handleCopy]);
   const handleCopyAniList = useCallback(
@@ -667,13 +679,21 @@ export const CardTile = memo(function CardTile({
     [handleCopy],
   );
 
-  const { isDownloading, handleDownload } = useDownload(previewUrl, {
+  const {
+    isDownloading,
+    error: downloadError,
+    handleDownload,
+    status: downloadStatus,
+  } = useDownload(previewUrl, {
     cardId,
     variant: config.variant,
   });
 
-  const { copiedFormat: compareCopiedFormat, handleCopy: handleCompareCopy } =
-    useCopyFeedback(comparePreviewUrl);
+  const {
+    copiedFormat: compareCopiedFormat,
+    handleCopy: handleCompareCopy,
+    error: compareCopyError,
+  } = useCopyFeedback(comparePreviewUrl);
 
   const handleCompareCopyUrl = useCallback(
     () => handleCompareCopy("url"),
@@ -686,7 +706,9 @@ export const CardTile = memo(function CardTile({
 
   const {
     isDownloading: isCompareDownloading,
+    error: compareDownloadError,
     handleDownload: handleCompareDownload,
+    status: compareDownloadStatus,
   } = useDownload(comparePreviewUrl, {
     cardId,
     variant: compareVariant,
@@ -714,16 +736,23 @@ export const CardTile = memo(function CardTile({
   }, [comparePreviewUrl]);
 
   useEffect(() => {
-    if (isDownloading) {
+    if (downloadStatus === "success") {
       setDownloadPopoverOpen(false);
     }
-  }, [isDownloading]);
+  }, [downloadStatus]);
 
   useEffect(() => {
-    if (isCompareDownloading) {
+    if (compareDownloadStatus === "success") {
       setCompareDownloadPopoverOpen(false);
     }
-  }, [isCompareDownloading]);
+  }, [compareDownloadStatus]);
+
+  const downloadErrorMessage = downloadError
+    ? "Couldn't prepare this card for download."
+    : null;
+  const compareDownloadErrorMessage = compareDownloadError
+    ? "Couldn't prepare this card for download."
+    : null;
 
   const compareControlsProps: Omit<CompareControlsProps, "wrapperClassName"> =
     useMemo<Omit<CompareControlsProps, "wrapperClassName">>(
@@ -815,6 +844,8 @@ export const CardTile = memo(function CardTile({
             convertingId={convertingId}
             isDownloading={isDownloading}
             copiedFormat={copiedFormat}
+            copyError={copyError}
+            downloadError={downloadErrorMessage}
             copyPopoverOpen={copyPopoverOpen}
             setCopyPopoverOpen={setCopyPopoverOpen}
             downloadPopoverOpen={downloadPopoverOpen}
@@ -862,6 +893,8 @@ export const CardTile = memo(function CardTile({
             primaryActions={{
               isDownloading,
               copiedFormat,
+              copyError,
+              downloadError: downloadErrorMessage,
               copyPopoverOpen,
               setCopyPopoverOpen,
               downloadPopoverOpen,
@@ -875,6 +908,8 @@ export const CardTile = memo(function CardTile({
             compareActions={{
               isDownloading: isCompareDownloading,
               copiedFormat: compareCopiedFormat,
+              copyError: compareCopyError,
+              downloadError: compareDownloadErrorMessage,
               copyPopoverOpen: compareCopyPopoverOpen,
               setCopyPopoverOpen: setCompareCopyPopoverOpen,
               downloadPopoverOpen: compareDownloadPopoverOpen,
