@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { normalizePositiveIntegerString } from "@/lib/api/primitives";
 import {
   buildCanonicalUrl,
   getSiteUrlObject,
@@ -35,6 +36,9 @@ interface SEOConfig {
 export type SEOPageKey = keyof typeof seoConfigs;
 export type SearchParamValue = string | string[] | undefined;
 export type SearchLookupMode = "username" | "userId";
+export type SearchLookupInputNormalizationResult =
+  | { ok: true; mode: SearchLookupMode; query: string }
+  | { ok: false; reason: "invalid" | "expectedUserId" };
 export type StaticSitemapChangeFrequency =
   | "daily"
   | "weekly"
@@ -79,6 +83,8 @@ const SOCIAL_PREVIEW_IMAGE_PATH = "/card.png";
 const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
 const DEFAULT_SEARCH_LOOKUP_MODE: SearchLookupMode = "username";
 const SEARCH_LOOKUP_MODE_USER_ID_ALIASES = new Set(["userid", "user-id"]);
+const ANILIST_PROFILE_HOSTS = new Set(["anilist.co", "www.anilist.co"]);
+const SEARCH_LOOKUP_USERNAME_PATTERN = /^[a-zA-Z0-9_\-\s]+$/;
 
 function resolveSocialPreviewImages(images?: readonly string[]): string[] {
   const normalizedImages = (
@@ -163,6 +169,146 @@ function getSearchParamValue(value: SearchParamValue): string | undefined {
   return trimmedValue || undefined;
 }
 
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeSearchLookupToken(
+  value: string | null | undefined,
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  let normalizedValue = value.trim();
+  if (!normalizedValue) {
+    return null;
+  }
+
+  normalizedValue = (normalizedValue.split(/[?#]/u, 1)[0] ?? normalizedValue)
+    .trim()
+    .replace(/^@+/u, "")
+    .replace(/^\/+?/u, "");
+
+  if (/^user\//iu.test(normalizedValue)) {
+    normalizedValue = normalizedValue.slice(5);
+  }
+
+  normalizedValue = safeDecodeURIComponent(
+    normalizedValue.replace(/\/+$/u, "").trim(),
+  ).trim();
+
+  return normalizedValue || null;
+}
+
+function normalizeSearchLookupUsername(value: string): string | null {
+  const trimmedValue = value.trim();
+
+  if (
+    trimmedValue.length === 0 ||
+    trimmedValue.length > 100 ||
+    !SEARCH_LOOKUP_USERNAME_PATTERN.test(trimmedValue)
+  ) {
+    return null;
+  }
+
+  return trimmedValue;
+}
+
+function extractAniListProfileTokenFromUrl(value: string): string | null {
+  const normalizedUrl = /^https?:\/\//iu.test(value)
+    ? value
+    : `https://${value}`;
+
+  try {
+    const parsedUrl = new URL(normalizedUrl);
+    if (!ANILIST_PROFILE_HOSTS.has(parsedUrl.hostname.toLowerCase())) {
+      return null;
+    }
+
+    const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
+    const userSegmentIndex = pathSegments.findIndex(
+      (segment) => segment.toLowerCase() === "user",
+    );
+
+    if (userSegmentIndex < 0) {
+      return null;
+    }
+
+    return normalizeSearchLookupToken(pathSegments[userSegmentIndex + 1]);
+  } catch {
+    return null;
+  }
+}
+
+function extractAniListProfileTokenFromPath(value: string): string | null {
+  const pathOnly = value.trim().split(/[?#]/u, 1)[0] ?? value.trim();
+  const pathSegments = pathOnly.split("/").filter(Boolean);
+
+  if (pathSegments.length === 0) {
+    return null;
+  }
+
+  const userSegmentIndex = pathSegments.findIndex(
+    (segment) => segment.toLowerCase() === "user",
+  );
+
+  if (userSegmentIndex >= 0) {
+    return normalizeSearchLookupToken(pathSegments[userSegmentIndex + 1]);
+  }
+
+  if (pathSegments.length === 1) {
+    return normalizeSearchLookupToken(pathSegments[0]);
+  }
+
+  return null;
+}
+
+function extractAniListProfileToken(value: string): {
+  structured: boolean;
+  token: string | null;
+} {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return {
+      structured: false,
+      token: null,
+    };
+  }
+
+  const isUrlLike = /^(?:https?:\/\/|www\.|anilist\.co\/)/iu.test(trimmedValue);
+  if (isUrlLike) {
+    return {
+      structured: true,
+      token: extractAniListProfileTokenFromUrl(trimmedValue),
+    };
+  }
+
+  const isPathLike =
+    /^\//u.test(trimmedValue) ||
+    /^@/u.test(trimmedValue) ||
+    /^user\//iu.test(trimmedValue) ||
+    /\/$/u.test(trimmedValue) ||
+    trimmedValue.includes("/user/");
+
+  if (isPathLike) {
+    return {
+      structured: true,
+      token: extractAniListProfileTokenFromPath(trimmedValue),
+    };
+  }
+
+  return {
+    structured: false,
+    token: normalizeSearchLookupToken(trimmedValue),
+  };
+}
+
 export function getSearchLookupMode(value: SearchParamValue): SearchLookupMode {
   const normalizedValue = getSearchParamValue(value)?.toLowerCase();
 
@@ -172,8 +318,70 @@ export function getSearchLookupMode(value: SearchParamValue): SearchLookupMode {
     : DEFAULT_SEARCH_LOOKUP_MODE;
 }
 
-export function getSearchPagePrefillQuery(value: SearchParamValue): string {
-  return getSearchParamValue(value) ?? "";
+export function normalizeSearchLookupInput(
+  value: SearchParamValue,
+  preferredMode: SearchLookupMode = DEFAULT_SEARCH_LOOKUP_MODE,
+): SearchLookupInputNormalizationResult | null {
+  const rawValue = getSearchParamValue(value);
+  if (!rawValue) {
+    return null;
+  }
+
+  const { structured, token } = extractAniListProfileToken(rawValue);
+  if (!token) {
+    return {
+      ok: false,
+      reason: structured
+        ? "invalid"
+        : preferredMode === "userId"
+          ? "expectedUserId"
+          : "invalid",
+    };
+  }
+
+  const normalizedUserId = normalizePositiveIntegerString(token);
+  if (normalizedUserId) {
+    return {
+      ok: true,
+      mode: "userId",
+      query: normalizedUserId,
+    };
+  }
+
+  const normalizedUsername = normalizeSearchLookupUsername(token);
+  if (!normalizedUsername) {
+    return {
+      ok: false,
+      reason: "invalid",
+    };
+  }
+
+  if (preferredMode === "userId") {
+    return {
+      ok: false,
+      reason: "expectedUserId",
+    };
+  }
+
+  return {
+    ok: true,
+    mode: "username",
+    query: normalizedUsername,
+  };
+}
+
+export function getSearchPagePrefillQuery(
+  value: SearchParamValue,
+  preferredMode: SearchLookupMode = DEFAULT_SEARCH_LOOKUP_MODE,
+): string {
+  const rawValue = getSearchParamValue(value);
+  if (!rawValue) {
+    return "";
+  }
+
+  const normalizedValue = normalizeSearchLookupInput(rawValue, preferredMode);
+
+  return normalizedValue?.ok ? normalizedValue.query : rawValue;
 }
 
 export function getSearchPagePath(
@@ -198,6 +406,36 @@ export function getSearchPagePath(
   const search = searchParams.toString();
 
   return search ? `/search?${search}` : "/search";
+}
+
+function hasSearchPageStatefulParams({
+  mode,
+  query,
+}: {
+  mode?: SearchParamValue;
+  query?: SearchParamValue;
+}): boolean {
+  return (
+    Boolean(getSearchParamValue(query)) ||
+    getSearchLookupMode(mode) !== DEFAULT_SEARCH_LOOKUP_MODE
+  );
+}
+
+export function getSearchPageSEOConfig({
+  mode,
+  query,
+}: {
+  mode?: SearchParamValue;
+  query?: SearchParamValue;
+} = {}): SEOConfig {
+  return {
+    ...seoConfigs.search,
+    ...(hasSearchPageStatefulParams({ mode, query })
+      ? {
+          robots: NOINDEX_ROBOTS,
+        }
+      : {}),
+  };
 }
 
 /**

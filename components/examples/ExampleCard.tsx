@@ -17,6 +17,7 @@ import {
 import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
 import {
   queuePendingSettingsTemplateApply,
+  readLastSuccessfulUserPageRoute,
   upsertSettingsTemplateInStorage,
 } from "@/lib/user-page-settings-templates";
 import { cn, toCardApiHref } from "@/lib/utils";
@@ -203,12 +204,16 @@ export function ExampleCard({
         queuedAt: now,
       });
 
+      const rememberedUserRoute = readLastSuccessfulUserPageRoute();
+      const nextRoute = rememberedUserRoute?.href ?? "/search";
+
       setQueuedForEditor(true);
       toast.success("Style queued for your editor", {
-        description:
-          "Pick a user and AniCards will apply this example as a reusable template.",
+        description: rememberedUserRoute
+          ? "Jumping back into your last loaded editor so AniCards can apply it there."
+          : "Pick a user and AniCards will apply this example as a reusable template.",
       });
-      router.push("/search");
+      router.push(nextRoute);
     },
     [
       cardTypeTitle,

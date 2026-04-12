@@ -1,17 +1,20 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
-import { normalizePositiveIntegerString } from "@/lib/api/primitives";
 import type { SearchLookupMode } from "@/lib/seo";
-import { getSearchPagePath, getUserProfilePath } from "@/lib/seo";
+import {
+  getSearchPagePath,
+  getUserProfilePath,
+  normalizeSearchLookupInput,
+} from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import {
   safeTrack,
@@ -29,10 +32,6 @@ function scheduleAfterPaint(callback: () => void) {
 
   // Fallback for environments without requestAnimationFrame (e.g., some tests).
   setTimeout(callback, 0);
-}
-
-function normalizeAniListUserId(value: string): string | null {
-  return normalizePositiveIntegerString(value);
 }
 
 function getSearchModeAnnouncement(nextMethod: SearchLookupMode): string {
@@ -54,8 +53,9 @@ function getSearchInputMeta(searchMethod: SearchLookupMode): {
   if (searchMethod === "userId") {
     return {
       inputLabel: "AniList User ID",
-      inputPlaceholder: "e.g., 542244",
-      inputHint: "Enter a numeric AniList user ID.",
+      inputPlaceholder: "e.g., 542244 or /user/542244",
+      inputHint:
+        "Paste a numeric AniList ID. AniList /user/... links also work when they resolve to an ID.",
       inputType: "text",
       inputMode: "numeric",
       Icon: Hash,
@@ -64,12 +64,36 @@ function getSearchInputMeta(searchMethod: SearchLookupMode): {
 
   return {
     inputLabel: "AniList Username",
-    inputPlaceholder: "e.g., Alpha49",
-    inputHint: "Enter an AniList username without the at symbol.",
+    inputPlaceholder: "e.g., Alpha49, @Alpha49, or /user/Alpha49",
+    inputHint:
+      "Paste a username, @handle, AniList profile URL, copied /user/... slug, or a bare numeric ID.",
     inputType: "search",
     inputMode: "search",
     Icon: Search,
   };
+}
+
+function getBlankSearchError(searchMethod: SearchLookupMode): string {
+  if (searchMethod === "userId") {
+    return "You'll need to enter a numeric AniList user ID first.";
+  }
+
+  return "You'll need to enter an AniList username, profile link, or user ID first.";
+}
+
+function getSearchValidationError(
+  searchMethod: SearchLookupMode,
+  reason: "invalid" | "expectedUserId",
+): string {
+  if (searchMethod === "userId") {
+    if (reason === "expectedUserId") {
+      return "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.";
+    }
+
+    return "Enter a numeric AniList user ID or an AniList /user/... link that resolves to one.";
+  }
+
+  return "Enter an AniList username, @handle, profile URL, copied /user/... slug, or numeric ID.";
 }
 
 function getSearchDestination(
@@ -109,15 +133,18 @@ export function SearchForm({
 }: Readonly<SearchFormProps>) {
   const router = useRouter();
   const baseId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [searchMethod, setSearchMethod] =
     useState<SearchLookupMode>(initialSearchMode);
   const [searchValue, setSearchValue] = useState(initialSearchValue);
-  const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [modeAnnouncement, setModeAnnouncement] = useState("");
   const [hasMounted, setHasMounted] = useState(false);
 
-  const isUserIdMode = searchMethod === "userId";
+  const alertMessage = fieldError || formError;
+  const hasFieldError = fieldError.length > 0;
   const inputId = `${baseId}-search-value`;
   const inputHintId = `${baseId}-search-hint`;
   const errorId = `${baseId}-search-error`;
@@ -133,7 +160,9 @@ export function SearchForm({
     inputMode,
     Icon: SearchInputIcon,
   } = getSearchInputMeta(searchMethod);
-  const inputDescribedBy = error ? `${inputHintId} ${errorId}` : inputHintId;
+  const inputDescribedBy = hasFieldError
+    ? `${inputHintId} ${errorId}`
+    : inputHintId;
 
   useEffect(() => {
     setSearchMethod(initialSearchMode);
@@ -146,6 +175,36 @@ export function SearchForm({
   useEffect(() => {
     setSearchValue(initialSearchValue);
   }, [initialSearchValue]);
+
+  const focusSearchField = useCallback((selectContents = false) => {
+    scheduleAfterPaint(() => {
+      const input = inputRef.current;
+      if (!input) {
+        return;
+      }
+
+      input.focus();
+
+      if (selectContents && input.value.length > 0) {
+        input.select();
+      }
+    });
+  }, []);
+
+  const clearErrors = useCallback(() => {
+    setFieldError("");
+    setFormError("");
+  }, []);
+
+  const showValidationError = useCallback(
+    (message: string, options?: { selectContents?: boolean }) => {
+      setFieldError(message);
+      setFormError("");
+      focusSearchField(options?.selectContents ?? false);
+      safeTrack(() => trackFormSubmission("user_search", false));
+    },
+    [focusSearchField],
+  );
 
   const updateSearchMethod = useCallback(
     (nextMethod: SearchLookupMode) => {
@@ -165,9 +224,9 @@ export function SearchForm({
       }
 
       setSearchMethod(nextMethod);
-      setError("");
+      clearErrors();
     },
-    [router, searchMethod, searchValue],
+    [clearErrors, router, searchMethod, searchValue],
   );
 
   /**
@@ -178,29 +237,27 @@ export function SearchForm({
    */
   const performSearch = useCallback(
     (value: string) => {
-      const trimmedValue = value.trim();
+      const normalizedLookup = normalizeSearchLookupInput(value, searchMethod);
 
-      if (!trimmedValue) {
-        setError(
-          `You'll need to enter a ${searchMethod === "username" ? "username" : "user ID"} first`,
+      if (!normalizedLookup) {
+        showValidationError(getBlankSearchError(searchMethod));
+        return;
+      }
+
+      if (!normalizedLookup.ok) {
+        showValidationError(
+          getSearchValidationError(searchMethod, normalizedLookup.reason),
+          {
+            selectContents: true,
+          },
         );
-        safeTrack(() => trackFormSubmission("user_search", false));
         return;
       }
 
-      const normalizedUserId = isUserIdMode
-        ? normalizeAniListUserId(trimmedValue)
-        : null;
+      const nextSearchMode = normalizedLookup.mode;
+      const nextSearchValue = normalizedLookup.query;
 
-      if (isUserIdMode && !normalizedUserId) {
-        setError("AniList user IDs must be a whole number greater than 0.");
-        safeTrack(() => trackFormSubmission("user_search", false));
-        return;
-      }
-
-      const nextSearchValue = normalizedUserId ?? trimmedValue;
-
-      setError("");
+      clearErrors();
       setSearchValue(nextSearchValue);
       setLoading(true);
       onLoadingChange?.(true);
@@ -208,23 +265,25 @@ export function SearchForm({
       safeTrack(() => trackFormSubmission("user_search", true));
       safeTrack(() => trackNavigation("user_page", "search_form"));
 
-      const nextUrl = getSearchDestination(searchMethod, nextSearchValue);
+      const nextUrl = getSearchDestination(nextSearchMode, nextSearchValue);
 
       scheduleAfterPaint(() => {
         try {
           Promise.resolve(router.push(nextUrl)).catch(() => {
             setLoading(false);
             onLoadingChange?.(false);
-            setError("Something went wrong with navigation. Try again?");
+            setFieldError("");
+            setFormError("Something went wrong with navigation. Try again?");
           });
         } catch {
           setLoading(false);
           onLoadingChange?.(false);
-          setError("Something went wrong with navigation. Try again?");
+          setFieldError("");
+          setFormError("Something went wrong with navigation. Try again?");
         }
       });
     },
-    [isUserIdMode, onLoadingChange, router, searchMethod],
+    [clearErrors, onLoadingChange, router, searchMethod, showValidationError],
   );
 
   /**
@@ -273,35 +332,28 @@ export function SearchForm({
             {modeAnnouncement}
           </p>
 
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                animate={{ opacity: 1, scale: 1, height: "auto" }}
-                exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                transition={{ duration: 0.3 }}
+          {alertMessage ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, height: 0 }}
+              animate={{ opacity: 1, scale: 1, height: "auto" }}
+              transition={{ duration: 0.3 }}
+            >
+              <Alert
+                variant="destructive"
+                className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
               >
-                <Alert
-                  variant="destructive"
-                  className="
-                    border-red-200/50 bg-red-50/80
-                    dark:border-red-800/50 dark:bg-red-950/30
-                  "
-                >
-                  <Info className="size-4" />
-                  <AlertTitle className="text-red-800 dark:text-red-200">
-                    Heads Up
-                  </AlertTitle>
-                  <AlertDescription
-                    id={errorId}
-                    className="text-red-700 dark:text-red-300"
-                  >
-                    {error}
-                  </AlertDescription>
-                </Alert>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <Info className="size-4" />
+                <AlertTitle className="text-red-800 dark:text-red-200">
+                  {hasFieldError
+                    ? "Check the search field"
+                    : "Navigation hiccup"}
+                </AlertTitle>
+                <AlertDescription className="text-red-700 dark:text-red-300">
+                  {alertMessage}
+                </AlertDescription>
+              </Alert>
+            </motion.div>
+          ) : null}
 
           {/* Method Toggle with sliding indicator */}
           <fieldset className="space-y-3" aria-describedby={searchMethodHintId}>
@@ -390,9 +442,6 @@ export function SearchForm({
             >
               {inputLabel}
             </label>
-            <p id={inputHintId} className="sr-only">
-              {inputHint}
-            </p>
             <div className="group relative">
               <div
                 aria-hidden="true"
@@ -405,12 +454,13 @@ export function SearchForm({
                 <SearchInputIcon className="size-5" />
               </div>
               <Input
+                ref={inputRef}
                 id={inputId}
                 type={inputType}
                 value={searchValue}
                 onChange={(e) => {
                   setSearchValue(e.target.value);
-                  setError("");
+                  clearErrors();
                 }}
                 placeholder={inputPlaceholder}
                 inputMode={inputMode}
@@ -419,9 +469,9 @@ export function SearchForm({
                 autoCorrect="off"
                 enterKeyHint="search"
                 spellCheck={false}
-                aria-invalid={error ? true : undefined}
+                aria-invalid={hasFieldError ? true : undefined}
                 aria-describedby={inputDescribedBy}
-                aria-errormessage={error ? errorId : undefined}
+                aria-errormessage={hasFieldError ? errorId : undefined}
                 className="
                   h-14 border-gold/15 bg-transparent pl-12 text-base transition-all
                   placeholder:text-foreground/25
@@ -434,6 +484,22 @@ export function SearchForm({
                 "
                 disabled={loading}
               />
+            </div>
+            <div className="space-y-1.5">
+              <p
+                id={inputHintId}
+                className="text-sm/relaxed text-foreground/45"
+              >
+                {inputHint}
+              </p>
+              {hasFieldError ? (
+                <p
+                  id={errorId}
+                  className="text-sm font-medium text-red-700 dark:text-red-300"
+                >
+                  {fieldError}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -476,8 +542,9 @@ export function SearchForm({
         </form>
 
         <p className="mt-6 text-center font-body-serif text-xs/relaxed text-foreground/30">
-          Works with any public AniList profile — just type a username or paste
-          the numeric ID.
+          Works with any public AniList profile — usernames, @handles, copied
+          AniList profile links, /user/... slugs, and bare numeric IDs all route
+          to the editor.
         </p>
       </motion.div>
     </div>

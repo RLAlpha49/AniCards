@@ -7,7 +7,10 @@ import {
   getDefaultSocialPreviewImage,
   getSearchLookupMode,
   getSearchPagePath,
+  getSearchPagePrefillQuery,
+  getSearchPageSEOConfig,
   getUserPageSEOConfig,
+  normalizeSearchLookupInput,
   seoConfigs,
 } from "@/lib/seo";
 import { resolveSiteUrl } from "@/lib/site-config";
@@ -139,6 +142,38 @@ describe("SEO metadata helpers", () => {
     expect(getSearchLookupMode("userid")).toBe("userId");
     expect(getSearchLookupMode("username")).toBe("username");
 
+    expect(
+      normalizeSearchLookupInput(
+        "https://anilist.co/user/Alpha49/animelist",
+        "username",
+      ),
+    ).toEqual({
+      ok: true,
+      mode: "username",
+      query: "Alpha49",
+    });
+    expect(normalizeSearchLookupInput("@Alpha49", "username")).toEqual({
+      ok: true,
+      mode: "username",
+      query: "Alpha49",
+    });
+    expect(normalizeSearchLookupInput("000542244", "username")).toEqual({
+      ok: true,
+      mode: "userId",
+      query: "542244",
+    });
+    expect(normalizeSearchLookupInput("54two24", "userId")).toEqual({
+      ok: false,
+      reason: "expectedUserId",
+    });
+    expect(
+      getSearchPagePrefillQuery(
+        "https://anilist.co/user/Alpha49/animelist",
+        "username",
+      ),
+    ).toBe("Alpha49");
+    expect(getSearchPagePrefillQuery("000542244", "userId")).toBe("542244");
+
     expect(getSearchPagePath()).toBe("/search");
     expect(getSearchPagePath({ mode: "userId" })).toBe("/search?mode=userId");
     expect(
@@ -148,6 +183,24 @@ describe("SEO metadata helpers", () => {
         includeDefaultMode: true,
       }),
     ).toBe("/search?mode=username&query=Alpha49");
+  });
+
+  it("keeps canonical /search while noindexing transient mode/query state", () => {
+    const queryMetadata = generateMetadata(
+      getSearchPageSEOConfig({ query: "@Alpha49" }),
+    );
+    const modeMetadata = generateMetadata(
+      getSearchPageSEOConfig({ mode: "userId" }),
+    );
+    const defaultMetadata = generateMetadata(
+      getSearchPageSEOConfig({ mode: "username" }),
+    );
+
+    expect(queryMetadata.alternates?.canonical).toBe("/search");
+    expect(modeMetadata.alternates?.canonical).toBe("/search");
+    expect(getRobotsMetadata(queryMetadata)?.index).toBe(false);
+    expect(getRobotsMetadata(modeMetadata)?.index).toBe(false);
+    expect(getRobotsMetadata(defaultMetadata)?.index).toBe(true);
   });
 
   it("keeps the privacy disclosure publicly canonical and indexable", () => {

@@ -1,12 +1,15 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Sparkles, X } from "lucide-react";
 
+import { Button } from "@/components/ui/Button";
 import {
   buildFadeUpVariants,
   buildMotionSafeStaggerContainer,
 } from "@/lib/animations";
 import type { SearchLookupMode } from "@/lib/seo";
+import type { PendingSettingsTemplateApply } from "@/lib/user-page-settings-templates";
 
 import { SearchForm } from "./SearchForm";
 
@@ -14,12 +17,20 @@ interface SearchHeroSectionProps {
   initialSearchMode: SearchLookupMode;
   initialSearchValue: string;
   onLoadingChange: (loading: boolean) => void;
+  pendingTemplateApply?: PendingSettingsTemplateApply | null;
+  onClearPendingTemplateApply?: () => void;
+  onResumeQueuedEditor?: () => void;
+  queuedEditorResumeAvailable?: boolean;
 }
 
 export function SearchHeroSection({
   initialSearchMode,
   initialSearchValue,
   onLoadingChange,
+  pendingTemplateApply,
+  onClearPendingTemplateApply,
+  onResumeQueuedEditor,
+  queuedEditorResumeAvailable = false,
 }: Readonly<SearchHeroSectionProps>) {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const containerVariants = buildMotionSafeStaggerContainer({
@@ -183,6 +194,77 @@ export function SearchHeroSection({
           <span>✦ No Account Needed</span>
           <span>✦ One-Click Setup</span>
         </motion.div>
+
+        {pendingTemplateApply ? (
+          <motion.div
+            variants={itemVariants}
+            className="
+              mx-auto mb-8 max-w-3xl border border-gold/20 bg-background/70 p-4 text-left
+              backdrop-blur-sm
+            "
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="
+                  mt-0.5 flex size-9 shrink-0 items-center justify-center bg-gold/15
+                  dark:bg-gold/10
+                ">
+                  <Sparkles className="size-4 text-gold-dim dark:text-gold" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.7rem] tracking-[0.25em] text-gold/70 uppercase">
+                    Queued example ready
+                  </p>
+                  <p className="mt-1 text-sm/relaxed text-foreground/85">
+                    <span className="font-semibold text-foreground">
+                      {pendingTemplateApply.templateName ??
+                        "Queued example style"}
+                    </span>{" "}
+                    will be applied in <strong>Global Settings</strong> the next
+                    time you open the editor.
+                  </p>
+                  <p className="mt-2 text-xs/relaxed text-foreground/55">
+                    {queuedEditorResumeAvailable
+                      ? "Jump back into your last loaded profile now, or search for a different AniList profile below."
+                      : "Search for an AniList profile below and AniCards will carry this style into the editor automatically."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                {queuedEditorResumeAvailable ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={onResumeQueuedEditor}
+                    className="
+                      imperial-btn min-h-11 imperial-btn-fill px-4 text-xs tracking-[0.15em]
+                      uppercase
+                    "
+                  >
+                    Open last editor
+                    <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+                  </Button>
+                ) : null}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClearPendingTemplateApply}
+                  className="
+                    min-h-11 px-3 text-xs tracking-[0.15em] text-foreground/65 uppercase
+                    hover:bg-gold/5 hover:text-foreground
+                  "
+                >
+                  <X className="mr-1.5 size-4" aria-hidden="true" />
+                  Clear queued style
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
 
         <motion.div variants={itemVariants}>
           <SearchForm

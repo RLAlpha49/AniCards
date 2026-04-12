@@ -2,6 +2,11 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 
+const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
+  "anicards:last-successful-user-page-route:v1";
+const PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY =
+  "anicards:user-page-settings-template-apply:v1";
+
 async function waitForSearchFormReady(page: Page): Promise<void> {
   await waitForUiReady(page.getByTestId("search-form"));
   await expect(page.getByRole("button", { name: /find profile/i })).toBeEnabled(
@@ -81,12 +86,15 @@ test.describe("Search page", () => {
 
   test("shows validation errors for empty submissions", async ({ page }) => {
     const usernameInput = page.getByLabel(/AniList Username/i);
+    const validationAlert = page.locator('[role="alert"]');
 
     await submitSearchForm(page);
-    const usernameAlert = page.getByText(
-      /you'll need to enter a username first/i,
-    );
+    const usernameAlert = validationAlert.filter({
+      hasText:
+        /you'll need to enter an anilist username, profile link, or user id first/i,
+    });
     await expect(usernameAlert).toBeVisible({ timeout: 15000 });
+    await expect(usernameInput).toBeFocused();
     await expect(usernameInput).toHaveAttribute("aria-invalid", "true");
     await expect(usernameInput).toHaveAttribute(
       "aria-describedby",
@@ -101,22 +109,25 @@ test.describe("Search page", () => {
     await selectLookupMethod(page, "User ID");
 
     await submitSearchForm(page);
-    const userIdAlert = page.getByText(/you'll need to enter a user id first/i);
+    const userIdAlert = validationAlert.filter({
+      hasText: /you'll need to enter a numeric anilist user id first/i,
+    });
     await expect(userIdAlert).toBeVisible({ timeout: 15000 });
 
     const userIdInput = page.getByLabel(/AniList User ID/i);
+    await expect(userIdInput).toBeFocused();
     await expect(userIdInput).toHaveAttribute("aria-invalid", "true");
     await setSearchValue(userIdInput, "542244");
     await expect(
-      page.getByText(/you'll need to enter a user id first/i),
+      page.getByText(/you'll need to enter a numeric anilist user id first/i),
     ).toHaveCount(0);
   });
 
-  test("navigates to user page with loading overlay for username search", async ({
+  test("normalizes AniList profile URLs in username mode before navigating", async ({
     page,
   }) => {
     const input = page.getByLabel(/AniList Username/i);
-    await setSearchValue(input, "Alpha49");
+    await setSearchValue(input, "https://anilist.co/user/Alpha49/animelist");
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\/Alpha49/i, { timeout: 15000 });
@@ -130,5 +141,60 @@ test.describe("Search page", () => {
 
     await submitSearchForm(page);
     await expect(page).toHaveURL(/\/user\?userId=123456/i, { timeout: 15000 });
+  });
+
+  test("shows queued example context on search and lets the user clear it", async ({
+    page,
+  }) => {
+    await page.evaluate(
+      ({ lastRouteKey, pendingKey }) => {
+        globalThis.sessionStorage.setItem(
+          pendingKey,
+          JSON.stringify({
+            templateId: "example:anime-stats:minimal:light",
+            templateName: "Anime Stats — Minimal (Light)",
+            applyTo: "global",
+            source: "examples",
+            queuedAt: Date.now(),
+          }),
+        );
+        globalThis.sessionStorage.setItem(
+          lastRouteKey,
+          JSON.stringify({
+            href: "/user/Alpha49",
+            userId: "542244",
+            username: "Alpha49",
+            savedAt: Date.now(),
+          }),
+        );
+      },
+      {
+        lastRouteKey: LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+        pendingKey: PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+      },
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForSearchFormReady(page);
+
+    await expect(page.getByText(/queued example ready/i)).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(
+      page.getByText(/anime stats — minimal \(light\)/i),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole("button", { name: /open last editor/i }),
+    ).toBeVisible({ timeout: 15000 });
+
+    await page.getByRole("button", { name: /clear queued style/i }).click();
+
+    await expect(page.getByText(/queued example ready/i)).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (pendingKey) => globalThis.sessionStorage.getItem(pendingKey),
+        PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+      ),
+    ).toBeNull();
   });
 });

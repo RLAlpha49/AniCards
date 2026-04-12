@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { SearchCapabilities } from "@/components/search/SearchCapabilities";
@@ -10,14 +12,30 @@ import {
   generateMetadata as createMetadata,
   getSearchLookupMode,
   getSearchPagePrefillQuery,
-  seoConfigs,
+  getSearchPageSEOConfig,
 } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
 import LoadingPreview from "./loading";
 import SearchHeroShell from "./SearchHeroShell";
 
-export const metadata = createMetadata(seoConfigs.search);
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    mode?: string;
+    query?: string;
+  }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+
+  return createMetadata(
+    getSearchPageSEOConfig({
+      mode: params.mode,
+      query: params.query,
+    }),
+  );
+}
 
 export default async function UserSearchPage({
   searchParams,
@@ -38,6 +56,7 @@ export default async function UserSearchPage({
   const initialSearchMode = getSearchLookupMode(resolvedSearchParams.mode);
   const initialSearchValue = getSearchPagePrefillQuery(
     resolvedSearchParams.query,
+    initialSearchMode,
   );
 
   return (

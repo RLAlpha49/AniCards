@@ -13,11 +13,15 @@ import {
   mock,
 } from "bun:test";
 import { Window } from "happy-dom";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, forwardRef, type ReactNode } from "react";
 
 const routerPush = mock((href: string) => Promise.resolve(href));
 const routerReplace = mock((href: string) => Promise.resolve(href));
 const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
+const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
+  "anicards:last-successful-user-page-route:v1";
+const PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY =
+  "anicards:user-page-settings-template-apply:v1";
 const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
   .gtag;
 const originalTrackingId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
@@ -30,6 +34,7 @@ const NEXT_NAVIGATION_STATE_KEY = "__ANICARDS_TEST_NEXT_NAVIGATION__";
 let rejectNextPush = false;
 let restoreDomGlobals: (() => void) | null = null;
 let SearchForm: typeof import("@/components/search/SearchForm").SearchForm;
+let SearchHeroShell: typeof import("@/app/search/SearchHeroShell").default;
 
 type NextNavigationState = {
   pathname: string;
@@ -152,7 +157,49 @@ mock.module("@/components/ui/Button", () => ({
 }));
 
 mock.module("@/components/ui/Input", () => ({
-  Input: (props: ComponentProps<"input">) => <input {...props} />,
+  Input: forwardRef<HTMLInputElement, ComponentProps<"input">>((props, ref) => (
+    <input ref={ref} {...props} />
+  )),
+}));
+
+mock.module("@/components/ErrorBoundary", () => ({
+  ErrorBoundary: ({ children }: { children?: ReactNode }) => <>{children}</>,
+}));
+
+mock.module("@/components/marketing/SectionReveal", () => ({
+  SectionReveal: ({ children }: { children?: ReactNode }) => <>{children}</>,
+}));
+
+mock.module("@/components/search/SearchHeroSection", () => ({
+  SearchHeroSection: ({
+    onLoadingChange,
+    onResumeQueuedEditor,
+    queuedEditorResumeAvailable,
+    pendingTemplateApply,
+  }: {
+    onLoadingChange: (loading: boolean) => void;
+    onResumeQueuedEditor?: () => void;
+    queuedEditorResumeAvailable?: boolean;
+    pendingTemplateApply?: { templateName?: string } | null;
+  }) => (
+    <div>
+      <button type="button" onClick={() => onLoadingChange(true)}>
+        Start loading
+      </button>
+      <button type="button" onClick={() => onLoadingChange(false)}>
+        Stop loading
+      </button>
+      <button type="button" onClick={() => onResumeQueuedEditor?.()}>
+        Resume queued editor
+      </button>
+      <output data-testid="queued-editor-available">
+        {queuedEditorResumeAvailable ? "true" : "false"}
+      </output>
+      <output data-testid="pending-template-name">
+        {pendingTemplateApply?.templateName ?? ""}
+      </output>
+    </div>
+  ),
 }));
 
 function installDomGlobals() {
@@ -261,9 +308,20 @@ function submitSearchForm() {
   fireEvent.submit(form);
 }
 
+function switchToUserIdMode(view: ReturnType<typeof render>) {
+  const radio = view.getByLabelText("User ID") as HTMLInputElement;
+
+  fireEvent.click(radio);
+  fireEvent.change(radio, {
+    target: { checked: true },
+  });
+}
+
 describe("SearchForm", () => {
   beforeAll(async () => {
     ({ SearchForm } = await import("@/components/search/SearchForm"));
+    ({ default: SearchHeroShell } =
+      await import("@/app/search/SearchHeroShell"));
   });
 
   beforeEach(() => {
@@ -321,19 +379,24 @@ describe("SearchForm", () => {
     mock.restore();
   });
 
-  it("shows a validation error and records a failed search when the input is blank", async () => {
+  it("shows a validation error, restores focus, and records a failed search when the input is blank", async () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
     submitSearchForm();
 
-    const errorMessage = await view.findByText(
-      "You'll need to enter a username first",
+    const errorMessages = await view.findAllByText(
+      "You'll need to enter an AniList username, profile link, or user ID first.",
     );
+    const usernameInput = view.getByLabelText(
+      "AniList Username",
+    ) as HTMLInputElement;
 
-    expect(errorMessage.textContent).toBe(
-      "You'll need to enter a username first",
+    expect(errorMessages.length).toBeGreaterThan(0);
+    expect(errorMessages[0]?.textContent).toBe(
+      "You'll need to enter an AniList username, profile link, or user ID first.",
     );
+    expect(document.activeElement).toBe(usernameInput);
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
     expect(gtagMock).toHaveBeenCalledTimes(1);
@@ -350,21 +413,25 @@ describe("SearchForm", () => {
     const view = render(<SearchForm />);
     submitSearchForm();
 
-    await view.findByText("You'll need to enter a username first");
+    await view.findAllByText(
+      "You'll need to enter an AniList username, profile link, or user ID first.",
+    );
 
-    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    switchToUserIdMode(view);
 
     await waitFor(() => {
       expect(
-        view.queryByText("You'll need to enter a username first"),
-      ).toBeNull();
+        view.queryAllByText(
+          "You'll need to enter an AniList username, profile link, or user ID first.",
+        ),
+      ).toHaveLength(0);
     });
 
     const userIdInput = view.getByLabelText(
       "AniList User ID",
     ) as HTMLInputElement;
 
-    expect(userIdInput.placeholder).toBe("e.g., 542244");
+    expect(userIdInput.placeholder).toBe("e.g., 542244 or /user/542244");
     expect(view.getByRole("status").textContent).toContain(
       "Search mode changed to AniList user ID.",
     );
@@ -383,27 +450,67 @@ describe("SearchForm", () => {
     expect(view.queryByLabelText("AniList Username")).toBeNull();
   });
 
-  it("keeps malformed AniList IDs in the search UI instead of routing away", async () => {
+  it("keeps username-like values in the user ID search UI and selects them for correction", async () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
     const user = userEvent.setup({ document: globalThis.document });
 
-    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), "54two24");
     submitSearchForm();
 
-    const errorMessage = await view.findByText(
-      "AniList user IDs must be a whole number greater than 0.",
+    const errorMessages = await view.findAllByText(
+      "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.",
     );
+    const userIdInput = view.getByLabelText(
+      "AniList User ID",
+    ) as HTMLInputElement;
 
-    expect(errorMessage.textContent).toBe(
-      "AniList user IDs must be a whole number greater than 0.",
+    expect(errorMessages.length).toBeGreaterThan(0);
+    expect(errorMessages[0]?.textContent).toBe(
+      "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.",
     );
+    expect(userIdInput.value).toBe("54two24");
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
     expect(gtagMock).toHaveBeenCalledTimes(1);
     expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_error");
+  });
+
+  it("normalizes AniList profile URLs before navigating from username mode", async () => {
+    const onLoadingChange = mock((loading: boolean) => loading);
+
+    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+    const user = userEvent.setup({ document: globalThis.document });
+
+    await user.type(
+      view.getByLabelText("AniList Username"),
+      "https://anilist.co/user/Alpha49/animelist",
+    );
+    submitSearchForm();
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toEqual([["/user/Alpha49"]]);
+    });
+
+    expect(onLoadingChange.mock.calls).toEqual([[true]]);
+  });
+
+  it("treats bare numeric input in username mode as a user ID lookup", async () => {
+    const onLoadingChange = mock((loading: boolean) => loading);
+
+    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+    const user = userEvent.setup({ document: globalThis.document });
+
+    await user.type(view.getByLabelText("AniList Username"), "000542244");
+    submitSearchForm();
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toEqual([["/user?userId=542244"]]);
+    });
+
+    expect(onLoadingChange.mock.calls).toEqual([[true]]);
   });
 
   it("normalizes numeric AniList IDs before navigating to the user lookup route", async () => {
@@ -412,7 +519,7 @@ describe("SearchForm", () => {
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
     const user = userEvent.setup({ document: globalThis.document });
 
-    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), " 000542244 ");
     submitSearchForm();
 
@@ -432,11 +539,11 @@ describe("SearchForm", () => {
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
     const user = userEvent.setup({ document: globalThis.document });
 
-    await user.type(view.getByLabelText("AniList Username"), "  Alpha 49  ");
+    await user.type(view.getByLabelText("AniList Username"), "  @Alpha49  ");
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user/Alpha%2049"]]);
+      expect(routerPush.mock.calls).toEqual([["/user/Alpha49"]]);
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
@@ -467,7 +574,7 @@ describe("SearchForm", () => {
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
     const user = userEvent.setup({ document: globalThis.document });
 
-    fireEvent.click(view.getByRole("radio", { name: "User ID" }));
+    switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), "542244");
     submitSearchForm();
 
@@ -484,5 +591,108 @@ describe("SearchForm", () => {
     );
     expect(onLoadingChange.mock.calls).toEqual([[true], [false]]);
     expect(view.getByRole("button", { name: /find profile/i })).toBeTruthy();
+  });
+
+  it("treats the blocking search overlay like a modal status region and restores focus when loading ends", async () => {
+    const outsideShellButton = document.createElement("button");
+    outsideShellButton.type = "button";
+    outsideShellButton.textContent = "Outside shell";
+    document.body.append(outsideShellButton);
+
+    const view = render(
+      <SearchHeroShell initialSearchMode="username" initialSearchValue="" />,
+    );
+
+    const startLoadingButton = view.getByRole("button", {
+      name: /start loading/i,
+    }) as HTMLButtonElement;
+    const stopLoadingButton = view.getByRole("button", {
+      name: /stop loading/i,
+    });
+    const heroContent = view.getByTestId("search-hero-content");
+
+    startLoadingButton.focus();
+    expect(document.activeElement).toBe(startLoadingButton);
+
+    fireEvent.click(startLoadingButton);
+
+    const loadingDialog = await view.findByRole("dialog", {
+      name: /opening anilist profile/i,
+    });
+
+    expect(loadingDialog.getAttribute("aria-modal")).toBe("true");
+    expect(loadingDialog.getAttribute("aria-busy")).toBe("true");
+    expect(loadingDialog.textContent).toContain(
+      "Tracking down that profile...",
+    );
+    expect(heroContent.getAttribute("aria-hidden")).toBe("true");
+    expect(heroContent.hasAttribute("inert")).toBe(true);
+    expect(outsideShellButton.getAttribute("aria-hidden")).toBe("true");
+    expect(outsideShellButton.hasAttribute("inert")).toBe(true);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(loadingDialog);
+    });
+
+    fireEvent.click(stopLoadingButton);
+
+    await waitFor(() => {
+      expect(
+        view.queryByRole("dialog", { name: /opening anilist profile/i }),
+      ).toBeNull();
+    });
+
+    expect(heroContent.hasAttribute("inert")).toBe(false);
+    expect(outsideShellButton.hasAttribute("inert")).toBe(false);
+    expect(outsideShellButton.hasAttribute("aria-hidden")).toBe(false);
+    expect(document.activeElement).toBe(startLoadingButton);
+  });
+
+  it("preserves queued example state and remembered editor resumes in the shell", async () => {
+    globalThis.window.sessionStorage.setItem(
+      PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+      JSON.stringify({
+        templateId: "example:anime-stats:minimal:light",
+        templateName: "Anime Stats — Minimal (Light)",
+        applyTo: "global",
+        source: "examples",
+        queuedAt: Date.now(),
+      }),
+    );
+    globalThis.window.sessionStorage.setItem(
+      LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+      JSON.stringify({
+        href: "/user/Alpha49",
+        userId: "542244",
+        username: "Alpha49",
+        savedAt: Date.now(),
+      }),
+    );
+
+    const view = render(
+      <SearchHeroShell initialSearchMode="username" initialSearchValue="" />,
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId("queued-editor-available").textContent).toBe(
+        "true",
+      );
+    });
+
+    expect(view.getByTestId("pending-template-name").textContent).toBe(
+      "Anime Stats — Minimal (Light)",
+    );
+
+    fireEvent.click(
+      view.getByRole("button", { name: /resume queued editor/i }),
+    );
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
+    });
+
+    expect(
+      view.getByRole("dialog", { name: /opening anilist profile/i }),
+    ).toBeTruthy();
   });
 });

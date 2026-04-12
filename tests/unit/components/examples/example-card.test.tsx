@@ -11,11 +11,14 @@ import {
   it,
   mock,
 } from "bun:test";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps } from "react";
 
 import { LIGHT_PREVIEW_COLOR_PRESET } from "@/lib/preview-theme";
 import type { SettingsSnapshot } from "@/lib/user-page-settings-io";
-import { PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY } from "@/lib/user-page-settings-templates";
+import {
+  LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+  PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+} from "@/lib/user-page-settings-templates";
 import {
   installHappyDom,
   resetHappyDom,
@@ -130,7 +133,8 @@ function blockLocalStorageWrites() {
 
   Object.defineProperty(storage, "setItem", {
     configurable: true,
-    value: ((..._args: Parameters<typeof storage.setItem>) => {
+    value: ((...args: Parameters<typeof storage.setItem>) => {
+      void args;
       throw new Error("localStorage write blocked");
     }) as typeof storage.setItem,
   });
@@ -192,5 +196,38 @@ describe("ExampleCard", () => {
     } finally {
       restoreLocalStorage();
     }
+  });
+
+  it("reopens the remembered user editor route when one is available", () => {
+    globalThis.window.sessionStorage.setItem(
+      LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+      JSON.stringify({
+        href: "/user/Alpha49",
+        userId: "542244",
+        username: "Alpha49",
+        savedAt: Date.now(),
+      }),
+    );
+
+    const view = render(
+      <ExampleCard
+        variant={createVariant()}
+        cardTypeTitle="Anime Stats"
+        previewColorPreset={LIGHT_PREVIEW_COLOR_PRESET}
+      />,
+    );
+
+    fireEvent.click(view.getByRole("button", { name: /use in editor/i }));
+
+    expect(routerPush).toHaveBeenCalledWith("/user/Alpha49");
+    expect(toast.success).toHaveBeenCalledWith("Style queued for your editor", {
+      description:
+        "Jumping back into your last loaded editor so AniCards can apply it there.",
+    });
+    expect(
+      globalThis.window.sessionStorage.getItem(
+        PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+      ),
+    ).not.toBeNull();
   });
 });
