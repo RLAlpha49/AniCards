@@ -46,9 +46,10 @@ describe("AnalyticsProvider", () => {
 
   it("renders Vercel runtime telemetry whenever runtime telemetry is enabled", () => {
     const markup = renderToStaticMarkup(
-      <AnalyticsProvider enableRuntimeTelemetry={true} trackingId="G-TEST123">
-        <div>child content</div>
-      </AnalyticsProvider>,
+      <AnalyticsProvider
+        enableRuntimeTelemetry={true}
+        trackingId="G-TEST123"
+      />,
     );
 
     expect(markup).toContain('data-kind="vercel-analytics-stub"');
@@ -61,9 +62,7 @@ describe("AnalyticsProvider", () => {
 
   it("omits Vercel runtime telemetry when the runtime telemetry flag is disabled", () => {
     const markup = renderToStaticMarkup(
-      <AnalyticsProvider trackingId="G-TEST123">
-        <div>child content</div>
-      </AnalyticsProvider>,
+      <AnalyticsProvider trackingId="G-TEST123" />,
     );
 
     expect(markup).not.toContain('data-kind="vercel-analytics-stub"');

@@ -140,6 +140,43 @@ test.describe("Unmocked app shell smoke", () => {
     await expect(menuToggle).toBeFocused();
   });
 
+  test("keeps the home hero and mobile navigation reachable when JavaScript is unavailable", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: mobileNavigationViewport,
+    });
+    const page = await context.newPage();
+
+    try {
+      await page.goto(new URL("/", getSiteUrl()).toString(), {
+        waitUntil: "load",
+      });
+
+      await expect(
+        page.getByRole("link", { name: /^get started$/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.locator('[data-mobile-navigation-fallback="true"]'),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page
+          .locator('[data-mobile-navigation-fallback="true"]')
+          .getByRole("link", {
+            name: /^search$/i,
+          }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('[data-mobile-menu-toggle="true"]')).toBeHidden(
+        {
+          timeout: 15000,
+        },
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
   test("serves robots.txt from the real metadata route", async ({
     request,
   }) => {

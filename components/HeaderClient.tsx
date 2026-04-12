@@ -381,6 +381,46 @@ export default function HeaderClient() {
           })}
         </div>
       </nav>
+
+      <noscript>
+        <style>{`
+          [data-mobile-menu-toggle="true"] {
+            display: none !important;
+          }
+        `}</style>
+        <nav
+          aria-label="Mobile navigation"
+          className="border-t border-gold/20 md:hidden"
+          data-mobile-navigation-fallback="true"
+        >
+          <div className="min-h-0 space-y-1 px-6 py-4">
+            {NAV_ITEMS.map((item) => {
+              const isActive = pathname === item.href;
+
+              return (
+                <Link
+                  key={`noscript-${item.label}`}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    `
+                      block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em] text-gold
+                      uppercase transition-colors
+                      focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                      focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                      focus-visible:outline-none
+                    `,
+                    !isActive &&
+                      "text-foreground/60 uppercase transition-colors hover:text-gold",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </noscript>
     </>
   );
 }

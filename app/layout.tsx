@@ -261,6 +261,9 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <ResourceHints />
+      </head>
       <body
         id="app-root"
         className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplaySC.variable} ${libreBaskerville.variable}
@@ -275,24 +278,22 @@ export default async function RootLayout({
             __html: EARLY_ACCESSIBILITY_SHELL_SCRIPT,
           }}
         />
-        <ResourceHints />
         <GithubCorner />
+        <StructuredDataScript
+          data={generateSiteStructuredData()}
+          nonce={nonce}
+        />
+        <Suspense fallback={null}>
+          <AnalyticsProvider
+            enableRuntimeTelemetry={isVercelDeployment}
+            trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
+            nonce={nonce}
+          />
+        </Suspense>
         <Providers nonce={nonce}>
-          <Suspense fallback={<div>Loading...</div>}>
-            <StructuredDataScript
-              data={generateSiteStructuredData()}
-              nonce={nonce}
-            />
-            <AnalyticsProvider
-              enableRuntimeTelemetry={isVercelDeployment}
-              trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
-              nonce={nonce}
-            >
-              <ErrorBoundary>
-                <LayoutShell>{children}</LayoutShell>
-              </ErrorBoundary>
-            </AnalyticsProvider>
-          </Suspense>
+          <ErrorBoundary>
+            <LayoutShell>{children}</LayoutShell>
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

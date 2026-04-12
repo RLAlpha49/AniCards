@@ -1,12 +1,12 @@
 // AnalyticsProvider.tsx
 //
-// Hosts the client-side analytics boundary for the whole app. It keeps Google
-// Analytics opt-in, mirrors consent changes across tabs, and leaves Vercel runtime
-// telemetry on a separate path because that signal is deployment-controlled rather
-// than user-toggled storage.
+// Hosts the minimal client-side analytics bootstrap for the whole app. It keeps
+// Google Analytics opt-in, mirrors consent changes across tabs, and leaves Vercel
+// runtime telemetry on a separate path because that signal is deployment-controlled
+// rather than user-toggled storage.
 //
-// Mounted in `app/layout.tsx` so route transitions, privacy messaging, and top-level
-// scripts all share one consent source of truth.
+// Mounted alongside the shared shell in `app/layout.tsx` so analytics does not wrap
+// the entire route tree in an extra client boundary.
 
 "use client";
 
@@ -37,102 +37,33 @@ import {
 } from "@/lib/utils/google-analytics";
 
 interface AnalyticsProviderProps {
-  children: React.ReactNode;
   enableRuntimeTelemetry?: boolean;
   trackingId?: string;
   nonce?: string;
 }
 
-/**
- * Provides analytics scripts plus the consent UI for Google Analytics.
- *
- * Google Analytics stays off until the visitor opts in. Runtime telemetry can
- * still be enabled separately so deployment-level performance signals do not
- * depend on the consent banner's localStorage state.
- */
-export default function AnalyticsProvider({
-  children,
-  enableRuntimeTelemetry = false,
-  trackingId,
-  nonce,
-}: Readonly<AnalyticsProviderProps>) {
-  const [consentState, setConsentState] =
-    useState<AnalyticsConsentState>("unset");
-  const [hasLoadedPreference, setHasLoadedPreference] = useState(false);
+interface AnalyticsConsentControlsProps {
+  consentGranted: boolean;
+  consentState: AnalyticsConsentState;
+  onConsentChange: (nextGranted: boolean) => void;
+}
+
+function AnalyticsConsentControls({
+  consentGranted,
+  consentState,
+  onConsentChange,
+}: Readonly<AnalyticsConsentControlsProps>) {
   const consentDescriptionId = useId();
   const manageSwitchId = useId();
+  const shouldShowBanner = consentState === "unset";
+  const shouldShowManager = consentState !== "unset";
 
-  useEffect(() => {
-    const syncConsentState = () => {
-      setConsentState(getAnalyticsConsentState());
-      setHasLoadedPreference(true);
-    };
-
-    syncConsentState();
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== ANALYTICS_CONSENT_STORAGE_KEY) return;
-      syncConsentState();
-    };
-    const handleConsentChanged = () => {
-      syncConsentState();
-    };
-
-    globalThis.addEventListener("storage", handleStorage);
-    globalThis.addEventListener(
-      ANALYTICS_CONSENT_EVENT,
-      handleConsentChanged as EventListener,
-    );
-
-    return () => {
-      globalThis.removeEventListener("storage", handleStorage);
-      globalThis.removeEventListener(
-        ANALYTICS_CONSENT_EVENT,
-        handleConsentChanged as EventListener,
-      );
-    };
-  }, []);
-
-  const consentGranted = consentState === "granted";
-  const analyticsEnabled = Boolean(trackingId) && consentGranted;
-  const runtimeTelemetryEnabled = enableRuntimeTelemetry;
-  const shouldRenderConsentControls =
-    Boolean(trackingId) && hasLoadedPreference;
-  const shouldShowBanner =
-    shouldRenderConsentControls && consentState === "unset";
-  const shouldShowManager =
-    shouldRenderConsentControls && consentState !== "unset";
-
-  useGoogleAnalytics(analyticsEnabled);
-
-  const updateConsent = (nextGranted: boolean) => {
-    const nextState: Exclude<AnalyticsConsentState, "unset"> = nextGranted
-      ? "granted"
-      : "denied";
-    setConsentState(nextState);
-    setHasLoadedPreference(true);
-    setAnalyticsConsentState(nextState);
-  };
+  if (!shouldShowBanner && !shouldShowManager) {
+    return null;
+  }
 
   return (
     <>
-      {trackingId ? (
-        <GoogleAnalytics
-          trackingId={trackingId}
-          consentGranted={consentGranted}
-          nonce={nonce}
-        />
-      ) : null}
-
-      {children}
-
-      {runtimeTelemetryEnabled ? (
-        <>
-          <VercelAnalytics />
-          <SpeedInsights />
-        </>
-      ) : null}
-
       {shouldShowManager ? (
         <div className="fixed right-4 bottom-4 z-50">
           <Popover>
@@ -198,7 +129,7 @@ export default function AnalyticsProvider({
                   <Switch
                     id={manageSwitchId}
                     checked={consentGranted}
-                    onCheckedChange={updateConsent}
+                    onCheckedChange={onConsentChange}
                     aria-describedby={consentDescriptionId}
                     className="data-[state=checked]:bg-gold"
                   />
@@ -266,14 +197,14 @@ export default function AnalyticsProvider({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => updateConsent(false)}
+                  onClick={() => onConsentChange(false)}
                 >
                   Keep it off
                 </Button>
                 <Button
                   type="button"
                   className="bg-gold text-white hover:bg-gold/90"
-                  onClick={() => updateConsent(true)}
+                  onClick={() => onConsentChange(true)}
                 >
                   Allow Google Analytics
                 </Button>
@@ -281,6 +212,113 @@ export default function AnalyticsProvider({
             </div>
           </div>
         </>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Provides analytics scripts plus the consent UI for Google Analytics.
+ *
+ * Google Analytics stays off until the visitor opts in. Runtime telemetry can
+ * still be enabled separately so deployment-level performance signals do not
+ * depend on the consent banner's localStorage state.
+ */
+export default function AnalyticsProvider({
+  enableRuntimeTelemetry = false,
+  trackingId,
+  nonce,
+}: Readonly<AnalyticsProviderProps>) {
+  const [consentState, setConsentState] =
+    useState<AnalyticsConsentState>("unset");
+  const [hasLoadedPreference, setHasLoadedPreference] = useState(false);
+  const [shouldRenderConsentControls, setShouldRenderConsentControls] =
+    useState(false);
+
+  useEffect(() => {
+    const syncConsentState = () => {
+      setConsentState(getAnalyticsConsentState());
+      setHasLoadedPreference(true);
+    };
+
+    syncConsentState();
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== ANALYTICS_CONSENT_STORAGE_KEY) return;
+      syncConsentState();
+    };
+    const handleConsentChanged = () => {
+      syncConsentState();
+    };
+
+    globalThis.addEventListener("storage", handleStorage);
+    globalThis.addEventListener(
+      ANALYTICS_CONSENT_EVENT,
+      handleConsentChanged as EventListener,
+    );
+
+    return () => {
+      globalThis.removeEventListener("storage", handleStorage);
+      globalThis.removeEventListener(
+        ANALYTICS_CONSENT_EVENT,
+        handleConsentChanged as EventListener,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!trackingId || !hasLoadedPreference) {
+      return;
+    }
+
+    const timeoutId = globalThis.window.setTimeout(() => {
+      setShouldRenderConsentControls(true);
+    }, 0);
+
+    return () => {
+      globalThis.window.clearTimeout(timeoutId);
+    };
+  }, [hasLoadedPreference, trackingId]);
+
+  const consentGranted = consentState === "granted";
+  const analyticsEnabled = Boolean(trackingId) && consentGranted;
+  const runtimeTelemetryEnabled = enableRuntimeTelemetry;
+  const shouldRenderConsentUi = Boolean(trackingId) && hasLoadedPreference;
+
+  useGoogleAnalytics(analyticsEnabled);
+
+  const updateConsent = (nextGranted: boolean) => {
+    const nextState: Exclude<AnalyticsConsentState, "unset"> = nextGranted
+      ? "granted"
+      : "denied";
+    setConsentState(nextState);
+    setHasLoadedPreference(true);
+    setAnalyticsConsentState(nextState);
+  };
+
+  return (
+    <>
+      {trackingId ? (
+        <GoogleAnalytics
+          trackingId={trackingId}
+          consentGranted={consentGranted}
+          nonce={nonce}
+        />
+      ) : null}
+
+      {runtimeTelemetryEnabled ? (
+        <>
+          <VercelAnalytics />
+          <SpeedInsights />
+        </>
+      ) : null}
+
+      {shouldRenderConsentUi && shouldRenderConsentControls ? (
+        <AnalyticsConsentControls
+          consentGranted={consentGranted}
+          consentState={consentState}
+          onConsentChange={updateConsent}
+        />
       ) : null}
     </>
   );
