@@ -28,7 +28,7 @@ tags:
   - name: "anilist"
     description: "Proxy access to AniList GraphQL"
   - name: "card"
-    description: "SVG card endpoints, aliases, and legacy compatibility notices"
+    description: "SVG and PNG card endpoints, aliases, and legacy compatibility notices"
   - name: "cards"
     description: "Stored card configuration retrieval"
   - name: "convert"
@@ -318,15 +318,21 @@ paths:
       summary: "Render a stat card as SVG"
       description: >-
         Canonical Next.js route handler for AniCards SVG generation. At least one
-        of `userId` or `username` must be supplied. The legacy `userName`
-        alias remains accepted for backward compatibility. Public aliases also
-        exist at `/card.svg` and `/api/card.svg`.
+        of `userId` or canonical `username` must be supplied. The legacy
+        `userName` alias remains accepted for backward compatibility. SVG
+        renders keep animations enabled unless `animate` is explicitly set to a
+        false-like value. Requests with explicit visual overrides (variation,
+        preset/colors, border, flags, or grid layout) use the shorter preview
+        cache policy, while `_t` bypasses card-cache reads and returns no-store
+        headers for that render. Public aliases also exist at `/card.svg` and
+        `/api/card.svg`.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
         - $ref: "#/components/parameters/CardUsername"
         - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardAnimate"
         - $ref: "#/components/parameters/CardColorPreset"
         - $ref: "#/components/parameters/CardTitleColor"
         - $ref: "#/components/parameters/CardBackgroundColor"
@@ -372,14 +378,16 @@ paths:
         - "card"
       summary: "Render a stat card as SVG"
       description: >-
-        Public pretty-URL alias for `/api/card`. Query parameters and responses
-        are identical to the canonical handler.
+        Public pretty-URL alias for `/api/card`. Query parameters, response
+        headers, cache behavior, and the deprecated `userName` compatibility
+        alias are identical to the canonical handler.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
         - $ref: "#/components/parameters/CardUsername"
         - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardAnimate"
         - $ref: "#/components/parameters/CardColorPreset"
         - $ref: "#/components/parameters/CardTitleColor"
         - $ref: "#/components/parameters/CardBackgroundColor"
@@ -414,14 +422,16 @@ paths:
         - "card"
       summary: "Render a stat card as SVG"
       description: >-
-        Compatibility alias for `/api/card`. Query parameters and responses are
-        identical to the canonical handler.
+        Compatibility alias for `/api/card`. Query parameters, response
+        headers, cache behavior, and the deprecated `userName` compatibility
+        alias are identical to the canonical handler.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
         - $ref: "#/components/parameters/CardUsername"
         - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardAnimate"
         - $ref: "#/components/parameters/CardColorPreset"
         - $ref: "#/components/parameters/CardTitleColor"
         - $ref: "#/components/parameters/CardBackgroundColor"
@@ -448,6 +458,56 @@ paths:
           $ref: "#/components/responses/CardSvgServiceUnavailable"
         "500":
           $ref: "#/components/responses/CardSvgInternalError"
+
+  /card.png:
+    get:
+      operationId: "renderCardPng"
+      tags:
+        - "card"
+      summary: "Render a stat card as PNG"
+      description: >-
+        Public raster companion to `/api/card`. It accepts the same query
+        surface as the SVG routes, forwards the request through the card SVG
+        handler, and converts the result to `image/png`. When `animate` is
+        omitted, the route injects `animate=false` before rendering so PNGs
+        default to static card markup. Explicit `animate` values are forwarded
+        as-is. Successful PNG responses preserve the underlying card-render
+        cache headers and `X-Cache-Source`; if rasterization fallback is
+        needed, the route still returns PNG with the original status and
+        no-store cache headers.
+      parameters:
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardAnimate"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
+      responses:
+        "200":
+          $ref: "#/components/responses/CardPngOk"
+        "400":
+          $ref: "#/components/responses/CardPngBadRequest"
+        "404":
+          $ref: "#/components/responses/CardPngNotFound"
+        "429":
+          $ref: "#/components/responses/CardPngRateLimited"
+        "503":
+          $ref: "#/components/responses/CardPngServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/CardPngInternalError"
 
   /StatCards/{username}/{key}.svg:
     get:
@@ -1330,12 +1390,16 @@ paths:
         supplied, inline `svgContent` wins and no remote fetch occurs. JSON
         responses return a format-agnostic data URL payload, while
         `responseType: "binary"` or an omitted `responseType` streams the
-        converted image directly. SSRF protections reject unsafe protocols, IP
-        literals, redirects, and hosts outside the configured AniCards
-        allow-list. JSON request bodies larger than `1250000` bytes are
-        rejected with `413` before SVG parsing. This JSON envelope limit is
-        separate from the later `1000000`-byte inline/fetched SVG cap and the
-        raster dimension/pixel limits.
+        converted image directly; any other `responseType` is rejected with
+        `400`. Relative `svgUrl` values resolve against the convert request
+        origin/host, so the public examples below use relative AniCards card
+        paths that stay on this API server host instead of a separate site
+        host. SSRF protections reject unsafe protocols, IP literals,
+        redirects, and hosts outside the configured AniCards allow-list. JSON
+        request bodies larger than `1250000` bytes are rejected with `413`
+        before SVG parsing. This JSON envelope limit is separate from the
+        later `1000000`-byte inline/fetched SVG cap and the raster
+        dimension/pixel limits.
       requestBody:
         required: true
         content:
@@ -1345,12 +1409,12 @@ paths:
             examples:
               png:
                 value:
-                  svgUrl: "/card.svg?userId=12345&cardType=animeStats"
+                  svgUrl: "/api/card.svg?userId=12345&cardType=animeStats"
                   format: "png"
                   responseType: "json"
               webp:
                 value:
-                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
+                  svgUrl: "/api/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
                   format: "webp"
                   responseType: "json"
               inlineBinary:
@@ -1360,7 +1424,7 @@ paths:
                   responseType: "binary"
               inlineWins:
                 value:
-                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=animeStats"
+                  svgUrl: "/api/card.svg?userId=12345&cardType=animeStats"
                   svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#0f172a" /></svg>'
                   format: "png"
                   responseType: "json"
@@ -1391,7 +1455,7 @@ paths:
                 type: string
                 format: binary
         "400":
-          description: "Malformed JSON, missing `svgUrl`, invalid URL, or invalid format"
+          description: "Malformed JSON, missing `svgUrl`, invalid URL, invalid format, or invalid `responseType`"
           content:
             application/json:
               schema:
@@ -1415,6 +1479,9 @@ paths:
                 invalidFormat:
                   value:
                     error: "Invalid format parameter"
+                invalidResponseType:
+                  value:
+                    error: "Invalid responseType parameter"
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "403":
@@ -1767,8 +1834,9 @@ components:
         minLength: 1
         maxLength: 100
       description: >-
-        AniList username lookup key. The route resolves it through the stored
-        username index when `userId` is omitted.
+        Canonical AniList username lookup key. The route trims and
+        case-normalizes it through the stored username index when `userId` is
+        omitted.
 
     CardUserNameDeprecated:
       in: query
@@ -1780,8 +1848,8 @@ components:
         minLength: 1
         maxLength: 100
       description: >-
-        Deprecated alias for `username`. Kept for backward compatibility with
-        older stat card links.
+        Deprecated alias for `username`. Kept only for backward compatibility
+        with older stat card links; new clients should use `username`.
 
     CardType:
       in: query
@@ -1801,16 +1869,42 @@ components:
         Optional card variation. Unsupported combinations fall back to the
         card-type default on the server.
 
+    CardAnimate:
+      in: query
+      name: animate
+      required: false
+      schema:
+        oneOf:
+          - type: boolean
+          - type: string
+            enum:
+              - "0"
+              - "1"
+              - "false"
+              - "true"
+              - "no"
+              - "yes"
+              - "off"
+              - "on"
+      description: >-
+        Animation toggle. SVG routes keep animations enabled unless the value
+        is one of `0`, `false`, `no`, or `off` (case-insensitive after
+        trimming). `/card.png` injects `animate=false` when this parameter is
+        omitted before rasterizing the card.
+
     CardColorPreset:
       in: query
       name: colorPreset
       required: false
       schema:
-        type: string
+        $ref: "#/components/schemas/CardColorPreset"
       description: >-
-        Named color preset such as `default`, `anilistDark`, or `custom`.
-        When `custom` is used with a stored card config, persisted per-color
-        values take precedence.
+        Runtime color preset key. Named presets apply first, then individual
+        URL core-color overrides can replace specific slots. The special value
+        `custom` means “use saved custom colors” unless all four core URL
+        colors (`titleColor`, `backgroundColor`, `textColor`, and
+        `circleColor`) are present, in which case the URL colors are used
+        directly.
 
     CardTitleColor:
       in: query
@@ -1917,17 +2011,45 @@ components:
       required: false
       schema:
         type: string
-      description: "Opaque cache-busting value"
+      description: >-
+        Opaque manual refresh token. Any value bypasses card-render cache reads
+        and returns no-store headers for that response. It does not trigger a
+        fresh AniList sync on its own.
 
   headers:
     CardBorderRadius:
-      description: "Effective border radius used when rendering the SVG"
+      description: "Effective border radius used when rendering the card"
       schema:
         type: string
     CardCacheSource:
-      description: "Potential cache source indicator exposed by the route"
+      description: >-
+        Successful card render cache source indicator. Values currently include
+        `render`, `memory`, `redis`, and `refresh`.
       schema:
         type: string
+    CardCacheControl:
+      description: >-
+        Browser cache policy for card responses. Successful canonical renders
+        use `public, max-age=86400, stale-while-revalidate=604800,
+        stale-if-error=1209600`; successful explicit variant requests use
+        `public, max-age=3600, stale-while-revalidate=86400,
+        stale-if-error=604800`; `_t` renders and error responses use
+        `no-store, max-age=0, must-revalidate`.
+      schema:
+        type: string
+      example: "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+    CardSharedCacheControl:
+      description: >-
+        Shared-cache policy exposed via `CDN-Cache-Control` and
+        `Edge-Cache-Control`. Successful canonical renders use
+        `public, s-maxage=86400, stale-while-revalidate=604800,
+        stale-if-error=1209600`; successful explicit variant requests use
+        `public, s-maxage=3600, stale-while-revalidate=86400,
+        stale-if-error=604800`; `_t` renders and error responses use
+        `no-store`.
+      schema:
+        type: string
+      example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
     RetryAfter:
       description: "Seconds until the client should retry the request"
       schema:
@@ -2158,8 +2280,18 @@ components:
               value: "Cron job failed"
 
     CardSvgOk:
-      description: "Rendered SVG image"
+      description: >-
+        Rendered SVG image. Successful responses expose `X-Cache-Source` and
+        `X-Card-Border-Radius`. Cache policy depends on the request: canonical
+        renders use the long-lived card cache, explicit visual override
+        requests use the shorter preview cache, and `_t` renders are no-store.
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
         X-Cache-Source:
@@ -2178,8 +2310,14 @@ components:
                 </svg>
 
     CardSvgBadRequest:
-      description: "SVG-formatted client error"
+      description: "SVG-formatted client error. Error card responses are no-store."
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
       content:
@@ -2193,8 +2331,14 @@ components:
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Missing parameter: cardType</text></svg>
 
     CardSvgNotFound:
-      description: "SVG-formatted not-found response"
+      description: "SVG-formatted not-found response. Error card responses are no-store."
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
       content:
@@ -2208,8 +2352,14 @@ components:
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Not Found: User not found</text></svg>
 
     CardSvgRateLimited:
-      description: "SVG-formatted rate-limit response"
+      description: "SVG-formatted rate-limit response. Error card responses are no-store."
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
         Retry-After:
@@ -2231,8 +2381,14 @@ components:
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Too many requests - try again later</text></svg>
 
     CardSvgInternalError:
-      description: "SVG-formatted server error"
+      description: "SVG-formatted server error. Error card responses are no-store."
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
       content:
@@ -2246,8 +2402,16 @@ components:
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: An internal error occurred</text></svg>
 
     CardSvgServiceUnavailable:
-      description: "SVG-formatted temporary availability failure"
+      description: >-
+        SVG-formatted temporary availability failure. Error card responses are
+        no-store.
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
       content:
@@ -2263,6 +2427,120 @@ components:
               value: |-
                 <?xml version="1.0" encoding="UTF-8"?>
                 <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: Card data is temporarily unavailable</text></svg>
+
+    CardPngOk:
+      description: >-
+        Rasterized PNG image. Successful responses preserve the card-render
+        cache headers and `X-Cache-Source` from the underlying SVG render.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        X-Cache-Source:
+          $ref: "#/components/headers/CardCacheSource"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+
+    CardPngBadRequest:
+      description: "PNG-formatted client error"
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+
+    CardPngNotFound:
+      description: "PNG-formatted not-found response"
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+
+    CardPngRateLimited:
+      description: "PNG-formatted rate-limit response"
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+
+    CardPngInternalError:
+      description: "PNG-formatted server error"
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+
+    CardPngServiceUnavailable:
+      description: "PNG-formatted temporary availability failure"
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CardCacheControl"
+        CDN-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        Edge-Cache-Control:
+          $ref: "#/components/headers/CardSharedCacheControl"
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
 
   schemas:
     ApiError:
@@ -2722,6 +3000,77 @@ components:
         - "combined"
         - "split"
 
+    CardColorPreset:
+      type: string
+      description: >-
+        Accepted runtime color preset keys from
+        `components/stat-card-generator/constants.ts`. Named presets apply
+        their palette before individual URL core-color overrides are applied.
+        The special value `custom` means “use saved custom colors” unless all
+        four core URL colors are present, in which case the URL colors are used
+        directly.
+      enum:
+        - "anicardsDark"
+        - "anicardsDarkGradient"
+        - "anicardsLight"
+        - "anicardsLightGradient"
+        - "anilistDark"
+        - "anilistDarkGradient"
+        - "anilistLight"
+        - "anilistLightGradient"
+        - "arcticAurora"
+        - "aurora"
+        - "bubblegum"
+        - "canyonSunrise"
+        - "cherryBlossom"
+        - "citrus"
+        - "coral"
+        - "coralReef"
+        - "cosmicNebula"
+        - "custom"
+        - "cyberpunk"
+        - "darkModeBlue"
+        - "default"
+        - "earthyGreen"
+        - "emberGlow"
+        - "fire"
+        - "fireEmber"
+        - "forest"
+        - "forestDepth"
+        - "galaxy"
+        - "goldenHour"
+        - "goldStandard"
+        - "lavender"
+        - "lavenderBloom"
+        - "midnight"
+        - "mint"
+        - "mintFresh"
+        - "monochromeGray"
+        - "neonGlow"
+        - "ocean"
+        - "oceanBreeze"
+        - "oceanWaves"
+        - "pastelDreams"
+        - "polarNight"
+        - "purpleDusk"
+        - "purpleHaze"
+        - "rainforestMist"
+        - "redAlert"
+        - "rosegold"
+        - "seafoam"
+        - "skylineAzure"
+        - "solarizedLight"
+        - "springGarden"
+        - "stardust"
+        - "sunriseMeadow"
+        - "sunset"
+        - "sunsetGradient"
+        - "synthwave"
+        - "twilight"
+        - "twilightSky"
+        - "verdantTwilight"
+        - "vintageSepia"
+
     HexColor:
       type: string
       pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$"
@@ -3059,7 +3408,10 @@ components:
           type: string
           description: >-
             Absolute or relative URL to an SVG resource on an allow-listed
-            AniCards host. Ignored when `svgContent` is also supplied.
+            AniCards host. Relative URLs resolve against the convert request
+            origin/host; the public deployment represented by this spec uses
+            relative AniCards card paths such as `/api/card.svg?...` on the
+            API host above. Ignored when `svgContent` is also supplied.
         svgContent:
           type: string
           description: >-
@@ -3082,7 +3434,8 @@ components:
           description: >-
             When set to `json`, the route returns a data URL payload. When set
             to `binary` or omitted, the route streams the converted image with
-            the appropriate image content type.
+            the appropriate image content type. Any other value is rejected
+            with `400`.
       anyOf:
         - required:
             - svgUrl

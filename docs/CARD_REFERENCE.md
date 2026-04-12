@@ -10,7 +10,8 @@ Browse supported card types, decode URL parameters, or build an embed from scrat
 ## Start here
 
 - **Fastest option:** the [live generator](https://anicards.alpha49.com) handles everything visually
-- **Public embed URL:** `https://api.anicards.alpha49.com/card.svg`
+- **Public SVG embed URL:** `https://api.anicards.alpha49.com/card.svg`
+- **Public PNG preview route:** `/card.png`
 - **Canonical API handler:** `/api/card` — for contract details, see [`API.md`](./API.md)
 
 Every card has a `cardType` identifier and supports one or more `variation` values.
@@ -94,32 +95,53 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 - **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
 - **Tag Diversity** (`tagDiversity`) — Variations: Default
 
-## Building an embed URL
+## Building an SVG or PNG URL
 
 The live generator handles the heavy lifting, but you can always write a URL by hand:
 
 ```text
-https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&variation={VARIATION}&colorPreset={PRESET_NAME}
+https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&username={USERNAME}&variation={VARIATION}&colorPreset={PRESET_NAME}
 ```
+
+Swap `/card.svg` for `/card.png` when you want a raster response instead of SVG.
 
 ### Parameters
 
 - `cardType` (required): The card identifier — `animeStats`, `mangaGenres`, and so on.
-- `userId` or `userName` (required): Numeric AniList user ID or an AniList username. Pass both and `userId` takes precedence.
-- `variation` (optional): Which visual layout to use. Common values: `default`, `vertical`, `compact`, `minimal`, `pie`, `bar`, `horizontal`.
-- `colorPreset` (optional): A named preset — `anilistDark`, `sunset`, `default`. Use `colorPreset=custom` to pull colors stored server-side for that card.
-- `titleColor`, `backgroundColor`, `textColor`, `circleColor` (optional): Per-color overrides. URL-encode `#` as `%23`.
-- `borderColor` (optional): Border stroke color.
-- `borderRadius` (optional): Corner radius in pixels.
-- `showFavorites` (optional): `true` or `false` — applies to supported category cards.
-- `statusColors` (optional): `true` or `false` — applies to supported status distribution cards.
-- `piePercentages` (optional): `true` or `false` — labels on pie and donut charts.
-- `gridCols`, `gridRows` (optional): Grid dimensions for `favoritesGrid`.
-- `_t` (optional): Cache-busting value — usually a timestamp.
+- `userId` or `username` (required): Numeric AniList user ID or canonical AniList username. If both are present, `userId` wins.
+- `userName` (optional, deprecated): Backward-compatible alias for `username`. New links should use `username`.
+- `variation` (optional): Which visual layout to use. Accepted variation values depend on the card type and currently include `default`, `vertical`, `compact`, `minimal`, `badges`, `pie`, `donut`, `bar`, `radar`, `horizontal`, `cumulative`, `anime`, `manga`, `characters`, `staff`, `studios`, `mixed`, `combined`, and `split`.
+- `animate` (optional): Animation toggle. SVG routes keep animations enabled unless the value is one of `0`, `false`, `no`, or `off` (case-insensitive after trimming). `/card.png` injects `animate=false` when the parameter is omitted before rasterizing the card.
+- `colorPreset` (optional): A runtime preset name from the accepted inventory below. Named presets apply first, then per-color URL overrides can replace individual colors. The special value `custom` loads saved custom colors unless the request also provides all four core colors (`titleColor`, `backgroundColor`, `textColor`, and `circleColor`), in which case the URL colors are used directly.
+- `titleColor`, `backgroundColor`, `textColor`, `circleColor` (optional): Core per-color overrides. URL-encode `#` as `%23`. With named presets, provided values override the preset. With `colorPreset=custom`, URL color overrides only take effect when all four core colors are present together.
+- `borderColor` (optional): Border stroke color override. This is independent of the `custom` core-color precedence rules.
+- `borderRadius` (optional): Corner radius in pixels. The route clamps the effective value into the `0`–`100` range.
+- `showFavorites` (optional): `true` or `false` — applies only to supported category cards.
+- `statusColors` (optional): `true` or `false` — applies only to supported status distribution cards.
+- `piePercentages` (optional): `true` or `false` — applies only to supported pie and donut variants.
+- `gridCols`, `gridRows` (optional): Grid dimensions for `favoritesGrid`. The route clamps each value into the `1`–`5` range.
+- `_t` (optional): Manual card-cache bust token. Any value bypasses card-response cache reads and returns no-store headers for that render. It does **not** fetch fresh AniList data on its own.
 
 ### Behavior notes
 
-When `colorPreset=custom`, the server loads the full color configuration stored for that card and ignores individual color overrides in the URL. Feature flags like `showFavorites`, `statusColors`, and `piePercentages` only do anything on cards that support them — on everything else, they're ignored in favor of stored settings or defaults.
+- **Identifier resolution:** `username` is the canonical name parameter, `userName` is deprecated/backward-compatible only, and `userId` takes precedence when both ID and name are present.
+- **Color resolution:** Named presets can be mixed with individual URL color overrides. `colorPreset=custom` means “use saved custom colors” unless all four core URL colors are present, in which case the URL becomes the full source of truth for those core colors.
+- **Animation defaults:** SVG routes animate by default. `/card.png` defaults missing `animate` to `false` before forwarding the request to the SVG renderer.
+- **Cache behavior:** Canonical renders (no explicit visual overrides and no `_t`) use the long-lived card cache. Requests with explicit variation, color, border, flag, or grid overrides use the shorter preview cache. `_t` renders and all error renders are no-store.
+- **Response hints:** Successful SVG and PNG card responses expose `X-Card-Border-Radius` and `X-Cache-Source`, where the cache source currently distinguishes `render`, `memory`, `redis`, and `refresh` responses.
+
+### Accepted color presets
+
+This list mirrors the live sorted `colorPresets` keys in `components/stat-card-generator/constants.ts`:
+
+- `anicardsDark`, `anicardsDarkGradient`, `anicardsLight`, `anicardsLightGradient`, `anilistDark`, `anilistDarkGradient`, `anilistLight`, `anilistLightGradient`, `arcticAurora`, `aurora`
+- `bubblegum`, `canyonSunrise`, `cherryBlossom`, `citrus`, `coral`, `coralReef`, `cosmicNebula`, `custom`, `cyberpunk`, `darkModeBlue`
+- `default`, `earthyGreen`, `emberGlow`, `fire`, `fireEmber`, `forest`, `forestDepth`, `galaxy`, `goldenHour`, `goldStandard`
+- `lavender`, `lavenderBloom`, `midnight`, `mint`, `mintFresh`, `monochromeGray`, `neonGlow`, `ocean`, `oceanBreeze`, `oceanWaves`
+- `pastelDreams`, `polarNight`, `purpleDusk`, `purpleHaze`, `rainforestMist`, `redAlert`, `rosegold`, `seafoam`, `skylineAzure`, `solarizedLight`
+- `springGarden`, `stardust`, `sunriseMeadow`, `sunset`, `sunsetGradient`, `synthwave`, `twilight`, `twilightSky`, `verdantTwilight`, `vintageSepia`
+
+`custom` is the only special sentinel value; it follows the precedence rules above instead of applying a named palette.
 
 ### Examples
 
@@ -127,10 +149,18 @@ When `colorPreset=custom`, the server loads the full color configuration stored 
 https://api.anicards.alpha49.com/card.svg?cardType=animeGenres&userId=542244&variation=pie&colorPreset=anilistDark&titleColor=%23ff0000&backgroundColor=%230b1622&piePercentages=true
 ```
 
-That one starts from the `anilistDark` preset and then overrides the title and background colors specifically.
+That one starts from the named `anilistDark` preset and then overrides individual colors from the URL.
 
 ```text
-https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&variation=compact&colorPreset=sunset&titleColor=%23ff77aa
+https://api.anicards.alpha49.com/card.svg?cardType=animeStaff&username=Alpha49&colorPreset=custom&titleColor=%23aaaaaa&backgroundColor=%230b1622&textColor=%23e2e8f0&circleColor=%233cc8ff&showFavorites=false
 ```
+
+Because all four core colors are present, the URL colors win even though `colorPreset=custom`.
+
+```text
+/card.png?cardType=profileOverview&username=Alpha49&colorPreset=anicardsDarkGradient
+```
+
+That uses the public PNG route. Because `animate` is omitted, `/card.png` forwards `animate=false` before rasterizing the card.
 
 Need canonical route details or alias information? See [`API.md`](./API.md).

@@ -20,7 +20,7 @@ Worth being explicit here: this file is hand-maintained. Nothing auto-generates 
 At the moment, the contract covers these public route families:
 
 - `anilist` — allowlisted AniList GraphQL proxying
-- `card` — SVG rendering through the canonical `/api/card` handler, its public aliases, and the legacy notice endpoint for retired StatCards URLs
+- `card` — SVG rendering through the canonical `/api/card` handler, the public SVG aliases, the public `/card.png` raster route, and the legacy notice endpoint for retired StatCards URLs
 - `cards` — stored card configuration reads
 - `convert` — SVG-to-PNG or WebP conversion
 - `cron` — operator-facing refresh and reporting jobs
@@ -48,14 +48,24 @@ One extra gotcha for `/api/store-users`: the server only persists the bound AniL
 
 ## Canonical, alias, and legacy compatibility entrypoints
 
-Four paths matter here. Keep them straight — especially in docs and code reviews where inconsistency tends to quietly accumulate:
+Five paths matter here. Keep them straight — especially in docs and code reviews where inconsistency tends to quietly accumulate:
 
 - **Canonical SVG route:** `/api/card`
 - **Pretty public alias:** `/card.svg`
 - **Compatibility alias:** `/api/card.svg`
+- **Public PNG companion:** `/card.png`
 - **Legacy StatCards compatibility notice:** `/StatCards/{username}/{key}.svg`
 
-For implementation discussions and contract work, stick to the canonical handler path. For user-facing embeds, `/card.svg` is perfectly fine and honestly a bit cleaner to read. The legacy `/StatCards/{username}/{key}.svg` route is still public, but it returns a cacheable static SVG that tells older consumers to regenerate their cards on AniCards instead of rendering live stats.
+For implementation discussions and contract work, stick to the canonical handler path. For user-facing SVG embeds, `/card.svg` is perfectly fine and honestly a bit cleaner to read. `/card.png` shares the same card query contract, but rasterizes the SVG response and defaults omitted `animate` to static before conversion. The legacy `/StatCards/{username}/{key}.svg` route is still public, but it returns a cacheable static SVG that tells older consumers to regenerate their cards on AniCards instead of rendering live stats.
+
+## Card contract notes
+
+- `username` is the canonical name query parameter. `userName` remains accepted only as a deprecated backward-compatible alias.
+- On SVG routes, animations stay enabled unless `animate` is set to one of `0`, `false`, `no`, or `off`. `/card.png` injects `animate=false` when the parameter is omitted.
+- `colorPreset=custom` means “use stored custom colors” unless all four core URL colors (`titleColor`, `backgroundColor`, `textColor`, and `circleColor`) are present, in which case the URL colors are used directly.
+- `/card.png` keeps the same query surface as the SVG routes and preserves the underlying card status and cache semantics while returning `image/png`.
+- Successful card responses have three cache modes: canonical renders get the long cache policy, explicit visual override requests get the shorter preview policy, and `_t` bypasses cache reads and returns no-store headers for that render.
+- `_t` is a card-render cache-busting token only. It does not refresh AniList data by itself.
 
 ## When to update `openapi.yaml`
 

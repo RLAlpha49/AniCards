@@ -5,7 +5,7 @@
   <img src="./public/icon.svg" alt="AniCards icon" width="256" height="256" />
 </p>
 
-Turn your AniList history into embeddable SVG cards. Paste an image link anywhere and your anime and manga stats show up.
+Turn your AniList history into embeddable SVG cards and PNG previews. Paste an image link anywhere and your anime and manga stats show up.
 
 ## Why AniCards exists
 
@@ -13,7 +13,7 @@ AniList tracks everything: how many episodes you've watched, which genres domina
 
 ## What you can do with it
 
-Go to [anicards.alpha49.com](https://anicards.alpha49.com), enter your AniList username, choose a card type, adjust the look, and copy the embed URL. The card updates automatically as your AniList data changes daily.
+Go to [anicards.alpha49.com](https://anicards.alpha49.com), enter your AniList username, choose a card type, adjust the look, and copy the embed URL. AniCards refreshes stored AniList data on a best-effort, capacity-bound schedule, so embeds stay current without promising an exact daily cutoff.
 
 If you prefer to build the URL by hand:
 
@@ -21,7 +21,9 @@ If you prefer to build the URL by hand:
 https://api.anicards.alpha49.com/card.svg?cardType=animeStats&username=Alpha49&variation=compact&colorPreset=sunset
 ```
 
-Every supported card type, variation, and parameter is documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md).
+Prefer `/card.svg` for embeddable SVGs. The same query surface is also available at `/card.png` when you need a raster preview image.
+
+Every supported card type, variation, preset, and parameter is documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md).
 
 ## What's in the card catalog
 
@@ -33,7 +35,7 @@ The catalog covers five areas, each with multiple card types and layout variatio
 - **Library and progress** — favourites, currently watching/reading, planning backlog, dropped media, completion overview, personal records, consumption milestones
 - **Advanced analytics** — score comparisons, country and genre diversity, release era preferences, tag diversity, length preferences, start-year momentum
 
-Cards accept color presets (`anilistDark`, `sunset`, `default`) or per-color URL parameters. Layout variations include `default`, `compact`, `minimal`, `vertical`, and chart-specific options depending on the card type.
+Cards accept the full runtime preset inventory documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md), plus per-color URL parameters for fine-tuning individual colors. Layout variations include `default`, `compact`, `minimal`, `vertical`, and card-specific chart or grid options.
 
 ## Getting started
 
@@ -64,6 +66,8 @@ bun run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 **UI-only mode** (no credentials needed) covers all frontend work, marketing pages, and visual changes. **Full API mode** — routes that call AniList or read/write Redis — requires an `ANILIST_TOKEN` and Upstash Redis credentials. The env template in `.env.example` is grouped by concern; fill in only what your work actually needs. Full details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
+If you need protected proxy/write routes such as `/api/anilist`, `/api/store-users`, `/api/store-cards`, or `/api/convert`, keep two extra envs in mind: `API_SECRET_TOKEN` is required in production and worth setting locally when you want request-proof behavior to match production, while `TRUSTED_CLIENT_IP_HEADERS` is only for non-default proxy/CDN setups that forward the client IP in something other than the built-in Vercel/Cloudflare headers.
 
 ## Built with
 
