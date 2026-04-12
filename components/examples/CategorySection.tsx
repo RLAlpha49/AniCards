@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PreviewColorPreset } from "@/lib/preview-theme";
 
@@ -27,6 +28,22 @@ interface CategorySectionProps {
   cardTypes: ExampleCardType[];
   isFirstCategory: boolean;
   previewColorPreset: PreviewColorPreset | null;
+}
+
+const CARD_TYPE_CHUNK_THRESHOLD = 6;
+const INITIAL_CARD_TYPE_CHUNK_SIZE = 4;
+const CARD_TYPE_CHUNK_SIZE = 4;
+
+function getInitialVisibleCardTypeCount(totalCardTypes: number): number {
+  if (totalCardTypes <= CARD_TYPE_CHUNK_THRESHOLD) {
+    return totalCardTypes;
+  }
+
+  return Math.min(totalCardTypes, INITIAL_CARD_TYPE_CHUNK_SIZE);
+}
+
+function buildCardTypeSignature(cardTypes: readonly ExampleCardType[]): string {
+  return cardTypes.map((cardType) => cardType.title).join("|");
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -87,11 +104,36 @@ export function CategorySection({
 
   const CategoryIcon = CATEGORY_ICONS[category] || BarChart2;
   const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
+  const cardTypeSignature = useMemo(
+    () => buildCardTypeSignature(cardTypes),
+    [cardTypes],
+  );
+  const [visibleCardTypeCount, setVisibleCardTypeCount] = useState(() =>
+    getInitialVisibleCardTypeCount(cardTypes.length),
+  );
   const totalVariants = cardTypes.reduce(
     (sum, ct) => sum + ct.variants.length,
     0,
   );
   const sectionNumber = CATEGORY_NUMBERS[category] || "00";
+  const visibleCardTypes = useMemo(
+    () => cardTypes.slice(0, visibleCardTypeCount),
+    [cardTypes, visibleCardTypeCount],
+  );
+  const remainingCardTypeCount = Math.max(
+    0,
+    cardTypes.length - visibleCardTypeCount,
+  );
+
+  useEffect(() => {
+    setVisibleCardTypeCount(getInitialVisibleCardTypeCount(cardTypes.length));
+  }, [cardTypeSignature, cardTypes.length]);
+
+  const handleLoadMoreCardTypes = useCallback(() => {
+    setVisibleCardTypeCount((currentVisibleCount) =>
+      Math.min(currentVisibleCount + CARD_TYPE_CHUNK_SIZE, cardTypes.length),
+    );
+  }, [cardTypes.length]);
 
   return (
     <motion.section
@@ -146,7 +188,7 @@ export function CategorySection({
 
       {/* Card type groups */}
       <div className="space-y-20">
-        {cardTypes.map((cardType, typeIndex) => (
+        {visibleCardTypes.map((cardType, typeIndex) => (
           <div key={cardType.title}>
             {/* Card type header with line */}
             <div className="mb-6 flex items-center gap-4">
@@ -190,6 +232,31 @@ export function CategorySection({
             </div>
           </div>
         ))}
+
+        {remainingCardTypeCount > 0 && (
+          <div className="border border-gold/10 bg-gold/3 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs/relaxed text-foreground/35">
+                Showing {visibleCardTypes.length} of {cardTypes.length} card
+                types in this collection.
+              </p>
+              <button
+                type="button"
+                onClick={handleLoadMoreCardTypes}
+                className="
+                  shrink-0 border border-gold/20 px-4 py-2 text-[0.65rem] font-semibold
+                  tracking-[0.18em] text-gold uppercase transition-colors
+                  hover:border-gold/35 hover:bg-gold/6
+                  focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                  focus-visible:ring-offset-background focus-visible:outline-none
+                "
+                aria-controls={categoryId}
+              >
+                Load more card types
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </motion.section>
   );

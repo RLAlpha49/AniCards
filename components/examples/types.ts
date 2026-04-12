@@ -43,6 +43,7 @@ export interface ExampleCardType {
   variants: ExampleCardVariant[];
   category: ExampleCategory;
   iconKey: ExampleIconKey;
+  searchText: string;
 }
 
 export interface ExamplesCatalogPayload {

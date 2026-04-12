@@ -50,6 +50,62 @@ test.describe("Examples gallery", () => {
     expect(filteredCount).toBeGreaterThan(0);
   });
 
+  test("matches variant names and category intent in gallery search", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples?search=Radar%20Chart");
+
+    const searchInput = page.getByLabel(/search gallery cards/i);
+    const animeGenres = page.getByRole("heading", {
+      level: 3,
+      name: /anime genres/i,
+    });
+    const animeStatistics = page.getByRole("heading", {
+      level: 3,
+      name: /anime statistics/i,
+    });
+    const favouritesSummary = page.getByRole("heading", {
+      level: 3,
+      name: /favourites summary/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 3,
+      name: /voice actors/i,
+    });
+
+    await expect(searchInput).toHaveValue("Radar Chart");
+    await expect(animeGenres.first()).toBeVisible({ timeout: 15000 });
+    await expect(animeStatistics.first()).not.toBeVisible();
+
+    await searchInput.fill("Library Progress");
+
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Library Progress");
+    await expect(favouritesSummary.first()).toBeVisible({ timeout: 15000 });
+    await expect(voiceActors.first()).not.toBeVisible();
+  });
+
+  test("chunks large collections and reveals more card types on demand", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples?category=Anime%20Deep%20Dive");
+
+    const section = page.locator("#category-anime-deep-dive");
+    const cardTypeHeadings = section.getByRole("heading", { level: 3 });
+    const loadMoreButton = section.getByRole("button", {
+      name: /load more card types/i,
+    });
+
+    await expect(section).toBeVisible({ timeout: 15000 });
+    await expect(cardTypeHeadings).toHaveCount(4);
+    await expect(loadMoreButton).toBeVisible({ timeout: 15000 });
+
+    await loadMoreButton.click();
+
+    await expect(cardTypeHeadings).toHaveCount(8);
+  });
+
   test("keeps filters in the URL across reload and back navigation", async ({
     page,
   }) => {
@@ -88,17 +144,13 @@ test.describe("Examples gallery", () => {
     await expect(page).toHaveURL(/\/privacy(?:\?|$)/, { timeout: 15000 });
     await waitForAppReady(page);
 
-    await page.evaluate(() => {
-      globalThis.history.back();
-    });
+    await page.goBack({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/examples(?:\?|$)/, { timeout: 15000 });
 
     await dismissAnalyticsPromptIfVisible(page);
-    await waitForAppReady(page);
-
-    await expect(page).toHaveURL(/\/examples(?:\?|$)/);
     await expect(searchInput).toHaveValue("Voice Actors");
     await expect(animeDeepDiveButton).toHaveAttribute("aria-pressed", "true");
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
   });
 
   test("drops invalid category params from the URL", async ({ page }) => {

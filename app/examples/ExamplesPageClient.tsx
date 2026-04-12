@@ -36,6 +36,13 @@ const EXAMPLES_CATEGORY_DESCRIPTIONS: Record<ExampleCategory, string> = {
     "When you want the comparison layer, this collection pairs anime and manga habits side by side so long-term preferences become easier to spot.",
 };
 
+function normalizeExamplesSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 function parseExampleCategory(
   category: string | null,
   categories: ReadonlySet<ExampleCategory>,
@@ -55,9 +62,10 @@ function buildFilterQueryString(
   activeCategory: ExampleCategory | null,
 ): string {
   const params = new URLSearchParams(searchParams.toString());
+  const trimmedSearchQuery = searchQuery.trim();
 
-  if (searchQuery.length > 0) {
-    params.set(SEARCH_QUERY_PARAM, searchQuery);
+  if (trimmedSearchQuery.length > 0) {
+    params.set(SEARCH_QUERY_PARAM, trimmedSearchQuery);
   } else {
     params.delete(SEARCH_QUERY_PARAM);
   }
@@ -177,26 +185,44 @@ export default function ExamplesPageClient({
     replaceQueryString(buildFilterQueryString(searchParams, "", null));
   }, [replaceQueryString, searchParams]);
 
-  const hasActiveFilters = searchQuery.length > 0 || activeCategory !== null;
+  const normalizedSearchQuery = useMemo(
+    () => normalizeExamplesSearchText(searchQuery),
+    [searchQuery],
+  );
+
+  const searchMatchedCardTypes = useMemo(() => {
+    if (normalizedSearchQuery.length === 0) {
+      return catalog.cardTypes;
+    }
+
+    return catalog.cardTypes.filter((card) =>
+      card.searchText.includes(normalizedSearchQuery),
+    );
+  }, [catalog.cardTypes, normalizedSearchQuery]);
+
+  const hasActiveFilters =
+    normalizedSearchQuery.length > 0 || activeCategory !== null;
 
   const filteredCardTypes = useMemo(() => {
-    let filtered = catalog.cardTypes;
-
-    if (activeCategory) {
-      filtered = filtered.filter((card) => card.category === activeCategory);
+    if (!activeCategory) {
+      return searchMatchedCardTypes;
     }
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (card) =>
-          card.title.toLowerCase().includes(query) ||
-          card.description.toLowerCase().includes(query),
-      );
-    }
+    return searchMatchedCardTypes.filter(
+      (card) => card.category === activeCategory,
+    );
+  }, [activeCategory, searchMatchedCardTypes]);
 
-    return filtered;
-  }, [catalog.cardTypes, searchQuery, activeCategory]);
+  const navigationCategoryInfo = useMemo(
+    () =>
+      catalog.categories.map((category) => ({
+        name: category,
+        count: searchMatchedCardTypes.filter(
+          (card) => card.category === category,
+        ).length,
+      })),
+    [catalog.categories, searchMatchedCardTypes],
+  );
 
   const categorySummaries = useMemo(
     () =>
@@ -219,14 +245,19 @@ export default function ExamplesPageClient({
   );
 
   const shouldRenderExpandedGallery =
-    searchQuery.trim().length > 0 ||
+    normalizedSearchQuery.length > 0 ||
     activeCategory !== null ||
     showAllCollections;
 
   const shouldRenderCollectionChooser =
-    searchQuery.trim().length === 0 &&
+    normalizedSearchQuery.length === 0 &&
     activeCategory === null &&
     showAllCollections === false;
+
+  const emptyStateDescription =
+    normalizedSearchQuery.length > 0
+      ? "Try another card title, variant, category, or collection phrase."
+      : "Your filters came up empty. Try loosening the search or picking a different category.";
 
   let galleryContent: React.ReactNode;
 
@@ -430,7 +461,7 @@ export default function ExamplesPageClient({
                 />
               </div>
               <CategoryNavigation
-                categories={catalog.categoryInfo}
+                categories={navigationCategoryInfo}
                 activeCategory={activeCategory}
                 onCategoryClick={handleCategoryChange}
               />
@@ -467,8 +498,7 @@ export default function ExamplesPageClient({
                     <p className="
                       mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/30
                     ">
-                      Your filters came up empty. Try loosening the search or
-                      picking a different category.
+                      {emptyStateDescription}
                     </p>
                     <button
                       type="button"

@@ -1,5 +1,6 @@
 import type {
   ExampleCardType,
+  ExampleCardVariant,
   ExampleCategory,
   ExamplesCatalogPayload,
 } from "@/components/examples";
@@ -19,12 +20,91 @@ const EXAMPLES_CATEGORIES = [
   "Advanced Analytics",
 ] as const satisfies readonly ExampleCategory[];
 
-type CardTypeMeta = Omit<ExampleCardType, "variants">;
+const EXAMPLES_COLLECTION_KEYWORDS: Record<ExampleCategory, readonly string[]> =
+  {
+    "Core Stats": ["headline stats", "profile summary", "overall overview"],
+    "Anime Deep Dive": [
+      "anime breakdown",
+      "watch history",
+      "genre and studio analysis",
+    ],
+    "Manga Deep Dive": ["manga breakdown", "reading history", "manga analysis"],
+    "Activity & Engagement": [
+      "activity history",
+      "social engagement",
+      "review activity",
+    ],
+    "Library & Progress": [
+      "library progress",
+      "favorites and backlog",
+      "watching now",
+      "reading now",
+    ],
+    "Advanced Analytics": [
+      "anime vs manga comparison",
+      "cross media comparison",
+      "diversity analysis",
+    ],
+  };
+
+type CardTypeMeta = Omit<ExampleCardType, "variants" | "searchText">;
 type CardTypeMetaEntry = readonly [
   title: CardTypeMeta["title"],
   description: CardTypeMeta["description"],
   iconKey: CardTypeMeta["iconKey"],
 ];
+
+function normalizeExamplesSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function isSearchableVariantName(name: string): boolean {
+  const normalizedName = normalizeExamplesSearchText(name);
+
+  return (
+    normalizedName.length > 0 &&
+    normalizedName !== "default" &&
+    !normalizedName.startsWith("default ")
+  );
+}
+
+function buildCardTypeSearchText(
+  cardType: CardTypeMeta,
+  variants: readonly ExampleCardVariant[],
+): string {
+  const searchableEntries = new Set<string>();
+
+  const addSearchEntry = (value: string | undefined) => {
+    if (!value) {
+      return;
+    }
+
+    const normalizedValue = normalizeExamplesSearchText(value);
+
+    if (normalizedValue.length > 0) {
+      searchableEntries.add(normalizedValue);
+    }
+  };
+
+  addSearchEntry(cardType.title);
+  addSearchEntry(cardType.description);
+  addSearchEntry(cardType.category);
+
+  for (const keyword of EXAMPLES_COLLECTION_KEYWORDS[cardType.category]) {
+    addSearchEntry(keyword);
+  }
+
+  for (const variant of variants) {
+    if (isSearchableVariantName(variant.name)) {
+      addSearchEntry(variant.name);
+    }
+  }
+
+  return Array.from(searchableEntries).join(" ");
+}
 
 function buildCardTypeMetadata(
   category: ExampleCategory,
@@ -321,37 +401,41 @@ const EXAMPLES_CARD_TYPES: ExampleCardType[] = CARD_TYPE_METADATA.map(
       return {
         ...cardType,
         variants: [],
+        searchText: buildCardTypeSearchText(cardType, []),
       };
     }
 
+    const variants = group.variations.map((variationDefinition) => {
+      const normalizedVariation =
+        typeof variationDefinition === "string"
+          ? { variation: variationDefinition, extras: undefined }
+          : variationDefinition;
+      const { w, h } = getPreviewCardDimensions(
+        group.cardType,
+        normalizedVariation.variation,
+      );
+
+      return {
+        name:
+          VARIATION_LABEL_MAP[normalizedVariation.variation] ??
+          normalizedVariation.variation,
+        previewUrls: buildThemePreviewUrls({
+          cardType: group.cardType,
+          variation: normalizedVariation.variation,
+          extras: normalizedVariation.extras,
+        }),
+        settingsSnapshots: buildThemeSettingsSnapshots({
+          extras: normalizedVariation.extras,
+        }),
+        width: w,
+        height: h,
+      };
+    });
+
     return {
       ...cardType,
-      variants: group.variations.map((variationDefinition) => {
-        const normalizedVariation =
-          typeof variationDefinition === "string"
-            ? { variation: variationDefinition, extras: undefined }
-            : variationDefinition;
-        const { w, h } = getPreviewCardDimensions(
-          group.cardType,
-          normalizedVariation.variation,
-        );
-
-        return {
-          name:
-            VARIATION_LABEL_MAP[normalizedVariation.variation] ??
-            normalizedVariation.variation,
-          previewUrls: buildThemePreviewUrls({
-            cardType: group.cardType,
-            variation: normalizedVariation.variation,
-            extras: normalizedVariation.extras,
-          }),
-          settingsSnapshots: buildThemeSettingsSnapshots({
-            extras: normalizedVariation.extras,
-          }),
-          width: w,
-          height: h,
-        };
-      }),
+      variants,
+      searchText: buildCardTypeSearchText(cardType, variants),
     };
   },
 );

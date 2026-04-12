@@ -44,7 +44,7 @@ export function SearchFilterBar({
           type="search"
           autoComplete="off"
           enterKeyHint="search"
-          placeholder="Find a card by name or keyword…"
+          placeholder="Search by card, variant, category, or collection…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className={cn(
