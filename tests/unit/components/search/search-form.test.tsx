@@ -317,6 +317,14 @@ function switchToUserIdMode(view: ReturnType<typeof render>) {
   });
 }
 
+async function flushAnimationFrames(count = 2) {
+  for (let frame = 0; frame < count; frame += 1) {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+}
+
 describe("SearchForm", () => {
   beforeAll(async () => {
     ({ SearchForm } = await import("@/components/search/SearchForm"));
@@ -396,7 +404,8 @@ describe("SearchForm", () => {
     expect(errorMessages[0]?.textContent).toBe(
       "You'll need to enter an AniList username, profile link, or user ID first.",
     );
-    expect(document.activeElement).toBe(usernameInput);
+    await flushAnimationFrames();
+    expect(document.activeElement === usernameInput).toBe(true);
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
     expect(gtagMock).toHaveBeenCalledTimes(1);
@@ -630,9 +639,8 @@ describe("SearchForm", () => {
     expect(outsideShellButton.getAttribute("aria-hidden")).toBe("true");
     expect(outsideShellButton.hasAttribute("inert")).toBe(true);
 
-    await waitFor(() => {
-      expect(document.activeElement).toBe(loadingDialog);
-    });
+    await flushAnimationFrames();
+    expect(document.activeElement === loadingDialog).toBe(true);
 
     fireEvent.click(stopLoadingButton);
 
@@ -645,7 +653,8 @@ describe("SearchForm", () => {
     expect(heroContent.hasAttribute("inert")).toBe(false);
     expect(outsideShellButton.hasAttribute("inert")).toBe(false);
     expect(outsideShellButton.hasAttribute("aria-hidden")).toBe(false);
-    expect(document.activeElement).toBe(startLoadingButton);
+    await flushAnimationFrames();
+    expect(document.activeElement === startLoadingButton).toBe(true);
   });
 
   it("preserves queued example state and remembered editor resumes in the shell", async () => {
