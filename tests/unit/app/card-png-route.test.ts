@@ -4,6 +4,9 @@ import { createCardPngRoute } from "@/app/card.png/route";
 
 let lastRasterizedSvgMarkup: string | null = null;
 
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const PREVIEW_MEDIA_X_ROBOTS_TAG = "noindex, noimageindex, noarchive";
+
 function createDefaultSvgResponse(): Response {
   return new Response(
     '<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" /></svg>',
@@ -63,6 +66,9 @@ describe("/card.png route", () => {
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=86400");
     expect(response.headers.get("Vary")).toBe("Origin");
     expect(response.headers.get("X-Cache-Source")).toBe("memory");
+    expect(response.headers.get("X-Robots-Tag")).toBe(
+      PREVIEW_MEDIA_X_ROBOTS_TAG,
+    );
     expect(response.headers.get("X-Request-Id")).toBe("req-card-png");
     expect(lastRasterizedSvgMarkup).toContain("<svg");
 
@@ -86,7 +92,7 @@ describe("/card.png route", () => {
     expect(forwardedUrl.searchParams.get("animate")).toBe("true");
   });
 
-  it("passes through non-successful SVG responses without rasterizing them", async () => {
+  it("converts non-successful SVG responses to PNG while preserving the status", async () => {
     cardSvgGetMock.mockResolvedValueOnce(
       new Response("<svg>Not Found</svg>", {
         headers: {
@@ -102,12 +108,18 @@ describe("/card.png route", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(response.headers.get("Content-Type")).toBe("image/svg+xml");
-    expect(await response.text()).toBe("<svg>Not Found</svg>");
-    expect(rasterizeSvgMock).not.toHaveBeenCalled();
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe(
+      PREVIEW_MEDIA_X_ROBOTS_TAG,
+    );
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe(
+      "FAKEPNG",
+    );
+    expect(rasterizeSvgMock).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the original SVG response when PNG conversion fails", async () => {
+  it("falls back to a real PNG response when PNG conversion fails", async () => {
     rasterizeSvgMock.mockImplementation(async (svgMarkup: string) => {
       lastRasterizedSvgMarkup = svgMarkup;
       throw new Error("conversion failed");
@@ -120,7 +132,19 @@ describe("/card.png route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("image/svg+xml");
-    expect(await response.text()).toContain("<svg");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "no-store, max-age=0, must-revalidate",
+    );
+    expect(response.headers.get("CDN-Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Edge-Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(response.headers.get("X-Robots-Tag")).toBe(
+      PREVIEW_MEDIA_X_ROBOTS_TAG,
+    );
+
+    const body = Buffer.from(await response.arrayBuffer());
+    expect(body.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)).toBe(
+      true,
+    );
   });
 });

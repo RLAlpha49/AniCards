@@ -530,6 +530,13 @@ const normalizedUsernameSchema = z.preprocess(
   z.string().min(1).max(100).regex(USERNAME_PATTERN).optional(),
 );
 const isoDateStringSchema = z.string().trim().min(1);
+const ifMatchUpdatedAtSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .datetime({ offset: true })
+  .transform((value) => new Date(value).toISOString())
+  .optional();
 
 export const persistedUserRecordSchema: z.ZodType<PersistedUserRecord> =
   z.strictObject({
@@ -548,58 +555,57 @@ export const storeUserRequestSchema = z.strictObject({
   stats: z.custom<Record<string, unknown>>(isPlainObject, {
     message: "Stats must be a non-array object",
   }),
-  ifMatchUpdatedAt: z.preprocess(
-    (value) =>
-      typeof value === "string" && value.trim().length > 0 ? value : undefined,
-    z.string().trim().min(1).optional(),
-  ),
+  ifMatchUpdatedAt: ifMatchUpdatedAtSchema,
 });
 
 const colorValueSchema = z.custom((value) => validateColorValue(value), {
   message: "Invalid color value",
 });
 
-const storedCardConfigInputSchema = z
-  .object({
-    cardName: z.string(),
-    variation: z.string().optional(),
+const storedCardConfigInputSchema = z.strictObject({
+  cardName: z.string(),
+  variation: z.string().optional(),
+  colorPreset: z.string().optional(),
+  titleColor: colorValueSchema.optional(),
+  backgroundColor: colorValueSchema.optional(),
+  textColor: colorValueSchema.optional(),
+  circleColor: colorValueSchema.optional(),
+  borderColor: colorValueSchema.optional(),
+  borderRadius: finiteNumberSchema.optional(),
+  showFavorites: z.boolean().optional(),
+  useStatusColors: z.boolean().optional(),
+  showPiePercentages: z.boolean().optional(),
+  gridCols: finiteNumberSchema.optional(),
+  gridRows: finiteNumberSchema.optional(),
+  useCustomSettings: z.boolean().optional(),
+  disabled: z.boolean().optional(),
+});
+
+const globalCardSettingsInputSchema: z.ZodType<Partial<GlobalCardSettings>> =
+  z.strictObject({
     colorPreset: z.string().optional(),
-    titleColor: colorValueSchema.optional(),
-    backgroundColor: colorValueSchema.optional(),
-    textColor: colorValueSchema.optional(),
-    circleColor: colorValueSchema.optional(),
-    borderColor: colorValueSchema.optional(),
+    titleColor: z.any().optional(),
+    backgroundColor: z.any().optional(),
+    textColor: z.any().optional(),
+    circleColor: z.any().optional(),
+    borderEnabled: z.boolean().optional(),
+    borderColor: z.any().optional(),
     borderRadius: finiteNumberSchema.optional(),
-    showFavorites: z.boolean().optional(),
     useStatusColors: z.boolean().optional(),
     showPiePercentages: z.boolean().optional(),
+    showFavorites: z.boolean().optional(),
     gridCols: finiteNumberSchema.optional(),
     gridRows: finiteNumberSchema.optional(),
-    useCustomSettings: z.boolean().optional(),
-    disabled: z.boolean().optional(),
-  })
-  .strip();
+  });
 
-export const storeCardsRequestSchema = z
-  .object({
-    userId: z.coerce.number().int().positive(),
-    statsData: z.unknown().optional(),
-    cards: z.array(z.unknown()),
-    globalSettings: z
-      .custom<
-        Partial<GlobalCardSettings>
-      >((value) => value === undefined || isPlainObject(value), { message: "globalSettings must be an object" })
-      .optional(),
-    ifMatchUpdatedAt: z.preprocess(
-      (value) =>
-        typeof value === "string" && value.trim().length > 0
-          ? value
-          : undefined,
-      z.string().trim().min(1).optional(),
-    ),
-    cardOrder: z.array(z.string().trim().min(1)).optional(),
-  })
-  .strip();
+export const storeCardsRequestSchema = z.strictObject({
+  userId: z.coerce.number().int().positive(),
+  statsData: z.unknown().optional(),
+  cards: z.array(z.unknown()),
+  globalSettings: globalCardSettingsInputSchema.optional(),
+  ifMatchUpdatedAt: ifMatchUpdatedAtSchema,
+  cardOrder: z.array(z.string().trim().min(1)).optional(),
+});
 
 const errorReportSourceSchema = z.enum([
   "user_action",
@@ -777,6 +783,15 @@ function getValidateUserDataFailure(
       return invalidStoreUserData(endpoint, request, "Username invalid", {
         username: data.username,
       });
+    case "ifMatchUpdatedAt":
+      return invalidStoreUserData(
+        endpoint,
+        request,
+        "Invalid ifMatchUpdatedAt concurrency token",
+        {
+          ifMatchUpdatedAt: data.ifMatchUpdatedAt,
+        },
+      );
     case "stats":
       return invalidStoreUserData(
         endpoint,

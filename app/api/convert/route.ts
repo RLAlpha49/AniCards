@@ -779,7 +779,15 @@ function parseRequestedFormat(format: unknown): ConversionFormat {
 }
 
 function parseResponseMode(responseType: unknown): ConvertResponseMode {
-  return responseType === "json" ? "json" : "binary";
+  if (typeof responseType === "undefined") {
+    return "binary";
+  }
+
+  if (responseType === "json" || responseType === "binary") {
+    return responseType;
+  }
+
+  throw new ConvertRouteError("Invalid responseType parameter", 400);
 }
 
 function parseSvgRequestBody(body: unknown): {

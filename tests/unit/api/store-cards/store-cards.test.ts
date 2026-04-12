@@ -337,6 +337,38 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("should reject malformed ifMatchUpdatedAt", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        ifMatchUpdatedAt: "not-a-real-timestamp",
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject unsupported top-level fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [],
+        unexpectedField: "surprise",
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
     it("should reject invalid JSON body", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = new Request("http://localhost/api/store-cards", {
@@ -421,6 +453,31 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(400);
+    });
+
+    it("should reject unsupported nested keys in card patches", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+            unexpectedField: "surprise",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should return invalid names and suggestions for typos", async () => {
@@ -1681,7 +1738,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.globalSettings.borderColor).toBe("#ff0000");
     });
 
-    it("should not persist unexpected fields in globalSettings", async () => {
+    it("should reject unsupported nested keys in globalSettings", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 700,
@@ -1697,16 +1754,13 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.globalSettings.unexpectedField).toBeUndefined();
-      expect(stored.globalSettings.nested).toBeUndefined();
-      expect(stored.globalSettings.borderEnabled).toBe(true);
-      expect(stored.globalSettings.borderColor).toBe("#ff0000");
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
-    it("should not persist globalSettings when incoming contains only unknown fields", async () => {
+    it("should reject globalSettings when incoming contains only unsupported fields", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 710,
@@ -1719,13 +1773,13 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.globalSettings).toBeUndefined();
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
-    it("should preserve existing globalSettings when incoming contains only unknown fields", async () => {
+    it("should reject globalSettings requests with unsupported fields even when stored settings already exist", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 801;
       sharedRedisMockGet.mockResolvedValueOnce(
@@ -1750,12 +1804,10 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.globalSettings.borderEnabled).toBe(true);
-      expect(stored.globalSettings.borderColor).toBe("#00ff00");
-      expect(stored.globalSettings.gridCols).toBe(3);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should accept valid gradient color in globalSettings", async () => {

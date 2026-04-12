@@ -144,6 +144,8 @@ const { socialStatsTemplate } =
   await import("@/lib/svg-templates/social-stats");
 const { escapeForXml } = utils;
 
+const PREVIEW_MEDIA_X_ROBOTS_TAG = "noindex, noimageindex, noarchive";
+
 /**
  * Reads the text body from a Response for later assertion.
  * @param response - Response object to extract text from.
@@ -360,6 +362,7 @@ async function expectSuccessfulSvgResponse(
 ) {
   expect(res.status).toBe(200);
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+  expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = bodyText ?? (await getResponseText(res));
   expect(text).toBe(expectedSvg);
@@ -380,6 +383,7 @@ async function expectErrorResponse(
 ) {
   expect(res.status).toBe(expectedStatus);
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+  expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
   const escaped = escapeForXml(expectedError);
@@ -3252,6 +3256,7 @@ describe("Card SVG Route", () => {
       expect(res.headers.has("Access-Control-Allow-Origin")).toBe(true);
       expect(res.headers.has("Access-Control-Allow-Methods")).toBe(true);
       expect(res.headers.has("Access-Control-Allow-Headers")).toBe(true);
+      expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
     });
 
     it("should allow GET, HEAD, OPTIONS methods", () => {

@@ -3,6 +3,14 @@ import sharp from "sharp";
 import { GET as getCardSvg } from "@/app/api/card/route";
 
 const MAX_RASTER_INPUT_PIXELS = 16_777_216;
+const CARD_NO_STORE_CACHE_CONTROL = "no-store, max-age=0, must-revalidate";
+const CARD_NO_STORE_EDGE_CACHE_CONTROL = "no-store";
+const PREVIEW_MEDIA_X_ROBOTS_TAG = "noindex, noimageindex, noarchive";
+const FALLBACK_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0ioAAAAASUVORK5CYII=";
+const FALLBACK_PNG_BYTES = Uint8Array.from(
+  Buffer.from(FALLBACK_PNG_BASE64, "base64"),
+);
 
 type CardSvgHandler = (request: Request) => Promise<Response>;
 type RasterizeSvg = (svgMarkup: string) => Promise<Uint8Array<ArrayBuffer>>;
@@ -17,11 +25,39 @@ function withStaticCardRenderRequest(request: Request): Request {
   return new Request(url, request);
 }
 
-function createPngHeaders(svgResponse: Response): Headers {
+function withPreviewMediaRobotsTag(headers: Headers): Headers {
+  headers.set("X-Robots-Tag", PREVIEW_MEDIA_X_ROBOTS_TAG);
+  return headers;
+}
+
+function createPngHeaders(
+  svgResponse: Response,
+  options?: { useFallbackCachePolicy?: boolean },
+): Headers {
   const headers = new Headers(svgResponse.headers);
+
+  withPreviewMediaRobotsTag(headers);
   headers.set("Content-Type", "image/png");
   headers.delete("Content-Length");
+
+  if (options?.useFallbackCachePolicy) {
+    headers.set("Cache-Control", CARD_NO_STORE_CACHE_CONTROL);
+    headers.set("CDN-Cache-Control", CARD_NO_STORE_EDGE_CACHE_CONTROL);
+    headers.set("Edge-Cache-Control", CARD_NO_STORE_EDGE_CACHE_CONTROL);
+  }
+
   return headers;
+}
+
+function withPreviewMediaRobotsResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  withPreviewMediaRobotsTag(headers);
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 }
 
 async function rasterizeSvgMarkup(
@@ -36,12 +72,9 @@ async function rasterizeSvgMarkup(
   return Uint8Array.from(pngBuffer);
 }
 
-function createSvgFallbackResponse(
-  svgResponse: Response,
-  svgBytes: Uint8Array<ArrayBuffer>,
-): Response {
-  return new Response(svgBytes, {
-    headers: new Headers(svgResponse.headers),
+function createPngFallbackResponse(svgResponse: Response): Response {
+  return new Response(FALLBACK_PNG_BYTES.slice(), {
+    headers: createPngHeaders(svgResponse, { useFallbackCachePolicy: true }),
     status: svgResponse.status,
     statusText: svgResponse.statusText,
   });
@@ -57,14 +90,13 @@ export async function convertCardSvgResponseToPngResponse(
     ?.trim()
     .toLowerCase();
 
-  if (!svgResponse.ok || contentType !== "image/svg+xml") {
-    return svgResponse;
+  if (contentType !== "image/svg+xml") {
+    return withPreviewMediaRobotsResponse(svgResponse);
   }
 
-  const svgBytes = new Uint8Array(await svgResponse.arrayBuffer());
+  const svgMarkup = await svgResponse.text();
 
   try {
-    const svgMarkup = new TextDecoder().decode(svgBytes);
     const pngBytes = await rasterizeSvg(svgMarkup);
 
     return new Response(pngBytes, {
@@ -73,7 +105,7 @@ export async function convertCardSvgResponseToPngResponse(
       statusText: svgResponse.statusText,
     });
   } catch {
-    return createSvgFallbackResponse(svgResponse, svgBytes);
+    return createPngFallbackResponse(svgResponse);
   }
 }
 

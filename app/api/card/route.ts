@@ -69,6 +69,8 @@ import {
 
 export const runtime = "nodejs";
 
+const PREVIEW_MEDIA_X_ROBOTS_TAG = "noindex, noimageindex, noarchive";
+
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({
   limit: 150,
@@ -267,6 +269,7 @@ function svgHeaders(
       "Cache-Control": cachePolicy.cacheControl,
       "CDN-Cache-Control": cachePolicy.edgeCacheControl,
       "Edge-Cache-Control": cachePolicy.edgeCacheControl,
+      "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Methods": "GET, HEAD",
       "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
@@ -307,6 +310,7 @@ function errorHeaders(
     "Cache-Control": CARD_NO_STORE_CACHE_CONTROL,
     "CDN-Cache-Control": CARD_NO_STORE_EDGE_CACHE_CONTROL,
     "Edge-Cache-Control": CARD_NO_STORE_EDGE_CACHE_CONTROL,
+    "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
     "Access-Control-Expose-Headers": [...new Set(exposeHeaders)].join(", "),
@@ -1520,6 +1524,7 @@ export function OPTIONS(request: Request) {
         "Access-Control-Allow-Origin": allowedOrigin,
         "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
+        "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
         "Access-Control-Expose-Headers":
           "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
         Vary: "Origin",

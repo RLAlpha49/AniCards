@@ -266,6 +266,26 @@ describe("Convert API POST Endpoint", () => {
       expect(data.error).toBe("Invalid format parameter");
     });
 
+    it("should return 400 error for invalid responseType parameter", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: "<svg></svg>",
+          responseType: "jpeg",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid responseType parameter");
+      expect(sharpConstructorMock).not.toHaveBeenCalled();
+    });
+
     it("should accept valid format 'png' (default)", async () => {
       const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
       const req = new Request("http://localhost/api/convert", {
@@ -431,6 +451,41 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(403);
       const data = await res.json();
       expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
+    });
+
+    it("should reject site-host SVG URLs when only the API host is allow-listed", async () => {
+      const previousApiUrl = process.env.NEXT_PUBLIC_API_URL;
+      process.env.NEXT_PUBLIC_API_URL = "https://api.anicards.alpha49.com";
+
+      try {
+        const req = new Request(
+          "https://api.anicards.alpha49.com/api/convert",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-forwarded-for": "127.0.0.1",
+              host: "api.anicards.alpha49.com",
+              origin: "https://api.anicards.alpha49.com",
+            },
+            body: JSON.stringify({
+              svgUrl:
+                "https://anicards.alpha49.com/api/card.svg?userId=542244&cardType=animeStats",
+            }),
+          },
+        ) as unknown as NextRequest;
+
+        const res = await POST(req);
+        expect(res.status).toBe(403);
+        const data = await res.json();
+        expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
+      } finally {
+        if (previousApiUrl === undefined) {
+          delete process.env.NEXT_PUBLIC_API_URL;
+        } else {
+          process.env.NEXT_PUBLIC_API_URL = previousApiUrl;
+        }
+      }
     });
 
     it("should accept localhost URLs in development", async () => {
@@ -710,7 +765,7 @@ describe("Convert API POST Endpoint", () => {
       expect(lastSharpBuffer?.toString()).toContain("rect");
     });
 
-    it("requests AniCards card SVGs in static mode before rasterizing them", async () => {
+    it("requests relative AniCards card SVGs on the allow-listed host in static mode before rasterizing them", async () => {
       const fetchSpy = mock(
         async () =>
           new Response("<svg></svg>", {
@@ -726,10 +781,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
           host: "localhost",
+          origin: "http://localhost",
         },
         body: JSON.stringify({
-          svgUrl:
-            "http://localhost/api/card.svg?userId=542244&cardType=animeStats",
+          svgUrl: "/api/card.svg?userId=542244&cardType=animeStats",
           responseType: "json",
         }),
       }) as unknown as NextRequest;

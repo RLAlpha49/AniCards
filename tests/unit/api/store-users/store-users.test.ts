@@ -386,6 +386,46 @@ describe("Store Users API", () => {
       expect(data.error).toBe("Invalid data");
     });
 
+    it("should reject request with malformed ifMatchUpdatedAt", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createTestRequest(
+        {
+          userId: 1,
+          username: "UserOne",
+          stats: cloneMockUserStatsData(),
+          ifMatchUpdatedAt: "not-a-real-timestamp",
+        },
+        "http://localhost",
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject unsupported top-level fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createTestRequest(
+        {
+          userId: 1,
+          username: "UserOne",
+          stats: cloneMockUserStatsData(),
+          unexpectedField: "surprise",
+        },
+        "http://localhost",
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
     it("should reject malformed JSON body", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
