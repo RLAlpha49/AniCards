@@ -3,52 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/actions/**"
-      - ".github/dependabot.yml"
-      - ".github/workflows/**"
-      - "app/**"
-      - "bun.lock"
-      - "bunfig.toml"
-      - "components/**"
-      - "components.json"
-      - "dependency-license-policy.json"
-      - "eslint.config.mjs"
-      - "hooks/**"
-      - "lib/**"
-      - "next.config.ts"
-      - "package.json"
-      - "playwright.config.ts"
-      - "postcss.config.mjs"
-      - "proxy.ts"
-      - "public/**"
-      - "scripts/**"
-      - "tests/**"
-      - "tsconfig.json"
   pull_request:
     branches: [main]
-    paths:
-      - ".github/actions/**"
-      - ".github/dependabot.yml"
-      - ".github/workflows/**"
-      - "app/**"
-      - "bun.lock"
-      - "bunfig.toml"
-      - "components/**"
-      - "components.json"
-      - "dependency-license-policy.json"
-      - "eslint.config.mjs"
-      - "hooks/**"
-      - "lib/**"
-      - "next.config.ts"
-      - "package.json"
-      - "playwright.config.ts"
-      - "postcss.config.mjs"
-      - "proxy.ts"
-      - "public/**"
-      - "scripts/**"
-      - "tests/**"
-      - "tsconfig.json"
 
 permissions:
   contents: read
