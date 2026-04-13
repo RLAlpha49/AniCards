@@ -80,7 +80,7 @@ function encodeBase64UrlBytes(value: ArrayBuffer): string {
     .replace(/=+$/u, "");
 }
 
-async function createLegacyRequestProofToken(options: {
+async function createReadableRequestProofToken(options: {
   expiresAtMs?: number;
   ip: string;
   secret: string;
@@ -1486,17 +1486,17 @@ describe("api module hardening", () => {
 
     expect(payload).not.toHaveProperty("ip");
     expect(payload).not.toHaveProperty("ua");
-    expect(payload).toMatchObject({ v: 2 });
+    expect(payload).toMatchObject({ v: 1 });
     expect(serializedPayload).not.toContain(clientIp);
     expect(serializedPayload).not.toContain(userAgent);
   });
 
-  it("accepts legacy request proof tokens during the migration window", async () => {
+  it("rejects readable request proof payloads even when they are signed", async () => {
     process.env.API_SECRET_TOKEN = "test-request-proof-secret";
 
     const clientIp = "198.51.100.50";
-    const userAgent = "AniCardsTest/LegacyProof";
-    const token = await createLegacyRequestProofToken({
+    const userAgent = "AniCardsTest/ReadableProof";
+    const token = await createReadableRequestProofToken({
       ip: clientIp,
       secret: "test-request-proof-secret",
       userAgent,
@@ -1507,7 +1507,10 @@ describe("api module hardening", () => {
       userAgent,
     });
 
-    expect(verification).toMatchObject({ valid: true });
+    expect(verification).toEqual({
+      valid: false,
+      reason: "invalid_payload",
+    });
   });
 
   it("builds apiErrorResponse payloads with merged headers and request-id exposure", async () => {
