@@ -7,6 +7,7 @@ import {
   sharedRedisMockDel,
   sharedRedisMockEval,
   sharedRedisMockGet,
+  sharedRedisMockLrange,
   sharedRedisMockLtrim,
   sharedRedisMockMget,
   sharedRedisMockRpush,
@@ -242,6 +243,7 @@ describe("user-data persistence", () => {
     allowConsoleWarningsAndErrors();
     sharedRedisMockDel.mockReset();
     sharedRedisMockGet.mockReset();
+    sharedRedisMockLrange.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockRpush.mockReset();
@@ -255,6 +257,7 @@ describe("user-data persistence", () => {
     sharedRedisMockZrange.mockReset();
     sharedRedisMockZrem.mockReset();
     sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockLrange.mockResolvedValue([]);
     sharedRedisMockScan.mockResolvedValue([0, []]);
     sharedRedisMockSmembers.mockResolvedValue([]);
     sharedRedisMockSrem.mockResolvedValue(1);
@@ -1043,6 +1046,47 @@ describe("user-data persistence", () => {
       -250,
       -1,
     );
+  });
+
+  it("prunes expired lifecycle audit entries before appending the next event", async () => {
+    const now = Date.now();
+
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        action: "save",
+        timestamp: new Date(now - 120_000).toISOString(),
+        expiresAt: new Date(now - 1).toISOString(),
+        triggerSource: "user_data_save",
+        userId: "old-user",
+      }),
+      JSON.stringify({
+        action: "access",
+        timestamp: new Date(now - 1_000).toISOString(),
+        expiresAt: new Date(now + 60_000).toISOString(),
+        triggerSource: "user_data_fetch",
+        userId: "recent-user",
+      }),
+    ]);
+
+    await deleteUserRecord("5");
+
+    const auditCalls = sharedRedisMockRpush.mock.calls.filter(
+      ([key]) => key === "telemetry:user-lifecycle-audit:v1",
+    );
+
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "telemetry:user-lifecycle-audit:v1",
+    );
+    expect(auditCalls).toHaveLength(2);
+    expect(JSON.parse(String(auditCalls[0]?.[1]))).toMatchObject({
+      action: "access",
+      userId: "recent-user",
+    });
+    expect(JSON.parse(String(auditCalls.at(-1)?.[1]))).toMatchObject({
+      action: "delete",
+      triggerSource: "user_data_delete",
+      userId: "5",
+    });
   });
 
   it("deletes the persisted normalized username index when alias tracking is missing", async () => {

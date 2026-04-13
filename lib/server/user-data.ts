@@ -82,6 +82,9 @@ const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
 const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
+const USER_LIFECYCLE_AUDIT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
+const USER_LIFECYCLE_AUDIT_RETENTION_MS =
+  USER_LIFECYCLE_AUDIT_RETENTION_SECONDS * 1000;
 const USER_REFRESH_INDEX_REPAIR_BATCH_SIZE = 25;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 const USER_BOUNDED_SECTIONS = [
@@ -165,6 +168,7 @@ export type UserLifecycleAuditTriggerSource =
 
 interface UserLifecycleAuditEntry {
   action: UserLifecycleAuditAction;
+  expiresAt?: string;
   timestamp: string;
   triggerSource: UserLifecycleAuditTriggerSource;
   userId: string;
@@ -719,13 +723,159 @@ function getUpdatedAtScore(updatedAt: string | undefined): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function parseLifecycleAuditTimestamp(
+  value: string | undefined,
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseUserLifecycleAuditEntry(
+  value: unknown,
+): UserLifecycleAuditEntry | undefined {
+  let parsedValue = value;
+
+  if (typeof parsedValue === "string") {
+    try {
+      parsedValue = JSON.parse(parsedValue) as unknown;
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (!isObject(parsedValue)) {
+    return undefined;
+  }
+
+  if (
+    typeof parsedValue.action !== "string" ||
+    typeof parsedValue.timestamp !== "string" ||
+    typeof parsedValue.triggerSource !== "string" ||
+    typeof parsedValue.userId !== "string" ||
+    (parsedValue.expiresAt !== undefined &&
+      typeof parsedValue.expiresAt !== "string")
+  ) {
+    return undefined;
+  }
+
+  return {
+    action: parsedValue.action as UserLifecycleAuditAction,
+    expiresAt:
+      typeof parsedValue.expiresAt === "string"
+        ? parsedValue.expiresAt
+        : undefined,
+    timestamp: parsedValue.timestamp,
+    triggerSource: parsedValue.triggerSource as UserLifecycleAuditTriggerSource,
+    userId: parsedValue.userId,
+  };
+}
+
+function isUserLifecycleAuditEntryWithinRetentionWindow(
+  entry: UserLifecycleAuditEntry,
+  now = Date.now(),
+): boolean {
+  const expiresAtMs = parseLifecycleAuditTimestamp(entry.expiresAt);
+  return expiresAtMs === null ? true : expiresAtMs > now;
+}
+
+type StoredUserLifecycleAuditEntry = {
+  entry: UserLifecycleAuditEntry;
+  serialized: string;
+};
+
+function toStoredUserLifecycleAuditEntry(
+  value: unknown,
+): StoredUserLifecycleAuditEntry | undefined {
+  const entry = parseUserLifecycleAuditEntry(value);
+  if (!entry) {
+    return undefined;
+  }
+
+  return {
+    entry,
+    serialized: typeof value === "string" ? value : JSON.stringify(entry),
+  };
+}
+
+function shouldRewriteUserLifecycleAuditEntries(
+  currentEntries: unknown[],
+  nextEntries: StoredUserLifecycleAuditEntry[],
+): boolean {
+  const serializedCurrentEntries = currentEntries.map((entry) =>
+    typeof entry === "string" ? entry : JSON.stringify(entry),
+  );
+
+  return (
+    serializedCurrentEntries.length !== nextEntries.length ||
+    serializedCurrentEntries.some(
+      (entry, index) => entry !== nextEntries[index]?.serialized,
+    )
+  );
+}
+
+async function rewriteUserLifecycleAuditEntries(
+  entries: StoredUserLifecycleAuditEntry[],
+): Promise<void> {
+  await redisClient.del(USER_LIFECYCLE_AUDIT_KEY);
+
+  for (const entry of entries) {
+    await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, entry.serialized);
+  }
+
+  if (entries.length > 0) {
+    await redisClient.expire(
+      USER_LIFECYCLE_AUDIT_KEY,
+      USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
+    );
+  }
+}
+
+async function pruneUserLifecycleAuditEntries(): Promise<void> {
+  const rawEntries = await redisClient.lrange(USER_LIFECYCLE_AUDIT_KEY, 0, -1);
+  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  const now = Date.now();
+  const nextEntries = currentEntries
+    .flatMap((value) => {
+      const parsedEntry = toStoredUserLifecycleAuditEntry(value);
+      if (!parsedEntry) {
+        return [];
+      }
+
+      return isUserLifecycleAuditEntryWithinRetentionWindow(
+        parsedEntry.entry,
+        now,
+      )
+        ? [parsedEntry]
+        : [];
+    })
+    .slice(-MAX_USER_LIFECYCLE_AUDIT_EVENTS);
+
+  if (shouldRewriteUserLifecycleAuditEntries(currentEntries, nextEntries)) {
+    await rewriteUserLifecycleAuditEntries(nextEntries);
+  } else if (nextEntries.length > 0) {
+    await redisClient.expire(
+      USER_LIFECYCLE_AUDIT_KEY,
+      USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
+    );
+  }
+}
+
 async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
   try {
+    await pruneUserLifecycleAuditEntries();
     await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, JSON.stringify(entry));
     await redisClient.ltrim(
       USER_LIFECYCLE_AUDIT_KEY,
       -MAX_USER_LIFECYCLE_AUDIT_EVENTS,
       -1,
+    );
+    await redisClient.expire(
+      USER_LIFECYCLE_AUDIT_KEY,
+      USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
     );
   } catch (error) {
     logPrivacySafe(
@@ -749,6 +899,9 @@ async function auditUserLifecycleEvent(options: {
 }) {
   await appendUserLifecycleAuditEntry({
     action: options.action,
+    expiresAt: new Date(
+      Date.now() + USER_LIFECYCLE_AUDIT_RETENTION_MS,
+    ).toISOString(),
     timestamp: new Date().toISOString(),
     triggerSource: options.triggerSource,
     userId: String(options.userId),
