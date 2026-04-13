@@ -17,10 +17,10 @@ const sections = [
     id: "data-collection",
     ordinal: "01",
     heading: "Data Collection",
-    lead: "Here's the short version of what actually lands in our database.",
+    lead: "Here's the short version of what is stored — and what stays in your browser.",
     paragraphs: [
-      "When you use AniCards, we may store a trimmed snapshot of your AniList profile alongside your card settings and your consent decision for Google Analytics. That last one is off by default — it only switches on if you accept it.",
-      "Whenever your browser logs an error, AniCards only accepts the report from a page carrying a server-issued request proof. Before anything touches storage, we strip identifiers, normalize routes, scrub stack details, and redact secret-looking text or metadata. Your identity has no business being attached to a stack trace.",
+      "When you save data, AniCards may store a trimmed snapshot of your AniList profile alongside your card settings. Google Analytics consent is not copied into those server-side records — it lives in browser storage only, and it starts in the off state.",
+      "Protected write routes and client error reports use a short-lived server-issued request proof cookie. Its readable payload carries a signed expiry plus hashed network and browser bindings — not your raw IP address or full user-agent string — and any accepted error report is minimized before it reaches storage.",
     ],
   },
   {
@@ -29,20 +29,30 @@ const sections = [
     heading: "Telemetry",
     lead: "Analytics only kicks in when you say so.",
     paragraphs: [
-      "If you've consented, Google Analytics fires on normalized route patterns — something like /user/* rather than your actual username. We deliberately stay away from capturing raw browsing trails.",
-      "Vercel's own performance telemetry runs separately and is always privacy-safe. No personal identifiers, ever. Just latency numbers and the occasional server health signal.",
+      "If you've consented, Google Analytics sends normalized pageviews and bounded events on route patterns like /user/* instead of raw profile URLs. We deliberately stay away from replaying your full browsing trail.",
+      "Runtime telemetry such as Vercel Analytics and Speed Insights is separate from Google Analytics consent. If a client error report cannot be delivered right away, AniCards can keep the same minimized payload in a capped local or session storage retry queue until it succeeds or expires.",
     ],
   },
   {
     id: "retention",
     ordinal: "03",
     heading: "Retention & Limits",
-    lead: "Everything has a ceiling. Nothing lingers indefinitely.",
+    lead: "Everything has a ceiling, a window, or both.",
     items: [
       {
         label: "User data",
         detail:
-          "Lives until you overwrite it, manually deleted, or the automated cleanup catches it going stale.",
+          "Saved snapshots and card settings stay until you overwrite them, maintainers delete them, or stale-user cleanup removes a record after three scheduled AniList 404s inside a 14-day failure window.",
+      },
+      {
+        label: "Analytics consent",
+        detail:
+          "Lives in browser storage only until you change your choice or clear browser storage.",
+      },
+      {
+        label: "Client error retry queue",
+        detail:
+          "Stores only minimized error payloads in localStorage when available, otherwise sessionStorage. The queue is capped and entries expire after 7 days, or sooner if they are delivered or evicted.",
       },
       {
         label: "Analytics",
@@ -52,11 +62,12 @@ const sections = [
       {
         label: "Error reports",
         detail:
-          "Hard cap at 250 entries. Oldest records get pushed out as new ones arrive.",
+          "Server-side structured error reports age out after 14 days, and the live buffer stays capped at 250 retained entries.",
       },
       {
         label: "Audit logs",
-        detail: "Same deal — server lifecycle entries are capped at 250.",
+        detail:
+          "Server-side lifecycle audit entries age out after 14 days, and the live list stays capped at 250 entries.",
       },
       {
         label: "Failure counters",

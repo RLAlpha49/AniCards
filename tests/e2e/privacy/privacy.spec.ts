@@ -32,18 +32,21 @@ test.describe("Privacy disclosure", () => {
     await expect(
       desktopRetentionTable.getByText(/monthly buckets with a ~400-day ttl/i),
     ).toBeVisible();
-    await expect(
-      page
-        .getByText(/strip identifiers, normalize routes, scrub stack details/i)
-        .first(),
-    ).toBeVisible();
+    await expect(page.getByText(/browser storage only/i).first()).toBeVisible();
     await expect(
       desktopRetentionTable.getByText(
-        /server lifecycle entries are capped at 250/i,
+        /lifecycle audit entries age out after 14 days/i,
       ),
     ).toBeVisible();
     await expect(
-      desktopRetentionTable.getByText(/expire after 14 days/i),
+      desktopRetentionTable.getByText(
+        /client error retry queue.*expire after 7 days/i,
+      ),
+    ).toBeVisible();
+    await expect(
+      desktopRetentionTable.getByText(
+        /structured error reports age out after 14 days/i,
+      ),
     ).toBeVisible();
   });
 

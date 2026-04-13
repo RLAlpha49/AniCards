@@ -46,6 +46,9 @@ Analytics consent lives client-side in local storage under:
 
 Values are `granted` or `denied`. The `unset` state is the default before a user makes a choice — Google Analytics stays off until they actively grant it.
 
+This consent state stays in browser storage only. It is not copied into
+server-side user snapshots or saved card records.
+
 ### Google Analytics telemetry
 
 When Google Analytics is configured and the user has granted consent, the app may send:
@@ -84,6 +87,26 @@ The ingestion route enforces a small request-body cap of roughly **24 KB**. The
 browser retry queue stores only the same minimized payload and drops entries
 that exceed that limit.
 
+The request-proof cookie used for this route is an HttpOnly, `SameSite=Strict`
+cookie with a **4-hour** max age. Its readable payload carries a signed expiry
+plus HMAC-bound fingerprints of the verified client IP and normalized user
+agent; it does **not** echo the raw IP address or user-agent string back into
+browser storage.
+
+When delivery fails in the browser, AniCards can keep the same minimized payload
+in a capped retry queue under:
+
+- `anicards:error-report-queue:v1` in `localStorage` when available
+- the same key in `sessionStorage` when durable local storage is unavailable
+
+Queue posture:
+
+- maximum queued reports: **24**
+- maximum attempts per queued report: **5**
+- maximum retained queue age: **7 days**
+- queued entries are removed earlier when they are delivered, expire, or are
+  evicted from the capped queue
+
 Client-supplied `userId` and `username` fields are ignored by this route and are not persisted as part of the structured error report payload.
 
 ## Third-party and infrastructure services
@@ -109,12 +132,20 @@ How it works:
 
 Google Analytics is initialized with:
 
-- `anonymize_ip: true`
 - `allow_google_signals: false`
 - `allow_ad_personalization_signals: false`
 - consent mode defaults with ad-related storage denied
 
 ## Retention and lifecycle
+
+### Browser-stored consent and retry state
+
+- the Google Analytics consent key stays in browser storage until the visitor
+  changes their choice or clears site storage
+- the client error-report retry queue keeps minimized payloads for up to **7
+  days** in `localStorage` when available, otherwise `sessionStorage`
+- the retry queue is capped at **24** queued reports and can drop entries sooner
+  when they are delivered or evicted
 
 ### User snapshots and saved cards
 
@@ -143,19 +174,25 @@ Cap:
 
 ### Structured error report retention
 
-Error reports are stored in a bounded Redis list.
+Error reports are stored in a bounded Redis list, and newly stored reports now
+carry an explicit server-side expiry timestamp.
 
-Cap:
+Rules:
 
-- maximum stored error reports: **250**
+- maximum retained error reports: **250**
+- maximum retained age: **14 days**
+- recent saturation triage for reports pushed out of the live buffer is kept
+  within the same **14-day** window
 
 ### User lifecycle audit trail
 
-Server-side lifecycle audit entries are stored in a bounded Redis list.
+Server-side lifecycle audit entries are stored in a bounded Redis list, and new
+entries carry an explicit server-side expiry timestamp.
 
-Cap:
+Rules:
 
-- maximum stored lifecycle audit entries: **250**
+- maximum retained lifecycle audit entries: **250**
+- maximum retained age: **14 days**
 
 ### Aggregate counters
 
