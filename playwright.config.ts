@@ -1,84 +1,103 @@
 // playwright.config.ts
 //
-// Shared Playwright configuration for local development and protected preview deployments.
-// When `PLAYWRIGHT_BASE_URL` is unset, the suite boots the app locally; otherwise it treats
-// the provided URL as the system under test and optionally sends Vercel bypass headers.
-//
-// Artifacts live under `.artifacts/` so traces, videos, screenshots, and the HTML report
-// are easy to collect from CI.
+// Shared Playwright configuration for local development, CI browser coverage,
+// and protected preview deployments. Environment loading intentionally uses
+// Next.js' own loader so `.env*` precedence matches the app runtime.
 
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
+import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
 
-function normalizeLocalEnvValue(rawValue: string): string {
-  const trimmed = rawValue.trim();
-  if (trimmed.length < 2) {
-    return trimmed;
-  }
+type PlaywrightConfigShape = Parameters<typeof defineConfig>[0];
+type PlaywrightProjects = NonNullable<PlaywrightConfigShape["projects"]>;
+type PlaywrightProject = PlaywrightProjects[number];
+type PlaywrightEnv = Readonly<Record<string, string | undefined>>;
 
-  const hasMatchingSingleQuotes =
-    trimmed.startsWith("'") && trimmed.endsWith("'");
-  const hasMatchingDoubleQuotes =
-    trimmed.startsWith('"') && trimmed.endsWith('"');
+export const DEFAULT_PLAYWRIGHT_BASE_URL = "http://localhost:3000";
+export const PLAYWRIGHT_ARTIFACTS_DIR = "./.artifacts";
+export const ANICARDS_PRODUCTION_HOST = "anicards.alpha49.com";
+export const ANICARDS_VERCEL_PREVIEW_HOST_PATTERN =
+  /^anicards(?:-[a-z0-9-]+)+\.vercel\.app$/;
+export const PLAYWRIGHT_LABS_TEST_MATCH =
+  /tests[\\/]e2e[\\/]labs[\\/].+\.spec\.[jt]sx?$/;
+export const PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH =
+  /tests[\\/]e2e[\\/]user[\\/]user-mobile\.spec\.[jt]sx?$/;
 
-  return hasMatchingSingleQuotes || hasMatchingDoubleQuotes
-    ? trimmed.slice(1, -1).trim()
-    : trimmed;
+const PLAYWRIGHT_STANDARD_TEST_IGNORE = [
+  PLAYWRIGHT_LABS_TEST_MATCH,
+  PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH,
+] as const;
+
+const PLAYWRIGHT_MOBILE_TEST_IGNORE = [PLAYWRIGHT_LABS_TEST_MATCH] as const;
+
+function readOptionalEnvValue(
+  env: PlaywrightEnv,
+  key: string,
+): string | undefined {
+  const value = env[key]?.trim();
+  return value ? value : undefined;
 }
 
-function applyLocalPlaywrightEnvLine(line: string): void {
-  const trimmed = line.trim();
-  if (!trimmed || trimmed.startsWith("#")) {
-    return;
-  }
-
-  const match = /^([A-Za-z_]\w*)=(.*)$/.exec(trimmed);
-  if (!match) {
-    return;
-  }
-
-  const [, key, rawValue] = match;
-  if (process.env[key]?.trim()) {
-    return;
-  }
-
-  const normalizedValue = normalizeLocalEnvValue(rawValue);
-  if (normalizedValue) {
-    process.env[key] = normalizedValue;
-  }
+function isEnabledFlag(value: string | undefined): boolean {
+  return value === "1" || value?.toLowerCase() === "true";
 }
 
-function loadLocalPlaywrightEnvFile(relativePath: string): void {
-  const absolutePath = resolve(process.cwd(), relativePath);
-  if (!existsSync(absolutePath)) {
-    return;
-  }
-
-  for (const line of readFileSync(absolutePath, "utf8").split(/\r?\n/)) {
-    applyLocalPlaywrightEnvLine(line);
-  }
+export function loadPlaywrightEnv(projectDir = process.cwd()) {
+  return loadEnvConfig(
+    projectDir,
+    process.env.NODE_ENV !== "production",
+    console,
+    true,
+  );
 }
 
-function loadLocalPlaywrightEnv(): void {
-  for (const relativePath of [".env", ".env.local"]) {
-    loadLocalPlaywrightEnvFile(relativePath);
+export function parsePlaywrightBaseUrl(rawBaseUrl?: string): URL | undefined {
+  const trimmedBaseUrl = rawBaseUrl?.trim();
+  if (!trimmedBaseUrl) {
+    return undefined;
   }
+
+  let parsedBaseUrl: URL;
+  try {
+    parsedBaseUrl = new URL(trimmedBaseUrl);
+  } catch {
+    throw new Error(
+      `PLAYWRIGHT_BASE_URL must be a valid absolute http(s) URL: ${trimmedBaseUrl}`,
+    );
+  }
+
+  if (!/^https?:$/.test(parsedBaseUrl.protocol)) {
+    throw new Error(`PLAYWRIGHT_BASE_URL must use http(s): ${trimmedBaseUrl}`);
+  }
+
+  if (parsedBaseUrl.username || parsedBaseUrl.password) {
+    throw new Error(
+      "PLAYWRIGHT_BASE_URL must not include embedded credentials.",
+    );
+  }
+
+  return parsedBaseUrl;
 }
 
-loadLocalPlaywrightEnv();
+export function isTrustedAniCardsHost(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase();
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const automationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const playwrightArtifactsDir = "./.artifacts";
-const useLocalProductionServer =
-  process.env.PLAYWRIGHT_LOCAL_PRODUCTION === "1";
-const includeRealHandlerIpHeader = process.env.PLAYWRIGHT_REAL_USER_E2E === "1";
-const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+  return (
+    normalizedHostname === ANICARDS_PRODUCTION_HOST ||
+    ANICARDS_VERCEL_PREVIEW_HOST_PATTERN.test(normalizedHostname)
+  );
+}
 
-function getLocalServerCommand(): string {
-  if (process.env.CI) {
+export function isTrustedAniCardsPreviewHost(hostname: string): boolean {
+  return ANICARDS_VERCEL_PREVIEW_HOST_PATTERN.test(
+    hostname.trim().toLowerCase(),
+  );
+}
+
+function getLocalServerCommand(
+  env: PlaywrightEnv,
+  useLocalProductionServer: boolean,
+): string {
+  if (readOptionalEnvValue(env, "CI")) {
     return "bun run start";
   }
 
@@ -89,11 +108,55 @@ function getLocalServerCommand(): string {
   return "bun run dev";
 }
 
-// Preview deployments can be protection-gated; these headers let CI reach them
-// without weakening the public site configuration.
-function buildExtraHttpHeaders(): Record<string, string> | undefined {
+function createStandardProjects(
+  includeFullMatrix: boolean,
+): PlaywrightProjects {
+  const chromiumProject = {
+    name: "chromium",
+    testIgnore: [...PLAYWRIGHT_STANDARD_TEST_IGNORE],
+    use: { ...devices["Desktop Chrome"] },
+  } satisfies PlaywrightProject;
+
+  const mobileChromeProject = {
+    name: "mobile-chrome",
+    testIgnore: [...PLAYWRIGHT_MOBILE_TEST_IGNORE],
+    use: { ...devices["Pixel 5"] },
+  } satisfies PlaywrightProject;
+
+  const firefoxProject = {
+    name: "firefox",
+    testIgnore: [...PLAYWRIGHT_STANDARD_TEST_IGNORE],
+    use: { ...devices["Desktop Firefox"] },
+  } satisfies PlaywrightProject;
+
+  return includeFullMatrix
+    ? [chromiumProject, mobileChromeProject, firefoxProject]
+    : [chromiumProject];
+}
+
+function createLabsProjects(includeFullMatrix: boolean): PlaywrightProjects {
+  return createStandardProjects(includeFullMatrix).map((project) => ({
+    name: `${project.name}-labs`,
+    testMatch: PLAYWRIGHT_LABS_TEST_MATCH,
+    use: project.use,
+  }));
+}
+
+function buildExtraHttpHeaders(options: {
+  automationBypassSecret?: string;
+  includeRealHandlerIpHeader: boolean;
+  parsedBaseUrl?: URL;
+}): Record<string, string> | undefined {
+  const { automationBypassSecret, includeRealHandlerIpHeader, parsedBaseUrl } =
+    options;
+  const shouldSendBypassHeaders = Boolean(
+    automationBypassSecret &&
+    parsedBaseUrl &&
+    isTrustedAniCardsPreviewHost(parsedBaseUrl.hostname),
+  );
+
   const extraHTTPHeaders = {
-    ...(automationBypassSecret
+    ...(shouldSendBypassHeaders
       ? {
           "x-vercel-protection-bypass": automationBypassSecret,
           "x-vercel-set-bypass-cookie": "true",
@@ -111,64 +174,82 @@ function buildExtraHttpHeaders(): Record<string, string> | undefined {
     : undefined;
 }
 
-function buildWebServerConfig() {
-  if (!shouldLaunchLocalServer) {
-    return undefined;
-  }
+export function createPlaywrightConfig(
+  env: PlaywrightEnv = process.env,
+): PlaywrightConfigShape {
+  const parsedBaseUrl = parsePlaywrightBaseUrl(
+    readOptionalEnvValue(env, "PLAYWRIGHT_BASE_URL"),
+  );
+  const baseURL = parsedBaseUrl?.origin ?? DEFAULT_PLAYWRIGHT_BASE_URL;
+  const automationBypassSecret = readOptionalEnvValue(
+    env,
+    "VERCEL_AUTOMATION_BYPASS_SECRET",
+  );
+  const useLocalProductionServer = isEnabledFlag(
+    readOptionalEnvValue(env, "PLAYWRIGHT_LOCAL_PRODUCTION"),
+  );
+  const includeRealHandlerIpHeader = isEnabledFlag(
+    readOptionalEnvValue(env, "PLAYWRIGHT_REAL_USER_E2E"),
+  );
+  const includeFullMatrix =
+    Boolean(readOptionalEnvValue(env, "CI")) ||
+    isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"));
+  const labsOnly = isEnabledFlag(
+    readOptionalEnvValue(env, "PLAYWRIGHT_ONLY_LABS"),
+  );
+  const isCi = Boolean(readOptionalEnvValue(env, "CI"));
+  const shouldLaunchLocalServer = !parsedBaseUrl;
+  const projects = labsOnly
+    ? createLabsProjects(includeFullMatrix)
+    : createStandardProjects(includeFullMatrix);
+  const resolvedExtraHTTPHeaders = buildExtraHttpHeaders({
+    automationBypassSecret,
+    includeRealHandlerIpHeader,
+    parsedBaseUrl,
+  });
 
   return {
-    command: getLocalServerCommand(),
-    url: baseURL,
-    reuseExistingServer: !process.env.CI && !useLocalProductionServer,
-    timeout: useLocalProductionServer ? 300 * 1000 : 120 * 1000,
+    testDir: "./tests/e2e",
+    outputDir: `${PLAYWRIGHT_ARTIFACTS_DIR}/playwright-test-results`,
+    fullyParallel: true,
+    forbidOnly: isCi,
+    retries: isCi ? 2 : 0,
+    workers: isCi ? "50%" : 5,
+    reporter: [
+      ["list"],
+      [
+        "html",
+        {
+          outputFolder: `${PLAYWRIGHT_ARTIFACTS_DIR}/playwright-report`,
+          open: "never",
+        },
+      ],
+    ],
+    use: {
+      baseURL,
+      extraHTTPHeaders: resolvedExtraHTTPHeaders,
+      trace: "on-first-retry",
+      screenshot: "only-on-failure",
+      video: "on-first-retry",
+      actionTimeout: 10000,
+      navigationTimeout: 20000,
+    },
+    projects,
+    webServer: shouldLaunchLocalServer
+      ? {
+          command: getLocalServerCommand(env, useLocalProductionServer),
+          url: baseURL,
+          reuseExistingServer: !isCi && !useLocalProductionServer,
+          timeout: useLocalProductionServer ? 300 * 1000 : 120 * 1000,
+        }
+      : undefined,
   };
 }
 
-const resolvedExtraHTTPHeaders = buildExtraHttpHeaders();
+if (process.env.PLAYWRIGHT_SKIP_ENV_AUTOLOAD !== "1") {
+  loadPlaywrightEnv();
+}
 
-const projects = [
-  {
-    name: "chromium",
-    use: { ...devices["Desktop Chrome"] },
-  },
-  {
-    name: "mobile-chrome",
-    use: { ...devices["Pixel 5"] },
-  },
-  {
-    name: "firefox",
-    use: { ...devices["Desktop Firefox"] },
-  },
-] satisfies Parameters<typeof defineConfig>[0]["projects"];
+const playwrightConfig = createPlaywrightConfig();
 
-export default defineConfig({
-  testDir: "./tests/e2e",
-  outputDir: `${playwrightArtifactsDir}/playwright-test-results`,
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? "50%" : 5,
-  reporter: [
-    ["list"],
-    [
-      "html",
-      {
-        outputFolder: `${playwrightArtifactsDir}/playwright-report`,
-        open: "never",
-      },
-    ],
-  ],
-  use: {
-    baseURL,
-    extraHTTPHeaders: resolvedExtraHTTPHeaders,
-    trace: "on-first-retry",
-    screenshot: "only-on-failure",
-    video: "on-first-retry",
-    actionTimeout: 10000,
-    navigationTimeout: 20000,
-  },
-
-  projects,
-
-  webServer: buildWebServerConfig(),
-});
+export default defineConfig(playwrightConfig);

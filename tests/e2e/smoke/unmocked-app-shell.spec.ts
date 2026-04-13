@@ -11,6 +11,14 @@ function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
+function getConfiguredBaseUrl(testBaseUrl: string | undefined): string {
+  if (!testBaseUrl) {
+    throw new Error("Expected the Playwright project to define a baseURL");
+  }
+
+  return testBaseUrl;
+}
+
 async function getWithRetry(
   request: APIRequestContext,
   url: string,
@@ -142,15 +150,20 @@ test.describe("Unmocked app shell smoke", () => {
 
   test("keeps the home hero and mobile navigation reachable when JavaScript is unavailable", async ({
     browser,
-  }) => {
+  }, testInfo) => {
     const context = await browser.newContext({
       javaScriptEnabled: false,
       viewport: mobileNavigationViewport,
     });
     const page = await context.newPage();
+    const configuredBaseUrl = getConfiguredBaseUrl(
+      typeof testInfo.project.use.baseURL === "string"
+        ? testInfo.project.use.baseURL
+        : undefined,
+    );
 
     try {
-      await page.goto(new URL("/", getSiteUrl()).toString(), {
+      await page.goto(new URL("/", configuredBaseUrl).toString(), {
         waitUntil: "load",
       });
 
