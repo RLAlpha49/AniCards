@@ -20,6 +20,7 @@ import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
   resolveVerifiedClientIp,
+  verifyRequestProofToken,
 } from "@/lib/api/request-proof";
 import {
   ANALYTICS_COUNTER_TTL_SECONDS,
@@ -52,6 +53,64 @@ function createApiRequest(headers?: Record<string, string>): Request {
       ...headers,
     },
   });
+}
+
+function decodeBase64UrlJson<T>(value: string): T {
+  const padded = value
+    .replaceAll("-", "+")
+    .replaceAll("_", "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+
+  return JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as T;
+}
+
+function encodeBase64UrlText(value: string): string {
+  return Buffer.from(value, "utf8")
+    .toString("base64")
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
+}
+
+function encodeBase64UrlBytes(value: ArrayBuffer): string {
+  return Buffer.from(new Uint8Array(value))
+    .toString("base64")
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
+}
+
+async function createLegacyRequestProofToken(options: {
+  expiresAtMs?: number;
+  ip: string;
+  secret: string;
+  userAgent?: string | null;
+}): Promise<string> {
+  const normalizedUserAgent = options.userAgent?.trim()
+    ? options.userAgent.trim().slice(0, 240)
+    : "missing";
+  const payloadSegment = encodeBase64UrlText(
+    JSON.stringify({
+      v: 1,
+      ip: options.ip,
+      ua: normalizedUserAgent,
+      exp: Math.trunc(options.expiresAtMs ?? Date.now() + 4 * 60 * 60 * 1000),
+    }),
+  );
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(options.secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payloadSegment),
+  );
+
+  return `${payloadSegment}.${encodeBase64UrlBytes(signature)}`;
 }
 
 function disableUnitTestRuntimeForThisTest(): void {
@@ -1403,6 +1462,52 @@ describe("api module hardening", () => {
 
     expect(result.errorResponse).toBeUndefined();
     expect(result.ip).toBe(clientIp);
+  });
+
+  it("stops echoing raw IP and user-agent data in readable request proof payloads", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const clientIp = "198.51.100.50";
+    const userAgent = "AniCardsTest/Privacy";
+    const token = await createRequestProofToken({
+      ip: clientIp,
+      userAgent,
+    });
+
+    if (!token) {
+      throw new Error("Expected request proof token to be generated");
+    }
+
+    const [payloadSegment] = token.split(".");
+    const payload = decodeBase64UrlJson<Record<string, unknown>>(
+      String(payloadSegment),
+    );
+    const serializedPayload = JSON.stringify(payload);
+
+    expect(payload).not.toHaveProperty("ip");
+    expect(payload).not.toHaveProperty("ua");
+    expect(payload).toMatchObject({ v: 2 });
+    expect(serializedPayload).not.toContain(clientIp);
+    expect(serializedPayload).not.toContain(userAgent);
+  });
+
+  it("accepts legacy request proof tokens during the migration window", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const clientIp = "198.51.100.50";
+    const userAgent = "AniCardsTest/LegacyProof";
+    const token = await createLegacyRequestProofToken({
+      ip: clientIp,
+      secret: "test-request-proof-secret",
+      userAgent,
+    });
+
+    const verification = await verifyRequestProofToken(token, {
+      ip: clientIp,
+      userAgent,
+    });
+
+    expect(verification).toMatchObject({ valid: true });
   });
 
   it("builds apiErrorResponse payloads with merged headers and request-id exposure", async () => {

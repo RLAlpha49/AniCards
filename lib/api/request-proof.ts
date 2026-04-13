@@ -14,7 +14,8 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
 const PLAYWRIGHT_TRUSTED_CLIENT_IP_HEADER = "x-playwright-client-ip";
 
 const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
-const REQUEST_PROOF_VERSION = 1;
+const LEGACY_REQUEST_PROOF_VERSION = 1;
+const REQUEST_PROOF_VERSION = 2;
 const REQUEST_PROOF_USER_AGENT_MAX_LENGTH = 240;
 
 export const REQUEST_PROOF_COOKIE_NAME = "anicards_request_proof";
@@ -25,6 +26,13 @@ type RequestProofPayload = {
   ipHash: string;
   uaHash: string;
   v: typeof REQUEST_PROOF_VERSION;
+};
+
+type LegacyRequestProofPayload = {
+  exp: number;
+  ip: string;
+  ua: string;
+  v: typeof LEGACY_REQUEST_PROOF_VERSION;
 };
 
 type RequestProofFailureReason =
@@ -383,6 +391,25 @@ function isRequestProofPayload(value: unknown): value is RequestProofPayload {
   );
 }
 
+function isLegacyRequestProofPayload(
+  value: unknown,
+): value is LegacyRequestProofPayload {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<LegacyRequestProofPayload>;
+  return (
+    candidate.v === LEGACY_REQUEST_PROOF_VERSION &&
+    typeof candidate.ip === "string" &&
+    candidate.ip.length > 0 &&
+    typeof candidate.ua === "string" &&
+    candidate.ua.length > 0 &&
+    typeof candidate.exp === "number" &&
+    Number.isFinite(candidate.exp)
+  );
+}
+
 export async function createRequestProofToken(options: {
   expiresAtMs?: number;
   ip: string;
@@ -513,7 +540,38 @@ export async function verifyRequestProofToken(
     return { valid: false, reason: "invalid_payload" };
   }
 
-  if (!isRequestProofPayload(payload)) {
+  const normalizedUserAgent = normalizeUserAgent(options.userAgent);
+
+  if (isRequestProofPayload(payload)) {
+    if (payload.exp <= Date.now()) {
+      return { valid: false, reason: "expired" };
+    }
+
+    const [expectedIpHash, expectedUaHash] = await Promise.all([
+      createRequestProofBindingHash({
+        label: "ip",
+        secret,
+        value: options.ip,
+      }),
+      createRequestProofBindingHash({
+        label: "ua",
+        secret,
+        value: normalizedUserAgent,
+      }),
+    ]);
+
+    if (payload.ipHash !== expectedIpHash) {
+      return { valid: false, reason: "ip_mismatch" };
+    }
+
+    if (payload.uaHash !== expectedUaHash) {
+      return { valid: false, reason: "user_agent_mismatch" };
+    }
+
+    return { valid: true, payload };
+  }
+
+  if (!isLegacyRequestProofPayload(payload)) {
     return { valid: false, reason: "invalid_payload" };
   }
 
@@ -521,28 +579,13 @@ export async function verifyRequestProofToken(
     return { valid: false, reason: "expired" };
   }
 
-  const normalizedUserAgent = normalizeUserAgent(options.userAgent);
-
-  const [expectedIpHash, expectedUaHash] = await Promise.all([
-    createRequestProofBindingHash({
-      label: "ip",
-      secret,
-      value: options.ip,
-    }),
-    createRequestProofBindingHash({
-      label: "ua",
-      secret,
-      value: normalizedUserAgent,
-    }),
-  ]);
-
-  if (payload.ipHash !== expectedIpHash) {
+  if (payload.ip !== options.ip) {
     return { valid: false, reason: "ip_mismatch" };
   }
 
-  if (payload.uaHash !== expectedUaHash) {
+  if (payload.ua !== normalizedUserAgent) {
     return { valid: false, reason: "user_agent_mismatch" };
   }
 
-  return { valid: true, payload };
+  return { valid: true };
 }
