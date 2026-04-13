@@ -16,7 +16,7 @@ export const DEFAULT_PLAYWRIGHT_BASE_URL = "http://localhost:3000";
 export const PLAYWRIGHT_ARTIFACTS_DIR = "./.artifacts";
 export const ANICARDS_PRODUCTION_HOST = "anicards.alpha49.com";
 export const ANICARDS_VERCEL_PREVIEW_HOST_PATTERN =
-  /^anicards(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\.vercel\.app$/;
+  /^anicards(?:-[a-z0-9]+)+\.vercel\.app$/;
 export const PLAYWRIGHT_LABS_TEST_MATCH =
   /tests[\\/]e2e[\\/]labs[\\/].+\.spec\.[jt]sx?$/;
 export const PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH =
