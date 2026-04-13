@@ -292,7 +292,7 @@ describe("Analytics & Reporting Cron API", () => {
     expect(report.summary.observability).toEqual({
       errorReports: {
         capacity: 250,
-        retained: 6,
+        retained: 0,
         totalCaptured: 8,
         totalDropped: 2,
         cumulativeSaturationRate: 0.25,

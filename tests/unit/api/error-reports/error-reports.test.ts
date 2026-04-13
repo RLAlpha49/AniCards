@@ -12,6 +12,7 @@ import {
   captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
+  sharedRedisMockLrange,
   sharedRedisMockLtrim,
   sharedRedisMockRpush,
 } from "@/tests/unit/__setup__";
@@ -56,6 +57,7 @@ describe("error reports API route", () => {
     allowConsoleWarningsAndErrors();
     process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
     sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockLrange.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLtrim.mockReset();
     sharedRatelimitMockLimit.mockResolvedValue({
@@ -65,6 +67,7 @@ describe("error reports API route", () => {
       reset: Date.now() + 5_000,
       pending: Promise.resolve(),
     });
+    sharedRedisMockLrange.mockResolvedValue([]);
     sharedRedisMockRpush.mockResolvedValue(1);
     sharedRedisMockLtrim.mockResolvedValue("OK");
   });
@@ -415,9 +418,14 @@ describe("error reports API route", () => {
   it("waits for durable error persistence before returning success", async () => {
     let resolveRpush: ((value: number) => void) | undefined;
     let persistenceStarted = false;
+    let notifyPersistenceStarted: (() => void) | undefined;
+    const persistenceStartedPromise = new Promise<void>((resolve) => {
+      notifyPersistenceStarted = resolve;
+    });
 
     sharedRedisMockRpush.mockImplementationOnce(() => {
       persistenceStarted = true;
+      notifyPersistenceStarted?.();
 
       return new Promise<number>((resolve) => {
         resolveRpush = resolve;
@@ -430,9 +438,7 @@ describe("error reports API route", () => {
       return response;
     });
 
-    for (let attempt = 0; attempt < 10 && !persistenceStarted; attempt += 1) {
-      await Promise.resolve();
-    }
+    await persistenceStartedPromise;
 
     expect(persistenceStarted).toBe(true);
     expect(responseSettled).toBe(false);

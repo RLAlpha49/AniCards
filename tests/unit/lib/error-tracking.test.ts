@@ -8,6 +8,7 @@ import {
 import {
   allowConsoleWarningsAndErrors,
   parseRequestInitJson,
+  sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockLrange,
@@ -120,6 +121,7 @@ describe("error tracking", () => {
     sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
     sharedRedisMockLrange.mockReset();
+    sharedRedisMockDel.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockSet.mockReset();
@@ -438,19 +440,22 @@ describe("error tracking", () => {
   });
 
   it("increments the dropped counter when the ring buffer rolls over", async () => {
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        id: "rep-evicted-1",
-        timestamp: 1_710_000_000_000,
-        source: "api_route",
-        userAction: "render_component_tree",
-        category: "server_error",
-        retryable: false,
-        technicalMessage: "Oldest retained error",
-        errorName: "Error",
-      }),
-    ]);
-    sharedRedisMockRpush.mockResolvedValueOnce(251);
+    sharedRedisMockLrange
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        JSON.stringify({
+          id: "rep-evicted-1",
+          timestamp: 1_710_000_000_000,
+          source: "api_route",
+          userAction: "render_component_tree",
+          category: "server_error",
+          retryable: false,
+          technicalMessage: "Oldest retained error",
+          errorName: "Error",
+        }),
+      ])
+      .mockResolvedValueOnce([]);
+    sharedRedisMockRpush.mockResolvedValueOnce(251).mockResolvedValueOnce(1);
 
     await trackUserActionError(
       "render_component_tree",
@@ -465,12 +470,60 @@ describe("error tracking", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:dropped",
     );
-    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+    expect(
+      sharedRedisMockRpush.mock.calls.some(
+        ([key]) => key === "telemetry:error-reports:v1:evicted:v1",
+      ),
+    ).toBe(true);
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:evicted-summary",
-      expect.any(String),
     );
   });
 
+  it("ages out expired server-side reports before building the live buffer snapshot", async () => {
+    const now = Date.now();
+
+    sharedRedisMockMget.mockResolvedValueOnce(["2", "0"]);
+    sharedRedisMockLrange
+      .mockResolvedValueOnce([
+        JSON.stringify({
+          id: "rep-fresh-1",
+          timestamp: now - 1_000,
+          expiresAt: now + 60_000,
+          source: "api_route",
+          userAction: "render_component_tree",
+          category: "server_error",
+          retryable: false,
+          technicalMessage: "Fresh retained error",
+          errorName: "Error",
+        }),
+        JSON.stringify({
+          id: "rep-expired-1",
+          timestamp: now - 120_000,
+          expiresAt: now - 1,
+          source: "api_route",
+          userAction: "stale_error",
+          category: "server_error",
+          retryable: false,
+          technicalMessage: "Expired retained error",
+          errorName: "Error",
+        }),
+      ])
+      .mockResolvedValueOnce([]);
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+
+    const snapshot = await getErrorReportBufferSnapshot();
+
+    expect(snapshot.retained).toBe(1);
+    expect(snapshot.retainedTriage.totalReports).toBe(1);
+    expect(snapshot.retainedTriage.recentReports[0]).toMatchObject({
+      id: "rep-fresh-1",
+      userAction: "render_component_tree",
+    });
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+    );
+  });
   it("reads the current ring-buffer saturation snapshot", async () => {
     sharedRedisMockMget.mockResolvedValueOnce(["18", "4"]);
     sharedRedisMockLrange.mockResolvedValueOnce([
@@ -585,7 +638,7 @@ describe("error tracking", () => {
 
     expect(snapshot).toMatchObject({
       capacity: 250,
-      retained: 14,
+      retained: 2,
       totalCaptured: 18,
       totalDropped: 4,
       cumulativeSaturationRate: 0.2222,

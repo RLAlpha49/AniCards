@@ -61,6 +61,7 @@ interface ReportErrorOptions {
 export interface StructuredErrorReport {
   id: string;
   timestamp: number;
+  expiresAt?: number;
   environment: ErrorReportEnvironment;
   source: ErrorReportSource;
   userAction: string;
@@ -130,7 +131,10 @@ const ERROR_REPORTS_KEY = "telemetry:error-reports:v1";
 const ERROR_REPORTS_TOTAL_KEY = `${ERROR_REPORTS_KEY}:total`;
 const ERROR_REPORTS_DROPPED_KEY = `${ERROR_REPORTS_KEY}:dropped`;
 const ERROR_REPORTS_EVICTED_SUMMARY_KEY = `${ERROR_REPORTS_KEY}:evicted-summary`;
+const ERROR_REPORTS_EVICTED_REPORTS_KEY = `${ERROR_REPORTS_KEY}:evicted:v1`;
 const MAX_ERROR_REPORTS = 250;
+const ERROR_REPORT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
+const ERROR_REPORT_RETENTION_MS = ERROR_REPORT_RETENTION_SECONDS * 1000;
 const MAX_ERROR_REPORT_TRIAGE_BUCKETS = 5;
 const MAX_ERROR_REPORT_TRACKED_BUCKETS = 16;
 const MAX_ERROR_REPORT_RECENT_SAMPLES = 5;
@@ -172,6 +176,7 @@ function buildErrorReportBufferSnapshot(
   totalCaptured: number,
   totalDropped: number,
   options?: {
+    retainedCount?: number;
     retainedTriage?: ErrorReportTriageSummary;
     evictedTriage?: ErrorReportTriageSummary & {
       updatedAt?: number;
@@ -185,7 +190,13 @@ function buildErrorReportBufferSnapshot(
   );
   const retained = Math.min(
     MAX_ERROR_REPORTS,
-    Math.max(0, normalizedTotalCaptured - normalizedTotalDropped),
+    Math.max(
+      0,
+      Math.trunc(
+        options?.retainedCount ??
+          Math.max(0, normalizedTotalCaptured - normalizedTotalDropped),
+      ),
+    ),
   );
 
   return {
@@ -570,6 +581,8 @@ function resolveErrorStack(
 function buildStructuredErrorReport(
   options: ReportErrorOptions,
 ): StructuredErrorReport {
+  const timestamp =
+    normalizeErrorReportTimestamp(options.timestamp) ?? Date.now();
   const technicalMessage =
     sanitizeErrorReportText(
       coerceErrorMessage(options.error) || "Unknown error",
@@ -595,7 +608,8 @@ function buildStructuredErrorReport(
 
   return {
     id: sanitizeIncidentId(options.id) ?? crypto.randomUUID(),
-    timestamp: normalizeErrorReportTimestamp(options.timestamp) ?? Date.now(),
+    timestamp,
+    expiresAt: timestamp + ERROR_REPORT_RETENTION_MS,
     environment: globalThis.window === undefined ? "server" : "client",
     source: options.source ?? "user_action",
     userAction: sanitizeUserAction(options.userAction),
@@ -851,7 +865,10 @@ function parseStructuredErrorReport(
     typeof parsedValue.category !== "string" ||
     typeof parsedValue.retryable !== "boolean" ||
     typeof parsedValue.technicalMessage !== "string" ||
-    typeof parsedValue.errorName !== "string"
+    typeof parsedValue.errorName !== "string" ||
+    (parsedValue.expiresAt !== undefined &&
+      (typeof parsedValue.expiresAt !== "number" ||
+        !Number.isFinite(parsedValue.expiresAt)))
   ) {
     return undefined;
   }
@@ -971,6 +988,137 @@ function parseStoredErrorReportTriageState(
     userActions: parseStoredErrorReportTriageBuckets(parsedValue.userActions),
     recentReports,
   };
+}
+
+function isStructuredErrorReportWithinRetentionWindow(
+  report: StructuredErrorReport,
+  now = Date.now(),
+): boolean {
+  return typeof report.expiresAt === "number" ? report.expiresAt > now : true;
+}
+
+type StoredStructuredErrorReportEntry = {
+  report: StructuredErrorReport;
+  serialized: string;
+};
+
+function toStoredStructuredErrorReportEntry(
+  value: unknown,
+): StoredStructuredErrorReportEntry | undefined {
+  const report = parseStructuredErrorReport(value);
+  if (!report) {
+    return undefined;
+  }
+
+  return {
+    report,
+    serialized: typeof value === "string" ? value : JSON.stringify(report),
+  };
+}
+
+function shouldRewriteStructuredErrorReportList(
+  currentEntries: unknown[],
+  nextEntries: StoredStructuredErrorReportEntry[],
+): boolean {
+  const serializedCurrentEntries = currentEntries.map((entry) =>
+    typeof entry === "string" ? entry : JSON.stringify(entry),
+  );
+
+  return (
+    serializedCurrentEntries.length !== nextEntries.length ||
+    serializedCurrentEntries.some(
+      (entry, index) => entry !== nextEntries[index]?.serialized,
+    )
+  );
+}
+
+async function rewriteStructuredErrorReportList(
+  key: string,
+  entries: StoredStructuredErrorReportEntry[],
+): Promise<void> {
+  await redisClient.del(key);
+
+  for (const entry of entries) {
+    await redisClient.rpush(key, entry.serialized);
+  }
+
+  if (entries.length > 0) {
+    await redisClient.expire(key, ERROR_REPORT_RETENTION_SECONDS);
+  }
+}
+
+async function pruneStructuredErrorReportList(
+  key: string,
+  maxEntries: number,
+): Promise<StructuredErrorReport[]> {
+  const rawEntries = await redisClient.lrange(key, 0, -1);
+  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  const now = Date.now();
+  const nextEntries = currentEntries
+    .flatMap((entry) => {
+      const parsedEntry = toStoredStructuredErrorReportEntry(entry);
+      if (!parsedEntry) {
+        return [];
+      }
+
+      return isStructuredErrorReportWithinRetentionWindow(
+        parsedEntry.report,
+        now,
+      )
+        ? [parsedEntry]
+        : [];
+    })
+    .slice(-maxEntries);
+
+  if (shouldRewriteStructuredErrorReportList(currentEntries, nextEntries)) {
+    await rewriteStructuredErrorReportList(key, nextEntries);
+  } else if (nextEntries.length > 0) {
+    await redisClient.expire(key, ERROR_REPORT_RETENTION_SECONDS);
+  }
+
+  return nextEntries.map((entry) => entry.report);
+}
+
+async function appendEvictedStructuredErrorReports(
+  reports: StructuredErrorReport[],
+): Promise<void> {
+  if (reports.length === 0) {
+    return;
+  }
+
+  const retainedReports = await pruneStructuredErrorReportList(
+    ERROR_REPORTS_EVICTED_REPORTS_KEY,
+    MAX_ERROR_REPORTS,
+  );
+  const nextEntries = [...retainedReports, ...reports]
+    .slice(-MAX_ERROR_REPORTS)
+    .map(
+      (report) =>
+        ({
+          report,
+          serialized: JSON.stringify(report),
+        }) satisfies StoredStructuredErrorReportEntry,
+    );
+
+  await rewriteStructuredErrorReportList(
+    ERROR_REPORTS_EVICTED_REPORTS_KEY,
+    nextEntries,
+  );
+  await redisClient.del(ERROR_REPORTS_EVICTED_SUMMARY_KEY);
+}
+
+function buildRecentEvictedErrorReportTriageSummary(
+  reports: StructuredErrorReport[],
+): ErrorReportTriageSummary & {
+  updatedAt?: number;
+} {
+  const summary = buildErrorReportTriageSummaryFromReports(reports);
+  const updatedAt = reports.reduce(
+    (latestTimestamp, report) => Math.max(latestTimestamp, report.timestamp),
+    0,
+  );
+
+  return updatedAt > 0 ? { ...summary, updatedAt } : summary;
 }
 
 function buildClientErrorReportQueueTriage(
@@ -2296,70 +2444,49 @@ async function flushQueuedClientErrorReports(): Promise<void> {
   }
 }
 
-async function updateEvictedErrorReportTriageSummary(
-  redisClient: {
-    get: (key: string) => Promise<unknown>;
-    lrange: (key: string, start: number, end: number) => Promise<unknown>;
-    set: (key: string, value: string) => Promise<unknown>;
-  },
-  persistedLength: number,
-): Promise<void> {
-  const overflowCount = Math.max(0, persistedLength - MAX_ERROR_REPORTS);
-  if (overflowCount === 0) {
-    return;
-  }
-
-  const evictedEntriesRaw = await redisClient.lrange(
-    ERROR_REPORTS_KEY,
-    0,
-    overflowCount - 1,
-  );
-  const evictedReports = Array.isArray(evictedEntriesRaw)
-    ? evictedEntriesRaw
-        .map((entry) => parseStructuredErrorReport(entry))
-        .filter((entry): entry is StructuredErrorReport => entry !== undefined)
-    : [];
-
-  if (evictedReports.length === 0) {
-    return;
-  }
-
-  const storedSummaryRaw = await redisClient.get(
-    ERROR_REPORTS_EVICTED_SUMMARY_KEY,
-  );
-  const nextSummary = mergeStoredErrorReportTriageState(
-    parseStoredErrorReportTriageState(storedSummaryRaw),
-    evictedReports,
-  );
-
-  await redisClient.set(
-    ERROR_REPORTS_EVICTED_SUMMARY_KEY,
-    JSON.stringify(nextSummary),
-  );
-}
-
 async function persistStructuredErrorBufferEntry(
   report: StructuredErrorReport,
 ): Promise<void> {
+  await pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS);
+
   const persistedLength = await redisClient.rpush(
     ERROR_REPORTS_KEY,
     JSON.stringify(report),
   );
 
+  let evictedReports: StructuredErrorReport[] = [];
+
+  if (persistedLength > MAX_ERROR_REPORTS) {
+    const overflowCount = persistedLength - MAX_ERROR_REPORTS;
+    const evictedEntriesRaw = await redisClient.lrange(
+      ERROR_REPORTS_KEY,
+      0,
+      overflowCount - 1,
+    );
+    evictedReports = Array.isArray(evictedEntriesRaw)
+      ? evictedEntriesRaw
+          .map((entry) => parseStructuredErrorReport(entry))
+          .filter(
+            (entry): entry is StructuredErrorReport => entry !== undefined,
+          )
+      : [];
+  }
+
+  await redisClient.ltrim(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1);
+  await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
+
   try {
-    await updateEvictedErrorReportTriageSummary(redisClient, persistedLength);
+    await appendEvictedStructuredErrorReports(evictedReports);
   } catch (error) {
     logPrivacySafe(
       "warn",
       "ErrorTracking",
-      "Failed to update error-report eviction summary",
+      "Failed to persist recent evicted error reports",
       {
         error: error instanceof Error ? error.message : String(error),
       },
     );
   }
-
-  await redisClient.ltrim(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1);
 
   try {
     const droppedOnWrite = persistedLength > MAX_ERROR_REPORTS ? 1 : 0;
@@ -2401,35 +2528,41 @@ async function persistStructuredErrorBufferEntry(
  * @source
  */
 export async function getErrorReportBufferSnapshot(): Promise<ErrorReportBufferSnapshot> {
-  const [
-    [totalCapturedRaw, totalDroppedRaw],
-    retainedEntriesRaw,
-    evictedTriageRaw,
-  ] = await Promise.all([
-    redisClient.mget(ERROR_REPORTS_TOTAL_KEY, ERROR_REPORTS_DROPPED_KEY),
-    redisClient.lrange(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1),
-    redisClient.get(ERROR_REPORTS_EVICTED_SUMMARY_KEY),
+  const [retainedReports, evictedReports] = await Promise.all([
+    pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS),
+    pruneStructuredErrorReportList(
+      ERROR_REPORTS_EVICTED_REPORTS_KEY,
+      MAX_ERROR_REPORTS,
+    ),
   ]);
+  const [[totalCapturedRaw, totalDroppedRaw], evictedTriageRaw] =
+    await Promise.all([
+      redisClient.mget(ERROR_REPORTS_TOTAL_KEY, ERROR_REPORTS_DROPPED_KEY),
+      redisClient.get(ERROR_REPORTS_EVICTED_SUMMARY_KEY),
+    ]);
 
-  const retainedReports = Array.isArray(retainedEntriesRaw)
-    ? retainedEntriesRaw
-        .map((entry) => parseStructuredErrorReport(entry))
-        .filter((entry): entry is StructuredErrorReport => entry !== undefined)
-    : [];
-  const evictedTriageState =
-    parseStoredErrorReportTriageState(evictedTriageRaw);
+  const evictedTriage =
+    evictedReports.length > 0
+      ? buildRecentEvictedErrorReportTriageSummary(evictedReports)
+      : (() => {
+          const evictedTriageState =
+            parseStoredErrorReportTriageState(evictedTriageRaw);
+
+          return {
+            ...toErrorReportTriageSummary(evictedTriageState),
+            ...(evictedTriageState.updatedAt > 0
+              ? { updatedAt: evictedTriageState.updatedAt }
+              : {}),
+          };
+        })();
 
   return buildErrorReportBufferSnapshot(
     parseRedisCounter(totalCapturedRaw),
     parseRedisCounter(totalDroppedRaw),
     {
+      retainedCount: retainedReports.length,
       retainedTriage: buildErrorReportTriageSummaryFromReports(retainedReports),
-      evictedTriage: {
-        ...toErrorReportTriageSummary(evictedTriageState),
-        ...(evictedTriageState.updatedAt > 0
-          ? { updatedAt: evictedTriageState.updatedAt }
-          : {}),
-      },
+      evictedTriage,
     },
   );
 }
