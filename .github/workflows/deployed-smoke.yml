@@ -26,15 +26,6 @@ jobs:
           VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
       - name: Cache Playwright browsers
         uses: actions/cache@v5
         with:
@@ -43,50 +34,80 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
 
-      - name: Resolve deployed Vercel URL
+      - name: Resolve deployed AniCards URL
         env:
           DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
           TARGET_URL: ${{ github.event.deployment_status.target_url }}
         run: |
-          set -euo pipefail
+          node <<'NODE'
+          const { appendFileSync } = require("node:fs");
 
-          candidate="${DEPLOYMENT_URL:-${TARGET_URL:-}}"
+          const trustedPreviewHostPattern = /^anicards(?:-[a-z0-9-]+)+\.vercel\.app$/;
+          const rawCandidate =
+            (process.env.DEPLOYMENT_URL || process.env.TARGET_URL || "").trim();
 
-          if [[ -z "$candidate" ]]; then
-            echo "[ERROR] deployment_status is missing both environment_url and target_url."
-            exit 1
-          fi
+          if (!rawCandidate) {
+            throw new Error(
+              "deployment_status is missing both environment_url and target_url.",
+            );
+          }
 
-          case "$candidate" in
-            http://*|https://*) ;;
-            *)
-              echo "[ERROR] Deployment URL must use http(s): $candidate"
-              exit 1
-              ;;
-          esac
+          let parsedUrl;
+          try {
+            parsedUrl = new URL(rawCandidate);
+          } catch {
+            throw new Error(
+              `Deployment URL must be a valid absolute http(s) URL: ${rawCandidate}`,
+            );
+          }
 
-          host="${candidate#http://}"
-          host="${host#https://}"
-          host="${host%%/*}"
+          if (!/^https?:$/.test(parsedUrl.protocol)) {
+            throw new Error(`Deployment URL must use http(s): ${rawCandidate}`);
+          }
 
-          if [[ "$host" != "anicards.alpha49.com" && "$host" != *.vercel.app ]]; then
-            echo "[ERROR] Refusing unexpected deployment host: $host"
-            exit 1
-          fi
+          if (parsedUrl.username || parsedUrl.password) {
+            throw new Error(
+              "Deployment URL must not include embedded credentials.",
+            );
+          }
 
-          echo "PLAYWRIGHT_BASE_URL=$candidate" >> "$GITHUB_ENV"
-          echo "[INFO] Using deployed smoke URL: $candidate"
+          const normalizedHost = parsedUrl.hostname.toLowerCase();
+          const isTrustedPreviewHost = trustedPreviewHostPattern.test(
+            normalizedHost,
+          );
+          const isTrustedProductionHost =
+            normalizedHost === "anicards.alpha49.com";
+
+          if (!isTrustedPreviewHost && !isTrustedProductionHost) {
+            throw new Error(`Refusing unexpected deployment host: ${normalizedHost}`);
+          }
+
+          appendFileSync(
+            process.env.GITHUB_ENV,
+            `PLAYWRIGHT_BASE_URL=${parsedUrl.origin}\n`,
+          );
+          appendFileSync(
+            process.env.GITHUB_ENV,
+            `PLAYWRIGHT_CAN_SEND_BYPASS=${isTrustedPreviewHost ? "1" : "0"}\n`,
+          );
+
+          console.log(`[INFO] Using deployed smoke URL: ${parsedUrl.origin}`);
+          console.log(
+            `[INFO] ${
+              isTrustedPreviewHost
+                ? "Trusted AniCards preview host detected; bypass headers may be used if configured."
+                : "Public AniCards host detected; bypass headers disabled."
+            }`,
+          );
+          NODE
 
       - name: Wait for deployed Vercel URL
         env:
@@ -95,7 +116,7 @@ jobs:
           set -euo pipefail
 
           curl_headers=()
-          if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+          if [[ "${PLAYWRIGHT_CAN_SEND_BYPASS:-}" == "1" && -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
             curl_headers=(
               -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
               -H "x-vercel-set-bypass-cookie: true"
@@ -112,7 +133,7 @@ jobs:
             sleep 15
           done
 
-          if [[ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+          if [[ "${PLAYWRIGHT_CAN_SEND_BYPASS:-}" == "1" && -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
             echo "[ERROR] Timed out waiting for deployed target. If this preview is protected, configure VERCEL_AUTOMATION_BYPASS_SECRET in GitHub secrets to bypass Vercel deployment protection."
           fi
 
@@ -123,7 +144,7 @@ jobs:
         id: playwright_deployed
         env:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: bun run test:e2e:deployed-smoke -- --project=chromium
+        run: bun run test:e2e:deployed-smoke
 
       - name: Upload Playwright artifacts (Deployed Smoke)
         if: ${{ always() && steps.playwright_deployed.outcome == 'failure' }}

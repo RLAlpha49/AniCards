@@ -27,7 +27,6 @@ jobs:
       pull-requests: write
     env:
       PR_BRANCH: deps/update-packages
-      GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
 
     steps:
       - name: Require PULL_REQUEST_TOKEN for downstream workflow enforcement
@@ -45,28 +44,32 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.PULL_REQUEST_TOKEN }}
+          persist-credentials: false
 
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Determine update automation mode
+        id: automation-mode
+        run: |
+          should_apply=true
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.update-packages }}" != "true" ]; then
+            should_apply=false
+          fi
+
+          printf '%s\n' "should_apply=$should_apply" >> "$GITHUB_OUTPUT"
 
       - name: Check for semver-bounded package updates
         id: check-updates
         run: |
-          NCU_OUTPUT=$(bunx npm-check-updates --target minor)
-          UPDATE_INFO=$(bunx npm-check-updates --target minor --jsonUpgraded)
+          NCU_OUTPUT=$(bun run update:check || true)
+          UPDATE_INFO=$(bun run update:check:json || true)
+
+          if [ -z "$UPDATE_INFO" ]; then
+            UPDATE_INFO='{}'
+          fi
 
           {
             printf '%s\n' "## 📦 Package Updates Available"
@@ -89,16 +92,24 @@ jobs:
           UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
           if [ "$UPDATE_COUNT" -gt 0 ]; then
             echo "[INFO] Found $UPDATE_COUNT package updates available"
-            printf '%s\n' "has_updates=true" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "has_manifest_updates=true" >> "$GITHUB_OUTPUT"
           else
             echo "[INFO] No package updates found"
-            printf '%s\n' "has_updates=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "has_manifest_updates=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare update branch
         id: prepare-branch
-        if: ${{ steps.check-updates.outputs.has_updates == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.update-packages == true) || github.event_name != 'workflow_dispatch') }}
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
+          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          git remote set-url origin "$remote_url"
+          trap 'git remote set-url origin "$public_remote"' EXIT
+
           git fetch origin main "$PR_BRANCH" || true
 
           if git ls-remote --exit-code --heads origin "$PR_BRANCH" > /dev/null 2>&1; then
@@ -111,12 +122,54 @@ jobs:
 
           printf '%s\n' "pr_branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Update dependencies and validate before commit
+      - name: Refresh dependencies and validate before commit
         id: validate-update
-        if: ${{ steps.check-updates.outputs.has_updates == 'true' && ((github.event_name == 'workflow_dispatch' && inputs.update-packages == true) || github.event_name != 'workflow_dispatch') }}
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
+        env:
+          HAS_MANIFEST_UPDATES: ${{ steps.check-updates.outputs.has_manifest_updates }}
         run: |
-          bunx npm-check-updates -u --target minor
+          set -euo pipefail
+
+          if [ "$HAS_MANIFEST_UPDATES" = "true" ]; then
+            bun run update:apply
+          fi
+
           bun install
+
+          manifest_changed=false
+          lockfile_changed=false
+
+          if ! git diff --quiet -- package.json; then
+            manifest_changed=true
+          fi
+
+          if ! git diff --quiet -- bun.lock; then
+            lockfile_changed=true
+          fi
+
+          if [ "$manifest_changed" = "false" ] && [ "$lockfile_changed" = "false" ]; then
+            echo "[INFO] No package.json or bun.lock changes remain after refresh"
+            {
+              printf '%s\n' "has_changes=false"
+              printf '%s\n' "change_kind=none"
+            } >> "$GITHUB_OUTPUT"
+
+            printf '%s\n' "No direct dependency or lockfile refresh changes were needed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$manifest_changed" = "true" ] && [ "$lockfile_changed" = "true" ]; then
+            change_kind=manifest-and-lockfile
+            change_summary="Direct dependency updates plus a refreshed bun.lock."
+          elif [ "$manifest_changed" = "true" ]; then
+            change_kind=manifest-only
+            change_summary="Direct dependency updates changed package.json."
+          else
+            change_kind=lockfile-only
+            change_summary="No direct package.json bumps were needed; bun.lock was refreshed under existing ranges."
+          fi
+
+          printf '%s\n' "$change_summary" >> "$GITHUB_STEP_SUMMARY"
 
           bun run lint:check
           bun run typecheck
@@ -127,16 +180,30 @@ jobs:
           git add package.json bun.lock
           if git diff --cached --quiet; then
             echo "[INFO] No package.json or bun.lock changes remain after validation"
-            printf '%s\n' "has_changes=false" >> "$GITHUB_OUTPUT"
+            {
+              printf '%s\n' "has_changes=false"
+              printf '%s\n' "change_kind=none"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          printf '%s\n' "has_changes=true" >> "$GITHUB_OUTPUT"
+          {
+            printf '%s\n' "has_changes=true"
+            printf '%s\n' "change_kind=$change_kind"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Commit and push validated dependency updates
         id: push-updates
         if: ${{ steps.validate-update.outputs.has_changes == 'true' }}
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
+          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          git remote set-url origin "$remote_url"
+          trap 'git remote set-url origin "$public_remote"' EXIT
+
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
@@ -146,6 +213,8 @@ jobs:
       - name: Create or update dependency PR
         if: ${{ steps.push-updates.outcome == 'success' }}
         env:
+          CHANGE_KIND: ${{ steps.validate-update.outputs.change_kind }}
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
           UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
         run: |
           PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
@@ -154,14 +223,20 @@ jobs:
           {
             printf '%s\n' '## 📦 Dependency Updates'
             printf '%s\n' ''
-            printf '%s\n' 'This branch was regenerated after passing lockfile refresh and validation.'
+            printf '%s\n' 'This branch was regenerated after passing dependency refresh and validation.'
+            printf '%s\n' ''
+            printf '%s\n' "Change kind: \\`$CHANGE_KIND\\`."
             printf '%s\n' ''
             printf '%s\n' '<details>'
-            printf '%s\n' '<summary>Updated packages</summary>'
+            printf '%s\n' '<summary>Direct package.json updates</summary>'
             printf '%s\n' ''
-            printf '%s\n' '```json'
-            printf '%s\n' "$UPDATE_INFO"
-            printf '%s\n' '```'
+            if [ "$UPDATE_INFO" = '{}' ]; then
+              printf '%s\n' 'No direct package.json semver bumps were needed for this refresh.'
+            else
+              printf '%s\n' '```json'
+              printf '%s\n' "$UPDATE_INFO"
+              printf '%s\n' '```'
+            fi
             printf '%s\n' '</details>'
           } > "$COMMENT_FILE"
 

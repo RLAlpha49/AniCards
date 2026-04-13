@@ -92,7 +92,8 @@ The full command surface lives in [`package.json`](../package.json). Here's what
 | `bun run test:unit:coverage` | Unit tests with coverage artifacts              | Coverage or CI parity                                                                  |
 | `bun run test`               | `test:unit` plus Playwright E2E                 | Full regression when browser behavior might be affected                                |
 | `bun run check:unused`       | Knip unused-code analysis                       | CI-enforced merge gate; run locally for PR parity after refactors or file removals     |
-| `bun run check:licenses`     | License policy check                            | CI-enforced merge gate; run locally for PR parity, especially after dependency changes |
+| `bun run check:licenses`     | License policy check plus JSON policy report    | CI-enforced merge gate; run locally for PR parity, especially after dependency changes |
+| `bun run generate:sbom`      | CycloneDX JSON SBOM for production dependencies | Security-audit parity, vendor review prep, or any dependency inventory handoff         |
 
 There is no separate `bun run format` script in this repository — `bun run format:write` is the formatter entrypoint.
 
@@ -115,7 +116,7 @@ For most changes, this sequence covers the common local pass:
 3. `bun run typecheck`
 4. `bun run lint:check`
 
-CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests, so include them when you want full merge-gate parity before opening a PR.
+CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests, while the security workflow publishes a CycloneDX SBOM artifact from `bun run generate:sbom`.
 
 ## Husky hooks
 

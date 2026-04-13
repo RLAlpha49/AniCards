@@ -4,8 +4,44 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - ".github/actions/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+      - "app/**"
+      - "bun.lock"
+      - "bunfig.toml"
+      - "components/**"
+      - "dependency-license-policy.json"
+      - "eslint.config.mjs"
+      - "hooks/**"
+      - "lib/**"
+      - "next.config.ts"
+      - "package.json"
+      - "postcss.config.mjs"
+      - "proxy.ts"
+      - "scripts/**"
+      - "tsconfig.json"
   pull_request:
     branches: [main]
+    paths:
+      - ".github/actions/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/**"
+      - "app/**"
+      - "bun.lock"
+      - "bunfig.toml"
+      - "components/**"
+      - "dependency-license-policy.json"
+      - "eslint.config.mjs"
+      - "hooks/**"
+      - "lib/**"
+      - "next.config.ts"
+      - "package.json"
+      - "postcss.config.mjs"
+      - "proxy.ts"
+      - "scripts/**"
+      - "tsconfig.json"
   schedule:
     - cron: "0 3 * * 1" # Runs every monday at 3 AM
 
@@ -13,7 +49,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ format('{0}-{1}', github.workflow, github.event_name == 'schedule' && format('schedule-{0}', github.run_id) || github.event.pull_request.number || github.ref) }}
   cancel-in-progress: true
 
 jobs:
@@ -44,29 +80,30 @@ jobs:
         uses: github/codeql-action/analyze@v4
 
   bun-audit:
-    name: Bun Audit
+    name: Bun Audit & SBOM
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Generate CycloneDX SBOM
+        run: bun run generate:sbom
 
       - name: Run bun audit
         run: bun audit
+
+      - name: Upload CycloneDX SBOM
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cyclonedx-sbom
+          path: .artifacts/sbom
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
