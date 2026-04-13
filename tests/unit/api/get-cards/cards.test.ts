@@ -15,10 +15,6 @@ async function getResponseJson(response: Response): Promise<any> {
   return response.json();
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function createStoredCardsRecord({
   userId = 123,
   cards = [],
@@ -43,6 +39,7 @@ function createStoredCardsRecord({
 
 describe("Cards API GET Endpoint", () => {
   const baseUrl = "http://localhost/api/get-cards";
+  const originalDateNow = Date.now;
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
@@ -57,6 +54,7 @@ describe("Cards API GET Endpoint", () => {
   });
 
   afterEach(() => {
+    Date.now = originalDateNow;
     mock.clearAllMocks();
   });
 
@@ -400,6 +398,7 @@ describe("Cards API GET Endpoint", () => {
 
   describe("Performance Monitoring", () => {
     it("should handle fast responses normally", async () => {
+      const { consoleWarn } = allowConsoleWarningsAndErrors();
       const cardData = createStoredCardsRecord({
         userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
@@ -409,23 +408,59 @@ describe("Cards API GET Endpoint", () => {
         headers: { "x-forwarded-for": "127.0.0.1" },
       });
       const res = await GET(req);
+
       expect(res.status).toBe(200);
+      expect(consoleWarn).not.toHaveBeenCalled();
     });
 
     it("should handle slow responses (>500ms) normally but log warning", async () => {
+      const { consoleWarn } = allowConsoleWarningsAndErrors();
       const cardData = createStoredCardsRecord({
         userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
       });
+      let fakeNow = 1_000;
+
+      Date.now = () => fakeNow;
       sharedRedisMockGet.mockImplementationOnce(async () => {
-        await delay(600);
+        fakeNow += 600;
         return JSON.stringify(cardData);
       });
+
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
       });
       const res = await GET(req);
+
       expect(res.status).toBe(200);
+      expect(consoleWarn).toHaveBeenCalledTimes(1);
+
+      const warningCall = (consoleWarn.mock.calls as unknown[][])[0];
+      if (!warningCall) {
+        throw new TypeError("Expected a slow-response warning log call.");
+      }
+
+      const warningEntry = warningCall[0];
+      if (typeof warningEntry !== "string") {
+        throw new TypeError("Expected a structured warning log entry.");
+      }
+
+      const parsedWarningEntry = JSON.parse(warningEntry) as {
+        context?: {
+          durationMs?: number;
+          userId?: unknown;
+        };
+      };
+
+      expect(parsedWarningEntry).toMatchObject({
+        endpoint: "Cards API",
+        level: "warn",
+        message: "Slow response time",
+      });
+      expect(parsedWarningEntry.context).toMatchObject({
+        durationMs: 600,
+      });
+      expect(parsedWarningEntry.context?.userId).toEqual(expect.any(String));
     });
   });
 

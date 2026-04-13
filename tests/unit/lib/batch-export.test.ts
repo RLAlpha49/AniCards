@@ -118,23 +118,13 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function waitFor(predicate: () => boolean, message: string) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (predicate()) {
-      return;
-    }
-
-    await Promise.resolve();
-    await Bun.sleep(0);
-  }
-
-  throw new Error(message);
-}
-
 describe("batch-export queue scheduling", () => {
   it("uses index-based dequeueing while preserving concurrency, progress callbacks, and cardIndex reporting", async () => {
     const deferredConversions = Array.from({ length: 6 }, () =>
       createDeferred<Blob>(),
+    );
+    const conversionStarts = Array.from({ length: 6 }, () =>
+      createDeferred<void>(),
     );
     const progressEvents: Array<{
       cardIndex: number;
@@ -162,6 +152,7 @@ describe("batch-export queue scheduling", () => {
 
         const cardIndex = Number(match[1]);
         startedSources.push(sourceKey);
+        conversionStarts[cardIndex].resolve(undefined);
         activeConversions += 1;
         maxActiveConversions = Math.max(
           maxActiveConversions,
@@ -186,25 +177,18 @@ describe("batch-export queue scheduling", () => {
       progressEvents.push({ ...progress });
     });
 
-    await waitFor(
-      () => convertSvgToBlob.mock.calls.length === 4,
-      "Expected initial workers to start four conversions.",
+    await Promise.all(
+      conversionStarts.slice(0, 4).map(({ promise }) => promise),
     );
 
     expect(startedSources).toEqual(["card-0", "card-1", "card-2", "card-3"]);
     expect(maxActiveConversions).toBe(4);
 
     deferredConversions[1].resolve(new Blob(["card-1"], { type: "image/png" }));
-    await waitFor(
-      () => convertSvgToBlob.mock.calls.length === 5,
-      "Expected the next queued card to start after one worker finished.",
-    );
+    await conversionStarts[4].promise;
 
     deferredConversions[2].reject(new Error("conversion failed for card-2"));
-    await waitFor(
-      () => convertSvgToBlob.mock.calls.length === 6,
-      "Expected queue consumption to continue after a failed conversion.",
-    );
+    await conversionStarts[5].promise;
 
     deferredConversions[0].resolve(new Blob(["card-0"], { type: "image/png" }));
     deferredConversions[3].resolve(new Blob(["card-3"], { type: "image/png" }));
@@ -311,6 +295,9 @@ describe("batch-export queue scheduling", () => {
     const deferredConversions = Array.from({ length: 3 }, () =>
       createDeferred<Blob>(),
     );
+    const conversionStarts = Array.from({ length: 3 }, () =>
+      createDeferred<void>(),
+    );
 
     convertSvgToBlob.mockImplementation(async (source: string) => {
       const match = /card-(\d+)/.exec(source);
@@ -319,7 +306,10 @@ describe("batch-export queue scheduling", () => {
         throw new Error(`Unexpected source key: ${source}`);
       }
 
-      return await deferredConversions[Number(match[1])].promise;
+      const cardIndex = Number(match[1]);
+      conversionStarts[cardIndex].resolve(undefined);
+
+      return await deferredConversions[cardIndex].promise;
     });
 
     const exportPromise = batchConvertAndZip(
@@ -331,10 +321,7 @@ describe("batch-export queue scheduling", () => {
       "png",
     );
 
-    await waitFor(
-      () => convertSvgToBlob.mock.calls.length === 3,
-      "Expected all queued PNG conversions to start.",
-    );
+    await Promise.all(conversionStarts.map(({ promise }) => promise));
 
     deferredConversions[2].resolve(new Blob(["card-2"], { type: "image/png" }));
     deferredConversions[1].resolve(new Blob(["card-1"], { type: "image/png" }));
