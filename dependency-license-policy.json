@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "denyLicenseSubstrings": ["GPL", "AGPL", "LGPL", "NGPL"],
+  "packageLicenseSelections": {
+    "jszip@3.10.1": {
+      "observedLicenseExpression": "(MIT OR GPL-3.0-or-later)",
+      "selectedLicense": "MIT",
+      "reason": "AniCards uses JSZip under its permissive MIT option for client-side ZIP export."
+    }
+  }
+}

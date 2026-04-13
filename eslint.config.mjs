@@ -1,7 +1,18 @@
+import { readFileSync } from "node:fs";
+
 import { defineConfig, globalIgnores } from "eslint/config";
 import eslintPluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
+
+const packageJson = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+);
+const explicitReactVersion = String(
+  packageJson.dependencies?.react ??
+    packageJson.devDependencies?.react ??
+    "19.2.5",
+).replace(/^[^\d]*/, "");
 
 const eslintConfig = defineConfig([
   ...tseslint.configs.recommended,
@@ -11,8 +22,8 @@ const eslintConfig = defineConfig([
   {
     settings: {
       react: {
-        version: "19.2.4",
-        defaultVersion: "19.2.4",
+        version: explicitReactVersion,
+        defaultVersion: explicitReactVersion,
       },
     },
   },
