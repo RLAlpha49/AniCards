@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 
+import { readBooleanEnv } from "@/lib/api/config";
 import { assertRequiredProductionEnv } from "@/lib/api/production-env";
 
 let realRedisClient: Redis | undefined;
@@ -21,10 +22,18 @@ export function createRealRedisClient(): Redis {
       retries: 3,
       backoff: (retryCount: number) => Math.round(Math.exp(retryCount) * 50),
     },
-    latencyLogging: process.env.NODE_ENV !== "production",
+    latencyLogging: readBooleanEnv("UPSTASH_REDIS_LATENCY_LOGGING") === true,
   });
 
   return realRedisClient;
+}
+
+export function resetRealRedisClientForTests(): void {
+  if (process.env.ANICARDS_UNIT_TEST !== "true") {
+    throw new Error("resetRealRedisClientForTests is only available in tests.");
+  }
+
+  realRedisClient = undefined;
 }
 
 /**

@@ -137,6 +137,7 @@ const TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH = [
   "CRON_SECRET",
   "ERROR_ALERT_WEBHOOK_URL",
   "TRUSTED_CLIENT_IP_HEADERS",
+  "UPSTASH_REDIS_LATENCY_LOGGING",
 ] as const;
 
 beforeEach(() => {
@@ -1122,9 +1123,11 @@ const sharedRedisFakeClient = {
   }),
 };
 
+export const sharedRedisFromEnvMock = mock(() => sharedRedisFakeClient);
+
 mock.module("@upstash/redis", () => ({
   Redis: {
-    fromEnv: mock(() => sharedRedisFakeClient),
+    fromEnv: sharedRedisFromEnvMock,
   },
 }));
 

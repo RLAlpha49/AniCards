@@ -46,6 +46,7 @@ The template in [`.env.example`](../.env.example) is grouped by concern. Match t
 | Local app URLs                         | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` | All local runs                                                             |
 | AniList upstream access                | `ANILIST_TOKEN`                                                      | Full API work that calls AniList-backed routes                             |
 | Redis-backed storage and rate limiting | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`                 | Stored user or card flows, shared rate limiting, cron, and reporting paths |
+| Redis latency diagnostics              | `UPSTASH_REDIS_LATENCY_LOGGING=true`                                 | Optional local-only Upstash latency logging while debugging Redis behavior |
 | Analytics                              | `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`                                    | Optional local analytics wiring                                            |
 | SVG and CORS tuning                    | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`                                | Optional local card or embed testing                                       |
 | Cron protection                        | `CRON_SECRET`                                                        | Operator or cron endpoint testing; required outside local dev              |
@@ -62,7 +63,7 @@ The local URL variables are usually all you need here. Pages dependent on AniLis
 
 ### Full app/API mode
 
-Fill in the AniList token, Upstash Redis credentials, and whichever cron settings your test path calls for. If you opt into local-only booleans such as `ALLOW_UNSECURED_CRON_IN_DEV` or `ANILIST_UPSTREAM_DEGRADED_MODE`, use `true` to enable them. Leave `VERCEL` unset locally — the platform injects it in hosted environments on its own.
+Fill in the AniList token, Upstash Redis credentials, and whichever cron settings your test path calls for. If you opt into local-only booleans such as `ALLOW_UNSECURED_CRON_IN_DEV`, `ANILIST_UPSTREAM_DEGRADED_MODE`, or `UPSTASH_REDIS_LATENCY_LOGGING`, use `true` to enable them. Leave `VERCEL` unset locally — the platform injects it in hosted environments on its own.
 
 ### Protected routes and proxy-aware flows
 
