@@ -107,6 +107,14 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
+    await page.route("**/api/anilist", async (route: Route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify(mockUserNotFoundError),
+      });
+    });
+
     await useFixture();
   },
 

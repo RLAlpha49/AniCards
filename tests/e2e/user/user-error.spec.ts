@@ -18,6 +18,31 @@ async function gotoMockedUserErrorPage(
 }
 
 test.describe("User page error states (mocked API)", () => {
+  test("shows non-retryable missing-user guidance when AniList cannot resolve the username", async ({
+    page,
+    mockUserNotFoundApi,
+  }) => {
+    useMockFixture(mockUserNotFoundApi);
+
+    await gotoMockedUserErrorPage(page, "/user/MissingUser");
+
+    await expect(
+      page.getByRole("heading", { name: /something went wrong/i }),
+    ).toBeVisible({ timeout: 15000 });
+
+    await expect(
+      page.getByText(/user not found|spelled correctly|exists on anilist/i),
+    ).toBeVisible({ timeout: 15000 });
+
+    await expect(page.getByRole("button", { name: /try again/i })).toHaveCount(
+      0,
+    );
+
+    const recoveryLink = page.getByRole("link", { name: /search for user/i });
+    await expect(recoveryLink).toBeVisible();
+    await expect(recoveryLink).toHaveAttribute("href", "/search");
+  });
+
   test("shows rate limit error with recovery link", async ({
     page,
     mockRateLimitedApi,

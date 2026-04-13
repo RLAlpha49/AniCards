@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Browser, Locator, Page, TestInfo } from "@playwright/test";
 
 import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 import { expect, test } from "../fixtures/test-utils";
@@ -7,6 +7,53 @@ const MOBILE_VIEWPORT = {
   width: 393,
   height: 851,
 };
+
+function getConfiguredBaseUrl(testInfo: TestInfo): string {
+  const configuredBaseUrl =
+    typeof testInfo.project.use.baseURL === "string"
+      ? testInfo.project.use.baseURL
+      : undefined;
+
+  if (!configuredBaseUrl) {
+    throw new Error("Expected the Playwright project to define a baseURL");
+  }
+
+  return configuredBaseUrl;
+}
+
+async function createStaticMobilePage(
+  browser: Browser,
+  testInfo: TestInfo,
+  options: {
+    blockHydrationScripts?: boolean;
+    javaScriptEnabled?: boolean;
+    reducedMotion?: "no-preference" | "reduce";
+  } = {},
+) {
+  const context = await browser.newContext({
+    javaScriptEnabled: options.javaScriptEnabled ?? true,
+    reducedMotion: options.reducedMotion ?? "no-preference",
+    viewport: MOBILE_VIEWPORT,
+  });
+  const page = await context.newPage();
+
+  if (options.blockHydrationScripts) {
+    await page.route("**/_next/static/**", async (route) => {
+      if (route.request().resourceType() === "script") {
+        await route.abort("blockedbyclient");
+        return;
+      }
+
+      await route.continue();
+    });
+  }
+
+  return {
+    context,
+    page,
+    url: new URL("/", getConfiguredBaseUrl(testInfo)).toString(),
+  };
+}
 
 function useMockFixture<T>(fixture: T): T {
   return fixture;
@@ -280,5 +327,105 @@ test.describe("User page mobile ergonomics", () => {
 
     const dragHandle = tile.locator('[data-tour="card-drag-handle"]');
     await expectMinTouchTarget(dragHandle, "Card drag handle");
+  });
+});
+
+test.describe("Mobile progressive enhancement", () => {
+  test("keeps the home hero and mobile navigation reachable without JavaScript", async ({
+    browser,
+  }, testInfo) => {
+    const { context, page, url } = await createStaticMobilePage(
+      browser,
+      testInfo,
+      {
+        javaScriptEnabled: false,
+      },
+    );
+
+    try {
+      await page.goto(url, { waitUntil: "load" });
+
+      await expect(
+        page.getByRole("heading", { level: 1, name: /your anime/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("link", { name: /^get started$/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.locator('[data-mobile-navigation-fallback="true"]'),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page
+          .locator('[data-mobile-navigation-fallback="true"]')
+          .getByRole("link", { name: /^search$/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('[data-mobile-menu-toggle="true"]')).toBeHidden(
+        {
+          timeout: 15000,
+        },
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("keeps mobile navigation operable before hydration under reduced motion", async ({
+    browser,
+  }, testInfo) => {
+    const { context, page, url } = await createStaticMobilePage(
+      browser,
+      testInfo,
+      {
+        blockHydrationScripts: true,
+        reducedMotion: "reduce",
+      },
+    );
+
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+
+      await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("heading", { level: 1, name: /your anime/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("link", { name: /^get started$/i }),
+      ).toBeVisible({ timeout: 15000 });
+
+      const featureHeading = page.getByRole("heading", {
+        name: /the repertoire/i,
+      });
+      await featureHeading.scrollIntoViewIfNeeded();
+      await expect(featureHeading).toBeVisible({ timeout: 15000 });
+
+      const html = page.locator("html");
+      await expect
+        .poll(() => html.getAttribute("data-mobile-menu-hydrated"))
+        .toBeNull();
+
+      const menuToggle = page.locator('[data-mobile-menu-toggle="true"]');
+      const mobileNavigation = page.locator("#mobile-navigation");
+
+      await expect(menuToggle).toBeVisible({ timeout: 15000 });
+      await expect(menuToggle).toHaveAttribute("aria-expanded", "false");
+
+      await menuToggle.click();
+
+      await expect(mobileNavigation).toBeVisible({ timeout: 15000 });
+      await expect(menuToggle).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        mobileNavigation.getByRole("link", { name: /^search$/i }),
+      ).toBeVisible({ timeout: 15000 });
+
+      await page.keyboard.press("Escape");
+
+      await expect(mobileNavigation).toBeHidden({ timeout: 15000 });
+      await expect(menuToggle).toHaveAttribute("aria-expanded", "false");
+      await expect(
+        page.getByRole("link", { name: /^get started$/i }),
+      ).toBeVisible({ timeout: 15000 });
+    } finally {
+      await context.close();
+    }
   });
 });

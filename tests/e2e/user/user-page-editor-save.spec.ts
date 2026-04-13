@@ -230,7 +230,7 @@ function expectSavedTogglePayload(
 test.describe("User page editor - save UX", () => {
   test("saving submits a minimal /api/store-cards payload", async ({
     page,
-  }) => {
+  }, testInfo) => {
     const savePayloads: unknown[] = [];
 
     await test.step("Mock user, cards, preview, and save endpoints", async () => {
@@ -282,9 +282,11 @@ test.describe("User page editor - save UX", () => {
 
     await test.step("Press Ctrl+S and capture the latest save payload", async () => {
       const saveButton = page.getByRole("button", { name: /save changes/i });
+      const saveShortcut =
+        testInfo.project.name === "firefox" ? "Meta+S" : "Control+S";
 
       await saveButton.focus();
-      await page.keyboard.press("Control+S");
+      await page.keyboard.press(saveShortcut);
 
       await expect
         .poll(() => savePayloads.length, { timeout: 10000 })
