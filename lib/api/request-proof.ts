@@ -22,9 +22,9 @@ export const REQUEST_PROOF_TTL_SECONDS = 4 * 60 * 60;
 
 type RequestProofPayload = {
   exp: number;
-  ip: string;
-  ua: string;
-  v: number;
+  ipHash: string;
+  uaHash: string;
+  v: typeof REQUEST_PROOF_VERSION;
 };
 
 type RequestProofFailureReason =
@@ -274,6 +274,19 @@ function normalizeUserAgent(value: string | null | undefined): string {
   return trimmed.slice(0, REQUEST_PROOF_USER_AGENT_MAX_LENGTH);
 }
 
+async function createRequestProofBindingHash(options: {
+  label: "ip" | "ua";
+  secret: string;
+  value: string;
+}): Promise<string> {
+  return signRequestProofSegment(
+    base64urlEncodeText(
+      `${REQUEST_PROOF_VERSION}:${options.label}:${options.value}`,
+    ),
+    options.secret,
+  );
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
@@ -361,10 +374,10 @@ function isRequestProofPayload(value: unknown): value is RequestProofPayload {
   const candidate = value as Partial<RequestProofPayload>;
   return (
     candidate.v === REQUEST_PROOF_VERSION &&
-    typeof candidate.ip === "string" &&
-    candidate.ip.length > 0 &&
-    typeof candidate.ua === "string" &&
-    candidate.ua.length > 0 &&
+    typeof candidate.ipHash === "string" &&
+    candidate.ipHash.length > 0 &&
+    typeof candidate.uaHash === "string" &&
+    candidate.uaHash.length > 0 &&
     typeof candidate.exp === "number" &&
     Number.isFinite(candidate.exp)
   );
@@ -380,10 +393,24 @@ export async function createRequestProofToken(options: {
     return null;
   }
 
+  const normalizedUserAgent = normalizeUserAgent(options.userAgent);
+  const [ipHash, uaHash] = await Promise.all([
+    createRequestProofBindingHash({
+      label: "ip",
+      secret,
+      value: options.ip,
+    }),
+    createRequestProofBindingHash({
+      label: "ua",
+      secret,
+      value: normalizedUserAgent,
+    }),
+  ]);
+
   const payload: RequestProofPayload = {
     v: REQUEST_PROOF_VERSION,
-    ip: options.ip,
-    ua: normalizeUserAgent(options.userAgent),
+    ipHash,
+    uaHash,
     exp: Math.trunc(
       options.expiresAtMs ?? Date.now() + REQUEST_PROOF_TTL_SECONDS * 1000,
     ),
@@ -494,11 +521,26 @@ export async function verifyRequestProofToken(
     return { valid: false, reason: "expired" };
   }
 
-  if (payload.ip !== options.ip) {
+  const normalizedUserAgent = normalizeUserAgent(options.userAgent);
+
+  const [expectedIpHash, expectedUaHash] = await Promise.all([
+    createRequestProofBindingHash({
+      label: "ip",
+      secret,
+      value: options.ip,
+    }),
+    createRequestProofBindingHash({
+      label: "ua",
+      secret,
+      value: normalizedUserAgent,
+    }),
+  ]);
+
+  if (payload.ipHash !== expectedIpHash) {
     return { valid: false, reason: "ip_mismatch" };
   }
 
-  if (payload.ua !== normalizeUserAgent(options.userAgent)) {
+  if (payload.uaHash !== expectedUaHash) {
     return { valid: false, reason: "user_agent_mismatch" };
   }
 
