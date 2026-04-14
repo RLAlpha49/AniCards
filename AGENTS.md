@@ -4,6 +4,8 @@
 
 At any point, use the `vscode_askQuestions` tool to clarify ambiguous requirements or confirm high-risk decisions.
 
+Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/roadmap-guardrails.instructions.md`.
+
 ---
 
 ## Completion Gate - No Premature Stops
@@ -137,5 +139,3 @@ You are **never blocked** from launching multiple subagents at once. Independent
 
 - If you discover a memory is outdated, incorrect, duplicated, or no longer useful, update, replace, or delete it instead of layering on more notes.
 - When in doubt, fewer high-signal memories are better than many low-signal ones.
-
-Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/roadmap-guardrails.instructions.md`.
