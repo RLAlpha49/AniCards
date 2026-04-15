@@ -7,6 +7,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -31,17 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { batchConvertAndZip, type BatchExportCard } from "@/lib/batch-export";
-import {
-  buildCardUrlWithParams,
-  mapStoredConfigToCardUrlParams,
-} from "@/lib/card-groups";
 import { statCardTypes } from "@/lib/card-types";
-import {
-  type CardEditorConfig,
-  useUserPageEditor,
-} from "@/lib/stores/user-page-editor";
-import { type CardDownloadFormat, cn, toCardApiHref } from "@/lib/utils";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { type CardDownloadFormat, cn } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
@@ -52,7 +45,11 @@ import {
   type DownloadSummary,
 } from "./bulk/DownloadStatusAlerts";
 import { SelectionCounter } from "./bulk/SelectionCounter";
-import { getCachedPreviewObjectUrl } from "./tile/preview-cache";
+import {
+  buildShareableCards,
+  copyShareableCardUrlsToClipboard,
+  downloadShareableCards,
+} from "./share-utils";
 
 interface BulkActionsToolbarProps {
   /** Additional className for the toolbar container */
@@ -233,100 +230,27 @@ export function BulkActionsToolbar({
 
   const toolbarBottom = "calc(1.5rem + env(safe-area-inset-bottom))";
   const toolbarGutter = "1rem";
+  const toolbarHostStyle: CSSProperties &
+    Record<"--safe-area-inline-padding", string> = {
+    bottom: toolbarBottom,
+    "--safe-area-inline-padding": toolbarGutter,
+  };
 
   const { selectedCards, skippedDisabledCards } = useMemo(() => {
-    if (!userId) {
-      return {
-        selectedCards: [] as Array<{
-          cardId: string;
-          cachedSvgObjectUrl: string | null;
-          config: CardEditorConfig;
-          rawType: string;
-          url: string;
-        }>,
-        skippedDisabledCards: [] as Array<{ cardId: string; rawType: string }>,
-      };
-    }
-
-    const nextSelectedCards: Array<{
-      cardId: string;
-      cachedSvgObjectUrl: string | null;
-      config: CardEditorConfig;
-      rawType: string;
-      url: string;
-    }> = [];
-    const nextSkippedDisabledCards: Array<{ cardId: string; rawType: string }> =
-      [];
-
-    for (const cardId of selectedIds) {
-      const config = cardConfigs[cardId];
-      if (!config) continue;
-
-      const rawType = `${cardId}-${config.variant}`;
-      if (!config.enabled) {
-        nextSkippedDisabledCards.push({ cardId, rawType });
-        continue;
-      }
-
-      const effectiveColors = getEffectiveColors(cardId);
-      const effectiveBorderColor = getEffectiveBorderColor(cardId);
-      const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
-      const effectiveColorPreset = config.colorOverride.useCustomSettings
-        ? config.colorOverride.colorPreset || "custom"
-        : globalColorPreset;
-      const urlColorPreset =
-        effectiveColorPreset === "custom" ? undefined : effectiveColorPreset;
-
-      const urlParams = mapStoredConfigToCardUrlParams(
-        {
-          cardName: cardId,
-          variation: config.variant,
-          colorPreset: urlColorPreset,
-          titleColor: effectiveColors[0],
-          backgroundColor: effectiveColors[1],
-          textColor: effectiveColors[2],
-          circleColor: effectiveColors[3],
-          borderColor: effectiveBorderColor,
-          borderRadius: effectiveBorderRadius,
-          useStatusColors:
-            config.advancedSettings.useStatusColors ??
-            globalAdvancedSettings.useStatusColors,
-          showPiePercentages:
-            config.advancedSettings.showPiePercentages ??
-            globalAdvancedSettings.showPiePercentages,
-          showFavorites:
-            config.advancedSettings.showFavorites ??
-            globalAdvancedSettings.showFavorites,
-          gridCols:
-            config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
-          gridRows:
-            config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
-        },
-        {
-          userId,
-          includeColors: true,
-          defaultToCustomPreset: false,
-          allowPresetColorOverrides: false,
-        },
-      );
-
-      const url = buildCardUrlWithParams(urlParams);
-      const previewApiHref = toCardApiHref(url);
-      const cachedSvgObjectUrl = previewApiHref
-        ? getCachedPreviewObjectUrl(previewApiHref)
-        : null;
-
-      nextSelectedCards.push({
-        cardId,
-        config,
-        rawType,
-        url,
-        cachedSvgObjectUrl,
+    const { shareableCards, skippedDisabledCards: nextSkippedDisabledCards } =
+      buildShareableCards({
+        cardConfigs,
+        cardIds: selectedIds,
+        getEffectiveBorderColor,
+        getEffectiveBorderRadius,
+        getEffectiveColors,
+        globalAdvancedSettings,
+        globalColorPreset,
+        userId,
       });
-    }
 
     return {
-      selectedCards: nextSelectedCards,
+      selectedCards: shareableCards,
       skippedDisabledCards: nextSkippedDisabledCards,
     };
   }, [
@@ -420,33 +344,9 @@ export function BulkActionsToolbar({
   const handleCopyUrls = useCallback(
     async (format: "url" | "anilist" = "url") => {
       if (selectedCards.length === 0) return;
-      const urls = selectedCards
-        .map((card) => {
-          try {
-            const resolvedUrl = new URL(
-              card.url,
-              globalThis.location.origin,
-            ).toString();
-            return format === "anilist"
-              ? `img200(${resolvedUrl})`
-              : resolvedUrl;
-          } catch (err) {
-            console.error(
-              `Failed to construct URL for card ${card.cardId}:`,
-              err,
-            );
-            return null;
-          }
-        })
-        .filter((url): url is string => url !== null);
-
-      if (urls.length === 0) {
-        console.error("No valid URLs to copy");
-        return;
-      }
 
       try {
-        await navigator.clipboard.writeText(urls.join("\n"));
+        await copyShareableCardUrlsToClipboard(selectedCards, format);
         setCopiedFormat(format);
         if (copyTimerRef.current) {
           clearTimeout(copyTimerRef.current);
@@ -496,23 +396,16 @@ export function BulkActionsToolbar({
       setDownloadProgress({ current: 0, total: selectedCards.length });
 
       try {
-        const batchCards: BatchExportCard[] = selectedCards.map((card) => ({
-          cachedSvgObjectUrl: card.cachedSvgObjectUrl,
-          type: card.cardId,
-          rawType: card.rawType,
-          svgUrl: card.url,
-        }));
-
-        const result = await batchConvertAndZip(
-          batchCards,
+        const result = await downloadShareableCards({
+          cards: selectedCards,
           format,
-          (progress) => {
+          onProgress: (progress) => {
             setDownloadProgress({
               current: progress.current,
               total: progress.total,
             });
           },
-        );
+        });
 
         const failedRawTypes =
           result.failedCards?.map((c) => c.rawType || c.type) ?? [];
@@ -605,12 +498,10 @@ export function BulkActionsToolbar({
   const toolbarContent = (
     <div
       data-testid="bulk-actions-toolbar-host"
-      className="pointer-events-none fixed inset-x-0 z-50 flex justify-center"
-      style={{
-        paddingLeft: toolbarGutter,
-        paddingRight: toolbarGutter,
-        bottom: toolbarBottom,
-      }}
+      className="
+        pointer-events-none fixed inset-x-0 z-50 flex justify-center safe-area-inline-padding
+      "
+      style={toolbarHostStyle}
     >
       <AnimatePresence>
         {selectedCount > 0 && (

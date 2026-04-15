@@ -94,7 +94,10 @@ function getTimeUntil(dueAt: number | null | undefined): string {
  */
 type SaveStateInfo = {
   Icon: LucideIcon;
-  text: string;
+  announcementText: string;
+  primaryText: string;
+  secondaryText?: string;
+  suffixText?: string;
   className: string;
   spinner?: boolean;
   title?: string;
@@ -104,7 +107,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (!saveState) {
     return {
       Icon: Clock,
-      text: "No changes",
+      announcementText: "No changes.",
+      primaryText: "No changes",
       className:
         "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
     };
@@ -113,7 +117,9 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.hasConflict) {
     return {
       Icon: AlertCircle,
-      text: "Out of sync",
+      announcementText:
+        "Reload required to sync with the latest settings before saving again.",
+      primaryText: "Out of sync",
       className:
         "border border-red-300/40 bg-red-100 text-red-700 dark:border-red-800/40 dark:bg-red-900/30 dark:text-red-400",
       title:
@@ -124,7 +130,9 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.isAutoSaveQueued) {
     return {
       Icon: Loader2,
-      text: `Auto-save in ${getTimeUntil(saveState.autoSaveDueAt)}`,
+      announcementText: "Auto-save queued.",
+      primaryText: "Auto-save in",
+      secondaryText: getTimeUntil(saveState.autoSaveDueAt),
       className:
         "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
       spinner: true,
@@ -135,7 +143,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.isSaving) {
     return {
       Icon: Loader2,
-      text: "Saving...",
+      announcementText: "Saving changes.",
+      primaryText: "Saving...",
       className:
         "border border-gold/30 bg-gold/10 text-gold-dim dark:border-gold/25 dark:bg-gold/10 dark:text-gold",
       spinner: true,
@@ -146,7 +155,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.saveError) {
     return {
       Icon: AlertCircle,
-      text: "Sync failed",
+      announcementText: `Sync failed. ${saveState.saveError}`,
+      primaryText: "Sync failed",
       className:
         "border border-red-300/40 bg-red-100 text-red-700 dark:border-red-800/40 dark:bg-red-900/30 dark:text-red-400",
       title: saveState.saveError,
@@ -156,7 +166,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.isDirty) {
     return {
       Icon: Save,
-      text: "Unsaved changes",
+      announcementText: "Unsaved changes.",
+      primaryText: "Unsaved changes",
       className:
         "border border-amber-300/40 bg-amber-100 text-amber-700 dark:border-amber-700/40 dark:bg-amber-900/30 dark:text-amber-400",
       title: "Changes are waiting to be saved.",
@@ -166,7 +177,10 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
   if (saveState.lastSavedAt) {
     return {
       Icon: Check,
-      text: `Saved ${getTimeSince(saveState.lastSavedAt)} · Synced`,
+      announcementText: "Saved and synced.",
+      primaryText: "Saved",
+      secondaryText: getTimeSince(saveState.lastSavedAt),
+      suffixText: "Synced",
       className:
         "border border-gold/30 bg-gold/10 text-gold-dim dark:border-gold/20 dark:bg-gold/10 dark:text-gold",
       title: new Date(saveState.lastSavedAt).toLocaleString(),
@@ -175,7 +189,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
 
   return {
     Icon: Clock,
-    text: "No changes",
+    announcementText: "No changes.",
+    primaryText: "No changes",
     className:
       "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
   };
@@ -298,11 +313,23 @@ const SaveStatusBadge = memo(function SaveStatusBadge({
         )}
       >
         {saveInfo.spinner ? (
-          <Loader2 className="size-4 animate-spin" />
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
         ) : (
-          <saveInfo.Icon className="size-4" />
+          <saveInfo.Icon className="size-4" aria-hidden="true" />
         )}
-        <span>{saveInfo.text}</span>
+        <span className="sr-only">{saveInfo.announcementText}</span>
+        <span aria-hidden="true" className="flex items-center gap-1.5">
+          <span>{saveInfo.primaryText}</span>
+          {saveInfo.secondaryText ? (
+            <span className="opacity-80">{saveInfo.secondaryText}</span>
+          ) : null}
+          {saveInfo.suffixText ? (
+            <>
+              <span className="opacity-50">·</span>
+              <span>{saveInfo.suffixText}</span>
+            </>
+          ) : null}
+        </span>
       </output>
     </motion.div>
   );

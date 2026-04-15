@@ -192,7 +192,7 @@ export function SaveConflictNotice({
                 onClick={onKeepEdits}
               >
                 <RefreshCw className="mr-2 size-4" aria-hidden="true" />
-                Reload & keep my edits
+                Reload & keep edits
               </Button>
               <Button
                 type="button"

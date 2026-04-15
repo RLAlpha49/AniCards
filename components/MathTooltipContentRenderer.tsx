@@ -1,5 +1,7 @@
 "use client";
 
+import "katex/dist/katex.min.css";
+
 import DOMPurify from "dompurify";
 import katex from "katex";
 import { useMemo } from "react";

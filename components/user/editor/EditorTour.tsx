@@ -16,11 +16,15 @@ type DriverModule = typeof import("driver.js");
 type DriverInstance = ReturnType<DriverModule["driver"]>;
 type IdentifiedDriveStep = DriveStep & { id: string };
 
-let driverModulePromise: Promise<DriverModule> | null = null;
+let driverFeaturePromise: Promise<DriverModule> | null = null;
 
-function loadDriverModule(): Promise<DriverModule> {
-  driverModulePromise ??= import("driver.js");
-  return driverModulePromise;
+function loadDriverFeature(): Promise<DriverModule> {
+  driverFeaturePromise ??= Promise.all([
+    import("driver.js"),
+    import("./EditorTourStyles"),
+  ]).then(([driverModule]) => driverModule);
+
+  return driverFeaturePromise;
 }
 
 // Fallbacks for Driver.js tour step targets.
@@ -517,7 +521,7 @@ export function useEditorTour({
     setIsTourRunning(true);
 
     try {
-      const { driver } = await loadDriverModule();
+      const { driver } = await loadDriverFeature();
       if (!isMountedRef.current) return;
 
       const onDestroyed = (
@@ -586,7 +590,7 @@ export function useEditorTour({
     if (!isNewUser && isTourCompleted) return;
 
     const timer = globalThis.setTimeout(() => {
-      void loadDriverModule();
+      void loadDriverFeature();
     }, 1500);
 
     return () => globalThis.clearTimeout(timer);

@@ -97,4 +97,46 @@ describe("UserPageHeader", () => {
     expect(markup).toContain("sm:wrap-break-word");
     expect(markup).toContain("min-w-0");
   });
+
+  it("keeps dynamic save timing visible while limiting live announcements to discrete save states", async () => {
+    const { UserPageHeader } = await import("@/components/user/UserPageHeader");
+    const queuedMarkup = renderToStaticMarkup(
+      <UserPageHeader
+        username="TestUser"
+        userId="123"
+        saveState={{
+          autoSaveDueAt: Date.now() + 4_000,
+          isAutoSaveQueued: true,
+          isDirty: true,
+          isSaving: false,
+          lastSavedAt: null,
+          saveError: null,
+        }}
+      />,
+    );
+
+    expect(queuedMarkup).toContain('aria-live="polite"');
+    expect(queuedMarkup).toContain("Auto-save queued.");
+    expect(queuedMarkup).toContain('aria-hidden="true"');
+    expect(queuedMarkup).toContain("Auto-save in");
+
+    const savedMarkup = renderToStaticMarkup(
+      <UserPageHeader
+        username="TestUser"
+        userId="123"
+        saveState={{
+          isAutoSaveQueued: false,
+          isDirty: false,
+          isSaving: false,
+          lastSavedAt: Date.now() - 120_000,
+          saveError: null,
+        }}
+      />,
+    );
+
+    expect(savedMarkup).toContain("Saved and synced.");
+    expect(savedMarkup).toContain("Saved");
+    expect(savedMarkup).toContain("ago");
+    expect(savedMarkup).toContain("Synced");
+  });
 });

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "bun:test";
 
+import type { CardEditorConfig } from "@/lib/stores/user-page-editor";
 import {
   makeSettingsExport,
+  makeWorkspaceBackup,
   parseLocalEditsPatch,
   parseSettingsExportJson,
   parseSettingsSnapshot,
+  parseWorkspaceBackupJson,
   type SettingsSnapshot,
   type SettingsTemplateV1,
   stringifySettingsExport,
+  stringifyWorkspaceBackup,
 } from "@/lib/user-page-settings-io";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 
@@ -56,6 +60,27 @@ function createTemplate(
     snapshot: overrides.snapshot ?? createSnapshot(),
     createdAt: overrides.createdAt ?? 1_700_000_000_000,
     updatedAt: overrides.updatedAt ?? 1_700_000_000_500,
+  };
+}
+
+function createCardConfig(
+  cardId: string,
+  overrides: Partial<CardEditorConfig> = {},
+): CardEditorConfig {
+  return {
+    cardId,
+    enabled: overrides.enabled ?? true,
+    variant: overrides.variant ?? "default",
+    colorOverride: overrides.colorOverride ?? {
+      useCustomSettings: false,
+    },
+    advancedSettings: overrides.advancedSettings ?? {},
+    ...(overrides.borderColor !== undefined
+      ? { borderColor: overrides.borderColor }
+      : {}),
+    ...(overrides.borderRadius !== undefined
+      ? { borderRadius: overrides.borderRadius }
+      : {}),
   };
 }
 
@@ -366,6 +391,109 @@ describe("user-page-settings-io export round trips", () => {
     expect(reparsed).toEqual({
       ok: true,
       value: { kind: "export", value: exported },
+    });
+  });
+});
+
+describe("user-page-settings-io workspace backup parsing", () => {
+  it("round-trips workspace backups through stringify + parse", () => {
+    const backup = makeWorkspaceBackup({
+      userId: "42",
+      username: "TestUser",
+      workspace: {
+        global: createSnapshot({
+          colors: ["#101010", "#202020", LINEAR_GRADIENT, "#404040"],
+        }),
+        cardConfigs: {
+          favoritesGrid: createCardConfig("favoritesGrid", {
+            enabled: false,
+            variant: "mixed",
+          }),
+          animeStats: createCardConfig("animeStats", {
+            variant: "compact",
+            colorOverride: {
+              useCustomSettings: true,
+              colorPreset: "custom",
+              colors: ["#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd"],
+            },
+            advancedSettings: {
+              gridCols: 4,
+            },
+          }),
+        },
+        cardOrder: ["favoritesGrid", "animeStats"],
+      },
+      editorState: {
+        templates: [
+          createTemplate({ id: "template-z", name: "Zenith" }),
+          createTemplate({ id: "template-a", name: "Aurora" }),
+        ],
+        draft: {
+          savedAt: 1_700_000_100_000,
+          patch: {
+            cardOrder: ["animeStats", "favoritesGrid"],
+            cardConfigs: {
+              animeStats: createCardConfig("animeStats", {
+                enabled: false,
+                variant: "compact",
+              }),
+            },
+          },
+        },
+        exitSaveFallback: {
+          savedAt: 1_700_000_100_500,
+          reason: "send_beacon_failed",
+        },
+      },
+    });
+
+    expectIsoTimestamp(backup.exportedAt);
+
+    const reparsed = parseWorkspaceBackupJson(stringifyWorkspaceBackup(backup));
+
+    expect(reparsed).toEqual({
+      ok: true,
+      value: backup,
+    });
+  });
+
+  it("rejects malformed workspace draft payloads", () => {
+    const raw = JSON.stringify({
+      schemaVersion: 1,
+      scope: "workspace",
+      exportedAt: "2026-03-25T00:00:00.000Z",
+      workspace: {
+        global: createSnapshot(),
+        cardConfigs: {
+          animeStats: createCardConfig("animeStats"),
+        },
+        cardOrder: ["animeStats"],
+      },
+      editorState: {
+        templates: [createTemplate()],
+        draft: {
+          savedAt: 1_700_000_200_000,
+          patch: {
+            cardConfigs: {
+              animeStats: {
+                enabled: true,
+                variant: "default",
+                colorOverride: {
+                  useCustomSettings: true,
+                  colorPreset: "custom",
+                  colors: ["#111111", "#222222"],
+                },
+                advancedSettings: {},
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(parseWorkspaceBackupJson(raw)).toEqual({
+      ok: false,
+      error: "Invalid workspace draft payload.",
     });
   });
 });

@@ -111,6 +111,10 @@ import {
   readUserPageExitSaveFallback,
 } from "@/lib/user-page-editor-draft";
 import {
+  makeWorkspaceBackup,
+  stringifyWorkspaceBackup,
+} from "@/lib/user-page-settings-io";
+import {
   consumePendingSettingsTemplateApply,
   readSettingsTemplatesFromStorage,
   rememberLastSuccessfulUserPageRoute,
@@ -778,9 +782,10 @@ function useUserPageEditorCommandPalette(opts: {
       },
       {
         id: "export-settings",
-        label: "Export settings as JSON",
-        description: "Download a backup of all settings and templates",
-        keywords: ["backup", "download", "json", "export"],
+        label: "Download workspace backup",
+        description:
+          "Export cards, ordering, templates, and recovery state as JSON",
+        keywords: ["backup", "download", "json", "export", "restore"],
         group: "editor",
         icon: <Download className="size-4" aria-hidden="true" />,
         run: exportSettings,
@@ -2611,23 +2616,53 @@ export function UserPageEditor({
 
   const handleExportSettings = useCallback(() => {
     const state = useUserPageEditor.getState();
-    const global = state.getGlobalSettingsSnapshot();
-    const payload = {
-      schemaVersion: 1,
-      scope: "all",
-      exportedAt: new Date().toISOString(),
-      global,
-      templates: state.settingsTemplates,
-    };
-    const json = JSON.stringify(payload, null, 2);
+    const draftRecord = state.userId ? readUserPageDraft(state.userId) : null;
+    const exitSaveFallbackRecord = state.userId
+      ? readUserPageExitSaveFallback(state.userId)
+      : null;
+
+    const payload = makeWorkspaceBackup({
+      userId: state.userId,
+      username: state.username,
+      workspace: {
+        global: state.getGlobalSettingsSnapshot(),
+        cardConfigs: state.cardConfigs,
+        cardOrder: state.cardOrder,
+      },
+      editorState: {
+        templates: state.settingsTemplates,
+        draft: draftRecord
+          ? {
+              savedAt: draftRecord.savedAt,
+              patch: draftRecord.patch,
+            }
+          : null,
+        exitSaveFallback: exitSaveFallbackRecord
+          ? {
+              savedAt: exitSaveFallbackRecord.savedAt,
+              reason: exitSaveFallbackRecord.reason,
+            }
+          : null,
+      },
+    });
+
+    const json = stringifyWorkspaceBackup(payload);
     const blob = new Blob([json], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `anicards-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    const identity = (payload.username || payload.userId || "workspace")
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9_-]+/g, "-")
+      .replaceAll(/^-+|-+$/g, "")
+      .slice(0, 40);
+    a.download = `anicards-${identity || "workspace"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.success("Settings exported");
+    toast.success("Workspace backup downloaded", {
+      description:
+        "Open Global Settings → Settings Tools to restore it or share your current profile cards.",
+    });
   }, []);
 
   const { recentActionsStorageKey, commandPaletteCommands } =

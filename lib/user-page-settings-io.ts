@@ -79,9 +79,38 @@ export type ParsedSettingsImport =
   | { kind: "snapshot"; snapshot: SettingsSnapshot }
   | { kind: "export"; value: SettingsExportV1 };
 
+export type WorkspaceBackupExitSaveFallbackReason =
+  | "send_beacon_failed"
+  | "send_beacon_unsupported";
+
+export type UserPageWorkspaceBackupV1 = {
+  schemaVersion: 1;
+  scope: "workspace";
+  exportedAt: string;
+  userId?: string;
+  username?: string;
+  workspace: {
+    global: SettingsSnapshot;
+    cardConfigs: Record<string, CardEditorConfig>;
+    cardOrder: string[];
+  };
+  editorState: {
+    templates: SettingsTemplateV1[];
+    draft?: {
+      savedAt: number;
+      patch: LocalEditsPatch;
+    };
+    exitSaveFallback?: {
+      savedAt: number;
+      reason: WorkspaceBackupExitSaveFallbackReason;
+    };
+  };
+};
+
 // Large enough for realistic exports, small enough to stop accidental pastes of
 // unrelated blobs from freezing the import UI.
 const MAX_IMPORT_CHARS = 250_000;
+const MAX_WORKSPACE_IMPORT_CHARS = 1_000_000;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -309,6 +338,26 @@ function parseCardConfigsRecord(
   return next;
 }
 
+function sortCardConfigsRecord(
+  value: Record<string, CardEditorConfig>,
+): Record<string, CardEditorConfig> {
+  return Object.fromEntries(
+    Object.entries(value).sort(([leftId], [rightId]) =>
+      leftId.localeCompare(rightId),
+    ),
+  );
+}
+
+function sortTemplatesForBackup(
+  templates: readonly SettingsTemplateV1[],
+): SettingsTemplateV1[] {
+  return [...templates].sort((left, right) => {
+    const nameDelta = left.name.localeCompare(right.name);
+    if (nameDelta !== 0) return nameDelta;
+    return left.id.localeCompare(right.id);
+  });
+}
+
 export function parseLocalEditsPatch(value: unknown): LocalEditsPatch | null {
   if (!isPlainObject(value)) return null;
 
@@ -362,6 +411,31 @@ export function parseSettingsExportJson(
   const parsedExport = parseSettingsExportObject(parsed);
   if (!parsedExport.ok) return parsedExport;
   return { ok: true, value: { kind: "export", value: parsedExport.value } };
+}
+
+export function parseWorkspaceBackupJson(
+  raw: string,
+):
+  | { ok: true; value: UserPageWorkspaceBackupV1 }
+  | { ok: false; error: string } {
+  if (typeof raw !== "string") {
+    return { ok: false, error: "Expected a JSON string." };
+  }
+  if (raw.length > MAX_WORKSPACE_IMPORT_CHARS) {
+    return {
+      ok: false,
+      error: `Workspace backup is too large (${raw.length} chars).`,
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "Invalid JSON." };
+  }
+
+  return parseWorkspaceBackupObject(parsed);
 }
 
 function parseSettingsExportObject(
@@ -531,6 +605,140 @@ function parseTemplatesPayload(v: unknown): SettingsTemplateV1[] | null {
   return out;
 }
 
+function parseWorkspaceBackupDraft(
+  value: unknown,
+): UserPageWorkspaceBackupV1["editorState"]["draft"] | null {
+  if (!isPlainObject(value)) return null;
+
+  const savedAt = asFiniteNumber(value.savedAt);
+  if (savedAt === undefined) return null;
+
+  const patch = parseLocalEditsPatch(value.patch);
+  if (!patch) return null;
+
+  return {
+    savedAt,
+    patch,
+  };
+}
+
+function parseWorkspaceBackupExitSaveFallback(
+  value: unknown,
+): UserPageWorkspaceBackupV1["editorState"]["exitSaveFallback"] | null {
+  if (!isPlainObject(value)) return null;
+
+  const savedAt = asFiniteNumber(value.savedAt);
+  if (savedAt === undefined) return null;
+
+  if (
+    value.reason !== "send_beacon_failed" &&
+    value.reason !== "send_beacon_unsupported"
+  ) {
+    return null;
+  }
+
+  return {
+    savedAt,
+    reason: value.reason,
+  };
+}
+
+function parseWorkspaceBackupObject(
+  parsed: unknown,
+):
+  | { ok: true; value: UserPageWorkspaceBackupV1 }
+  | { ok: false; error: string } {
+  if (!isPlainObject(parsed)) {
+    return { ok: false, error: "Expected a JSON object." };
+  }
+
+  if (parsed.schemaVersion !== 1) {
+    return {
+      ok: false,
+      error: "Unsupported workspace backup version. Expected schemaVersion=1.",
+    };
+  }
+
+  if (parsed.scope !== "workspace") {
+    return {
+      ok: false,
+      error: "Invalid scope. Expected workspace.",
+    };
+  }
+
+  if (!isPlainObject(parsed.workspace)) {
+    return { ok: false, error: "Invalid workspace backup payload." };
+  }
+
+  const global = parseSettingsSnapshot(parsed.workspace.global);
+  if (!global) {
+    return { ok: false, error: "Invalid workspace global settings payload." };
+  }
+
+  const cardConfigs = parseCardConfigsRecord(parsed.workspace.cardConfigs);
+  if (!cardConfigs) {
+    return { ok: false, error: "Invalid workspace card configs payload." };
+  }
+
+  const cardOrder = parseCardOrder(parsed.workspace.cardOrder);
+  if (!cardOrder) {
+    return { ok: false, error: "Invalid workspace card order payload." };
+  }
+
+  if (!isPlainObject(parsed.editorState)) {
+    return { ok: false, error: "Invalid workspace editor state payload." };
+  }
+
+  const templates = parseTemplatesPayload(parsed.editorState.templates);
+  if (!templates) {
+    return { ok: false, error: "Invalid workspace templates payload." };
+  }
+
+  const draft = parseWorkspaceBackupDraft(parsed.editorState.draft);
+  if (parsed.editorState.draft !== undefined && !draft) {
+    return { ok: false, error: "Invalid workspace draft payload." };
+  }
+
+  const exitSaveFallback = parseWorkspaceBackupExitSaveFallback(
+    parsed.editorState.exitSaveFallback,
+  );
+  if (parsed.editorState.exitSaveFallback !== undefined && !exitSaveFallback) {
+    return {
+      ok: false,
+      error: "Invalid workspace exit-save fallback payload.",
+    };
+  }
+
+  const exportedAt =
+    typeof parsed.exportedAt === "string"
+      ? parsed.exportedAt
+      : new Date().toISOString();
+  const userId = typeof parsed.userId === "string" ? parsed.userId : undefined;
+  const username =
+    typeof parsed.username === "string" ? parsed.username : undefined;
+
+  return {
+    ok: true,
+    value: {
+      schemaVersion: 1,
+      scope: "workspace",
+      exportedAt,
+      ...(userId ? { userId } : {}),
+      ...(username ? { username } : {}),
+      workspace: {
+        global,
+        cardConfigs: sortCardConfigsRecord(cardConfigs),
+        cardOrder,
+      },
+      editorState: {
+        templates: sortTemplatesForBackup(templates),
+        ...(draft ? { draft } : {}),
+        ...(exitSaveFallback ? { exitSaveFallback } : {}),
+      },
+    },
+  };
+}
+
 type GlobalSettingsExport = Extract<SettingsExportV1, { scope: "global" }>;
 type CardSettingsExport = Extract<SettingsExportV1, { scope: "card" }>;
 type TemplatesSettingsExport = Extract<
@@ -578,5 +786,79 @@ export function makeSettingsExport(
 }
 
 export function stringifySettingsExport(value: SettingsExportV1): string {
+  return JSON.stringify(value, null, 2);
+}
+
+export function makeWorkspaceBackup(value: {
+  userId?: string | null;
+  username?: string | null;
+  workspace: {
+    global: SettingsSnapshot;
+    cardConfigs: Record<string, CardEditorConfig>;
+    cardOrder: readonly string[];
+  };
+  editorState?: {
+    templates?: readonly SettingsTemplateV1[];
+    draft?: {
+      savedAt: number;
+      patch: LocalEditsPatch;
+    } | null;
+    exitSaveFallback?: {
+      savedAt: number;
+      reason: WorkspaceBackupExitSaveFallbackReason;
+    } | null;
+  };
+}): UserPageWorkspaceBackupV1 {
+  const global = parseSettingsSnapshot(value.workspace.global);
+  if (!global) {
+    throw new Error(
+      "Cannot build a workspace backup from an invalid global settings snapshot.",
+    );
+  }
+
+  const cardConfigs = sortCardConfigsRecord(
+    parseCardConfigsRecord(value.workspace.cardConfigs) ?? {},
+  );
+  const cardOrder = parseCardOrder(value.workspace.cardOrder) ?? [];
+  const templates = sortTemplatesForBackup(
+    parseTemplatesPayload(value.editorState?.templates ?? []) ?? [],
+  );
+  const draft = value.editorState?.draft
+    ? parseWorkspaceBackupDraft(value.editorState.draft)
+    : null;
+  const exitSaveFallback = value.editorState?.exitSaveFallback
+    ? parseWorkspaceBackupExitSaveFallback(value.editorState.exitSaveFallback)
+    : null;
+  const userId =
+    typeof value.userId === "string" && value.userId.trim().length > 0
+      ? value.userId
+      : undefined;
+  const username =
+    typeof value.username === "string" && value.username.trim().length > 0
+      ? value.username
+      : undefined;
+
+  return {
+    schemaVersion: 1,
+    scope: "workspace",
+    exportedAt: new Date().toISOString(),
+    ...(userId ? { userId } : {}),
+    ...(username ? { username } : {}),
+    workspace: {
+      global,
+      cardConfigs,
+      cardOrder,
+    },
+    editorState: {
+      templates,
+      ...(draft ? { draft } : {}),
+      ...(exitSaveFallback ? { exitSaveFallback } : {}),
+    },
+  };
+}
+
+export function stringifyWorkspaceBackup(
+  value: UserPageWorkspaceBackupV1,
+): string {
   return JSON.stringify(value, null, 2);
 }

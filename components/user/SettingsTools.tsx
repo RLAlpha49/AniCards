@@ -10,7 +10,7 @@ import {
   Trash2,
   Wrench,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import {
@@ -42,16 +42,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
+import { CopyUrlsPopover } from "@/components/user/bulk/CopyUrlsPopover";
+import { DownloadPopover } from "@/components/user/bulk/DownloadPopover";
+import {
+  createDownloadSummary,
+  DownloadStatusAlerts,
+  type DownloadSummary,
+} from "@/components/user/bulk/DownloadStatusAlerts";
 import { statCardTypes } from "@/lib/card-types";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import {
+  clearUserPageDraft,
+  clearUserPageExitSaveFallback,
+  readUserPageDraft,
+  readUserPageExitSaveFallback,
+  writeUserPageDraft,
+  writeUserPageExitSaveFallback,
+} from "@/lib/user-page-editor-draft";
+import {
   makeSettingsExport,
+  makeWorkspaceBackup,
   parseSettingsExportJson,
+  parseWorkspaceBackupJson,
   type SettingsExportV1,
   type SettingsSnapshot,
   stringifySettingsExport,
+  stringifyWorkspaceBackup,
 } from "@/lib/user-page-settings-io";
-import { cn } from "@/lib/utils";
+import { writeSettingsTemplatesToStorage } from "@/lib/user-page-settings-templates";
+import { type CardDownloadFormat, cn } from "@/lib/utils";
+
+import {
+  buildShareableCards,
+  copyShareableCardUrlsToClipboard,
+  downloadShareableCards,
+} from "./share-utils";
 
 type SettingsToolsProps =
   | {
@@ -88,6 +113,24 @@ function buildExportFilename(exp: SettingsExportV1): string {
   }
 }
 
+function buildWorkspaceBackupFilename(params: {
+  exportedAt: string;
+  userId?: string;
+  username?: string;
+}) {
+  const date = new Date(params.exportedAt);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const identity = (params.username || params.userId || "workspace")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 40);
+
+  return `anicards-${identity || "workspace"}-workspace-backup-${y}${m}${d}.json`;
+}
+
 function downloadJson(filename: string, json: string) {
   const blob = new Blob([json], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -115,18 +158,52 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [workspaceImportOpen, setWorkspaceImportOpen] = useState(false);
+  const [workspaceImportText, setWorkspaceImportText] = useState("");
+  const [workspaceImportError, setWorkspaceImportError] = useState<
+    string | null
+  >(null);
+  const [workspaceImportSuccess, setWorkspaceImportSuccess] = useState<
+    string | null
+  >(null);
   const [templateFeedback, setTemplateFeedback] =
     useState<InlineFeedback | null>(null);
+  const [copiedShareFormat, setCopiedShareFormat] = useState<
+    "url" | "anilist" | "failed-list" | null
+  >(null);
+  const [isShareDownloading, setIsShareDownloading] = useState(false);
+  const [shareDownloadProgress, setShareDownloadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
+  const [shareDownloadSummary, setShareDownloadSummary] =
+    useState<DownloadSummary | null>(null);
+  const [shareDownloadError, setShareDownloadError] = useState<string | null>(
+    null,
+  );
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(props.mode === "global");
+  const shareCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareDownloadSummaryTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const {
+    userId,
+    username,
     cardConfigs,
+    cardOrder,
+    globalColorPreset,
+    globalAdvancedSettings,
     settingsTemplates,
     getGlobalSettingsSnapshot,
     getCardSettingsSnapshot,
+    getEffectiveColors,
+    getEffectiveBorderColor,
+    getEffectiveBorderRadius,
     applySettingsSnapshotToGlobal,
     applySettingsSnapshotToCard,
+    applyLocalEditsPatch,
     copySettingsFromCard,
     createSettingsTemplate,
     deleteSettingsTemplate,
@@ -136,12 +213,21 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     exportSettingsTemplates,
   } = useUserPageEditor(
     useShallow((s) => ({
+      userId: s.userId,
+      username: s.username,
       cardConfigs: s.cardConfigs,
+      cardOrder: s.cardOrder,
+      globalColorPreset: s.globalColorPreset,
+      globalAdvancedSettings: s.globalAdvancedSettings,
       settingsTemplates: s.settingsTemplates,
       getGlobalSettingsSnapshot: s.getGlobalSettingsSnapshot,
       getCardSettingsSnapshot: s.getCardSettingsSnapshot,
+      getEffectiveColors: s.getEffectiveColors,
+      getEffectiveBorderColor: s.getEffectiveBorderColor,
+      getEffectiveBorderRadius: s.getEffectiveBorderRadius,
       applySettingsSnapshotToGlobal: s.applySettingsSnapshotToGlobal,
       applySettingsSnapshotToCard: s.applySettingsSnapshotToCard,
+      applyLocalEditsPatch: s.applyLocalEditsPatch,
       copySettingsFromCard: s.copySettingsFromCard,
       createSettingsTemplate: s.createSettingsTemplate,
       deleteSettingsTemplate: s.deleteSettingsTemplate,
@@ -151,6 +237,19 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       exportSettingsTemplates: s.exportSettingsTemplates,
     })),
   );
+
+  useEffect(() => {
+    return () => {
+      if (shareCopyTimerRef.current) {
+        clearTimeout(shareCopyTimerRef.current);
+        shareCopyTimerRef.current = null;
+      }
+      if (shareDownloadSummaryTimerRef.current) {
+        clearTimeout(shareDownloadSummaryTimerRef.current);
+        shareDownloadSummaryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const templateOptions = useMemo(() => {
     return [...settingsTemplates].sort((a, b) => a.name.localeCompare(b.name));
@@ -192,6 +291,119 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       </span>
     );
   }, [importError, importSuccess]);
+
+  const workspaceFeedbackNode = useMemo(() => {
+    if (workspaceImportError) {
+      return <span className="text-red-600">{workspaceImportError}</span>;
+    }
+    if (workspaceImportSuccess) {
+      return <span className="text-green-600">{workspaceImportSuccess}</span>;
+    }
+
+    return (
+      <span className="text-muted-foreground">
+        Full workspace backups stay local to your browser and include global
+        settings, per-card configs, ordering, templates, and local recovery
+        state.
+      </span>
+    );
+  }, [workspaceImportError, workspaceImportSuccess]);
+
+  const orderedCardIds = useMemo(() => {
+    const seen = new Set<string>();
+    const orderedIds: string[] = [];
+
+    for (const cardId of cardOrder) {
+      if (!cardConfigs[cardId] || seen.has(cardId)) continue;
+      seen.add(cardId);
+      orderedIds.push(cardId);
+    }
+
+    for (const cardId of Object.keys(cardConfigs).sort((a, b) =>
+      a.localeCompare(b),
+    )) {
+      if (seen.has(cardId)) continue;
+      seen.add(cardId);
+      orderedIds.push(cardId);
+    }
+
+    return orderedIds;
+  }, [cardConfigs, cardOrder]);
+
+  const {
+    shareableCards: profileShareCards,
+    skippedDisabledCards: profileShareSkippedDisabledCards,
+  } = useMemo(() => {
+    if (props.mode !== "global") {
+      return {
+        shareableCards: [],
+        skippedDisabledCards: [] as Array<{ cardId: string; rawType: string }>,
+      };
+    }
+
+    return buildShareableCards({
+      cardConfigs,
+      cardIds: orderedCardIds,
+      getEffectiveBorderColor,
+      getEffectiveBorderRadius,
+      getEffectiveColors,
+      globalAdvancedSettings,
+      globalColorPreset,
+      userId,
+    });
+  }, [
+    cardConfigs,
+    getEffectiveBorderColor,
+    getEffectiveBorderRadius,
+    getEffectiveColors,
+    globalAdvancedSettings,
+    globalColorPreset,
+    orderedCardIds,
+    props.mode,
+    userId,
+  ]);
+
+  const buildWorkspaceBackupPayload = useCallback(() => {
+    if (props.mode !== "global") return null;
+
+    const draftRecord = userId ? readUserPageDraft(userId) : null;
+    const exitSaveFallbackRecord = userId
+      ? readUserPageExitSaveFallback(userId)
+      : null;
+
+    return makeWorkspaceBackup({
+      userId,
+      username,
+      workspace: {
+        global: getGlobalSettingsSnapshot(),
+        cardConfigs,
+        cardOrder: orderedCardIds,
+      },
+      editorState: {
+        templates: settingsTemplates,
+        draft: draftRecord
+          ? {
+              savedAt: draftRecord.savedAt,
+              patch: draftRecord.patch,
+            }
+          : null,
+        exitSaveFallback: exitSaveFallbackRecord
+          ? {
+              savedAt: exitSaveFallbackRecord.savedAt,
+              reason: exitSaveFallbackRecord.reason,
+            }
+          : null,
+      },
+    });
+  }, [
+    cardConfigs,
+    getGlobalSettingsSnapshot,
+    orderedCardIds,
+    props.mode,
+    settingsTemplates,
+    userId,
+    username,
+  ]);
 
   const buildCurrentExport = useCallback((): SettingsExportV1 => {
     if (props.mode === "global") {
@@ -253,6 +465,159 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     const json = stringifySettingsExport(exp);
     downloadJson(buildExportFilename(exp), json);
   }, [buildExport]);
+
+  const handleCopyProfileShareUrls = useCallback(
+    async (format: "url" | "anilist" = "url") => {
+      if (profileShareCards.length === 0) return;
+
+      try {
+        await copyShareableCardUrlsToClipboard(profileShareCards, format);
+        setCopiedShareFormat(format);
+        if (shareCopyTimerRef.current) {
+          clearTimeout(shareCopyTimerRef.current);
+          shareCopyTimerRef.current = null;
+        }
+        shareCopyTimerRef.current = globalThis.setTimeout(() => {
+          setCopiedShareFormat(null);
+          shareCopyTimerRef.current = null;
+        }, 2000);
+      } catch (error) {
+        console.error("Failed to copy profile share URLs:", error);
+      }
+    },
+    [profileShareCards],
+  );
+
+  const handleCopyShareList = useCallback(async (list: string[]) => {
+    if (list.length === 0) return;
+
+    try {
+      await navigator.clipboard.writeText(list.join("\n"));
+      setCopiedShareFormat("failed-list");
+      if (shareCopyTimerRef.current) {
+        clearTimeout(shareCopyTimerRef.current);
+        shareCopyTimerRef.current = null;
+      }
+      shareCopyTimerRef.current = globalThis.setTimeout(() => {
+        setCopiedShareFormat(null);
+        shareCopyTimerRef.current = null;
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to copy share list:", error);
+    }
+  }, []);
+
+  const handleDownloadProfileShareCards = useCallback(
+    async (format: CardDownloadFormat = "png") => {
+      if (isShareDownloading) return;
+
+      const skippedDisabledRawTypes = profileShareSkippedDisabledCards.map(
+        (card) => card.rawType,
+      );
+
+      if (
+        profileShareCards.length === 0 &&
+        skippedDisabledRawTypes.length === 0
+      ) {
+        return;
+      }
+
+      if (shareDownloadSummaryTimerRef.current) {
+        clearTimeout(shareDownloadSummaryTimerRef.current);
+        shareDownloadSummaryTimerRef.current = null;
+      }
+      setShareDownloadSummary(null);
+      setShareDownloadError(null);
+
+      if (profileShareCards.length === 0) {
+        setShareDownloadSummary(
+          createDownloadSummary({
+            requestedTotal: orderedCardIds.length,
+            skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+          }),
+        );
+        return;
+      }
+
+      setIsShareDownloading(true);
+      setShareDownloadProgress({ current: 0, total: profileShareCards.length });
+
+      try {
+        const result = await downloadShareableCards({
+          cards: profileShareCards,
+          format,
+          onProgress: (progress) => {
+            setShareDownloadProgress({
+              current: progress.current,
+              total: progress.total,
+            });
+          },
+        });
+
+        const failedRawTypes =
+          result.failedCards?.map((card) => card.rawType || card.type) ?? [];
+        const nextSummary = createDownloadSummary({
+          requestedTotal: orderedCardIds.length,
+          exported: result.exported,
+          failed: result.failed,
+          failedCardRawTypes: failedRawTypes,
+          skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+        });
+
+        setShareDownloadSummary(nextSummary);
+        shareDownloadSummaryTimerRef.current = globalThis.setTimeout(
+          () => {
+            setShareDownloadSummary(null);
+            shareDownloadSummaryTimerRef.current = null;
+          },
+          nextSummary.failed > 0 ? 10000 : 5000,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setShareDownloadError(message);
+      } finally {
+        setIsShareDownloading(false);
+      }
+    },
+    [
+      isShareDownloading,
+      orderedCardIds.length,
+      profileShareCards,
+      profileShareSkippedDisabledCards,
+    ],
+  );
+
+  const handleCopyWorkspaceBackup = useCallback(async () => {
+    const backup = buildWorkspaceBackupPayload();
+    if (!backup) return;
+
+    const json = stringifyWorkspaceBackup(backup);
+    try {
+      await navigator.clipboard.writeText(json);
+      setWorkspaceImportSuccess("Workspace backup copied to clipboard.");
+      globalThis.setTimeout(() => setWorkspaceImportSuccess(null), 1500);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setWorkspaceImportError(`Failed to copy workspace backup: ${message}`);
+      globalThis.setTimeout(() => setWorkspaceImportError(null), 2500);
+    }
+  }, [buildWorkspaceBackupPayload]);
+
+  const handleDownloadWorkspaceBackup = useCallback(() => {
+    const backup = buildWorkspaceBackupPayload();
+    if (!backup) return;
+
+    downloadJson(
+      buildWorkspaceBackupFilename({
+        exportedAt: backup.exportedAt,
+        userId: backup.userId,
+        username: backup.username,
+      }),
+      stringifyWorkspaceBackup(backup),
+    );
+    setWorkspaceImportSuccess("Workspace backup downloaded.");
+    globalThis.setTimeout(() => setWorkspaceImportSuccess(null), 1500);
+  }, [buildWorkspaceBackupPayload]);
 
   const applySnapshotToTarget = useCallback(
     (snapshot: SettingsSnapshot) => {
@@ -335,6 +700,81 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       }
     },
     [handleImportString],
+  );
+
+  const handleWorkspaceImportString = useCallback(
+    (raw: string) => {
+      setWorkspaceImportError(null);
+      setWorkspaceImportSuccess(null);
+
+      const parsed = parseWorkspaceBackupJson(raw);
+      if (!parsed.ok) {
+        setWorkspaceImportError(parsed.error);
+        return;
+      }
+
+      const backup = parsed.value;
+      applySettingsSnapshotToGlobal(backup.workspace.global);
+      applyLocalEditsPatch({
+        cardConfigs: backup.workspace.cardConfigs,
+        cardOrder: backup.workspace.cardOrder,
+      });
+
+      const persistTemplatesResult = writeSettingsTemplatesToStorage(
+        backup.editorState.templates,
+      );
+      if (persistTemplatesResult.ok) {
+        useUserPageEditor.setState({
+          settingsTemplates: backup.editorState.templates,
+        });
+      }
+
+      if (userId) {
+        if (backup.editorState.draft) {
+          writeUserPageDraft(userId, backup.editorState.draft.patch);
+        } else {
+          clearUserPageDraft(userId);
+        }
+
+        if (backup.editorState.exitSaveFallback) {
+          writeUserPageExitSaveFallback(
+            userId,
+            backup.editorState.exitSaveFallback.reason,
+          );
+        } else {
+          clearUserPageExitSaveFallback(userId);
+        }
+      }
+
+      const backupIdentity = backup.username ?? backup.userId;
+      if (!persistTemplatesResult.ok) {
+        setWorkspaceImportError(
+          `Workspace restored${backupIdentity ? ` from ${backupIdentity}` : ""}, but ${persistTemplatesResult.error}`,
+        );
+        return;
+      }
+
+      setWorkspaceImportSuccess(
+        `Workspace restored${backupIdentity ? ` from ${backupIdentity}` : ""}.`,
+      );
+    },
+    [applyLocalEditsPatch, applySettingsSnapshotToGlobal, userId],
+  );
+
+  const handleWorkspaceImportFile = useCallback(
+    async (file: File) => {
+      setWorkspaceImportError(null);
+      setWorkspaceImportSuccess(null);
+
+      try {
+        const text = await file.text();
+        handleWorkspaceImportString(text);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setWorkspaceImportError(`Failed to read file: ${message}`);
+      }
+    },
+    [handleWorkspaceImportString],
   );
 
   const handleSaveTemplate = useCallback(() => {
@@ -465,7 +905,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
               Settings Tools
             </span>
             <p className="text-[11px] text-muted-foreground">
-              Copy, templates, import &amp; export
+              Share, backup, templates, import &amp; export
             </p>
           </div>
         </div>
@@ -633,6 +1073,227 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                   ) : null}
                 </div>
               </ToolGroup>
+
+              {props.mode === "global" ? (
+                <>
+                  <ToolGroup label="Profile sharing">
+                    <div className="space-y-3">
+                      <div className="
+                        flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground
+                      ">
+                        <span>
+                          {profileShareCards.length} enabled card
+                          {profileShareCards.length === 1 ? "" : "s"} ready to
+                          share.
+                        </span>
+                        {profileShareSkippedDisabledCards.length > 0 ? (
+                          <span>
+                            {profileShareSkippedDisabledCards.length} disabled
+                            card
+                            {profileShareSkippedDisabledCards.length === 1
+                              ? ""
+                              : "s"}{" "}
+                            excluded automatically.
+                          </span>
+                        ) : null}
+                        {!userId ? (
+                          <span>
+                            Load a profile before generating share URLs.
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className={cn(
+                          "flex flex-wrap items-center gap-2",
+                          (!userId || orderedCardIds.length === 0) &&
+                            "pointer-events-none opacity-50",
+                        )}
+                        aria-disabled={!userId || orderedCardIds.length === 0}
+                      >
+                        <CopyUrlsPopover
+                          copiedFormat={copiedShareFormat}
+                          handleCopyUrls={handleCopyProfileShareUrls}
+                        />
+                        <DownloadPopover
+                          isDownloading={isShareDownloading}
+                          downloadProgress={shareDownloadProgress}
+                          handleDownloadAll={handleDownloadProfileShareCards}
+                        />
+                      </div>
+
+                      <DownloadStatusAlerts
+                        downloadSummary={shareDownloadSummary}
+                        downloadError={shareDownloadError}
+                        setDownloadSummary={setShareDownloadSummary}
+                        setDownloadError={setShareDownloadError}
+                        copyToClipboard={handleCopyShareList}
+                      />
+                    </div>
+                  </ToolGroup>
+
+                  <ToolGroup label="Workspace backup / restore">
+                    <div className="space-y-2.5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-border/60 hover:bg-gold/5"
+                          onClick={handleCopyWorkspaceBackup}
+                        >
+                          <Copy
+                            className="mr-1.5 size-3.5"
+                            aria-hidden="true"
+                          />
+                          Copy backup JSON
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-border/60 hover:bg-gold/5"
+                          onClick={handleDownloadWorkspaceBackup}
+                        >
+                          <Download
+                            className="mr-1.5 size-3.5"
+                            aria-hidden="true"
+                          />
+                          Download backup
+                        </Button>
+
+                        <Dialog
+                          open={workspaceImportOpen}
+                          onOpenChange={setWorkspaceImportOpen}
+                        >
+                          <DialogTrigger asChild>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
+                            >
+                              <FileUp
+                                className="mr-1.5 size-3.5"
+                                aria-hidden="true"
+                              />
+                              Restore backup
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>
+                                Restore workspace backup
+                              </DialogTitle>
+                              <DialogDescription>
+                                Paste a full workspace backup or choose a file.
+                                This replaces the current in-browser workspace
+                                view, template library, and local recovery data.
+                              </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Label
+                                  htmlFor="workspace-import-file"
+                                  className="sr-only"
+                                >
+                                  Choose a workspace backup file to import
+                                </Label>
+                                <Input
+                                  id="workspace-import-file"
+                                  type="file"
+                                  accept="application/json,.json"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    handleWorkspaceImportFile(file);
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label
+                                  htmlFor="workspace-import-text"
+                                  className="text-xs"
+                                >
+                                  Or paste workspace backup JSON
+                                </Label>
+                                <textarea
+                                  id="workspace-import-text"
+                                  value={workspaceImportText}
+                                  onChange={(e) =>
+                                    setWorkspaceImportText(e.target.value)
+                                  }
+                                  className="
+                                    h-48 w-full resize-none border border-border/60 bg-background
+                                    p-3 font-mono text-xs text-foreground shadow-sm
+                                    focus:outline-none
+                                    focus-visible:ring-2 focus-visible:ring-gold/30
+                                  "
+                                  placeholder={`{
+  "schemaVersion": 1,
+  "scope": "workspace",
+  ...
+}`}
+                                />
+                              </div>
+
+                              {workspaceImportError ? (
+                                <p
+                                  role="alert"
+                                  className="text-sm text-red-600"
+                                >
+                                  {workspaceImportError}
+                                </p>
+                              ) : null}
+                              {workspaceImportSuccess ? (
+                                <output
+                                  className="text-sm text-green-600"
+                                  aria-live="polite"
+                                >
+                                  {workspaceImportSuccess}
+                                </output>
+                              ) : null}
+
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setWorkspaceImportOpen(false);
+                                    setWorkspaceImportText("");
+                                    setWorkspaceImportError(null);
+                                    setWorkspaceImportSuccess(null);
+                                  }}
+                                >
+                                  Close
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() =>
+                                    handleWorkspaceImportString(
+                                      workspaceImportText,
+                                    )
+                                  }
+                                  disabled={!workspaceImportText.trim()}
+                                >
+                                  Restore
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+
+                      <div className="min-h-5 text-xs">
+                        {workspaceFeedbackNode}
+                      </div>
+                    </div>
+                  </ToolGroup>
+                </>
+              ) : null}
 
               {/* ── Import / Export ────────────────────────── */}
               <ToolGroup label="Import / Export (JSON)">
