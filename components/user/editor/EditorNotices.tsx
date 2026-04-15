@@ -19,9 +19,12 @@ import { SaveConflictNotice } from "./SaveConflictNotice";
 
 export function EditorNotices({
   showConflictNotice,
+  conflictNoticeSummary,
   onResolveConflictKeepEdits,
   onResolveConflictDiscardEdits,
   showDraftNotice,
+  draftNoticeMode,
+  draftSavedAt,
   onRestoreDraft,
   onDiscardDraft,
   onDismissDraftNotice,
@@ -35,9 +38,25 @@ export function EditorNotices({
   onDismissCardsWarning,
 }: Readonly<{
   showConflictNotice: boolean;
+  conflictNoticeSummary?: {
+    attemptedAt: number;
+    changedCardCount: number;
+    changedCards: Array<{
+      cardId: string;
+      group?: string;
+      label: string;
+    }>;
+    changedGlobalSettingCount: number;
+    currentUpdatedAt?: string;
+    lastSavedAt: number | null;
+    remainingChangedCardCount: number;
+    reorderedCardCount: number;
+  } | null;
   onResolveConflictKeepEdits: () => void;
   onResolveConflictDiscardEdits: () => void;
   showDraftNotice: boolean;
+  draftNoticeMode?: "draft" | "exit-save-fallback";
+  draftSavedAt?: number | null;
   onRestoreDraft: () => void;
   onDiscardDraft: () => void;
   onDismissDraftNotice: () => void;
@@ -54,12 +73,15 @@ export function EditorNotices({
     <div className="mx-auto mt-6 flex max-w-[80vw] flex-col gap-4">
       <SaveConflictNotice
         isVisible={showConflictNotice}
+        summary={conflictNoticeSummary}
         onKeepEdits={onResolveConflictKeepEdits}
         onReloadLatest={onResolveConflictDiscardEdits}
       />
 
       <DraftRestoreNotice
         isVisible={showDraftNotice}
+        mode={draftNoticeMode}
+        savedAt={draftSavedAt}
         onRestore={onRestoreDraft}
         onDiscard={onDiscardDraft}
         onDismiss={onDismissDraftNotice}

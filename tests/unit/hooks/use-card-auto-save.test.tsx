@@ -14,6 +14,10 @@ import type {
   CardEditorConfig,
   LocalEditsPatch,
 } from "@/lib/stores/user-page-editor";
+import {
+  readUserPageDraft,
+  readUserPageExitSaveFallback,
+} from "@/lib/user-page-editor-draft";
 import { parseRequestInitJson } from "@/tests/unit/__setup__";
 import {
   createCardConfig,
@@ -100,6 +104,7 @@ describe("useCardAutoSave", () => {
     });
 
     const patch: LocalEditsPatch = {
+      cardOrder: ["favoritesGrid", "animeStats", "ghostCard"],
       cardConfigs: {
         animeStats: createCardConfig("animeStats", {
           variant: "minimal",
@@ -189,6 +194,7 @@ describe("useCardAutoSave", () => {
     const [url, init] = firstFetchCall as unknown as [string, RequestInit];
     const body = parseRequestInitJson<{
       cards: Array<Record<string, unknown>>;
+      cardOrder?: string[];
       globalSettings?: Record<string, unknown>;
       ifMatchUpdatedAt?: string;
       userId: string;
@@ -198,6 +204,7 @@ describe("useCardAutoSave", () => {
     expect(init.method).toBe("POST");
     expect(body.userId).toBe("42");
     expect(body.ifMatchUpdatedAt).toBe("2026-03-29T03:00:00.000Z");
+    expect(body.cardOrder).toEqual(["favoritesGrid"]);
     expect(body.globalSettings).toEqual({
       backgroundColor: "#222222",
       borderEnabled: true,
@@ -284,6 +291,16 @@ describe("useCardAutoSave", () => {
     expect(result.current.saveConflict).toEqual({
       currentUpdatedAt: "2026-03-29T09:15:00.000Z",
     });
+    expect(result.current.saveConflictSummary).toMatchObject({
+      changedCardCount: 1,
+      changedCardIds: ["animeStats"],
+      changedGlobalSettingCount: 0,
+      lastSavedAt: undefined,
+      reorderedCardCount: 0,
+    });
+    expect(typeof result.current.saveConflictSummary?.attemptedAt).toBe(
+      "number",
+    );
     expect(editorStore.getState().saveError).toBe(
       "Changes were already saved in another tab.",
     );
@@ -505,5 +522,45 @@ describe("useCardAutoSave", () => {
         variation: "default",
       },
     ]);
+    expect(readUserPageDraft("42")).toBeNull();
+    expect(readUserPageExitSaveFallback("42")).toBeNull();
+  });
+
+  it("records an explicit recovery draft when pagehide cannot queue the exit save", async () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    editorStore.reset({
+      cardOrder: ["animeStats"],
+      isDirty: true,
+      localEditsPatch: patch,
+      userId: "42",
+    });
+
+    const sendBeacon = mock(() => false);
+    Object.defineProperty(globalThis.navigator, "sendBeacon", {
+      configurable: true,
+      value: sendBeacon,
+    });
+
+    renderHook(() => useCardAutoSave({ debounceMs: 500 }));
+
+    await act(async () => {
+      globalThis.window.dispatchEvent(new globalThis.window.Event("pagehide"));
+      await flushMicrotasks();
+    });
+
+    expect(sendBeacon).toHaveBeenCalledTimes(1);
+    expect(readUserPageDraft("42")?.patch).toEqual(patch);
+    expect(readUserPageExitSaveFallback("42")).toMatchObject({
+      reason: "send_beacon_failed",
+      userId: "42",
+      version: 1,
+    });
   });
 });

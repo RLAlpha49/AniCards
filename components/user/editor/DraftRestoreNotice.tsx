@@ -5,18 +5,33 @@ import { History } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 
+function formatSavedAt(savedAt: number | null | undefined): string | null {
+  if (!savedAt) {
+    return null;
+  }
+
+  return new Date(savedAt).toLocaleString();
+}
+
 export function DraftRestoreNotice({
   isVisible,
+  mode = "draft",
+  savedAt,
   onRestore,
   onDiscard,
   onDismiss,
 }: Readonly<{
   isVisible: boolean;
+  mode?: "draft" | "exit-save-fallback";
+  savedAt?: number | null;
   onRestore: () => void;
   onDiscard: () => void;
   onDismiss: () => void;
 }>) {
   if (!isVisible) return null;
+
+  const savedAtLabel = formatSavedAt(savedAt);
+  const isExitSaveFallback = mode === "exit-save-fallback";
 
   return (
     <div className="flex justify-center">
@@ -39,9 +54,22 @@ export function DraftRestoreNotice({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-foreground">
-              <span className="font-medium">Draft found:</span> we found unsaved
-              changes from a previous session.
+              <span className="font-medium">
+                {isExitSaveFallback
+                  ? "Exit save couldn't finish:"
+                  : "Draft found:"}
+              </span>{" "}
+              {isExitSaveFallback
+                ? "AniCards couldn't queue the last background save when you left this page, so a local recovery draft was kept for review."
+                : "we found unsaved changes from a previous session."}
             </p>
+
+            {savedAtLabel ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {isExitSaveFallback ? "Recovery draft saved" : "Draft saved"}:{" "}
+                {savedAtLabel}
+              </p>
+            ) : null}
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button
@@ -50,7 +78,9 @@ export function DraftRestoreNotice({
                 className="w-full sm:w-auto"
                 onClick={onRestore}
               >
-                Restore draft
+                {isExitSaveFallback
+                  ? "Review & restore draft"
+                  : "Restore draft"}
               </Button>
               <Button
                 type="button"
@@ -58,7 +88,9 @@ export function DraftRestoreNotice({
                 className="w-full sm:w-auto"
                 onClick={onDiscard}
               >
-                Discard draft
+                {isExitSaveFallback
+                  ? "Discard recovery draft"
+                  : "Discard draft"}
               </Button>
               <Button
                 type="button"

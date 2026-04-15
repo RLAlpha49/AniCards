@@ -106,7 +106,9 @@ import {
 import type { LoadingPhase } from "@/lib/types/loading";
 import {
   clearUserPageDraft,
+  clearUserPageExitSaveFallback,
   readUserPageDraft,
+  readUserPageExitSaveFallback,
 } from "@/lib/user-page-editor-draft";
 import {
   consumePendingSettingsTemplateApply,
@@ -1093,6 +1095,9 @@ function recoverUserPageDraft(params: {
   setDraftRecord: React.Dispatch<
     React.SetStateAction<ReturnType<typeof readUserPageDraft>>
   >;
+  setExitSaveFallbackRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageExitSaveFallback>>
+  >;
   setIsDraftNoticeDismissed: React.Dispatch<React.SetStateAction<boolean>>;
   autoRecoveredDraftKeyRef: { current: string | null };
 }): void {
@@ -1101,16 +1106,29 @@ function recoverUserPageDraft(params: {
   }
 
   const next = readUserPageDraft(params.userId);
+  const exitSaveFallbackRecord = readUserPageExitSaveFallback(params.userId);
   if (!next) {
+    if (exitSaveFallbackRecord) {
+      clearUserPageExitSaveFallback(params.userId);
+    }
+
     params.setDraftRecord(null);
+    params.setExitSaveFallbackRecord(null);
     params.setIsDraftNoticeDismissed(false);
     params.autoRecoveredDraftKeyRef.current = null;
     return;
   }
 
   params.setDraftRecord(next);
+  params.setExitSaveFallbackRecord(exitSaveFallbackRecord);
 
   if (params.isDirty) {
+    return;
+  }
+
+  if (exitSaveFallbackRecord) {
+    params.setIsDraftNoticeDismissed(false);
+    params.autoRecoveredDraftKeyRef.current = null;
     return;
   }
 
@@ -1124,7 +1142,9 @@ function recoverUserPageDraft(params: {
 
   if (!useUserPageEditor.getState().isDirty) {
     clearUserPageDraft(params.userId);
+    clearUserPageExitSaveFallback(params.userId);
     params.setDraftRecord(null);
+    params.setExitSaveFallbackRecord(null);
     params.autoRecoveredDraftKeyRef.current = null;
     return;
   }
@@ -1146,12 +1166,15 @@ function useContinuityFirstDraftRecovery(params: {
 }) {
   const [draftRecord, setDraftRecord] =
     useState<ReturnType<typeof readUserPageDraft>>(null);
+  const [exitSaveFallbackRecord, setExitSaveFallbackRecord] =
+    useState<ReturnType<typeof readUserPageExitSaveFallback>>(null);
   const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
   const autoRecoveredDraftKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!params.userId) {
       setDraftRecord(null);
+      setExitSaveFallbackRecord(null);
       setIsDraftNoticeDismissed(false);
       autoRecoveredDraftKeyRef.current = null;
       return;
@@ -1163,6 +1186,7 @@ function useContinuityFirstDraftRecovery(params: {
       isDirty: params.isDirty,
       applyLocalEditsPatch: params.applyLocalEditsPatch,
       setDraftRecord,
+      setExitSaveFallbackRecord,
       setIsDraftNoticeDismissed,
       autoRecoveredDraftKeyRef,
     });
@@ -1176,19 +1200,35 @@ function useContinuityFirstDraftRecovery(params: {
   const handleRestoreDraft = useCallback(() => {
     if (!draftRecord) return;
     params.applyLocalEditsPatch(draftRecord.patch);
+    if (params.userId) {
+      clearUserPageExitSaveFallback(params.userId);
+    }
+    setExitSaveFallbackRecord(null);
     setDraftRecord(null);
-    toast.success("Draft restored");
-  }, [params.applyLocalEditsPatch, draftRecord]);
+    toast.success(
+      exitSaveFallbackRecord ? "Recovery draft restored" : "Draft restored",
+    );
+  }, [
+    draftRecord,
+    exitSaveFallbackRecord,
+    params.applyLocalEditsPatch,
+    params.userId,
+  ]);
 
   const handleDiscardDraft = useCallback(() => {
     if (!params.userId) return;
     clearUserPageDraft(params.userId);
+    clearUserPageExitSaveFallback(params.userId);
+    setExitSaveFallbackRecord(null);
     setDraftRecord(null);
-    toast.success("Draft discarded");
-  }, [params.userId]);
+    toast.success(
+      exitSaveFallbackRecord ? "Recovery draft discarded" : "Draft discarded",
+    );
+  }, [exitSaveFallbackRecord, params.userId]);
 
   return {
     draftRecord,
+    exitSaveFallbackRecord,
     setDraftRecord,
     isDraftNoticeDismissed,
     setIsDraftNoticeDismissed,
@@ -2256,6 +2296,7 @@ export function UserPageEditor({
   const {
     saveNow,
     saveConflict,
+    saveConflictSummary,
     clearSaveConflict,
     isAutoSaveQueued,
     autoSaveDueAt,
@@ -2351,6 +2392,7 @@ export function UserPageEditor({
 
   const {
     draftRecord,
+    exitSaveFallbackRecord,
     setDraftRecord,
     isDraftNoticeDismissed,
     setIsDraftNoticeDismissed,
@@ -2381,7 +2423,41 @@ export function UserPageEditor({
 
   const showDraftNotice =
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
+  const draftNoticeMode = exitSaveFallbackRecord
+    ? "exit-save-fallback"
+    : "draft";
   const showConflictNotice = saveConflict != null;
+  const conflictNoticeSummary = useMemo(() => {
+    if (!saveConflict || !saveConflictSummary) {
+      return null;
+    }
+
+    const changedCards = saveConflictSummary.changedCardIds
+      .slice(0, 4)
+      .map((cardId) => {
+        const meta = cardMetaById.get(cardId);
+
+        return {
+          cardId,
+          group: meta?.group,
+          label: meta?.label ?? cardId,
+        };
+      });
+
+    return {
+      attemptedAt: saveConflictSummary.attemptedAt,
+      changedCardCount: saveConflictSummary.changedCardCount,
+      changedCards,
+      changedGlobalSettingCount: saveConflictSummary.changedGlobalSettingCount,
+      currentUpdatedAt: saveConflict.currentUpdatedAt,
+      lastSavedAt: saveConflictSummary.lastSavedAt,
+      remainingChangedCardCount: Math.max(
+        0,
+        saveConflictSummary.changedCardCount - changedCards.length,
+      ),
+      reorderedCardCount: saveConflictSummary.reorderedCardCount,
+    };
+  }, [cardMetaById, saveConflict, saveConflictSummary]);
   const shouldProtectUnsavedWork = useMemo(
     () =>
       shouldWarnBeforeLeavingEditor({
@@ -2649,9 +2725,14 @@ export function UserPageEditor({
 
         <EditorNotices
           showConflictNotice={showConflictNotice}
+          conflictNoticeSummary={conflictNoticeSummary}
           onResolveConflictKeepEdits={handleResolveConflictKeepEdits}
           onResolveConflictDiscardEdits={handleResolveConflictDiscardEdits}
           showDraftNotice={showDraftNotice}
+          draftNoticeMode={draftNoticeMode}
+          draftSavedAt={
+            exitSaveFallbackRecord?.savedAt ?? draftRecord?.savedAt ?? null
+          }
           onRestoreDraft={handleRestoreDraft}
           onDiscardDraft={handleDiscardDraft}
           onDismissDraftNotice={() => setIsDraftNoticeDismissed(true)}

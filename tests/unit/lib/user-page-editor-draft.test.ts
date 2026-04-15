@@ -3,8 +3,11 @@ import "@/tests/unit/__setup__";
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 
 import {
+  clearUserPageExitSaveFallback,
   readUserPageDraft,
+  readUserPageExitSaveFallback,
   writeUserPageDraft,
+  writeUserPageExitSaveFallback,
 } from "@/lib/user-page-editor-draft";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 import {
@@ -16,6 +19,8 @@ import {
 installHappyDom();
 
 const DRAFT_STORAGE_KEY = "anicards:user-page-editor:draft:v1:42";
+const EXIT_FALLBACK_STORAGE_KEY =
+  "anicards:user-page-editor:exit-save-fallback:v1:42";
 
 describe("user-page-editor-draft", () => {
   beforeEach(() => {
@@ -161,6 +166,65 @@ describe("user-page-editor-draft", () => {
     expect(readUserPageDraft("42")).toBeNull();
     expect(
       globalThis.window.localStorage.getItem(DRAFT_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("persists and clears explicit exit-save fallback markers", () => {
+    writeUserPageExitSaveFallback("42", "send_beacon_failed");
+
+    const fallback = readUserPageExitSaveFallback("42");
+    expect(fallback).toMatchObject({
+      reason: "send_beacon_failed",
+      userId: "42",
+      version: 1,
+    });
+
+    clearUserPageExitSaveFallback("42");
+
+    expect(readUserPageExitSaveFallback("42")).toBeNull();
+    expect(
+      globalThis.window.localStorage.getItem(EXIT_FALLBACK_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("clears the paired exit-save fallback marker when a draft record is invalidated", () => {
+    const savedAt = Date.now() - 1000 * 60 * 60 * 24 * 8;
+
+    globalThis.window.localStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        userId: "42",
+        savedAt,
+        patch: {
+          cardConfigs: {
+            animeStats: {
+              cardId: "animeStats",
+              enabled: false,
+              variant: "default",
+              colorOverride: {
+                useCustomSettings: false,
+              },
+              advancedSettings: {},
+            },
+          },
+        },
+      }),
+    );
+    globalThis.window.localStorage.setItem(
+      EXIT_FALLBACK_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        userId: "42",
+        savedAt: Date.now(),
+        reason: "send_beacon_unsupported",
+      }),
+    );
+
+    expect(readUserPageDraft("42")).toBeNull();
+    expect(readUserPageExitSaveFallback("42")).toBeNull();
+    expect(
+      globalThis.window.localStorage.getItem(EXIT_FALLBACK_STORAGE_KEY),
     ).toBeNull();
   });
 });

@@ -27,8 +27,9 @@ mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
-const { readUserPageDraft } = await import("@/lib/user-page-editor-draft");
-const { useUserPageDraftBackup } =
+const { readUserPageDraft, readUserPageExitSaveFallback } =
+  await import("@/lib/user-page-editor-draft");
+const { recordUserPageExitSaveFallback, useUserPageDraftBackup } =
   await import("@/hooks/useUserPageDraftBackup");
 
 beforeEach(() => {
@@ -117,6 +118,13 @@ describe("useUserPageDraftBackup", () => {
       });
     });
 
+    expect(recordUserPageExitSaveFallback("42", "send_beacon_failed")).toBe(
+      true,
+    );
+    expect(readUserPageExitSaveFallback("42")?.reason).toBe(
+      "send_beacon_failed",
+    );
+
     act(() => {
       editorStore.setState({
         isDirty: false,
@@ -125,12 +133,14 @@ describe("useUserPageDraftBackup", () => {
     });
 
     expect(readUserPageDraft("42")).toBeNull();
+    expect(readUserPageExitSaveFallback("42")).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(750);
     });
 
     expect(readUserPageDraft("42")).toBeNull();
+    expect(readUserPageExitSaveFallback("42")).toBeNull();
   });
 
   it("cancels an in-flight draft timer when the hook unmounts", () => {
@@ -185,6 +195,35 @@ describe("useUserPageDraftBackup", () => {
     });
 
     expect(readUserPageDraft("42")?.patch).toEqual(patch);
+  });
+
+  it("records an explicit exit-save fallback marker alongside the flushed draft", () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    renderHook(() => useUserPageDraftBackup({ debounceMs: 750 }));
+
+    act(() => {
+      editorStore.setState({
+        isDirty: true,
+        localEditsPatch: patch,
+      });
+    });
+
+    expect(
+      recordUserPageExitSaveFallback("42", "send_beacon_unsupported"),
+    ).toBe(true);
+    expect(readUserPageDraft("42")?.patch).toEqual(patch);
+    expect(readUserPageExitSaveFallback("42")).toMatchObject({
+      reason: "send_beacon_unsupported",
+      userId: "42",
+      version: 1,
+    });
   });
 
   it("flushes the latest dirty draft immediately when the page becomes hidden", () => {

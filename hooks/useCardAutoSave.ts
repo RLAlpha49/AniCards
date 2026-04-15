@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
 import { colorPresets } from "@/components/stat-card-generator/constants";
+import { recordUserPageExitSaveFallback } from "@/hooks/useUserPageDraftBackup";
 import type { ServerCardData } from "@/lib/api/cards";
 import {
   isClientRequestCancelled,
@@ -65,6 +66,22 @@ type SaveConflictInfo = {
   currentUpdatedAt?: string;
 };
 
+type SaveConflictSummary = {
+  attemptedAt: number;
+  changedCardCount: number;
+  changedCardIds: string[];
+  changedGlobalSettingCount: number;
+  lastSavedAt: number | null;
+  reorderedCardCount: number;
+};
+
+type ExitSaveBeaconResult =
+  | { queued: true }
+  | {
+      queued: false;
+      reason: "send_beacon_failed" | "send_beacon_unsupported";
+    };
+
 type SaveRetryPlan =
   | { shouldRetry: false }
   | { shouldRetry: true; delayMs: number };
@@ -88,6 +105,98 @@ function ensureFourColors(colors?: ColorValue[]): ColorValue[] {
     out.push(defaultColors[i]);
   }
   return out;
+}
+
+function appendMissingCardIds(
+  orderSignal: readonly string[],
+  fallbackOrder: readonly string[],
+): string[] {
+  const next: string[] = [];
+  const seen = new Set<string>();
+  const allowedIds = new Set(fallbackOrder);
+
+  for (const cardId of orderSignal) {
+    if (!allowedIds.has(cardId) || seen.has(cardId)) {
+      continue;
+    }
+
+    seen.add(cardId);
+    next.push(cardId);
+  }
+
+  for (const cardId of fallbackOrder) {
+    if (seen.has(cardId)) {
+      continue;
+    }
+
+    seen.add(cardId);
+    next.push(cardId);
+  }
+
+  return next;
+}
+
+function areStringArraysEqual(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function compressCardOrderSignal(
+  order: readonly string[],
+  fallbackOrder: readonly string[],
+): string[] {
+  const normalizedOrder = appendMissingCardIds(order, fallbackOrder);
+
+  for (
+    let prefixLength = 0;
+    prefixLength <= normalizedOrder.length;
+    prefixLength += 1
+  ) {
+    const candidateSignal = normalizedOrder.slice(0, prefixLength);
+
+    if (
+      areStringArraysEqual(
+        appendMissingCardIds(candidateSignal, fallbackOrder),
+        normalizedOrder,
+      )
+    ) {
+      return candidateSignal;
+    }
+  }
+
+  return normalizedOrder;
+}
+
+function countReorderedCardPositions(
+  nextOrder: readonly string[] | undefined,
+  baselineOrder: readonly string[],
+): number {
+  if (!nextOrder || nextOrder.length === 0) {
+    return 0;
+  }
+
+  const maxLength = Math.max(nextOrder.length, baselineOrder.length);
+  let changedPositions = 0;
+
+  for (let index = 0; index < maxLength; index += 1) {
+    if (nextOrder[index] !== baselineOrder[index]) {
+      changedPositions += 1;
+    }
+  }
+
+  return changedPositions;
 }
 
 function getCardConfigsInSaveOrder(opts: {
@@ -312,10 +421,13 @@ function queueExitSaveBeacon(payload: {
   globalSettings?: Partial<GlobalSettingsPayload>;
   cardOrder?: string[];
   ifMatchUpdatedAt?: string;
-}): boolean {
+}): ExitSaveBeaconResult {
   const sendBeacon = globalThis.navigator?.sendBeacon;
   if (typeof sendBeacon !== "function") {
-    return false;
+    return {
+      queued: false,
+      reason: "send_beacon_unsupported",
+    };
   }
 
   const body = JSON.stringify(
@@ -332,13 +444,17 @@ function queueExitSaveBeacon(payload: {
       : body;
 
   try {
-    return sendBeacon.call(
-      globalThis.navigator,
-      "/api/store-cards",
-      beaconBody,
-    );
+    return sendBeacon.call(globalThis.navigator, "/api/store-cards", beaconBody)
+      ? { queued: true }
+      : {
+          queued: false,
+          reason: "send_beacon_failed",
+        };
   } catch {
-    return false;
+    return {
+      queued: false,
+      reason: "send_beacon_failed",
+    };
   }
 }
 
@@ -609,6 +725,29 @@ function beginSaveAttempt(
   };
 }
 
+function buildSaveConflictSummary(params: {
+  payloadGlobalSettings?: Partial<GlobalSettingsPayload>;
+  payloadPatch: NonNullable<ReturnType<typeof buildLocalEditsPatch>>;
+  store: ReturnType<typeof useUserPageEditor.getState>;
+}): SaveConflictSummary {
+  const changedCardIds = params.payloadPatch.cardConfigs
+    ? Object.keys(params.payloadPatch.cardConfigs)
+    : [];
+
+  return {
+    attemptedAt: Date.now(),
+    changedCardCount: changedCardIds.length,
+    changedCardIds,
+    changedGlobalSettingCount: Object.keys(params.payloadGlobalSettings ?? {})
+      .length,
+    lastSavedAt: params.store.lastSavedAt,
+    reorderedCardCount: countReorderedCardPositions(
+      params.payloadPatch.cardOrder,
+      params.store.baselineCardOrder,
+    ),
+  };
+}
+
 function buildUnexpectedSaveFailureMessage(error: unknown): string {
   if (isClientTimeoutError(error)) {
     return "Saving your cards timed out. Please try again.";
@@ -625,12 +764,21 @@ function applySaveResult(params: {
   result: SaveCardsResponse;
   store: ReturnType<typeof useUserPageEditor.getState>;
   payloadPatch: NonNullable<ReturnType<typeof buildLocalEditsPatch>>;
+  payloadGlobalSettings?: Partial<GlobalSettingsPayload>;
   toastId: string;
   shouldNotify: boolean;
   setSaveConflict: (next: SaveConflictInfo | null) => void;
+  setSaveConflictSummary: (next: SaveConflictSummary | null) => void;
 }): void {
   if ("conflict" in params.result) {
     params.store.setSaveError(params.result.error);
+    params.setSaveConflictSummary(
+      buildSaveConflictSummary({
+        payloadGlobalSettings: params.payloadGlobalSettings,
+        payloadPatch: params.payloadPatch,
+        store: params.store,
+      }),
+    );
     if (params.shouldNotify) {
       params.setSaveConflict({
         currentUpdatedAt: params.result.currentUpdatedAt,
@@ -661,6 +809,7 @@ function applySaveResult(params: {
   });
   if (params.shouldNotify) {
     params.setSaveConflict(null);
+    params.setSaveConflictSummary(null);
     toast.success("Saved", { id: params.toastId });
   }
 }
@@ -778,6 +927,10 @@ function buildSavePayloadFromStoreState(
     normalizedGlobalColors,
   });
 
+  const authoredCardOrderSignal = patch.cardOrder
+    ? compressCardOrderSignal(patch.cardOrder, fallbackOrder)
+    : undefined;
+
   let globalSettings: Partial<GlobalSettingsPayload> | undefined;
   if (patch.globalSnapshot) {
     const currentGlobal = buildGlobalPayloadFromSnapshot({
@@ -810,7 +963,7 @@ function buildSavePayloadFromStoreState(
     patch,
     cards,
     globalSettings,
-    cardOrder: patch.cardOrder,
+    cardOrder: patch.cardOrder ? authoredCardOrderSignal : undefined,
     ifMatchUpdatedAt: state.serverUpdatedAt ?? undefined,
   };
 }
@@ -843,6 +996,8 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   const [saveConflict, setSaveConflict] = useState<SaveConflictInfo | null>(
     null,
   );
+  const [saveConflictSummary, setSaveConflictSummary] =
+    useState<SaveConflictSummary | null>(null);
 
   const [autoSaveDueAt, setAutoSaveDueAt] = useState<number | null>(null);
 
@@ -944,9 +1099,11 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
           result,
           store,
           payloadPatch: payload.patch,
+          payloadGlobalSettings: payload.globalSettings,
           toastId,
           shouldNotify: isMountedRef.current,
           setSaveConflict,
+          setSaveConflictSummary,
         });
       } catch (error) {
         if (
@@ -979,12 +1136,14 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
   const clearSaveConflict = useCallback(() => {
     setSaveConflict(null);
+    setSaveConflictSummary(null);
     useUserPageEditor.getState().setSaveError(null);
   }, []);
 
   useEffect(() => {
     if (!isDirty && saveConflict) {
       setSaveConflict(null);
+      setSaveConflictSummary(null);
     }
   }, [isDirty, saveConflict]);
 
@@ -1053,7 +1212,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         return;
       }
 
-      queueExitSaveBeacon(payload);
+      const exitSaveResult = queueExitSaveBeacon(payload);
+      if (!exitSaveResult.queued) {
+        recordUserPageExitSaveFallback(payload.userId, exitSaveResult.reason);
+      }
     };
 
     globalThis.window.addEventListener("pagehide", handlePageHide);
@@ -1078,5 +1240,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     autoSaveDueAt,
     /** Present when a 409 conflict was detected and needs resolution */
     saveConflict,
+    /** Reviewable summary for the latest save conflict */
+    saveConflictSummary,
   };
 }

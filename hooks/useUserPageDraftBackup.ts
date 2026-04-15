@@ -8,7 +8,10 @@ import {
 } from "../lib/stores/user-page-editor";
 import {
   clearUserPageDraft,
+  clearUserPageExitSaveFallback,
+  type UserPageExitSaveFallbackReason,
   writeUserPageDraft,
+  writeUserPageExitSaveFallback,
 } from "../lib/user-page-editor-draft";
 
 interface UseUserPageDraftBackupOptions {
@@ -35,6 +38,22 @@ export function flushUserPageDraftBackup(
   if (!patch) return false;
 
   writeUserPageDraft(userId, patch);
+  return true;
+}
+
+/**
+ * Records an explicit local recovery checkpoint when a last-chance exit save
+ * could not be queued through `navigator.sendBeacon`.
+ */
+export function recordUserPageExitSaveFallback(
+  userId: string | null | undefined,
+  reason: UserPageExitSaveFallbackReason,
+): boolean {
+  if (!userId || !flushUserPageDraftBackup(userId)) {
+    return false;
+  }
+
+  writeUserPageExitSaveFallback(userId, reason);
   return true;
 }
 
@@ -96,6 +115,7 @@ export function useUserPageDraftBackup(
       if (prev.isDirty && !next.isDirty) {
         clearTimer();
         clearUserPageDraft(userId);
+        clearUserPageExitSaveFallback(userId);
         return;
       }
 
