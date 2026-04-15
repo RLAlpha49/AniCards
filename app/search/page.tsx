@@ -7,17 +7,69 @@ import { SearchCTA } from "@/components/search/SearchCTA";
 import { SearchJourney } from "@/components/search/SearchJourney";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
-import { getRequestNonce } from "@/lib/request-nonce";
 import {
+  buildUserLookupPath,
   generateMetadata as createMetadata,
+  getBlankSearchLookupError,
   getSearchLookupMode,
+  getSearchLookupValidationError,
   getSearchPagePrefillQuery,
   getSearchPageSEOConfig,
+  normalizeSearchLookupInput,
 } from "@/lib/seo";
-import { generateStructuredData } from "@/lib/structured-data";
 
 import LoadingPreview from "./loading";
 import SearchHeroShell from "./SearchHeroShell";
+
+type SearchLookupAttempt = {
+  fallbackHref: string;
+  mode: "username" | "userId";
+  query: string;
+};
+
+function buildInitialSearchLookupState(params: {
+  mode?: string;
+  query?: string;
+}): {
+  initialFieldError?: string;
+  initialLookupAttempt?: SearchLookupAttempt;
+} {
+  if (params.query === undefined) {
+    return {};
+  }
+
+  const requestedMode = getSearchLookupMode(params.mode);
+  const normalizedLookup = normalizeSearchLookupInput(
+    params.query,
+    requestedMode,
+  );
+
+  if (!normalizedLookup) {
+    return {
+      initialFieldError: getBlankSearchLookupError(requestedMode),
+    };
+  }
+
+  if (!normalizedLookup.ok) {
+    return {
+      initialFieldError: getSearchLookupValidationError(
+        requestedMode,
+        normalizedLookup.reason,
+      ),
+    };
+  }
+
+  return {
+    initialLookupAttempt: {
+      fallbackHref:
+        normalizedLookup.mode === "userId"
+          ? buildUserLookupPath({ userId: normalizedLookup.query })
+          : buildUserLookupPath({ username: normalizedLookup.query }),
+      mode: normalizedLookup.mode,
+      query: normalizedLookup.query,
+    },
+  };
+}
 
 export async function generateMetadata({
   searchParams,
@@ -49,25 +101,23 @@ export default async function UserSearchPage({
     return <LoadingPreview />;
   }
 
-  const [resolvedSearchParams, nonce] = await Promise.all([
-    searchParams,
-    getRequestNonce(),
-  ]);
+  const resolvedSearchParams = await searchParams;
   const initialSearchMode = getSearchLookupMode(resolvedSearchParams.mode);
   const initialSearchValue = getSearchPagePrefillQuery(
     resolvedSearchParams.query,
     initialSearchMode,
   );
+  const { initialFieldError, initialLookupAttempt } =
+    buildInitialSearchLookupState(resolvedSearchParams);
 
   return (
     <>
-      <StructuredDataScript
-        data={generateStructuredData("search")}
-        nonce={nonce}
-      />
+      <StructuredDataScript page="search" />
       <div className="relative min-h-screen">
         <MarketingBackdrop />
         <SearchHeroShell
+          initialFieldError={initialFieldError}
+          initialLookupAttempt={initialLookupAttempt}
           initialSearchMode={initialSearchMode}
           initialSearchValue={initialSearchValue}
         />
@@ -78,7 +128,7 @@ export default async function UserSearchPage({
         />
 
         <SectionReveal>
-          <SearchJourney />
+          <SearchCapabilities />
         </SectionReveal>
 
         <SectionReveal
@@ -87,7 +137,7 @@ export default async function UserSearchPage({
         />
 
         <SectionReveal>
-          <SearchCapabilities />
+          <SearchJourney />
         </SectionReveal>
 
         <SectionReveal>

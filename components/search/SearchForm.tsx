@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -8,11 +8,17 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
+import {
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+  scaleIn,
+  VIEWPORT_ONCE,
+} from "@/lib/animations";
 import type { SearchLookupMode } from "@/lib/seo";
 import {
+  getBlankSearchLookupError,
+  getSearchLookupValidationError,
   getSearchPagePath,
-  getUserProfilePath,
   normalizeSearchLookupInput,
 } from "@/lib/seo";
 import { cn } from "@/lib/utils";
@@ -32,6 +38,21 @@ function scheduleAfterPaint(callback: () => void) {
 
   // Fallback for environments without requestAnimationFrame (e.g., some tests).
   setTimeout(callback, 0);
+}
+
+function replaceCurrentSearchPageUrl(nextPath: string) {
+  if (typeof globalThis.window === "undefined") {
+    return;
+  }
+
+  const nextUrl = `${nextPath}${globalThis.window.location.hash}`;
+  const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  globalThis.window.history.replaceState(null, "", nextUrl);
 }
 
 function getSearchModeAnnouncement(nextMethod: SearchLookupMode): string {
@@ -73,40 +94,6 @@ function getSearchInputMeta(searchMethod: SearchLookupMode): {
   };
 }
 
-function getBlankSearchError(searchMethod: SearchLookupMode): string {
-  if (searchMethod === "userId") {
-    return "You'll need to enter a numeric AniList user ID first.";
-  }
-
-  return "You'll need to enter an AniList username, profile link, or user ID first.";
-}
-
-function getSearchValidationError(
-  searchMethod: SearchLookupMode,
-  reason: "invalid" | "expectedUserId",
-): string {
-  if (searchMethod === "userId") {
-    if (reason === "expectedUserId") {
-      return "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.";
-    }
-
-    return "Enter a numeric AniList user ID or an AniList /user/... link that resolves to one.";
-  }
-
-  return "Enter an AniList username, @handle, profile URL, copied /user/... slug, or numeric ID.";
-}
-
-function getSearchDestination(
-  searchMethod: SearchLookupMode,
-  nextSearchValue: string,
-): string {
-  if (searchMethod === "username") {
-    return getUserProfilePath(nextSearchValue);
-  }
-
-  return `/user?${new URLSearchParams({ userId: nextSearchValue }).toString()}`;
-}
-
 /**
  * Props for the SearchForm component.
  * @source
@@ -116,6 +103,8 @@ interface SearchFormProps {
   initialSearchMode?: SearchLookupMode;
   /** Initial search value derived from the current search page URL. */
   initialSearchValue?: string;
+  /** Initial field error derived from the current search page URL. */
+  initialFieldError?: string;
   /** Callback when loading state changes. */
   onLoadingChange?: (loading: boolean) => void;
 }
@@ -129,15 +118,22 @@ interface SearchFormProps {
 export function SearchForm({
   initialSearchMode = "username",
   initialSearchValue = "",
+  initialFieldError = "",
   onLoadingChange,
 }: Readonly<SearchFormProps>) {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const baseId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const previousRouteStateRef = useRef({
+    initialFieldError,
+    initialSearchMode,
+    initialSearchValue,
+  });
   const [searchMethod, setSearchMethod] =
     useState<SearchLookupMode>(initialSearchMode);
   const [searchValue, setSearchValue] = useState(initialSearchValue);
-  const [fieldError, setFieldError] = useState("");
+  const [fieldError, setFieldError] = useState(initialFieldError);
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [modeAnnouncement, setModeAnnouncement] = useState("");
@@ -175,6 +171,38 @@ export function SearchForm({
   useEffect(() => {
     setSearchValue(initialSearchValue);
   }, [initialSearchValue]);
+
+  useEffect(() => {
+    setFieldError(initialFieldError);
+    setFormError("");
+  }, [initialFieldError, onLoadingChange]);
+
+  useEffect(() => {
+    const previousRouteState = previousRouteStateRef.current;
+    const routeStateChanged =
+      previousRouteState.initialFieldError !== initialFieldError ||
+      previousRouteState.initialSearchMode !== initialSearchMode ||
+      previousRouteState.initialSearchValue !== initialSearchValue;
+
+    previousRouteStateRef.current = {
+      initialFieldError,
+      initialSearchMode,
+      initialSearchValue,
+    };
+
+    if (!routeStateChanged || !loading) {
+      return;
+    }
+
+    setLoading(false);
+    onLoadingChange?.(false);
+  }, [
+    initialFieldError,
+    initialSearchMode,
+    initialSearchValue,
+    loading,
+    onLoadingChange,
+  ]);
 
   const focusSearchField = useCallback((selectContents = false) => {
     scheduleAfterPaint(() => {
@@ -218,15 +246,13 @@ export function SearchForm({
             nextMethod !== "username" || Boolean(searchValue.trim()),
         });
 
-        void Promise.resolve(router.replace(nextSearchPagePath)).catch(() => {
-          return undefined;
-        });
+        replaceCurrentSearchPageUrl(nextSearchPagePath);
       }
 
       setSearchMethod(nextMethod);
       clearErrors();
     },
-    [clearErrors, router, searchMethod, searchValue],
+    [clearErrors, searchMethod, searchValue],
   );
 
   /**
@@ -240,13 +266,13 @@ export function SearchForm({
       const normalizedLookup = normalizeSearchLookupInput(value, searchMethod);
 
       if (!normalizedLookup) {
-        showValidationError(getBlankSearchError(searchMethod));
+        showValidationError(getBlankSearchLookupError(searchMethod));
         return;
       }
 
       if (!normalizedLookup.ok) {
         showValidationError(
-          getSearchValidationError(searchMethod, normalizedLookup.reason),
+          getSearchLookupValidationError(searchMethod, normalizedLookup.reason),
           {
             selectContents: true,
           },
@@ -263,9 +289,12 @@ export function SearchForm({
       onLoadingChange?.(true);
 
       safeTrack(() => trackFormSubmission("user_search", true));
-      safeTrack(() => trackNavigation("user_page", "search_form"));
+      safeTrack(() => trackNavigation("search", "search_form"));
 
-      const nextUrl = getSearchDestination(nextSearchMode, nextSearchValue);
+      const nextUrl = getSearchPagePath({
+        mode: nextSearchMode,
+        query: nextSearchValue,
+      });
 
       scheduleAfterPaint(() => {
         try {
@@ -306,8 +335,8 @@ export function SearchForm({
 
       <motion.div
         variants={scaleIn}
-        initial="hidden"
-        whileInView="visible"
+        initial={false}
+        whileInView={prefersReducedMotion ? undefined : "visible"}
         viewport={VIEWPORT_ONCE}
         className="relative border-2 border-gold/20 bg-background/80 p-8 backdrop-blur-sm sm:p-10"
       >
@@ -320,9 +349,15 @@ export function SearchForm({
         <form
           data-testid="search-form"
           data-ui-ready={hasMounted ? "true" : "false"}
+          method="get"
+          action="/search"
           onSubmit={handleSubmit}
           className="space-y-6"
         >
+          {searchMethod === "userId" ? (
+            <input type="hidden" name="mode" value="userId" />
+          ) : null}
+
           <p
             role="status"
             aria-live="polite"
@@ -334,9 +369,15 @@ export function SearchForm({
 
           {alertMessage ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, height: 0 }}
+              initial={
+                prefersReducedMotion
+                  ? false
+                  : { opacity: 0, scale: 0.95, height: 0 }
+              }
               animate={{ opacity: 1, scale: 1, height: "auto" }}
-              transition={{ duration: 0.3 }}
+              transition={
+                prefersReducedMotion ? NO_MOTION_TRANSITION : { duration: 0.3 }
+              }
             >
               <Alert
                 variant="destructive"
@@ -373,7 +414,11 @@ export function SearchForm({
                 animate={{
                   x: searchMethod === "username" ? "0%" : "100%",
                 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                transition={
+                  prefersReducedMotion
+                    ? NO_MOTION_TRANSITION
+                    : { type: "spring", stiffness: 400, damping: 30 }
+                }
               />
               <label className="flex flex-1">
                 <input
@@ -456,6 +501,7 @@ export function SearchForm({
               <Input
                 ref={inputRef}
                 id={inputId}
+                name="query"
                 type={inputType}
                 value={searchValue}
                 onChange={(e) => {
@@ -506,14 +552,16 @@ export function SearchForm({
           {/* Submit button */}
           <motion.div
             whileHover={
-              loading
+              prefersReducedMotion || loading
                 ? undefined
                 : {
                     scale: 1.03,
                     transition: { duration: 0.25, ease: EASE_OUT_EXPO },
                   }
             }
-            whileTap={loading ? undefined : { scale: 0.97 }}
+            whileTap={
+              prefersReducedMotion || loading ? undefined : { scale: 0.97 }
+            }
           >
             <Button
               type="submit"
@@ -528,7 +576,7 @@ export function SearchForm({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 size-5 animate-spin" />
-                  Pulling up the page...
+                  Checking profile...
                 </>
               ) : (
                 <>
@@ -543,8 +591,8 @@ export function SearchForm({
 
         <p className="mt-6 text-center font-body-serif text-xs/relaxed text-foreground/30">
           Works with any public AniList profile — usernames, @handles, copied
-          AniList profile links, /user/... slugs, and bare numeric IDs all route
-          to the editor.
+          AniList profile links, /user/... slugs, and bare numeric IDs all pass
+          through the same lookup flow before the editor opens.
         </p>
       </motion.div>
     </div>

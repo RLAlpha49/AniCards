@@ -46,6 +46,23 @@ function getRequestPathname(request: Pick<Request, "url">): string {
   }
 }
 
+function getRequestRoute(
+  request: Pick<Request, "url"> & Partial<Pick<NextRequest, "nextUrl">>,
+): string {
+  const nextUrl = request.nextUrl;
+
+  if (nextUrl) {
+    return `${nextUrl.pathname}${nextUrl.search}`;
+  }
+
+  try {
+    const parsedUrl = new URL(request.url);
+    return `${parsedUrl.pathname}${parsedUrl.search}`;
+  } catch {
+    return "/";
+  }
+}
+
 function shouldAllowInlineStyleAttributes(pathname: string): boolean {
   if (pathname === "/") {
     return true;
@@ -163,9 +180,11 @@ export async function middleware(request: NextRequest) {
   const nonce = isApiRequest ? undefined : generateNonce();
   const isDevelopment = process.env.NODE_ENV === "development";
   const allowInlineStyleAttributes = shouldAllowInlineStyleAttributes(pathname);
+  const requestRoute = getRequestRoute(request);
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
+  forwardedHeaders.set("x-request-route", requestRoute);
 
   const cspHeader = nonce
     ? buildCSPHeader(nonce, {

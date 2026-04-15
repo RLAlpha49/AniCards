@@ -30,12 +30,30 @@ export interface RememberedUserPageRoute {
   savedAt: number;
 }
 
+export interface SearchLaunchContinuityState {
+  pendingTemplateApply: PendingSettingsTemplateApply | null;
+  lastSuccessfulUserRoute: RememberedUserPageRoute | null;
+}
+
 export type SettingsTemplatesStorageResult =
   | { ok: true }
   | { ok: false; error: string };
 
 const SETTINGS_TEMPLATES_STORAGE_ERROR =
   "Couldn't save template changes in this browser. Check storage permissions and try again.";
+
+const SEARCH_LAUNCH_CONTINUITY_EVENT =
+  "anicards:search-launch-continuity-change";
+
+function dispatchSearchLaunchContinuityChange(): void {
+  if (globalThis.window === undefined) return;
+
+  try {
+    globalThis.window.dispatchEvent(new Event(SEARCH_LAUNCH_CONTINUITY_EVENT));
+  } catch {
+    // Ignore event dispatch failures.
+  }
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -212,9 +230,35 @@ export function queuePendingSettingsTemplateApply(
       PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
       JSON.stringify(pending),
     );
+    dispatchSearchLaunchContinuityChange();
   } catch {
     // Ignore session persistence failures.
   }
+}
+
+export function queueSettingsTemplateForEditor(
+  template: SettingsTemplateV1,
+):
+  | { ok: true; template: SettingsTemplateV1; templates: SettingsTemplateV1[] }
+  | { ok: false; error: string } {
+  const persistResult = upsertSettingsTemplateInStorage(template);
+  if (!persistResult.ok) {
+    return persistResult;
+  }
+
+  queuePendingSettingsTemplateApply({
+    templateId: template.id,
+    templateName: template.name,
+    applyTo: "global",
+    source: "examples",
+    queuedAt: Date.now(),
+  });
+
+  return {
+    ok: true,
+    template,
+    templates: persistResult.templates,
+  };
 }
 
 export function readPendingSettingsTemplateApply(): PendingSettingsTemplateApply | null {
@@ -238,6 +282,7 @@ export function clearPendingSettingsTemplateApply(): void {
     globalThis.window.sessionStorage.removeItem(
       PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
     );
+    dispatchSearchLaunchContinuityChange();
   } catch {
     // Ignore session persistence failures.
   }
@@ -286,6 +331,7 @@ export function rememberLastSuccessfulUserPageRoute(params: {
         savedAt: Date.now(),
       } satisfies RememberedUserPageRoute),
     );
+    dispatchSearchLaunchContinuityChange();
   } catch {
     // Ignore session persistence failures.
   }
@@ -303,4 +349,35 @@ export function readLastSuccessfulUserPageRoute(): RememberedUserPageRoute | nul
   } catch {
     return null;
   }
+}
+
+export function readSearchLaunchContinuityState(): SearchLaunchContinuityState {
+  return {
+    pendingTemplateApply: readPendingSettingsTemplateApply(),
+    lastSuccessfulUserRoute: readLastSuccessfulUserPageRoute(),
+  };
+}
+
+export function subscribeSearchLaunchContinuity(
+  onChange: (state: SearchLaunchContinuityState) => void,
+): () => void {
+  if (globalThis.window === undefined) {
+    return () => undefined;
+  }
+
+  const handleChange = () => {
+    onChange(readSearchLaunchContinuityState());
+  };
+
+  globalThis.window.addEventListener(
+    SEARCH_LAUNCH_CONTINUITY_EVENT,
+    handleChange,
+  );
+
+  return () => {
+    globalThis.window.removeEventListener(
+      SEARCH_LAUNCH_CONTINUITY_EVENT,
+      handleChange,
+    );
+  };
 }

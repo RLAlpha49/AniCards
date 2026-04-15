@@ -2563,6 +2563,20 @@ export function UserPageEditor({
     },
     [router],
   );
+  const replaceCurrentEditorUrl = useCallback((href: string) => {
+    if (typeof globalThis.window === "undefined") {
+      return;
+    }
+
+    const nextUrl = `${href}${globalThis.window.location.hash}`;
+    const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
+
+    if (nextUrl === currentUrl) {
+      return;
+    }
+
+    globalThis.window.history.replaceState(null, "", nextUrl);
+  }, []);
 
   useUserPageEditorLeaveProtection({
     currentUrl: currentEditorUrl,
@@ -2578,7 +2592,7 @@ export function UserPageEditor({
     visibility,
     selectedGroup,
     customFilter,
-    replace: router.replace,
+    replace: replaceCurrentEditorUrl,
   });
 
   const handleRetryLoad = useCallback(() => {

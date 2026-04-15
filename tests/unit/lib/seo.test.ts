@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import type { Metadata } from "next";
 
 import {
+  buildCanonicalUserPageUrl,
+  buildUserLookupPath,
   buildUserSocialPreviewImage,
   generateMetadata,
   getDefaultSocialPreviewImage,
@@ -89,6 +91,17 @@ describe("SEO metadata helpers", () => {
     expect(previewImage).toContain("/card.png?");
     expect(openGraph?.url).toBe(resolveSiteUrl("/user?userId=123456"));
     expect(twitter?.images).toEqual([previewImage]);
+  });
+
+  it("keeps the legacy /user lookup surface non-canonical until a username is known", () => {
+    const metadata = generateMetadata(
+      getUserPageSEOConfig({
+        routeType: "lookup",
+      }),
+    );
+
+    expect(metadata.alternates).toBeUndefined();
+    expect(getRobotsMetadata(metadata)?.index).toBe(false);
   });
 
   it("marks custom-filtered user views as noindex and preserves the filter in lookup URLs", () => {
@@ -194,9 +207,42 @@ describe("SEO metadata helpers", () => {
       mode: "userId",
       query: "542244",
     });
+    expect(
+      normalizeSearchLookupInput(
+        "www.anilist.co/user/000542244/#favorites",
+        "username",
+      ),
+    ).toEqual({
+      ok: true,
+      mode: "userId",
+      query: "542244",
+    });
+    expect(
+      normalizeSearchLookupInput(
+        "anilist.co/user/Alpha49?view=stats#overview",
+        "username",
+      ),
+    ).toEqual({
+      ok: true,
+      mode: "username",
+      query: "Alpha49",
+    });
     expect(normalizeSearchLookupInput("54two24", "userId")).toEqual({
       ok: false,
       reason: "expectedUserId",
+    });
+    expect(
+      normalizeSearchLookupInput(
+        "https://example.com/user/Alpha49",
+        "username",
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(normalizeSearchLookupInput("/user/", "username")).toEqual({
+      ok: false,
+      reason: "invalid",
     });
     expect(
       getSearchPagePrefillQuery(
@@ -215,6 +261,37 @@ describe("SEO metadata helpers", () => {
         includeDefaultMode: true,
       }),
     ).toBe("/search?mode=username&query=Alpha49");
+  });
+
+  it("keeps canonical and compatibility user URLs on the shared URL policy layer", () => {
+    expect(
+      buildCanonicalUserPageUrl({
+        username: " Alpha49 ",
+        q: " seasonal favorites ",
+        visibility: "all",
+        group: "All",
+        customFilter: "all",
+      }),
+    ).toBe("/user/Alpha49?q=seasonal+favorites");
+
+    expect(
+      buildCanonicalUserPageUrl({
+        username: "Alpha49",
+        visibility: "private",
+        group: "Top 10",
+        customFilter: "customized",
+      }),
+    ).toBe(
+      "/user/Alpha49?visibility=private&group=Top+10&customFilter=customized",
+    );
+
+    expect(
+      buildUserLookupPath({
+        userId: "542244",
+        username: "Alpha49",
+        q: "seasonal favorites",
+      }),
+    ).toBe("/user?userId=542244&username=Alpha49&q=seasonal+favorites");
   });
 
   it("keeps canonical /search while noindexing transient mode/query state", () => {

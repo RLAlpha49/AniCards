@@ -59,6 +59,25 @@ function useMockFixture<T>(fixture: T): T {
   return fixture;
 }
 
+function getVisibleNoJsSearchInput(page: Page): Locator {
+  return page.locator("input[name='query']:visible").first();
+}
+
+function getVisibleNoJsSearchSubmitButton(page: Page): Locator {
+  return page
+    .locator("button:visible")
+    .filter({ hasText: /find profile/i })
+    .first();
+}
+
+function getVisibleNoJsLookupResult(page: Page): Locator {
+  return page.locator("[data-testid='search-lookup-result']:visible").first();
+}
+
+function getVisibleNoJsLookupCta(page: Page): Locator {
+  return page.locator("[data-testid='search-lookup-cta']:visible").first();
+}
+
 async function expectMinTouchTarget(locator: Locator, label: string) {
   await expect(locator).toBeVisible();
 
@@ -364,6 +383,47 @@ test.describe("Mobile progressive enhancement", () => {
           timeout: 15000,
         },
       );
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("keeps the mobile search flow usable without JavaScript", async ({
+    browser,
+  }, testInfo) => {
+    const { context, page, url } = await createStaticMobilePage(
+      browser,
+      testInfo,
+      {
+        javaScriptEnabled: false,
+      },
+    );
+
+    try {
+      await page.goto(new URL("/search", url).toString(), {
+        waitUntil: "load",
+      });
+
+      const usernameInput = getVisibleNoJsSearchInput(page);
+      await expect(usernameInput).toBeVisible({ timeout: 15000 });
+      await usernameInput.fill("Alpha49");
+      await getVisibleNoJsSearchSubmitButton(page).click();
+
+      await expect(page).toHaveURL(/\/search\?query=Alpha49/i, {
+        timeout: 15000,
+      });
+
+      const lookupResult = getVisibleNoJsLookupResult(page);
+      const lookupCta = getVisibleNoJsLookupCta(page);
+
+      await expect(lookupResult).toBeVisible({ timeout: 15000 });
+      await expect(lookupCta).toHaveAttribute("href", "/user?username=Alpha49");
+      await expectMinTouchTarget(lookupCta, "Search fallback continue link");
+
+      await lookupCta.click();
+      await expect(page).toHaveURL(/\/user\?username=Alpha49/i, {
+        timeout: 15000,
+      });
     } finally {
       await context.close();
     }

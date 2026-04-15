@@ -17,6 +17,12 @@ import { type ComponentProps, forwardRef, type ReactNode } from "react";
 
 const routerPush = mock((href: string) => Promise.resolve(href));
 const routerReplace = mock((href: string) => Promise.resolve(href));
+const historyReplaceState = mock(
+  (...args: [unknown, string, (string | URL | null)?]) => {
+    void args;
+    return undefined;
+  },
+);
 const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
 const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
   "anicards:last-successful-user-page-route:v1";
@@ -25,6 +31,7 @@ const PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY =
 const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
   .gtag;
 const originalTrackingId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+const originalFetch = globalThis.fetch;
 const gtagMock = mock(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (_command: string, _action: string, _params: Record<string, unknown>) =>
@@ -124,6 +131,7 @@ mock.module("framer-motion", () => {
     AnimatePresence: ({ children }: { children?: ReactNode }) => (
       <>{children}</>
     ),
+    useReducedMotion: () => false,
     motion: {
       div: MotionDiv,
     },
@@ -172,14 +180,28 @@ mock.module("@/components/marketing/SectionReveal", () => ({
 
 mock.module("@/components/search/SearchHeroSection", () => ({
   SearchHeroSection: ({
+    lastSuccessfulUserRoute,
+    lookupResult,
+    onOpenResolvedLookup,
     onLoadingChange,
-    onResumeQueuedEditor,
-    queuedEditorResumeAvailable,
+    onResumeLastEditor,
     pendingTemplateApply,
   }: {
+    lastSuccessfulUserRoute?: {
+      href: string;
+      userId: string;
+      username?: string;
+    } | null;
+    lookupResult?: {
+      href: string;
+      isResolving?: boolean;
+      kind: string;
+      title: string;
+      trackingSource: string;
+    } | null;
+    onOpenResolvedLookup?: (href: string, trackingSource: string) => void;
     onLoadingChange: (loading: boolean) => void;
-    onResumeQueuedEditor?: () => void;
-    queuedEditorResumeAvailable?: boolean;
+    onResumeLastEditor?: () => void;
     pendingTemplateApply?: { templateName?: string } | null;
   }) => (
     <div>
@@ -189,14 +211,41 @@ mock.module("@/components/search/SearchHeroSection", () => ({
       <button type="button" onClick={() => onLoadingChange(false)}>
         Stop loading
       </button>
-      <button type="button" onClick={() => onResumeQueuedEditor?.()}>
-        Resume queued editor
+      <button type="button" onClick={() => onResumeLastEditor?.()}>
+        Resume last editor
       </button>
-      <output data-testid="queued-editor-available">
-        {queuedEditorResumeAvailable ? "true" : "false"}
+      <button
+        type="button"
+        onClick={() => {
+          if (!lookupResult) {
+            return;
+          }
+
+          onOpenResolvedLookup?.(
+            lookupResult.href,
+            lookupResult.trackingSource,
+          );
+        }}
+      >
+        Open resolved lookup
+      </button>
+      <output data-testid="last-editor-href">
+        {lastSuccessfulUserRoute?.href ?? ""}
       </output>
       <output data-testid="pending-template-name">
         {pendingTemplateApply?.templateName ?? ""}
+      </output>
+      <output data-testid="lookup-result-kind">
+        {lookupResult?.kind ?? ""}
+      </output>
+      <output data-testid="lookup-result-href">
+        {lookupResult?.href ?? ""}
+      </output>
+      <output data-testid="lookup-result-title">
+        {lookupResult?.title ?? ""}
+      </output>
+      <output data-testid="lookup-result-resolving">
+        {lookupResult?.isResolving ? "true" : "false"}
       </output>
     </div>
   ),
@@ -342,6 +391,7 @@ describe("SearchForm", () => {
     process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
     routerPush.mockClear();
     routerReplace.mockClear();
+    historyReplaceState.mockClear();
     gtagMock.mockClear();
     Object.defineProperty(globalThis, "gtag", {
       configurable: true,
@@ -350,6 +400,11 @@ describe("SearchForm", () => {
     });
     (globalThis.window as unknown as Window & { gtag?: typeof gtagMock }).gtag =
       gtagMock;
+    Object.defineProperty(globalThis.window.history, "replaceState", {
+      configurable: true,
+      value: historyReplaceState,
+      writable: true,
+    });
     (globalThis as Record<string, unknown>)[NEXT_NAVIGATION_STATE_KEY] = {
       pathname: "/search",
       routerPush: (href: string) => {
@@ -368,6 +423,7 @@ describe("SearchForm", () => {
   });
 
   afterEach(() => {
+    globalThis.fetch = originalFetch;
     restoreDomGlobals?.();
     restoreDomGlobals = null;
     Object.defineProperty(globalThis, "gtag", {
@@ -444,7 +500,10 @@ describe("SearchForm", () => {
     expect(view.getByRole("status").textContent).toContain(
       "Search mode changed to AniList user ID.",
     );
-    expect(routerReplace.mock.calls).toEqual([["/search?mode=userId"]]);
+    expect(routerReplace.mock.calls).toHaveLength(0);
+    expect(historyReplaceState.mock.calls).toEqual([
+      [null, "", "/search?mode=userId"],
+    ]);
   });
 
   it("honors the search page mode and query contract from server props", () => {
@@ -457,6 +516,40 @@ describe("SearchForm", () => {
 
     expect(userIdInput.value).toBe("542244");
     expect(view.queryByLabelText("AniList Username")).toBeNull();
+    expect(userIdInput.getAttribute("name")).toBe("query");
+
+    const form = document.querySelector("form");
+    const hiddenModeInput = document.querySelector(
+      'input[type="hidden"][name="mode"]',
+    );
+
+    expect(form?.getAttribute("method")).toBe("get");
+    expect(form?.getAttribute("action")).toBe("/search");
+    expect(hiddenModeInput?.getAttribute("value")).toBe("userId");
+  });
+
+  it("shows a server-provided validation error for the GET fallback state", async () => {
+    const view = render(
+      <SearchForm
+        initialFieldError="That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID."
+        initialSearchMode="userId"
+        initialSearchValue="54two24"
+      />,
+    );
+
+    const errorMessages = await view.findAllByText(
+      "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.",
+    );
+    const userIdInput = view.getByLabelText(
+      "AniList User ID",
+    ) as HTMLInputElement;
+
+    expect(errorMessages.length).toBeGreaterThan(0);
+    expect(errorMessages[0]?.textContent).toBe(
+      "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.",
+    );
+    expect(userIdInput.value).toBe("54two24");
+    expect(userIdInput.getAttribute("aria-invalid")).toBe("true");
   });
 
   it("keeps username-like values in the user ID search UI and selects them for correction", async () => {
@@ -500,7 +593,7 @@ describe("SearchForm", () => {
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user/Alpha49"]]);
+      expect(routerPush.mock.calls).toEqual([["/search?query=Alpha49"]]);
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
@@ -516,7 +609,9 @@ describe("SearchForm", () => {
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user?userId=542244"]]);
+      expect(routerPush.mock.calls).toEqual([
+        ["/search?mode=userId&query=542244"],
+      ]);
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
@@ -533,7 +628,9 @@ describe("SearchForm", () => {
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user?userId=542244"]]);
+      expect(routerPush.mock.calls).toEqual([
+        ["/search?mode=userId&query=542244"],
+      ]);
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
@@ -552,7 +649,7 @@ describe("SearchForm", () => {
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user/Alpha49"]]);
+      expect(routerPush.mock.calls).toEqual([["/search?query=Alpha49"]]);
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
@@ -568,11 +665,11 @@ describe("SearchForm", () => {
     expect(gtagMock.mock.calls[1]?.[1]).toBe("navigation");
     expect(gtagMock.mock.calls[1]?.[2]).toMatchObject({
       event_category: "engagement",
-      event_label: "search_form_to_user_page",
+      event_label: "search_form_to_search",
       send_to: "G-TEST123",
     });
     expect(
-      view.getByRole("button", { name: /pulling up the page/i }),
+      view.getByRole("button", { name: /checking profile/i }),
     ).toBeTruthy();
   });
 
@@ -588,7 +685,9 @@ describe("SearchForm", () => {
     submitSearchForm();
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toEqual([["/user?userId=542244"]]);
+      expect(routerPush.mock.calls).toEqual([
+        ["/search?mode=userId&query=542244"],
+      ]);
     });
 
     const errorMessage = await view.findByText(
@@ -626,14 +725,12 @@ describe("SearchForm", () => {
     fireEvent.click(startLoadingButton);
 
     const loadingDialog = await view.findByRole("dialog", {
-      name: /opening anilist profile/i,
+      name: /working on your anilist lookup/i,
     });
 
     expect(loadingDialog.getAttribute("aria-modal")).toBe("true");
     expect(loadingDialog.getAttribute("aria-busy")).toBe("true");
-    expect(loadingDialog.textContent).toContain(
-      "Tracking down that profile...",
-    );
+    expect(loadingDialog.textContent).toContain("Preparing the next step...");
     expect(heroContent.getAttribute("aria-hidden")).toBe("true");
     expect(heroContent.hasAttribute("inert")).toBe(true);
     expect(outsideShellButton.getAttribute("aria-hidden")).toBe("true");
@@ -646,7 +743,7 @@ describe("SearchForm", () => {
 
     await waitFor(() => {
       expect(
-        view.queryByRole("dialog", { name: /opening anilist profile/i }),
+        view.queryByRole("dialog", { name: /working on your anilist lookup/i }),
       ).toBeNull();
     });
 
@@ -683,8 +780,8 @@ describe("SearchForm", () => {
     );
 
     await waitFor(() => {
-      expect(view.getByTestId("queued-editor-available").textContent).toBe(
-        "true",
+      expect(view.getByTestId("last-editor-href").textContent).toBe(
+        "/user/Alpha49",
       );
     });
 
@@ -692,16 +789,142 @@ describe("SearchForm", () => {
       "Anime Stats — Minimal (Light)",
     );
 
-    fireEvent.click(
-      view.getByRole("button", { name: /resume queued editor/i }),
-    );
+    fireEvent.click(view.getByRole("button", { name: /resume last editor/i }));
 
     await waitFor(() => {
       expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
     });
 
     expect(
-      view.getByRole("dialog", { name: /opening anilist profile/i }),
+      view.getByRole("dialog", { name: /working on your anilist lookup/i }),
     ).toBeTruthy();
+  });
+
+  it("surfaces remembered editor continuity even without a queued template", async () => {
+    globalThis.window.sessionStorage.setItem(
+      LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+      JSON.stringify({
+        href: "/user/Alpha49",
+        userId: "542244",
+        username: "Alpha49",
+        savedAt: Date.now(),
+      }),
+    );
+
+    const view = render(
+      <SearchHeroShell initialSearchMode="username" initialSearchValue="" />,
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId("last-editor-href").textContent).toBe(
+        "/user/Alpha49",
+      );
+    });
+
+    expect(view.getByTestId("pending-template-name").textContent).toBe("");
+
+    fireEvent.click(view.getByRole("button", { name: /resume last editor/i }));
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
+    });
+  });
+
+  it("upgrades valid lookups to a confirmed canonical editor route in the shell", async () => {
+    const fetchMock = mock(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/get-user?view=bootstrap&username=Alpha49") {
+        return new Response(
+          JSON.stringify({
+            avatarUrl: "https://example.com/avatar.png",
+            userId: 542244,
+            username: "Alpha49",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 200,
+          },
+        );
+      }
+
+      throw new Error(
+        `Unexpected fetch request in shell test: ${String(input)}`,
+      );
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const view = render(
+      <SearchHeroShell
+        initialLookupAttempt={{
+          fallbackHref: "/user?username=Alpha49",
+          mode: "username",
+          query: "Alpha49",
+        }}
+        initialSearchMode="username"
+        initialSearchValue="Alpha49"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId("lookup-result-kind").textContent).toBe(
+        "confirmed",
+      );
+    });
+
+    expect(view.getByTestId("lookup-result-href").textContent).toBe(
+      "/user/Alpha49",
+    );
+    expect(view.getByTestId("lookup-result-title").textContent).toBe(
+      "@Alpha49",
+    );
+
+    fireEvent.click(
+      view.getByRole("button", { name: /open resolved lookup/i }),
+    );
+
+    await waitFor(() => {
+      expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
+    });
+  });
+
+  it("keeps the direct editor fallback when the bootstrap lookup is missing", async () => {
+    const fetchMock = mock(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/get-user?view=bootstrap&userId=542244") {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          status: 404,
+        });
+      }
+
+      throw new Error(
+        `Unexpected fetch request in shell fallback test: ${String(input)}`,
+      );
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const view = render(
+      <SearchHeroShell
+        initialLookupAttempt={{
+          fallbackHref: "/user?userId=542244",
+          mode: "userId",
+          query: "542244",
+        }}
+        initialSearchMode="userId"
+        initialSearchValue="542244"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.getByTestId("lookup-result-kind").textContent).toBe(
+        "notFound",
+      );
+    });
+
+    expect(view.getByTestId("lookup-result-href").textContent).toBe(
+      "/user?userId=542244",
+    );
   });
 });

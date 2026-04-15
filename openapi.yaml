@@ -732,8 +732,10 @@ paths:
             enum:
               - bootstrap
           description: >-
-            Optional lightweight response mode used by the editor bootstrap flow.
-            When `view=bootstrap`, the response is reduced to identity fields only.
+            Optional lightweight response mode used by the `/search` confirmation
+            step and the editor bootstrap flow. When `view=bootstrap`, the
+            response is reduced to identity fields only so clients can confirm a
+            canonical profile target before the heavier editor payload loads.
       responses:
         "200":
           description: "Bounded public user record or lightweight bootstrap identity"
@@ -4040,8 +4042,9 @@ components:
       additionalProperties: false
       description: >-
         Lightweight identity DTO returned by `/api/get-user?view=bootstrap`.
-        Used by the editor to resolve canonical usernames and avatars before the
-        heavier card payload is loaded.
+        Used by the `/search` confirmation step and the editor to resolve
+        canonical usernames and avatars before the heavier card payload is
+        loaded.
       properties:
         userId:
           type: integer

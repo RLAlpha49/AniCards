@@ -1,18 +1,20 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { fadeIn, fadeUp, sectionReveal, VIEWPORT_ONCE } from "@/lib/animations";
 
 export function SearchCTA() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+
   return (
     <section className="border-y-2 border-gold/20 px-6 py-20 text-center sm:px-12 md:py-24">
       <motion.div
         variants={sectionReveal}
-        initial="hidden"
-        whileInView="visible"
+        initial={prefersReducedMotion ? false : "hidden"}
+        whileInView={prefersReducedMotion ? undefined : "visible"}
         viewport={VIEWPORT_ONCE}
         className="mx-auto max-w-2xl"
       >
@@ -35,8 +37,12 @@ export function SearchCTA() {
 
         <motion.div
           variants={fadeUp}
-          whileHover={{ scale: 1.05, transition: { duration: 0.25 } }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={
+            prefersReducedMotion
+              ? undefined
+              : { scale: 1.05, transition: { duration: 0.25 } }
+          }
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.97 }}
           className="inline-block"
         >
           <Link href="/examples" className="imperial-btn imperial-btn-fill">

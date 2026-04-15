@@ -49,6 +49,68 @@ async function submitSearchForm(page: Page): Promise<void> {
   await submitButton.click();
 }
 
+function getVisibleNoJsSearchInput(page: Page): Locator {
+  return page.locator("input[name='query']:visible").first();
+}
+
+function getVisibleNoJsSearchSubmitButton(page: Page): Locator {
+  return page
+    .locator("button:visible")
+    .filter({ hasText: /find profile/i })
+    .first();
+}
+
+function getVisibleNoJsLookupResult(page: Page): Locator {
+  return page.locator("[data-testid='search-lookup-result']:visible").first();
+}
+
+function getVisibleNoJsLookupCta(page: Page): Locator {
+  return page.locator("[data-testid='search-lookup-cta']:visible").first();
+}
+
+async function mockBootstrapLookup(
+  page: Page,
+  options: {
+    mode: "username" | "userId";
+    query: string;
+    resolvedUserId: number;
+    resolvedUsername: string;
+  },
+): Promise<void> {
+  await page.route("**/api/get-user?**", async (route) => {
+    const requestUrl = new URL(route.request().url());
+
+    if (requestUrl.searchParams.get("view") !== "bootstrap") {
+      await route.continue();
+      return;
+    }
+
+    const actualQuery =
+      options.mode === "userId"
+        ? requestUrl.searchParams.get("userId")
+        : requestUrl.searchParams.get("username");
+
+    if (actualQuery !== options.query) {
+      await route.fulfill({
+        body: JSON.stringify({ error: "User not found" }),
+        contentType: "application/json",
+        status: 404,
+      });
+      return;
+    }
+
+    await route.fulfill({
+      body: JSON.stringify({
+        avatarUrl: "https://example.com/avatar.png",
+        userId: options.resolvedUserId,
+        username: options.resolvedUsername,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+}
+
 test.describe("Search page", () => {
   test.beforeEach(async ({ page }) => {
     await gotoReady(page, "/search");
@@ -126,24 +188,59 @@ test.describe("Search page", () => {
   test("normalizes AniList profile URLs in username mode before navigating", async ({
     page,
   }) => {
+    await mockBootstrapLookup(page, {
+      mode: "username",
+      query: "Alpha49",
+      resolvedUserId: 542244,
+      resolvedUsername: "Alpha49",
+    });
+
     const input = page.getByLabel(/AniList Username/i);
     await setSearchValue(input, "https://anilist.co/user/Alpha49/animelist");
 
     await submitSearchForm(page);
+    await expect(page).toHaveURL(/\/search\?query=Alpha49/i, {
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("search-lookup-result")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("search-lookup-cta")).toHaveAttribute(
+      "href",
+      "/user/Alpha49",
+    );
+
+    await page.getByTestId("search-lookup-cta").click();
     await expect(page).toHaveURL(/\/user\/Alpha49/i, { timeout: 15000 });
   });
 
   test("navigates to user page when searching by user ID", async ({ page }) => {
+    await mockBootstrapLookup(page, {
+      mode: "userId",
+      query: "123456",
+      resolvedUserId: 123456,
+      resolvedUsername: "TestUser",
+    });
+
     await selectLookupMethod(page, "User ID");
 
     const input = page.getByLabel(/AniList User ID/i);
     await setSearchValue(input, "123456");
 
     await submitSearchForm(page);
-    await expect(page).toHaveURL(/\/user\?userId=123456/i, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/search\?mode=userId&query=123456/i, {
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("search-lookup-cta")).toHaveAttribute(
+      "href",
+      "/user/TestUser",
+    );
+
+    await page.getByTestId("search-lookup-cta").click();
+    await expect(page).toHaveURL(/\/user\/TestUser/i, { timeout: 15000 });
   });
 
-  test("shows queued example context on search and lets the user clear it", async ({
+  test("shows queued style context on search, keeps resume continuity, and lets the user clear it", async ({
     page,
   }) => {
     await page.evaluate(
@@ -177,24 +274,123 @@ test.describe("Search page", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await waitForSearchFormReady(page);
 
-    await expect(page.getByText(/queued example ready/i)).toBeVisible({
+    const pendingTemplateBanner = page.getByTestId("search-pending-template");
+
+    await expect(pendingTemplateBanner).toBeVisible({
       timeout: 15000,
     });
+    await expect(pendingTemplateBanner).toContainText(/queued style ready/i);
+    await expect(pendingTemplateBanner).toContainText(
+      /anime stats — minimal \(light\)/i,
+    );
     await expect(
-      page.getByText(/anime stats — minimal \(light\)/i),
-    ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByRole("button", { name: /open last editor/i }),
+      page
+        .getByTestId("search-last-editor-card")
+        .getByRole("button", { name: /resume last editor/i }),
     ).toBeVisible({ timeout: 15000 });
 
     await page.getByRole("button", { name: /clear queued style/i }).click();
 
-    await expect(page.getByText(/queued example ready/i)).toHaveCount(0);
+    await expect(pendingTemplateBanner).toHaveCount(0);
+    await expect(
+      page
+        .getByTestId("search-last-editor-card")
+        .getByRole("button", { name: /resume last editor/i }),
+    ).toBeVisible({ timeout: 15000 });
     expect(
       await page.evaluate(
         (pendingKey) => globalThis.sessionStorage.getItem(pendingKey),
         PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
       ),
     ).toBeNull();
+  });
+
+  test("shows last editor continuity even when no queued style is present", async ({
+    page,
+  }) => {
+    await page.evaluate((lastRouteKey) => {
+      globalThis.sessionStorage.setItem(
+        lastRouteKey,
+        JSON.stringify({
+          href: "/user/Alpha49",
+          userId: "542244",
+          username: "Alpha49",
+          savedAt: Date.now(),
+        }),
+      );
+    }, LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForSearchFormReady(page);
+
+    await expect(page.getByTestId("search-pending-template")).toHaveCount(0);
+    await expect(
+      page
+        .getByTestId("search-last-editor-card")
+        .getByRole("button", { name: /resume last editor/i }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("search-last-editor-card")).toContainText(
+      /@Alpha49/i,
+    );
+  });
+
+  test("queues a starter look from the launch section and surfaces it in the hero", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: /queue anicards dark/i }).click();
+
+    const pendingTemplateBanner = page.getByTestId("search-pending-template");
+    await expect(pendingTemplateBanner).toBeVisible({ timeout: 15000 });
+    await expect(pendingTemplateBanner).toContainText(/queued style ready/i);
+    await expect(pendingTemplateBanner).toContainText(/anicards dark/i);
+    await expect(page).toHaveURL(/\/search$/i, { timeout: 15000 });
+
+    const pendingTemplate = await page.evaluate((pendingKey) => {
+      const raw = globalThis.sessionStorage.getItem(pendingKey);
+      return raw ? JSON.parse(raw) : null;
+    }, PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY);
+
+    expect(pendingTemplate).toMatchObject({
+      applyTo: "global",
+      source: "examples",
+      templateId: "starter:anicards-dark",
+      templateName: "AniCards Dark",
+    });
+  });
+
+  test("submits as a real GET search flow without JavaScript", async ({
+    browser,
+  }, testInfo) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+    });
+    const page = await context.newPage();
+    const baseUrl =
+      typeof testInfo.project.use.baseURL === "string"
+        ? testInfo.project.use.baseURL
+        : "http://localhost:3000";
+
+    try {
+      await page.goto(new URL("/search", baseUrl).toString(), {
+        waitUntil: "load",
+      });
+
+      const usernameInput = getVisibleNoJsSearchInput(page);
+      await usernameInput.fill("Alpha49");
+      await getVisibleNoJsSearchSubmitButton(page).click();
+
+      await expect(page).toHaveURL(/\/search\?query=Alpha49/i, {
+        timeout: 15000,
+      });
+      await expect(getVisibleNoJsLookupResult(page)).toBeVisible({
+        timeout: 15000,
+      });
+      await expect(getVisibleNoJsLookupCta(page)).toHaveAttribute(
+        "href",
+        "/user?username=Alpha49",
+      );
+    } finally {
+      await context.close();
+    }
   });
 });

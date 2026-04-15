@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Palette, Search, Sparkles } from "lucide-react";
 
 import { EASE_OUT_EXPO, SPRING_GENTLE } from "@/lib/animations";
@@ -27,11 +27,13 @@ const STEPS = [
 ];
 
 export function SearchJourney() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+
   return (
     <section className="px-6 py-20 sm:px-12 md:py-28">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+        whileInView={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.6 }}
         className="mb-16 text-center"
@@ -60,8 +62,8 @@ export function SearchJourney() {
           <div className="absolute top-16 right-[16.67%] left-[16.67%] hidden h-px md:block">
             <motion.div
               className="size-full origin-left bg-linear-to-r from-gold/40 via-gold/15 to-gold/40"
-              initial={{ scaleX: 0 }}
-              whileInView={{ scaleX: 1 }}
+              initial={prefersReducedMotion ? false : { scaleX: 0 }}
+              whileInView={prefersReducedMotion ? undefined : { scaleX: 1 }}
               viewport={{ once: true }}
               transition={{
                 duration: 1.2,
@@ -74,8 +76,10 @@ export function SearchJourney() {
           {STEPS.map((step, i) => (
             <motion.div
               key={step.title}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 40 }}
+              whileInView={
+                prefersReducedMotion ? undefined : { opacity: 1, y: 0 }
+              }
               viewport={{ once: true, margin: "-50px" }}
               transition={{
                 duration: 0.6,
@@ -86,8 +90,12 @@ export function SearchJourney() {
             >
               {/* Large ghost number */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.7 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={
+                  prefersReducedMotion ? false : { opacity: 0, scale: 0.7 }
+                }
+                whileInView={
+                  prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }
+                }
                 viewport={{ once: true }}
                 transition={{
                   duration: 1.2,
@@ -105,10 +113,14 @@ export function SearchJourney() {
 
               {/* Step box with corner tick accents */}
               <motion.div
-                whileHover={{
-                  scale: 1.06,
-                  borderColor: "hsl(42 63% 55% / 0.5)",
-                }}
+                whileHover={
+                  prefersReducedMotion
+                    ? undefined
+                    : {
+                        scale: 1.06,
+                        borderColor: "hsl(42 63% 55% / 0.5)",
+                      }
+                }
                 transition={{ duration: 0.25 }}
                 className="
                   relative z-10 mb-6 flex size-32 items-center justify-center border-2
@@ -117,8 +129,12 @@ export function SearchJourney() {
               >
                 <div className="absolute inset-0 bg-gold/3" />
                 <motion.div
-                  initial={{ opacity: 0, scale: 0 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
+                  initial={
+                    prefersReducedMotion ? false : { opacity: 0, scale: 0 }
+                  }
+                  whileInView={
+                    prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }
+                  }
                   viewport={{ once: true }}
                   transition={{ ...SPRING_GENTLE, delay: i * 0.15 + 0.35 }}
                   className="relative z-10"

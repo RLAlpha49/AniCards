@@ -138,6 +138,8 @@ const DEFAULT_SEARCH_LOOKUP_MODE: SearchLookupMode = "username";
 const SEARCH_LOOKUP_MODE_USER_ID_ALIASES = new Set(["userid", "user-id"]);
 const ANILIST_PROFILE_HOSTS = new Set(["anilist.co", "www.anilist.co"]);
 const SEARCH_LOOKUP_USERNAME_PATTERN = /^[a-zA-Z0-9_\-\s]+$/;
+const SITE_DEFAULT_DESCRIPTION =
+  "Turn public AniList activity into polished anime and manga stat cards, compare long-term library patterns, and export visuals for profiles, posts, and readmes.";
 
 function buildStaticSocialPreviewImage(
   params: StaticSocialPreviewConfig,
@@ -189,6 +191,11 @@ export function getStaticPageSocialPreviewImage(
  */
 export const siteMetadata: Metadata = {
   metadataBase: getSiteUrlObject(),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DEFAULT_DESCRIPTION,
   formatDetection: {
     telephone: false,
     email: false,
@@ -207,10 +214,13 @@ export const siteMetadata: Metadata = {
     ],
   },
   openGraph: {
+    description: SITE_DEFAULT_DESCRIPTION,
+    siteName: SITE_NAME,
     images: getDefaultSocialPreviewImages(),
   },
   twitter: {
     card: "summary_large_image",
+    description: SITE_DEFAULT_DESCRIPTION,
     images: getDefaultSocialPreviewImages(),
   },
 };
@@ -250,6 +260,88 @@ function safeDecodeURIComponent(value: string): string {
   }
 }
 
+function stripLookupSearchAndHash(value: string): string {
+  const questionMarkIndex = value.indexOf("?");
+  const hashIndex = value.indexOf("#");
+  let endIndex = value.length;
+
+  if (questionMarkIndex >= 0 && questionMarkIndex < endIndex) {
+    endIndex = questionMarkIndex;
+  }
+
+  if (hashIndex >= 0 && hashIndex < endIndex) {
+    endIndex = hashIndex;
+  }
+
+  return value.slice(0, endIndex);
+}
+
+function trimLeadingLookupDecorators(value: string): string {
+  let startIndex = 0;
+
+  while (startIndex < value.length) {
+    const character = value[startIndex];
+
+    if (character !== "@" && character !== "/") {
+      break;
+    }
+
+    startIndex += 1;
+  }
+
+  return value.slice(startIndex);
+}
+
+function trimTrailingForwardSlashes(value: string): string {
+  let endIndex = value.length;
+
+  while (endIndex > 0 && value[endIndex - 1] === "/") {
+    endIndex -= 1;
+  }
+
+  return endIndex === value.length ? value : value.slice(0, endIndex);
+}
+
+function startsWithIgnoreCase(value: string, prefix: string): boolean {
+  return (
+    value.length >= prefix.length &&
+    value.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase()
+  );
+}
+
+function isLookupUrlLike(value: string): boolean {
+  const lowerCasedValue = value.toLowerCase();
+
+  return (
+    lowerCasedValue.startsWith("http://") ||
+    lowerCasedValue.startsWith("https://") ||
+    lowerCasedValue.startsWith("www.") ||
+    lowerCasedValue.startsWith("anilist.co/")
+  );
+}
+
+function isLookupPathLike(value: string): boolean {
+  const lowerCasedValue = value.toLowerCase();
+
+  return (
+    value.startsWith("/") ||
+    value.startsWith("@") ||
+    startsWithIgnoreCase(value, "user/") ||
+    value.endsWith("/") ||
+    lowerCasedValue.includes("/user/")
+  );
+}
+
+function findUserSegmentIndex(pathSegments: string[]): number {
+  for (let index = 0; index < pathSegments.length; index += 1) {
+    if (pathSegments[index]?.toLowerCase() === "user") {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function normalizeSearchLookupToken(
   value: string | null | undefined,
 ): string | null {
@@ -262,17 +354,20 @@ function normalizeSearchLookupToken(
     return null;
   }
 
-  normalizedValue = (normalizedValue.split(/[?#]/u, 1)[0] ?? normalizedValue)
-    .trim()
-    .replace(/^@+/u, "")
-    .replace(/^\/+?/u, "");
+  normalizedValue = stripLookupSearchAndHash(normalizedValue).trim();
 
-  if (/^user\//iu.test(normalizedValue)) {
+  if (!normalizedValue) {
+    return null;
+  }
+
+  normalizedValue = trimLeadingLookupDecorators(normalizedValue);
+
+  if (startsWithIgnoreCase(normalizedValue, "user/")) {
     normalizedValue = normalizedValue.slice(5);
   }
 
   normalizedValue = safeDecodeURIComponent(
-    normalizedValue.replace(/\/+$/u, "").trim(),
+    trimTrailingForwardSlashes(normalizedValue).trim(),
   ).trim();
 
   return normalizedValue || null;
@@ -293,9 +388,12 @@ function normalizeSearchLookupUsername(value: string): string | null {
 }
 
 function extractAniListProfileTokenFromUrl(value: string): string | null {
-  const normalizedUrl = /^https?:\/\//iu.test(value)
-    ? value
-    : `https://${value}`;
+  const lowerCasedValue = value.toLowerCase();
+  const normalizedUrl =
+    lowerCasedValue.startsWith("http://") ||
+    lowerCasedValue.startsWith("https://")
+      ? value
+      : `https://${value}`;
 
   try {
     const parsedUrl = new URL(normalizedUrl);
@@ -304,9 +402,7 @@ function extractAniListProfileTokenFromUrl(value: string): string | null {
     }
 
     const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
-    const userSegmentIndex = pathSegments.findIndex(
-      (segment) => segment.toLowerCase() === "user",
-    );
+    const userSegmentIndex = findUserSegmentIndex(pathSegments);
 
     if (userSegmentIndex < 0) {
       return null;
@@ -319,16 +415,14 @@ function extractAniListProfileTokenFromUrl(value: string): string | null {
 }
 
 function extractAniListProfileTokenFromPath(value: string): string | null {
-  const pathOnly = value.trim().split(/[?#]/u, 1)[0] ?? value.trim();
+  const pathOnly = stripLookupSearchAndHash(value.trim());
   const pathSegments = pathOnly.split("/").filter(Boolean);
 
   if (pathSegments.length === 0) {
     return null;
   }
 
-  const userSegmentIndex = pathSegments.findIndex(
-    (segment) => segment.toLowerCase() === "user",
-  );
+  const userSegmentIndex = findUserSegmentIndex(pathSegments);
 
   if (userSegmentIndex >= 0) {
     return normalizeSearchLookupToken(pathSegments[userSegmentIndex + 1]);
@@ -354,7 +448,7 @@ function extractAniListProfileToken(value: string): {
     };
   }
 
-  const isUrlLike = /^(?:https?:\/\/|www\.|anilist\.co\/)/iu.test(trimmedValue);
+  const isUrlLike = isLookupUrlLike(trimmedValue);
   if (isUrlLike) {
     return {
       structured: true,
@@ -362,12 +456,7 @@ function extractAniListProfileToken(value: string): {
     };
   }
 
-  const isPathLike =
-    /^\//u.test(trimmedValue) ||
-    /^@/u.test(trimmedValue) ||
-    /^user\//iu.test(trimmedValue) ||
-    /\/$/u.test(trimmedValue) ||
-    trimmedValue.includes("/user/");
+  const isPathLike = isLookupPathLike(trimmedValue);
 
   if (isPathLike) {
     return {
@@ -389,6 +478,31 @@ export function getSearchLookupMode(value: SearchParamValue): SearchLookupMode {
     SEARCH_LOOKUP_MODE_USER_ID_ALIASES.has(normalizedValue)
     ? "userId"
     : DEFAULT_SEARCH_LOOKUP_MODE;
+}
+
+export function getBlankSearchLookupError(
+  searchMethod: SearchLookupMode,
+): string {
+  if (searchMethod === "userId") {
+    return "You'll need to enter a numeric AniList user ID first.";
+  }
+
+  return "You'll need to enter an AniList username, profile link, or user ID first.";
+}
+
+export function getSearchLookupValidationError(
+  searchMethod: SearchLookupMode,
+  reason: "invalid" | "expectedUserId",
+): string {
+  if (searchMethod === "userId") {
+    if (reason === "expectedUserId") {
+      return "That looks like a username or profile link. Switch to Username mode or paste a numeric AniList user ID.";
+    }
+
+    return "Enter a numeric AniList user ID or an AniList /user/... link that resolves to one.";
+  }
+
+  return "Enter an AniList username, @handle, profile URL, copied /user/... slug, or numeric ID.";
 }
 
 export function normalizeSearchLookupInput(
@@ -543,14 +657,13 @@ export function generateMetadata(config: SEOConfig): Metadata {
     twitter.images ?? openGraph.images,
     fallbackSocialPreviewImage,
   );
+  const shouldUseAbsoluteTitle = title.includes(SITE_NAME);
 
-  const fullTitle = title.includes(SITE_NAME)
-    ? title
-    : `${title} | ${SITE_NAME}`;
+  const fullTitle = shouldUseAbsoluteTitle ? title : `${title} | ${SITE_NAME}`;
 
   const metadata: Metadata = {
     metadataBase: getSiteUrlObject(),
-    title: fullTitle,
+    title: shouldUseAbsoluteTitle ? { absolute: title } : title,
     description,
     keywords,
 
@@ -591,9 +704,8 @@ export function generateMetadata(config: SEOConfig): Metadata {
 /** Canonical SEO configurations for static app pages. @source */
 export const seoConfigs = {
   home: {
-    title: "AniList Stat Cards & Profile Visuals",
-    description:
-      "Turn public AniList activity into polished anime and manga stat cards, compare long-term library patterns, and export visuals for profiles, posts, and readmes.",
+    title: "AniList Stat Cards & Profile Visuals | AniCards",
+    description: SITE_DEFAULT_DESCRIPTION,
     keywords: [
       "anilist stat cards",
       "anilist statistics cards",
@@ -729,7 +841,6 @@ export const seoConfigs = {
       "download cards",
       "custom colors",
     ],
-    canonical: "/user",
   },
 } as const satisfies Record<string, SEOConfig>;
 
@@ -742,7 +853,7 @@ type StaticSitemapEntryDef = {
   seoKey: Exclude<SEOPageKey, "user">;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
-  lastmod: string;
+  lastmod?: string;
 };
 
 const staticSitemapEntryDefs = [
@@ -750,43 +861,36 @@ const staticSitemapEntryDefs = [
     seoKey: "home",
     priority: 1,
     changefreq: "daily",
-    lastmod: "2026-04-12T01:57:04.000Z",
   },
   {
     seoKey: "search",
     priority: 0.9,
     changefreq: "weekly",
-    lastmod: "2026-04-12T18:06:16.000Z",
   },
   {
     seoKey: "examples",
     priority: 0.85,
     changefreq: "weekly",
-    lastmod: "2026-03-30T05:30:55.000Z",
   },
   {
     seoKey: "projects",
     priority: 0.6,
     changefreq: "monthly",
-    lastmod: "2026-03-30T05:30:55.000Z",
   },
   {
     seoKey: "about",
     priority: 0.65,
     changefreq: "monthly",
-    lastmod: "2026-04-09T03:33:33.000Z",
   },
   {
     seoKey: "privacy",
     priority: 0.55,
     changefreq: "yearly",
-    lastmod: "2026-04-12T18:06:33.000Z",
   },
   {
     seoKey: "contact",
     priority: 0.6,
     changefreq: "yearly",
-    lastmod: "2026-03-30T05:30:55.000Z",
   },
 ] as const satisfies readonly StaticSitemapEntryDef[];
 
@@ -801,7 +905,7 @@ export function getUserProfilePath(username: string): string {
   return `/user/${encodeURIComponent(username.trim())}`;
 }
 
-function buildUserLookupPath({
+export function buildUserLookupPath({
   username,
   userId,
   q,
@@ -850,6 +954,52 @@ function buildUserLookupPath({
 
   const search = searchParams.toString();
   return search ? `/user?${search}` : "/user";
+}
+
+export function buildCanonicalUserPageUrl({
+  username,
+  q,
+  visibility,
+  group,
+  customFilter,
+}: {
+  username: string;
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+  customFilter?: SearchParamValue;
+}): string {
+  const normalizedUsername = getSearchParamValue(username);
+  const normalizedQuery = getSearchParamValue(q);
+  const normalizedVisibility = getSearchParamValue(visibility);
+  const normalizedGroup = getSearchParamValue(group);
+  const normalizedCustomFilter = getSearchParamValue(customFilter);
+  const searchParams = new URLSearchParams();
+
+  if (!normalizedUsername) {
+    return "/user";
+  }
+
+  if (normalizedQuery) {
+    searchParams.set("q", normalizedQuery);
+  }
+
+  if (normalizedVisibility && normalizedVisibility !== "all") {
+    searchParams.set("visibility", normalizedVisibility);
+  }
+
+  if (normalizedGroup && normalizedGroup !== "All") {
+    searchParams.set("group", normalizedGroup);
+  }
+
+  if (normalizedCustomFilter && normalizedCustomFilter !== "all") {
+    searchParams.set("customFilter", normalizedCustomFilter);
+  }
+
+  const pathname = getUserProfilePath(normalizedUsername);
+  const search = searchParams.toString();
+
+  return search ? `${pathname}?${search}` : pathname;
 }
 
 function createUserSeoConfig(params: {
