@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
   sharedRatelimitMockSlidingWindow,
   sharedRedisMockExpire,
   sharedRedisMockIncr,
@@ -1211,28 +1212,36 @@ describe("api module hardening", () => {
   });
 
   it("records dedicated analytics when the rate-limit provider throws", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+
     const limiter = {
       limit: mock().mockRejectedValue(new Error("Upstash exploded")),
     } as never;
 
-    await expect(
-      checkRateLimit(
-        createApiRequest(),
-        { ip: "127.0.0.1" },
-        "Test API",
-        "test_api",
-        limiter,
-      ),
-    ).rejects.toThrow("Upstash exploded");
+    try {
+      await expect(
+        checkRateLimit(
+          createApiRequest(),
+          { ip: "127.0.0.1" },
+          "Test API",
+          "test_api",
+          limiter,
+        ),
+      ).rejects.toThrow("Upstash exploded");
 
-    await flushScheduledTelemetryTasksForTests();
+      await flushScheduledTelemetryTasksForTests();
 
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:rate_limit_errors",
-    );
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toContain(
+        "analytics:test_api:rate_limit_errors",
+      );
+    } finally {
+      observedIncrements.release();
+    }
   });
 
   it("fails closed when the rate-limit provider throws in production", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+
     process.env = {
       ...process.env,
       NODE_ENV: "production",
@@ -1254,23 +1263,27 @@ describe("api module hardening", () => {
       limiter,
     );
 
-    await flushScheduledTelemetryTasksForTests();
+    try {
+      await flushScheduledTelemetryTasksForTests();
 
-    expect(response?.status).toBe(503);
-    expect(await response?.json()).toMatchObject({
-      error: "Rate limiting is temporarily unavailable",
-      retryable: true,
-      status: 503,
-    });
+      expect(response?.status).toBe(503);
+      expect(await response?.json()).toMatchObject({
+        error: "Rate limiting is temporarily unavailable",
+        retryable: true,
+        status: 503,
+      });
 
-    await flushScheduledTelemetryTasksForTests();
+      await flushScheduledTelemetryTasksForTests();
 
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:rate_limit_errors",
-    );
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:failed_requests",
-    );
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining([
+          "analytics:test_api:rate_limit_errors",
+          "analytics:test_api:failed_requests",
+        ]),
+      );
+    } finally {
+      observedIncrements.release();
+    }
   });
 
   it("returns initializeApiRequest context from request headers on success", async () => {
