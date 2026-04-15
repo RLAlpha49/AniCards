@@ -399,7 +399,9 @@ describe("useUserDataLoader", () => {
 
   it("falls back to new-user setup when bootstrap returns 404", async () => {
     pathname = "/user";
-    routeSearchParams = new URLSearchParams("username=FreshUser");
+    routeSearchParams = new URLSearchParams(
+      "username=FreshUser&q=wide&visibility=private&group=Top 10&customFilter=customized",
+    );
 
     const fetchMock = mock(async (input: RequestInfo | URL) => {
       const requestUrl = getRequestUrl(input);
@@ -438,7 +440,9 @@ describe("useUserDataLoader", () => {
     expect(firstStartSetupCall?.[0]).toBeNull();
     expect(firstStartSetupCall?.[1]).toBe("FreshUser");
     expect(fetchUserCardsMock).not.toHaveBeenCalled();
-    expect(routerReplace).toHaveBeenCalledWith("/user/FreshUser");
+    expect(routerReplace).toHaveBeenCalledWith(
+      "/user/FreshUser?q=wide&visibility=private&group=Top+10&customFilter=customized",
+    );
   });
 
   it("initializes an empty authoritative state when the saved cards record is missing", async () => {

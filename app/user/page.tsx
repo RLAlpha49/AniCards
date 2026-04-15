@@ -11,9 +11,9 @@ import { UserPageEditor } from "@/components/user/UserPageEditor";
 import { UserPageLoadingSpinner } from "@/components/user/UserPageLoading";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import {
+  buildCanonicalUserPageUrl,
   generateMetadata as createMetadata,
   getUserPageSEOConfig,
-  getUserProfilePath,
 } from "@/lib/seo";
 
 import LoadingPreview from "./loading";
@@ -31,28 +31,7 @@ export function buildLegacyUserRedirectUrl(params: {
   group?: string;
   customFilter?: string;
 }): string {
-  const nextSearchParams = new URLSearchParams();
-
-  if (params.q?.trim()) {
-    nextSearchParams.set("q", params.q.trim());
-  }
-
-  if (params.visibility?.trim() && params.visibility !== "all") {
-    nextSearchParams.set("visibility", params.visibility.trim());
-  }
-
-  if (params.group?.trim() && params.group !== "All") {
-    nextSearchParams.set("group", params.group.trim());
-  }
-
-  if (params.customFilter?.trim() && params.customFilter !== "all") {
-    nextSearchParams.set("customFilter", params.customFilter.trim());
-  }
-
-  const pathname = getUserProfilePath(params.username);
-  const search = nextSearchParams.toString();
-
-  return search ? `${pathname}?${search}` : pathname;
+  return buildCanonicalUserPageUrl(params);
 }
 
 /**

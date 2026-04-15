@@ -1,18 +1,36 @@
-import type { StructuredDataEntry } from "@/lib/structured-data";
-import { generateJsonLd } from "@/lib/structured-data";
+import { getRequestNonce } from "@/lib/request-nonce";
+import {
+  generateJsonLd,
+  generateStructuredData,
+  type StructuredDataEntry,
+  type StructuredDataOverrides,
+  type StructuredDataPageKey,
+} from "@/lib/structured-data";
 
-interface StructuredDataScriptProps {
-  data: StructuredDataEntry[];
-  nonce: string | undefined;
-}
+type StructuredDataScriptProps =
+  | {
+      data: StructuredDataEntry[];
+      nonce?: string;
+      page?: never;
+      overrides?: never;
+    }
+  | {
+      data?: never;
+      nonce?: string;
+      page: StructuredDataPageKey;
+      overrides?: StructuredDataOverrides;
+    };
 
 /**
  * Renders a nonce-aware JSON-LD script for the current request.
  */
-export function StructuredDataScript({
-  data,
-  nonce,
-}: Readonly<StructuredDataScriptProps>) {
+export async function StructuredDataScript(
+  props: Readonly<StructuredDataScriptProps>,
+) {
+  const nonce = props.nonce ?? (await getRequestNonce());
+  const data =
+    props.data ?? generateStructuredData(props.page, props.overrides);
+
   return (
     <script
       type="application/ld+json"

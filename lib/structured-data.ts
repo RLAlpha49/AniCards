@@ -1,6 +1,7 @@
 import { PROJECT_CATALOG } from "@/components/projects/constants";
 import {
   getSearchPagePath,
+  getUserProfilePath,
   SEARCH_PAGE_QUERY_PARAM,
   seoConfigs,
 } from "@/lib/seo";
@@ -154,7 +155,9 @@ interface BreadcrumbList {
   }>;
 }
 
-interface StructuredDataOverrides {
+export type StructuredDataPageKey = keyof typeof seoConfigs;
+
+export interface StructuredDataOverrides {
   title?: string;
   description?: string;
   canonical?: string;
@@ -397,7 +400,7 @@ function buildBreadcrumbListEntry(
 }
 
 function buildPageEntry(
-  pageType: keyof typeof seoConfigs,
+  pageType: StructuredDataPageKey,
   config: {
     canonical?: string;
     description: string;
@@ -464,6 +467,34 @@ function buildPageEntry(
   return pageEntry;
 }
 
+function resolveStructuredDataCanonicalReference(
+  pageType: StructuredDataPageKey,
+  config: {
+    canonical?: string;
+  },
+  overrides: StructuredDataOverrides,
+): string {
+  const explicitCanonical = overrides.canonical?.trim();
+
+  if (explicitCanonical) {
+    return explicitCanonical;
+  }
+
+  if (pageType === "user") {
+    const normalizedUsername = overrides.profile?.username.trim();
+
+    if (normalizedUsername) {
+      return getUserProfilePath(normalizedUsername);
+    }
+
+    throw new Error(
+      "User structured data requires either a canonical override or profile.username.",
+    );
+  }
+
+  return config.canonical ?? "/";
+}
+
 export function generateSiteStructuredData(): StructuredDataEntry[] {
   const siteUrl = getSiteUrl();
 
@@ -483,7 +514,7 @@ export function generateSiteStructuredData(): StructuredDataEntry[] {
  * @source
  */
 export const generateStructuredData = (
-  pageType: keyof typeof seoConfigs = "home",
+  pageType: StructuredDataPageKey = "home",
   overrides: StructuredDataOverrides = {},
 ): StructuredDataEntry[] => {
   const config = {
@@ -492,7 +523,7 @@ export const generateStructuredData = (
   };
   const siteUrl = getSiteUrl();
   const canonicalUrl = resolveSiteUrl(
-    overrides.canonical ?? config.canonical ?? "/",
+    resolveStructuredDataCanonicalReference(pageType, config, overrides),
   );
   const pageEntry = buildPageEntry(
     pageType,

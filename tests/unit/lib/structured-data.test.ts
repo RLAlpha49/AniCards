@@ -173,7 +173,6 @@ describe("structured data helpers", () => {
 
   it("builds breadcrumb trails from the canonical user profile route", () => {
     const entries = generateStructuredData("user", {
-      canonical: "/user/Alpha49",
       description: "Profile stats for Alpha49.",
       keywords: ["alpha49", "anilist"],
       profile: {
@@ -211,7 +210,6 @@ describe("structured data helpers", () => {
   it("uses profile-oriented schema for canonical user profile routes", () => {
     const canonicalUrl = resolveSiteUrl("/user/Alpha49");
     const entries = generateStructuredData("user", {
-      canonical: "/user/Alpha49",
       description: "Profile stats for Alpha49.",
       keywords: ["alpha49", "anilist"],
       profile: {
@@ -244,5 +242,17 @@ describe("structured data helpers", () => {
       url: canonicalUrl,
     });
     expect(profileEntry.sameAs).toEqual(["https://anilist.co/user/Alpha49"]);
+  });
+
+  it("rejects user structured data that lacks both a canonical override and a profile username", () => {
+    expect(() =>
+      generateStructuredData("user", {
+        description: "Lookup-only user state.",
+        keywords: ["lookup"],
+        title: "User Stats - AniCards",
+      }),
+    ).toThrow(
+      "User structured data requires either a canonical override or profile.username.",
+    );
   });
 });

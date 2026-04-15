@@ -24,7 +24,6 @@ const SITEMAP_PATHS = [
   "/contact",
 ];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
-const SEARCH_LASTMOD = "2026-04-12T18:06:16.000Z";
 const PROFILE_LASTMOD = "2026-03-27T00:00:05.000Z";
 
 beforeEach(() => {
@@ -59,7 +58,7 @@ async function getSitemap(siteUrl?: string) {
 }
 
 describe("sitemap.xml route", () => {
-  it("returns a cacheable XML sitemap with curated public routes, stable lastmod values, and canonical profile entries", async () => {
+  it("returns a cacheable XML sitemap with curated public routes, canonical profile entries, and only trustworthy lastmod timestamps", async () => {
     listPublicUserProfileSitemapEntriesMock.mockResolvedValue([
       { username: "Alpha49", lastmod: PROFILE_LASTMOD },
       { username: "Beta User" },
@@ -74,8 +73,8 @@ describe("sitemap.xml route", () => {
       expect(xml).toContain(`${DEFAULT_BASE_URL}${path}`);
     });
 
-    expect(xml).toContain(`<lastmod>${SEARCH_LASTMOD}</lastmod>`);
     expect(xml).toContain(`<lastmod>${PROFILE_LASTMOD}</lastmod>`);
+    expect(xml.match(/<lastmod>/g)?.length ?? 0).toBe(1);
     expect(xml).toContain(`${DEFAULT_BASE_URL}/user/Alpha49`);
     expect(xml).toContain(`${DEFAULT_BASE_URL}/user/Beta%20User`);
     expect(xml).not.toContain(`${DEFAULT_BASE_URL}/search?mode=userId`);

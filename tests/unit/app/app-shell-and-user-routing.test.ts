@@ -101,6 +101,13 @@ describe("App shell server coverage", () => {
         },
       ],
     });
+    expect(rootMetadata.title).toEqual({
+      default: "AniCards",
+      template: "%s | AniCards",
+    });
+    expect(rootMetadata.description).toBe(
+      "Turn public AniList activity into polished anime and manga stat cards, compare long-term library patterns, and export visuals for profiles, posts, and readmes.",
+    );
   });
 
   it("injects request IDs for API routes without adding HTML-only CSP headers", async () => {

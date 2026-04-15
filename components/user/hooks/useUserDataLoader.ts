@@ -18,7 +18,7 @@ import { isValidUsername } from "@/lib/api/validation";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails, getSafeErrorSummary } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
-import { getUserProfilePath } from "@/lib/seo";
+import { buildCanonicalUserPageUrl } from "@/lib/seo";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
 import type {
@@ -298,20 +298,6 @@ async function fetchUserData(
   }
 }
 
-function buildCanonicalUserPageUrl(
-  username: string,
-  searchParams: URLSearchParams,
-): string {
-  const nextSearchParams = new URLSearchParams(searchParams.toString());
-  nextSearchParams.delete("userId");
-  nextSearchParams.delete("username");
-
-  const pathname = getUserProfilePath(username);
-  const search = nextSearchParams.toString();
-
-  return search ? `${pathname}?${search}` : pathname;
-}
-
 function isSupersededUserLoadRequest(
   error: unknown,
   signal: AbortSignal,
@@ -413,10 +399,13 @@ export function useUserDataLoader(options: {
       }
 
       const currentSearch = new URLSearchParams(searchParams.toString());
-      const nextUrl = buildCanonicalUserPageUrl(
-        normalizedUsername,
-        currentSearch,
-      );
+      const nextUrl = buildCanonicalUserPageUrl({
+        username: normalizedUsername,
+        q: currentSearch.get("q") ?? undefined,
+        visibility: currentSearch.get("visibility") ?? undefined,
+        group: currentSearch.get("group") ?? undefined,
+        customFilter: currentSearch.get("customFilter") ?? undefined,
+      });
       const currentUrl = currentSearch.toString()
         ? `${pathname}?${currentSearch.toString()}`
         : pathname;
