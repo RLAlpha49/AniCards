@@ -1584,50 +1584,6 @@ export function validateCardData(
   return { success: true, cards: typedCards };
 }
 
-export function validateStoreCardsStatsData(
-  statsData: unknown,
-):
-  | { success: true; data: UserStatsData | Record<string, never> | undefined }
-  | { success: false; errorMessage: string; issue?: string } {
-  if (statsData === undefined) {
-    return { success: true, data: undefined };
-  }
-
-  if (isPlainObject(statsData)) {
-    const statsError = statsData.error;
-    if (statsError !== undefined) {
-      return {
-        success: false,
-        errorMessage: safeStringifyValue(statsError),
-      };
-    }
-
-    if (Object.keys(statsData).length === 0) {
-      return { success: true, data: {} };
-    }
-
-    const parsed = userStatsDataSchema.safeParse(statsData);
-    if (!parsed.success) {
-      return {
-        success: false,
-        errorMessage: "Invalid stats payload",
-        issue: getSchemaValidationIssueSummary(parsed.error),
-      };
-    }
-
-    return {
-      success: true,
-      data: parsed.data,
-    };
-  }
-
-  return {
-    success: false,
-    errorMessage: "Invalid stats payload",
-    issue: "statsData must be an object when provided",
-  };
-}
-
 export function validatePersistedUserRecord(record: PersistedUserRecord) {
   return persistedUserRecordSchema.safeParse(record);
 }
