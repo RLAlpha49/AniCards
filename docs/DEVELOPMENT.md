@@ -105,6 +105,8 @@ Treat `bun run test:e2e` as the default Playwright path. Reach for the specializ
 - `bun run test:e2e:local-prod` — same suite against a local production build (`bun run build && bun run start`). Use when build output, headers, caching, or other production-only behavior matters.
 - `bun run test:e2e:deployed-smoke` — minimal smoke for the deployed app shell and `robots.txt`. Use after deploys or against preview/staging targets only; set `PLAYWRIGHT_BASE_URL` and `VERCEL_AUTOMATION_BYPASS_SECRET` when needed.
 
+If you need a non-default browser project locally, pass the Playwright selector directly, for example `bun run test:e2e -- --project=mobile-chrome`. The Playwright launcher wrapper expands to the full browser matrix on demand for non-default project requests, while `PLAYWRIGHT_FULL_MATRIX=1` and CI still force the whole set.
+
 Playwright reads `.env` and `.env.local`, so reusable values such as `PLAYWRIGHT_BASE_URL` or `VERCEL_AUTOMATION_BYPASS_SECRET` can live there when that fits your workflow.
 
 For most changes, this sequence covers the common local pass:

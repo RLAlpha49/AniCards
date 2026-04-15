@@ -1,11 +1,52 @@
 import { parseTrustedAniCardsBaseUrl } from "../lib/playwright-base-url";
 
-type PlaywrightRunMode = "deployed-smoke" | "local-prod";
+type PlaywrightRunMode = "test-e2e" | "deployed-smoke" | "local-prod";
+
+type PlaywrightRunConfiguration = {
+  defaultArgs?: string[];
+  envOverrides?: Record<string, string | undefined>;
+};
 
 const DEPLOYED_SMOKE_SPEC = "tests/e2e/smoke/unmocked-app-shell.spec.ts";
 
-const mode = Bun.argv[2] as PlaywrightRunMode | undefined;
-const passthroughArgs = Bun.argv.slice(3);
+function isEnabledFlag(value: string | undefined): boolean {
+  return value === "1" || value?.toLowerCase() === "true";
+}
+
+function getRequestedProjects(argv: readonly string[]): string[] {
+  const requestedProjects: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+
+    if (argument === "--project") {
+      const projectName = argv[index + 1]?.trim();
+
+      if (projectName) {
+        requestedProjects.push(projectName);
+        index += 1;
+      }
+
+      continue;
+    }
+
+    if (argument.startsWith("--project=")) {
+      const projectName = argument.slice("--project=".length).trim();
+
+      if (projectName) {
+        requestedProjects.push(projectName);
+      }
+    }
+  }
+
+  return requestedProjects;
+}
+
+export function shouldEnableFullMatrix(argv: readonly string[]): boolean {
+  return getRequestedProjects(argv).some(
+    (projectName) => projectName !== "chromium",
+  );
+}
 
 function createSpawnEnvironment(
   overrides: Record<string, string | undefined>,
@@ -25,6 +66,7 @@ function createSpawnEnvironment(
 function runPlaywright(options: {
   defaultArgs?: string[];
   envOverrides?: Record<string, string | undefined>;
+  passthroughArgs?: readonly string[];
 }): never {
   const result = Bun.spawnSync({
     cmd: [
@@ -32,7 +74,7 @@ function runPlaywright(options: {
       "playwright",
       "test",
       ...(options.defaultArgs ?? []),
-      ...passthroughArgs,
+      ...(options.passthroughArgs ?? []),
     ],
     env: createSpawnEnvironment(options.envOverrides ?? {}),
     stdin: "inherit",
@@ -41,6 +83,40 @@ function runPlaywright(options: {
   });
 
   process.exit(result.exitCode ?? 1);
+}
+
+export function resolvePlaywrightRunConfiguration(
+  mode: PlaywrightRunMode,
+  passthroughArgs: readonly string[],
+): PlaywrightRunConfiguration {
+  const shouldEnableMatrix = shouldEnableFullMatrix(passthroughArgs);
+
+  switch (mode) {
+    case "test-e2e":
+      return shouldEnableMatrix
+        ? {
+            envOverrides: {
+              PLAYWRIGHT_FULL_MATRIX: "1",
+            },
+          }
+        : {};
+
+    case "local-prod":
+      return {
+        envOverrides: {
+          PLAYWRIGHT_LOCAL_PRODUCTION: "1",
+          ...(shouldEnableMatrix ? { PLAYWRIGHT_FULL_MATRIX: "1" } : {}),
+        },
+      };
+
+    case "deployed-smoke":
+      return {
+        defaultArgs: [DEPLOYED_SMOKE_SPEC, "--project=chromium"],
+        envOverrides: {
+          PLAYWRIGHT_BASE_URL: resolveDeployedSmokeBaseUrl(),
+        },
+      };
+  }
 }
 
 function resolveDeployedSmokeBaseUrl(): string {
@@ -52,24 +128,29 @@ function resolveDeployedSmokeBaseUrl(): string {
   return parseTrustedAniCardsBaseUrl(rawBaseUrl, "PLAYWRIGHT_BASE_URL").origin;
 }
 
-switch (mode) {
-  case "deployed-smoke":
-    runPlaywright({
-      defaultArgs: [DEPLOYED_SMOKE_SPEC, "--project=chromium"],
-      envOverrides: {
-        PLAYWRIGHT_BASE_URL: resolveDeployedSmokeBaseUrl(),
-      },
-    });
-  case "local-prod":
-    runPlaywright({
-      envOverrides: {
-        PLAYWRIGHT_LOCAL_PRODUCTION: "1",
-      },
-    });
-  default: {
-    const supportedModes = ["deployed-smoke", "local-prod"].join(", ");
+function main(argv: readonly string[] = Bun.argv): never {
+  const mode = argv[2] as PlaywrightRunMode | undefined;
+  const passthroughArgs = argv.slice(3);
+
+  if (!mode) {
     throw new Error(
-      `Unknown Playwright run mode: ${mode ?? "(missing)"}. Expected one of: ${supportedModes}.`,
+      "Missing Playwright run mode. Expected one of: test-e2e, local-prod, deployed-smoke.",
     );
   }
+
+  const configuration = resolvePlaywrightRunConfiguration(
+    mode,
+    passthroughArgs,
+  );
+
+  runPlaywright({
+    ...configuration,
+    passthroughArgs,
+  });
 }
+
+if (import.meta.main) {
+  main();
+}
+
+export { main };

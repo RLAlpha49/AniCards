@@ -30,7 +30,7 @@
     "test:unit": "bun test",
     "test:unit:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=.artifacts/coverage",
     "test": "bun run test:unit && bun run test:e2e",
-    "test:e2e": "playwright test",
+    "test:e2e": "bun ./scripts/run-playwright.ts test-e2e",
     "test:e2e:local-prod": "bun ./scripts/run-playwright.ts local-prod",
     "test:e2e:deployed-smoke": "bun ./scripts/run-playwright.ts deployed-smoke",
     "check:unused": "bunx knip",
