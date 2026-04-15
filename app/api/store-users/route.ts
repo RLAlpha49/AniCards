@@ -4,8 +4,9 @@
 // This boundary normalizes incoming AniList data, preserves the original `createdAt`
 // across overwrites, and keeps the username lookup index in sync with the saved record.
 //
-// Clients can send `ifMatchUpdatedAt` to reject stale writes instead of silently
-// overwriting fresher data from another tab or device.
+// Clients can send compare-and-set metadata on updates so stale writes are
+// rejected instead of silently overwriting fresher data from another tab or
+// device.
 
 import type { NextResponse } from "next/server";
 
@@ -94,6 +95,8 @@ function rejectInvalidStoreUsersPayload(params: {
 function createStoreUsersConflictResponse(params: {
   endpoint: string;
   endpointKey: string;
+  currentRevision?: number;
+  currentSnapshotToken?: string;
   request: Request;
   currentUpdatedAt?: string;
 }): NextResponse {
@@ -111,11 +114,28 @@ function createStoreUsersConflictResponse(params: {
     {
       category: "invalid_data",
       retryable: false,
-      additionalFields: params.currentUpdatedAt
-        ? {
-            currentUpdatedAt: params.currentUpdatedAt,
-          }
-        : undefined,
+      additionalFields:
+        params.currentUpdatedAt ||
+        params.currentRevision ||
+        params.currentSnapshotToken
+          ? {
+              ...(params.currentUpdatedAt
+                ? {
+                    currentUpdatedAt: params.currentUpdatedAt,
+                  }
+                : {}),
+              ...(params.currentRevision
+                ? {
+                    currentRevision: params.currentRevision,
+                  }
+                : {}),
+              ...(params.currentSnapshotToken
+                ? {
+                    currentSnapshotToken: params.currentSnapshotToken,
+                  }
+                : {}),
+            }
+          : undefined,
     },
   );
 }
@@ -146,6 +166,8 @@ function createStoreUsersUsernameConflictResponse(params: {
 async function persistPreparedUserRecord(params: {
   endpoint: string;
   endpointKey: string;
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
   request: Request;
   persistedUserData: PersistedUserRecord;
   existingState?: Awaited<ReturnType<typeof getPersistedUserState>>;
@@ -163,6 +185,8 @@ async function persistPreparedUserRecord(params: {
   try {
     const saveResult = await saveUserRecord(params.persistedUserData, {
       existingState: params.existingState ?? undefined,
+      expectedRevision: params.ifMatchRevision,
+      expectedSnapshotToken: params.ifMatchSnapshotToken,
       expectedUpdatedAt: params.ifMatchUpdatedAt,
     });
 
@@ -173,6 +197,8 @@ async function persistPreparedUserRecord(params: {
         errorResponse: createStoreUsersConflictResponse({
           endpoint: params.endpoint,
           endpointKey: params.endpointKey,
+          currentRevision: error.currentRevision,
+          currentSnapshotToken: error.currentSnapshotToken,
           request: params.request,
           currentUpdatedAt: error.currentUpdatedAt,
         }),
@@ -320,7 +346,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       return validationResult.error;
     }
 
-    const { userId, username, stats, ifMatchUpdatedAt } = validationResult.data;
+    const {
+      userId,
+      username,
+      stats,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
+      ifMatchUpdatedAt,
+    } = validationResult.data;
 
     const protectedWriteGrantResult = await validateProtectedWriteGrant({
       endpointKey,
@@ -340,7 +373,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     const authoritativeUsername =
       grant.source === "test_bypass"
         ? (authoritativeUsernameFromStats ?? username)
-        : (grant.username ?? authoritativeUsernameFromStats);
+        : (authoritativeUsernameFromStats ?? grant.username ?? username);
+
+    if (
+      grant.username &&
+      authoritativeUsernameFromStats &&
+      grant.username.trim().toLowerCase() !==
+        authoritativeUsernameFromStats.trim().toLowerCase()
+    ) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Protected write grant username no longer matched the authoritative AniList stats username; preferring the stats payload",
+        {
+          grantUsername: grant.username,
+          authoritativeUsername: authoritativeUsernameFromStats,
+          requestedUserId: userId,
+        },
+        request,
+      );
+    }
 
     if (
       username &&
@@ -390,17 +442,67 @@ export async function POST(request: Request): Promise<NextResponse> {
       createdAt = existingState.createdAt;
     }
 
-    if (
-      ifMatchUpdatedAt &&
-      existingState?.updatedAt &&
-      existingState.updatedAt !== ifMatchUpdatedAt
-    ) {
-      return createStoreUsersConflictResponse({
-        endpoint,
-        endpointKey,
-        request,
-        currentUpdatedAt: existingState.updatedAt,
-      });
+    const currentRevision =
+      existingState && existingState.revision > 0
+        ? existingState.revision
+        : undefined;
+    const currentSnapshotToken = existingState?.snapshot?.token;
+
+    if (existingState) {
+      const hasCompareToken =
+        Boolean(ifMatchUpdatedAt) ||
+        typeof ifMatchRevision === "number" ||
+        Boolean(ifMatchSnapshotToken);
+
+      if (!hasCompareToken) {
+        return createStoreUsersConflictResponse({
+          endpoint,
+          endpointKey,
+          currentRevision,
+          currentSnapshotToken,
+          request,
+          currentUpdatedAt: existingState.updatedAt,
+        });
+      }
+
+      if (ifMatchUpdatedAt && existingState.updatedAt !== ifMatchUpdatedAt) {
+        return createStoreUsersConflictResponse({
+          endpoint,
+          endpointKey,
+          currentRevision,
+          currentSnapshotToken,
+          request,
+          currentUpdatedAt: existingState.updatedAt,
+        });
+      }
+
+      if (
+        typeof ifMatchRevision === "number" &&
+        currentRevision !== ifMatchRevision
+      ) {
+        return createStoreUsersConflictResponse({
+          endpoint,
+          endpointKey,
+          currentRevision,
+          currentSnapshotToken,
+          request,
+          currentUpdatedAt: existingState.updatedAt,
+        });
+      }
+
+      if (
+        ifMatchSnapshotToken &&
+        currentSnapshotToken !== ifMatchSnapshotToken
+      ) {
+        return createStoreUsersConflictResponse({
+          endpoint,
+          endpointKey,
+          currentRevision,
+          currentSnapshotToken,
+          request,
+          currentUpdatedAt: existingState.updatedAt,
+        });
+      }
     }
 
     const userData: UserRecord = {
@@ -440,6 +542,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       persistedUserData: preparedRecord.persistedUserData,
       existingState,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
       ifMatchUpdatedAt,
     });
     if ("errorResponse" in persistResult) {
@@ -463,7 +567,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
 
     return jsonWithCors(
-      { success: true, userId, updatedAt: persistResult.saveResult.updatedAt },
+      {
+        success: true,
+        userId,
+        updatedAt: persistResult.saveResult.updatedAt,
+        revision: persistResult.saveResult.revision,
+        snapshotToken: persistResult.saveResult.snapshotToken,
+      },
       request,
       undefined,
       protectedWriteGrantHeader

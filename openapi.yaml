@@ -874,7 +874,11 @@ paths:
         expose a public self-serve deletion or export endpoint for this stored
         server-side data. Reads may still return legacy unsupported card IDs,
         but writes only accept current `CardType` values and strip unsupported
-        legacy entries from the merged record before persisting.
+        legacy entries from the merged record before persisting. Writes that
+        update an existing stored record must include the latest
+        `ifMatchUpdatedAt` compare token; callers may also send the matching
+        user `ifMatchRevision` and `ifMatchSnapshotToken` when they want to
+        pin the save to a specific stored user snapshot.
       requestBody:
         required: true
         content:
@@ -885,7 +889,9 @@ paths:
               saveCards:
                 value:
                   userId: 12345
-                  statsData: {}
+                  ifMatchUpdatedAt: "2026-03-21T10:15:00.000Z"
+                  ifMatchRevision: 12
+                  ifMatchSnapshotToken: "snapshot-12345-12"
                   cardOrder:
                     - "animeStats"
                     - "mangaStats"
@@ -938,6 +944,11 @@ paths:
                     success: true
                     userId: 12345
                     updatedAt: "2026-03-21T10:15:00.000Z"
+                    userSnapshot:
+                      token: "snapshot-12345-12"
+                      revision: 12
+                      updatedAt: "2026-03-21T10:15:00.000Z"
+                      committedAt: "2026-03-21T10:15:02.000Z"
         "400":
           description: "Validation failure for the incoming payload"
           content:
@@ -983,7 +994,7 @@ paths:
                     status: 403
                     recoverySuggestions: []
         "409":
-          description: "Optimistic concurrency conflict"
+          description: "Missing or stale compare-and-set token"
           content:
             application/json:
               schema:
@@ -1048,15 +1059,19 @@ paths:
       description: >-
         Persists a versioned split user record, atomically flips the active
         commit pointer, maintains the normalized username alias and stale-user
-        refresh index, and optionally enforces optimistic concurrency via
-        `ifMatchUpdatedAt`. This is a browser-only mutation route: in
+        refresh index, and requires compare-and-set metadata when updating an
+        existing stored record. `ifMatchUpdatedAt` remains the browser-facing
+        compatibility token, while `ifMatchRevision` and
+        `ifMatchSnapshotToken` provide a stronger snapshot-bound guard for the
+        same write. This is a browser-only mutation route: in
         production it requires same-origin requests, a verified client IP, the
         shared request-proof cookie, and a short-lived per-user protected write
         grant minted by `/api/anilist` `GetUserStats` or `/api/get-user` for
         the same user. The server only persists the bound AniList snapshot for
-        that subject and does not treat the client-supplied username as
-        authoritative. Public reads later return a bounded DTO that excludes
-        request metadata such as redacted IP buckets.
+        that subject, prefers the authoritative AniList stats username over a
+        stale protected-write grant username, and does not treat the
+        client-supplied username as authoritative. Public reads later return a
+        bounded DTO that excludes request metadata such as redacted IP buckets.
       requestBody:
         required: true
         content:
@@ -1069,6 +1084,8 @@ paths:
                   userId: 12345
                   username: "sampleuser"
                   ifMatchUpdatedAt: "2026-03-21T10:15:00.000Z"
+                  ifMatchRevision: 12
+                  ifMatchSnapshotToken: "snapshot-12345-12"
                   stats:
                     User:
                       name: "sampleuser"
@@ -1139,6 +1156,8 @@ paths:
                     success: true
                     userId: 12345
                     updatedAt: "2026-03-21T10:16:00.000Z"
+                    revision: 13
+                    snapshotToken: "snapshot-12345-13"
         "400":
           description: "Validation failure for the incoming payload"
           content:
@@ -1186,6 +1205,8 @@ paths:
                     status: 409
                     recoverySuggestions: []
                     currentUpdatedAt: "2026-03-21T10:15:00.000Z"
+                    currentRevision: 12
+                    currentSnapshotToken: "snapshot-12345-12"
                 usernameConflict:
                   value:
                     error: "Conflict: username is already bound to another stored user."
@@ -2585,8 +2606,11 @@ components:
             currentUpdatedAt:
               type: string
               format: date-time
-          required:
-            - currentUpdatedAt
+            currentRevision:
+              type: integer
+              minimum: 1
+            currentSnapshotToken:
+              type: string
 
     RecoverySuggestion:
       type: object
@@ -3274,6 +3298,8 @@ components:
             $ref: "#/components/schemas/StoredCardConfig"
         globalSettings:
           $ref: "#/components/schemas/GlobalCardSettings"
+        userSnapshot:
+          $ref: "#/components/schemas/UserSnapshotRef"
         updatedAt:
           type: string
           format: date-time
@@ -3288,22 +3314,25 @@ components:
       description: >-
         Partial-update payload for `/api/store-cards`. The route merges incoming
         card entries and global settings into the existing Redis record,
-        preserves omitted card settings, and backfills any newly supported base
-        card types as disabled records before persisting. Production writes are
-        accepted only when the browser also presents a matching per-user
-        protected write grant. Optional `statsData` must either be `{}` or a
-        full normalized AniList stats snapshot; other malformed non-empty
-        objects are rejected.
+        preserves omitted card settings, and stores only the minimal authored
+        `cardOrder` signal needed to reconstruct the full supported order at
+        read/editor time. Production writes are accepted only when the browser
+        also presents a matching per-user protected write grant. Optional
+        `statsData` is accepted only as a deprecated compatibility field and is
+        ignored by the route. When updating an existing stored cards record,
+        callers must echo the current `ifMatchUpdatedAt` value and may also
+        provide `ifMatchRevision` / `ifMatchSnapshotToken` to align the write
+        with the latest stored user snapshot.
       properties:
         userId:
           type: integer
         statsData:
           $ref: "#/components/schemas/StoreCardsStatsData"
+          deprecated: true
           description: >-
-            Optional stats payload carried by the editor workflow. Empty
-            placeholder objects are accepted, but non-empty objects must match
-            the normalized AniList snapshot shape. A top-level `error` field
-            causes the route to reject the request.
+            Deprecated compatibility field. The route accepts this payload so
+            older editor clients continue to work, but current runtime logic
+            ignores the value entirely.
         cards:
           type: array
           items:
@@ -3313,10 +3342,29 @@ components:
         ifMatchUpdatedAt:
           type: string
           format: date-time
+          description: >-
+            Required when updating an existing cards record. The write is
+            rejected with `409` when the stored cards record has a different
+            `updatedAt` or when the token is omitted for an existing record.
+        ifMatchRevision:
+          type: integer
+          minimum: 1
+          description: >-
+            Optional stronger compare token for the stored user snapshot tied to
+            this cards write.
+        ifMatchSnapshotToken:
+          type: string
+          description: >-
+            Optional stronger compare token for the stored user snapshot tied to
+            this cards write.
         cardOrder:
           type: array
           items:
             $ref: "#/components/schemas/CardType"
+          description: >-
+            Optional authored card-order signal. The route expands omitted card
+            IDs back to the full supported order on read, so callers only need
+            to send the leading reordered portion they explicitly authored.
       required:
         - userId
         - cards
@@ -3333,6 +3381,8 @@ components:
         updatedAt:
           type: string
           format: date-time
+        userSnapshot:
+          $ref: "#/components/schemas/UserSnapshotRef"
       required:
         - success
         - userId
@@ -3346,7 +3396,11 @@ components:
         and `stats` must match the normalized AniList-derived snapshot shape
         that the server validates and persists. Production writes are accepted
         only when the browser presents a matching per-user protected write
-        grant from a recent trusted AniCards read/proxy response.
+        grant from a recent trusted AniCards read/proxy response. When
+        updating an existing record, callers must supply compare metadata;
+        `ifMatchUpdatedAt` is the browser-facing compatibility token and
+        `ifMatchRevision` / `ifMatchSnapshotToken` provide stronger
+        snapshot-bound guards for the same write.
       properties:
         userId:
           type: integer
@@ -3365,9 +3419,20 @@ components:
           type: string
           format: date-time
           description: >-
-            Optional optimistic-concurrency token. When supplied, the write is
+            Required when updating an existing stored user record. The write is
             rejected with `409` if the stored record has a different
-            `updatedAt`.
+            `updatedAt` or if this token is omitted for an existing record.
+        ifMatchRevision:
+          type: integer
+          minimum: 1
+          description: >-
+            Optional stronger compare token for the stored user snapshot
+            revision expected by this write.
+        ifMatchSnapshotToken:
+          type: string
+          description: >-
+            Optional stronger compare token for the stored user snapshot token
+            expected by this write.
         stats:
           $ref: "#/components/schemas/UserStatsData"
           description: >-
@@ -3391,10 +3456,17 @@ components:
         updatedAt:
           type: string
           format: date-time
+        revision:
+          type: integer
+          minimum: 1
+        snapshotToken:
+          type: string
       required:
         - success
         - userId
         - updatedAt
+        - revision
+        - snapshotToken
 
     ConvertRequest:
       type: object
@@ -3813,9 +3885,8 @@ components:
 
     StoreCardsStatsData:
       description: >-
-        Optional editor-carried stats payload. The route accepts an empty
-        object placeholder or a full normalized `UserStatsData` snapshot; other
-        non-empty object shapes are rejected.
+        Deprecated compatibility schema for older editor clients. The
+        `/api/store-cards` route accepts this field but ignores its contents.
       oneOf:
         - $ref: "#/components/schemas/EmptyObject"
         - $ref: "#/components/schemas/UserStatsData"

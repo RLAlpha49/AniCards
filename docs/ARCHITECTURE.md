@@ -87,7 +87,7 @@ Saved editor state is stored separately in `cards:{userId}` records:
 - optional `globalSettings`
 - `updatedAt`
 
-Both user snapshot and card settings writes support optimistic concurrency through `ifMatchUpdatedAt`.
+Both user snapshot and card settings writes require compare-and-set tokens on updates. `ifMatchUpdatedAt` remains the browser-facing compatibility token, while split user writes also bind the atomic save to revision/snapshot metadata and card writes can carry the same user snapshot tokens when callers want to pin saves to a specific committed user snapshot.
 
 ## External services
 

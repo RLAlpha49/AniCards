@@ -249,11 +249,15 @@ export async function GET(request: Request) {
     const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
     resolvedUserId = numericUserId;
 
+    // Bootstrap lookups power the editor hot path and already emit request /
+    // success analytics, so skip the extra lifecycle access audit write for
+    // the lightweight identity-only read.
     const userReadResult = await fetchUserDataSnapshot(
       numericUserId,
       shouldReturnBootstrap
         ? [...USER_BOOTSTRAP_DATA_PARTS]
         : [...ALL_USER_DATA_PARTS],
+      shouldReturnBootstrap ? { audit: false } : undefined,
     );
     const { parts: userDataParts, state: userDataState } = userReadResult;
     const duration = Date.now() - startTime;

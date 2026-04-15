@@ -600,6 +600,7 @@ describe("Cron API Route", () => {
       "user:123:username-aliases",
       "user:123",
       "cards:123",
+      "cards:123:meta",
       "failed_updates:123",
       "username:user123",
       "username:old-user123",

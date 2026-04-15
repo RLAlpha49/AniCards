@@ -572,6 +572,8 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(1);
       expect(data.updatedAt).toBeTruthy();
+      expect(data.revision).toBe(1);
+      expect(data.snapshotToken).toBeTruthy();
 
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1:commit");
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1:meta");
@@ -656,6 +658,47 @@ describe("Store Users API", () => {
       expect(res.headers.get("Set-Cookie")).toContain(
         "anicards_write_grant_1=",
       );
+    });
+
+    it("should prefer the authoritative AniList stats username when the protected write grant carries a stale username", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.User.name = "FreshName";
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        source: "anilist_stats",
+        statsPayload,
+        userId: 1,
+        username: "StaleGrantName",
+      });
+
+      const res = await POST(
+        createTestRequestWithHeaders(
+          {
+            userId: 1,
+            username: "Mallory",
+            stats: statsPayload,
+          },
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      const metaValue = parseJsonSetCall("user:1:meta");
+      expect(metaValue.username).toBe("FreshName");
+      expect(findSetCall("username:freshname")[1]).toBe("1");
+      expect(
+        sharedRedisMockSet.mock.calls.some(
+          (call) => call[0] === "username:stalegrantname",
+        ),
+      ).toBe(false);
     });
 
     it("should successfully store new user without username", async () => {
@@ -1084,6 +1127,7 @@ describe("Store Users API", () => {
       const reqBody = {
         userId: 5,
         username: "NewName",
+        ifMatchUpdatedAt: existingRecord.updatedAt,
         stats: cloneMockUserStatsData(),
       };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -1143,7 +1187,11 @@ describe("Store Users API", () => {
       });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 7, stats: cloneMockUserStatsData() };
+      const reqBody = {
+        userId: 7,
+        stats: cloneMockUserStatsData(),
+        ifMatchUpdatedAt: existingRecord.updatedAt,
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1177,6 +1225,7 @@ describe("Store Users API", () => {
       const reqBody = {
         userId: 8,
         username: "NewName",
+        ifMatchUpdatedAt: existingRecord.updatedAt,
         stats: cloneMockUserStatsData(),
       };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -1217,6 +1266,44 @@ describe("Store Users API", () => {
       );
 
       const res = await POST(req);
+      expect(res.status).toBe(409);
+      const data = await getJsonResponse(res);
+      expect(data).toMatchObject({
+        error:
+          "Conflict: data was updated elsewhere. Please reload and try again.",
+        currentUpdatedAt: "2022-01-02T00:00:00.000Z",
+      });
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject existing writes that omit compare tokens", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingRecord = {
+        userId: 27,
+        username: "TokenlessUser",
+        stats: { score: 10 },
+        createdAt: "2022-01-01T00:00:00.000Z",
+        updatedAt: "2022-01-02T00:00:00.000Z",
+      };
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === "user:27") {
+          return Promise.resolve(JSON.stringify(existingRecord));
+        }
+
+        return Promise.resolve(null);
+      });
+
+      const res = await POST(
+        createTestRequest(
+          {
+            userId: 27,
+            username: "TokenlessUser",
+            stats: cloneMockUserStatsData(),
+          },
+          "http://localhost",
+        ),
+      );
+
       expect(res.status).toBe(409);
       const data = await getJsonResponse(res);
       expect(data).toMatchObject({

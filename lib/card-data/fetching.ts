@@ -11,12 +11,21 @@ import {
   normalizeUsernameIndexValue,
   PersistedUserState,
   reconstructUserRecord,
+  resolveCommittedUserSnapshotState,
   UserDataPart,
 } from "@/lib/server/user-data";
-import { CardsRecord, UserRecord } from "@/lib/types/records";
+import {
+  CardsRecord,
+  CardsRecordMetadata,
+  UserRecord,
+} from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
 import { CardDataError } from "./validation";
+
+const getStoredCardsKey = (numericUserId: number) => `cards:${numericUserId}`;
+export const getStoredCardsMetaKey = (numericUserId: number) =>
+  `cards:${numericUserId}:meta`;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -100,6 +109,28 @@ function normalizeCardsRecordUserSnapshot(
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+function normalizeCardsRecordVersion(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : undefined;
+}
+
+export function hasDurableStoredCardsUserSnapshot(
+  snapshot: CardsRecord["userSnapshot"] | undefined,
+): snapshot is Required<NonNullable<CardsRecord["userSnapshot"]>> {
+  return Boolean(
+    snapshot &&
+    typeof snapshot.token === "string" &&
+    snapshot.token.length > 0 &&
+    typeof snapshot.updatedAt === "string" &&
+    snapshot.updatedAt.length > 0 &&
+    typeof snapshot.committedAt === "string" &&
+    snapshot.committedAt.length > 0 &&
+    typeof snapshot.revision === "number" &&
+    snapshot.revision > 0,
+  );
+}
+
 class CardsRecordIntegrityError extends Error {
   statusCode = 500 as const;
   category = "server_error" as const;
@@ -175,6 +206,94 @@ function normalizeStoredCardsRecordCardOrder(
   }
 
   return normalized.length > 0 ? normalized : undefined;
+}
+
+export function buildStoredCardsRecordMetadata(
+  record: CardsRecord,
+): CardsRecordMetadata {
+  return {
+    userId: record.userId,
+    updatedAt: record.updatedAt,
+    ...(typeof record.version === "number" && record.version > 0
+      ? { version: record.version }
+      : {}),
+    ...(typeof record.schemaVersion === "number" && record.schemaVersion > 0
+      ? { schemaVersion: record.schemaVersion }
+      : {}),
+    ...(record.userSnapshot ? { userSnapshot: record.userSnapshot } : {}),
+  };
+}
+
+export function parseStoredCardsRecordMetadata(
+  rawValue: unknown,
+  context: string,
+  expectedUserId: number,
+  options?: {
+    allowLegacyMissingUpdatedAt?: boolean;
+    allowLegacyMissingUserId?: boolean;
+  },
+): CardsRecordMetadata {
+  let parsedValue: unknown;
+
+  try {
+    parsedValue = safeParse<unknown>(rawValue, context);
+  } catch {
+    throw new CardsRecordIntegrityError(
+      "Stored cards metadata is not valid JSON",
+    );
+  }
+
+  if (!isPlainObject(parsedValue)) {
+    throw new CardsRecordIntegrityError(
+      "Stored cards metadata is not an object",
+    );
+  }
+
+  const storedUserId = normalizeStoredCardsRecordUserId({
+    rawStoredUserId: parsedValue.userId,
+    expectedUserId,
+    allowLegacyMissingUserId: options?.allowLegacyMissingUserId,
+  });
+
+  if (!storedUserId) {
+    throw new CardsRecordIntegrityError(
+      "Stored cards metadata has an invalid userId",
+    );
+  }
+
+  if (storedUserId !== expectedUserId) {
+    throw new CardsRecordIntegrityError(
+      "Stored cards metadata userId does not match requested user",
+    );
+  }
+
+  const updatedAt = normalizeStoredCardsRecordUpdatedAt({
+    rawUpdatedAt: parsedValue.updatedAt,
+    allowLegacyMissingUpdatedAt: options?.allowLegacyMissingUpdatedAt,
+  });
+
+  if (updatedAt === undefined) {
+    throw new CardsRecordIntegrityError(
+      "Stored cards metadata has an invalid updatedAt value",
+    );
+  }
+
+  const normalizedUserSnapshot = normalizeCardsRecordUserSnapshot(
+    parsedValue.userSnapshot,
+  );
+
+  return {
+    userId: storedUserId,
+    updatedAt,
+    ...(normalizeCardsRecordVersion(parsedValue.version)
+      ? { version: normalizeCardsRecordVersion(parsedValue.version) }
+      : {}),
+    ...(typeof parsedValue.schemaVersion === "number" &&
+    parsedValue.schemaVersion > 0
+      ? { schemaVersion: parsedValue.schemaVersion }
+      : {}),
+    ...(normalizedUserSnapshot ? { userSnapshot: normalizedUserSnapshot } : {}),
+  };
 }
 
 export function parseStoredCardsRecord(
@@ -264,6 +383,9 @@ export function parseStoredCardsRecord(
     ...(normalizedCardOrder ? { cardOrder: normalizedCardOrder } : {}),
     ...(globalSettings == null ? {} : { globalSettings }),
     updatedAt,
+    ...(normalizeCardsRecordVersion(parsedValue.version)
+      ? { version: normalizeCardsRecordVersion(parsedValue.version) }
+      : {}),
     ...(typeof parsedValue.schemaVersion === "number" &&
     parsedValue.schemaVersion > 0
       ? { schemaVersion: parsedValue.schemaVersion }
@@ -275,10 +397,12 @@ export function parseStoredCardsRecord(
 export async function fetchStoredCardsRecord(
   numericUserId: number,
 ): Promise<CardsRecord> {
-  const cardsDataResult = await redisClient.get(`cards:${numericUserId}`).then(
-    (value) => ({ ok: true as const, value }),
-    (error) => ({ ok: false as const, error }),
-  );
+  const cardsDataResult = await redisClient
+    .get(getStoredCardsKey(numericUserId))
+    .then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    );
 
   if (!cardsDataResult.ok) {
     const { error } = cardsDataResult;
@@ -314,6 +438,91 @@ export async function fetchStoredCardsRecord(
     ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted card configuration", 500);
   }
+}
+
+export async function fetchStoredCardsRecordCacheStamp(
+  numericUserId: number,
+): Promise<{
+  cardMeta: CardsRecordMetadata;
+  preloadedCardDoc?: CardsRecord;
+}> {
+  const cardsMetaResult = await redisClient
+    .get(getStoredCardsMetaKey(numericUserId))
+    .then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    );
+
+  if (!cardsMetaResult.ok) {
+    const { error } = cardsMetaResult;
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    }
+
+    throw error;
+  }
+
+  const cardsMetaRaw = cardsMetaResult.value;
+  if (cardsMetaRaw && cardsMetaRaw !== "null") {
+    try {
+      return {
+        cardMeta: parseStoredCardsRecordMetadata(
+          cardsMetaRaw as string,
+          `Card SVG: cards-meta:${numericUserId}`,
+          numericUserId,
+          {
+            allowLegacyMissingUpdatedAt: true,
+            allowLegacyMissingUserId: true,
+          },
+        ),
+      };
+    } catch {
+      try {
+        const preloadedCardDoc = parseStoredCardsRecord(
+          cardsMetaRaw as string,
+          `Card SVG: cards-meta-fallback:${numericUserId}`,
+          numericUserId,
+          {
+            allowLegacyMissingUpdatedAt: true,
+            allowLegacyMissingUserId: true,
+          },
+        );
+
+        return {
+          cardMeta: buildStoredCardsRecordMetadata(preloadedCardDoc),
+          preloadedCardDoc,
+        };
+      } catch {
+        // Fall through to the canonical full-record lookup below.
+      }
+    }
+  }
+
+  const preloadedCardDoc = await fetchStoredCardsRecord(numericUserId);
+
+  return {
+    cardMeta: buildStoredCardsRecordMetadata(preloadedCardDoc),
+    preloadedCardDoc,
+  };
+}
+
+export async function resolveStoredCardsParentSnapshotState(
+  numericUserId: number,
+  cardDoc: CardsRecord,
+): Promise<PersistedUserState | null> {
+  if (!hasDurableStoredCardsUserSnapshot(cardDoc.userSnapshot)) {
+    return null;
+  }
+
+  const snapshotState = await resolveCommittedUserSnapshotState(numericUserId, {
+    expectedSnapshotToken: cardDoc.userSnapshot.token,
+    expectedUpdatedAt: cardDoc.userSnapshot.updatedAt,
+  });
+
+  return snapshotState.snapshotMatched ? snapshotState.state : null;
 }
 
 /**
@@ -448,10 +657,25 @@ async function fetchUserDataForStoredCardRecord(params: {
 }> {
   const { cardDoc, cardName, numericUserId } = params;
   const parts = getRequestedUserDataParts(cardName);
-
-  const hasRequestedSnapshot = Boolean(
-    cardDoc.userSnapshot?.token || cardDoc.userSnapshot?.updatedAt,
+  const requiresCommittedSnapshot = hasDurableStoredCardsUserSnapshot(
+    cardDoc.userSnapshot,
   );
+
+  if (requiresCommittedSnapshot) {
+    const snapshotState = await resolveStoredCardsParentSnapshotState(
+      numericUserId,
+      cardDoc,
+    );
+
+    if (!snapshotState) {
+      throw new CardDataError(
+        "Not Found: Card configuration snapshot is no longer available. Try to regenerate the card.",
+        404,
+      );
+    }
+  }
+
+  const hasRequestedSnapshot = requiresCommittedSnapshot;
 
   let userDataPartsResult;
   try {

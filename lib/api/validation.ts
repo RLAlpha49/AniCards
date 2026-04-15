@@ -537,6 +537,8 @@ const ifMatchUpdatedAtSchema = z
   .datetime({ offset: true })
   .transform((value) => new Date(value).toISOString())
   .optional();
+const ifMatchRevisionSchema = z.coerce.number().int().positive().optional();
+const ifMatchSnapshotTokenSchema = z.string().trim().min(1).max(128).optional();
 
 export const persistedUserRecordSchema: z.ZodType<PersistedUserRecord> =
   z.strictObject({
@@ -556,6 +558,8 @@ export const storeUserRequestSchema = z.strictObject({
     message: "Stats must be a non-array object",
   }),
   ifMatchUpdatedAt: ifMatchUpdatedAtSchema,
+  ifMatchRevision: ifMatchRevisionSchema,
+  ifMatchSnapshotToken: ifMatchSnapshotTokenSchema,
 });
 
 const colorValueSchema = z.custom((value) => validateColorValue(value), {
@@ -604,6 +608,8 @@ export const storeCardsRequestSchema = z.strictObject({
   cards: z.array(z.unknown()),
   globalSettings: globalCardSettingsInputSchema.optional(),
   ifMatchUpdatedAt: ifMatchUpdatedAtSchema,
+  ifMatchRevision: ifMatchRevisionSchema,
+  ifMatchSnapshotToken: ifMatchSnapshotTokenSchema,
   cardOrder: z.array(z.string().trim().min(1)).optional(),
 });
 
@@ -747,6 +753,8 @@ export type ValidateUserDataResult =
         username?: string;
         stats: Record<string, unknown>;
         ifMatchUpdatedAt?: string;
+        ifMatchRevision?: number;
+        ifMatchSnapshotToken?: string;
       };
     }
   | { success: false; error: NextResponse<ApiError> };
@@ -792,6 +800,24 @@ function getValidateUserDataFailure(
           ifMatchUpdatedAt: data.ifMatchUpdatedAt,
         },
       );
+    case "ifMatchRevision":
+      return invalidStoreUserData(
+        endpoint,
+        request,
+        "Invalid ifMatchRevision concurrency token",
+        {
+          ifMatchRevision: data.ifMatchRevision,
+        },
+      );
+    case "ifMatchSnapshotToken":
+      return invalidStoreUserData(
+        endpoint,
+        request,
+        "Invalid ifMatchSnapshotToken concurrency token",
+        {
+          ifMatchSnapshotToken: data.ifMatchSnapshotToken,
+        },
+      );
     case "stats":
       return invalidStoreUserData(
         endpoint,
@@ -826,6 +852,12 @@ export function validateUserData(
       stats: parsed.data.stats,
       ...(parsed.data.ifMatchUpdatedAt
         ? { ifMatchUpdatedAt: parsed.data.ifMatchUpdatedAt }
+        : {}),
+      ...(parsed.data.ifMatchRevision
+        ? { ifMatchRevision: parsed.data.ifMatchRevision }
+        : {}),
+      ...(parsed.data.ifMatchSnapshotToken
+        ? { ifMatchSnapshotToken: parsed.data.ifMatchSnapshotToken }
         : {}),
     },
   };

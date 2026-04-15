@@ -142,7 +142,7 @@ describe("card-data fetchUserData", () => {
         cards: [],
       }),
     );
-    await flushMicrotasks();
+    await flushMicrotasks(12);
 
     expect(sharedRedisMockMget).toHaveBeenCalledWith(
       "user:42:snapshot:snapshot-42:meta",

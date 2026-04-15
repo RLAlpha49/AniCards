@@ -100,6 +100,9 @@ const USER_BOUNDED_SECTIONS = [
 const getUserCommitKey = (userId: string | number) => `user:${userId}:commit`;
 const getLegacyUserMigrationLockKey = (userId: string | number) =>
   `user:${userId}:migrating`;
+const getCardsRecordKey = (userId: string | number) => `cards:${userId}`;
+const getCardsRecordMetaKey = (userId: string | number) =>
+  `cards:${userId}:meta`;
 const getUserUsernameAliasSetKey = (userId: string | number) =>
   `user:${userId}:username-aliases`;
 const getUsernameIndexKey = (normalizedUsername: string) =>
@@ -126,12 +129,18 @@ interface UserCommitPointer {
   committedAt: string;
   snapshotToken?: string;
   snapshotKeyPrefix?: string;
+  retainedSnapshotToken?: string;
+  retainedSnapshotKeyPrefix?: string;
+  retainedRevision?: number;
+  retainedUpdatedAt?: string;
+  retainedCommittedAt?: string;
   previousSnapshotToken?: string;
   previousSnapshotKeyPrefix?: string;
   previousRevision?: number;
   previousUpdatedAt?: string;
   previousCommittedAt?: string;
   completeness?: UserPayloadCompleteness;
+  retainedCompleteness?: UserPayloadCompleteness;
   previousCompleteness?: UserPayloadCompleteness;
 }
 
@@ -198,16 +207,24 @@ export class UserRecordConflictError extends Error {
   readonly publicMessage =
     "Conflict: data was updated elsewhere. Please reload and try again.";
   readonly currentUpdatedAt?: string;
+  readonly currentRevision?: number;
+  readonly currentSnapshotToken?: string;
 
   constructor(
     userId: string | number,
     message = "Conflict: data was updated elsewhere. Please reload and try again.",
-    options?: { currentUpdatedAt?: string },
+    options?: {
+      currentRevision?: number;
+      currentSnapshotToken?: string;
+      currentUpdatedAt?: string;
+    },
   ) {
     super(message);
     this.name = "UserRecordConflictError";
     this.userId = String(userId);
     this.currentUpdatedAt = options?.currentUpdatedAt;
+    this.currentRevision = options?.currentRevision;
+    this.currentSnapshotToken = options?.currentSnapshotToken;
   }
 }
 
@@ -1114,24 +1131,77 @@ function buildUserSnapshotRef(options: {
   };
 }
 
+function getRetainedCommitPointerSnapshot(commitPointer: UserCommitPointer): {
+  completeness?: UserPayloadCompleteness;
+  committedAt?: string;
+  keyPrefix?: string;
+  revision?: number;
+  snapshotKind: "retained" | "previous" | null;
+  token?: string;
+  updatedAt?: string;
+} {
+  const hasRetainedSnapshot = Boolean(
+    commitPointer.retainedSnapshotToken ||
+    commitPointer.retainedSnapshotKeyPrefix,
+  );
+
+  if (hasRetainedSnapshot) {
+    return {
+      completeness: normalizeUserPayloadCompleteness(
+        commitPointer.retainedCompleteness,
+      ),
+      committedAt: commitPointer.retainedCommittedAt,
+      keyPrefix: commitPointer.retainedSnapshotKeyPrefix,
+      revision: commitPointer.retainedRevision,
+      snapshotKind: "retained",
+      token: commitPointer.retainedSnapshotToken,
+      updatedAt: commitPointer.retainedUpdatedAt,
+    };
+  }
+
+  const hasPreviousSnapshot = Boolean(
+    commitPointer.previousSnapshotToken ||
+    commitPointer.previousSnapshotKeyPrefix,
+  );
+
+  if (hasPreviousSnapshot) {
+    return {
+      completeness: normalizeUserPayloadCompleteness(
+        commitPointer.previousCompleteness,
+      ),
+      committedAt: commitPointer.previousCommittedAt,
+      keyPrefix: commitPointer.previousSnapshotKeyPrefix,
+      revision: commitPointer.previousRevision,
+      snapshotKind: "previous",
+      token: commitPointer.previousSnapshotToken,
+      updatedAt: commitPointer.previousUpdatedAt,
+    };
+  }
+
+  return {
+    snapshotKind: null,
+  };
+}
+
 function buildPersistedStateFromCommitPointerSnapshot(
   commitPointer: UserCommitPointer,
-  snapshotKind: "current" | "previous" = "current",
+  snapshotKind: "current" | "retained" | "previous" = "current",
 ): PersistedUserState {
   const isCurrentSnapshot = snapshotKind === "current";
+  const retainedSnapshot = getRetainedCommitPointerSnapshot(commitPointer);
   const revision = isCurrentSnapshot
     ? commitPointer.revision
-    : commitPointer.previousRevision;
+    : retainedSnapshot.revision;
   const updatedAt = isCurrentSnapshot
     ? commitPointer.updatedAt
-    : commitPointer.previousUpdatedAt;
+    : retainedSnapshot.updatedAt;
   const committedAt = isCurrentSnapshot
     ? commitPointer.committedAt
-    : commitPointer.previousCommittedAt;
+    : retainedSnapshot.committedAt;
   const snapshot = buildUserSnapshotRef({
     token: isCurrentSnapshot
       ? commitPointer.snapshotToken
-      : commitPointer.previousSnapshotToken,
+      : retainedSnapshot.token,
     revision,
     updatedAt,
     committedAt,
@@ -1139,7 +1209,7 @@ function buildPersistedStateFromCommitPointerSnapshot(
   const completeness = normalizeUserPayloadCompleteness(
     isCurrentSnapshot
       ? commitPointer.completeness
-      : commitPointer.previousCompleteness,
+      : retainedSnapshot.completeness,
   );
 
   return buildPersistedUserState({
@@ -1378,34 +1448,34 @@ function selectCommittedSnapshotState(
     expectedUpdatedAt?: string;
   },
 ): {
-  snapshotKind: "current" | "previous";
+  snapshotKind: "current" | "retained" | "previous";
   snapshotKeyPrefix?: string;
   snapshotMatched: boolean;
   state: PersistedUserState;
 } {
   const expectedSnapshotToken = options?.expectedSnapshotToken;
   const expectedUpdatedAt = options?.expectedUpdatedAt;
+  const retainedSnapshot = getRetainedCommitPointerSnapshot(commitPointer);
 
   const matchesCurrentSnapshot = Boolean(
     (expectedSnapshotToken &&
       commitPointer.snapshotToken === expectedSnapshotToken) ||
     (expectedUpdatedAt && commitPointer.updatedAt === expectedUpdatedAt),
   );
-  const matchesPreviousSnapshot = Boolean(
+  const matchesRetainedSnapshot = Boolean(
     (expectedSnapshotToken &&
-      commitPointer.previousSnapshotToken === expectedSnapshotToken) ||
-    (expectedUpdatedAt &&
-      commitPointer.previousUpdatedAt === expectedUpdatedAt),
+      retainedSnapshot.token === expectedSnapshotToken) ||
+    (expectedUpdatedAt && retainedSnapshot.updatedAt === expectedUpdatedAt),
   );
 
-  if (matchesPreviousSnapshot && commitPointer.previousRevision) {
+  if (matchesRetainedSnapshot && retainedSnapshot.revision) {
     return {
-      snapshotKind: "previous",
-      snapshotKeyPrefix: commitPointer.previousSnapshotKeyPrefix,
+      snapshotKind: retainedSnapshot.snapshotKind ?? "retained",
+      snapshotKeyPrefix: retainedSnapshot.keyPrefix,
       snapshotMatched: true,
       state: buildPersistedStateFromCommitPointerSnapshot(
         commitPointer,
-        "previous",
+        retainedSnapshot.snapshotKind ?? "retained",
       ),
     };
   }
@@ -1421,6 +1491,35 @@ function selectCommittedSnapshotState(
         ? true
         : matchesCurrentSnapshot,
     state: currentState,
+  };
+}
+
+export async function resolveCommittedUserSnapshotState(
+  userId: string | number,
+  options: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): Promise<{
+  snapshotKeyPrefix?: string;
+  snapshotMatched: boolean;
+  state: PersistedUserState | null;
+}> {
+  const commitPointer = await readUserCommitPointer(userId);
+  if (!commitPointer) {
+    return {
+      snapshotMatched: false,
+      state: null,
+    };
+  }
+
+  const selection = selectCommittedSnapshotState(commitPointer, options);
+
+  return {
+    snapshotKeyPrefix: selection.snapshotKeyPrefix,
+    snapshotMatched:
+      selection.snapshotMatched && Boolean(selection.snapshotKeyPrefix),
+    state: selection.state,
   };
 }
 
@@ -1948,14 +2047,32 @@ async function repairUserRefreshIndexDrift(
       : [];
   const trackedUserIdSet = new Set(trackedUserIds);
   const indexedUserIdSet = new Set(indexedUserIds);
-  const missingUserIds = trackedUserIds
-    .filter((userId) => !indexedUserIdSet.has(userId))
-    .slice(0, USER_REFRESH_INDEX_REPAIR_BATCH_SIZE);
+  const missingUserIds = trackedUserIds.filter(
+    (userId) => !indexedUserIdSet.has(userId),
+  );
   const removedIndexedUserIds = indexedUserIds.filter(
     (userId) => !trackedUserIdSet.has(userId),
   );
-  const { prunedRegistryUserIds, repairedUserIds } =
-    await repairMissingUserRefreshIndexEntries(missingUserIds);
+  const prunedRegistryUserIds: string[] = [];
+  const repairedUserIds: string[] = [];
+
+  // Drain drift in bounded slices so a single repair pass can catch up large
+  // backlogs without turning one Redis repair into an unbounded fan-out.
+  for (
+    let startIndex = 0;
+    startIndex < missingUserIds.length;
+    startIndex += USER_REFRESH_INDEX_REPAIR_BATCH_SIZE
+  ) {
+    const batchUserIds = missingUserIds.slice(
+      startIndex,
+      startIndex + USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
+    );
+    const batchRepairResult =
+      await repairMissingUserRefreshIndexEntries(batchUserIds);
+
+    prunedRegistryUserIds.push(...batchRepairResult.prunedRegistryUserIds);
+    repairedUserIds.push(...batchRepairResult.repairedUserIds);
+  }
 
   if (removedIndexedUserIds.length > 0) {
     await redisSortedSetClient.zrem(
@@ -1963,6 +2080,16 @@ async function repairUserRefreshIndexDrift(
       ...removedIndexedUserIds,
     );
   }
+
+  const indexedUserCountAfterRepair = Number(
+    await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
+  );
+  const remainingMissingUserCount = Math.max(
+    0,
+    missingUserIds.length -
+      repairedUserIds.length -
+      prunedRegistryUserIds.length,
+  );
 
   if (
     repairedUserIds.length > 0 ||
@@ -1974,20 +2101,28 @@ async function repairUserRefreshIndexDrift(
       "User Data",
       "Incrementally repaired stale-user index drift",
       {
-        indexedCount: indexedUserCount,
-        prunedRegistryUserIds: prunedRegistryUserIds.join(","),
+        indexedCountAfterRepair: indexedUserCountAfterRepair,
+        indexedCountBeforeRepair: indexedUserCount,
+        missingUserCount: missingUserIds.length,
+        prunedRegistryUserCount: prunedRegistryUserIds.length,
+        remainingMissingUserCount,
         registryCount: trackedUserIds.length,
-        removedIndexedUserIds: removedIndexedUserIds.join(","),
-        repairedUserIds: repairedUserIds.join(","),
+        removedIndexedUserCount: removedIndexedUserIds.length,
+        repairedUserCount: repairedUserIds.length,
         repairBatchSize: USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
+        repairFullyDrained: remainingMissingUserCount === 0,
+        repairPassCount:
+          missingUserIds.length === 0
+            ? 0
+            : Math.ceil(
+                missingUserIds.length / USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
+              ),
       },
     );
   }
 
   return {
-    indexedUserCount: Number(
-      await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
-    ),
+    indexedUserCount: indexedUserCountAfterRepair,
     prunedRegistryUserIds,
     removedIndexedUserIds,
     repairedUserIds,
@@ -2509,22 +2644,118 @@ local function normalize_username(value)
   return normalized
 end
 
+local function normalize_durable_snapshot(options)
+  if type(options) ~= "table" then
+    return nil
+  end
+
+  local token = type(options["token"]) == "string" and options["token"] or nil
+  local keyPrefix = type(options["keyPrefix"]) == "string" and options["keyPrefix"] or nil
+  local revision = tonumber(options["revision"])
+  local updatedAt = type(options["updatedAt"]) == "string" and options["updatedAt"] or nil
+  local committedAt = type(options["committedAt"]) == "string" and options["committedAt"] or nil
+
+  if not token or not keyPrefix or not revision or revision <= 0 or not updatedAt or not committedAt then
+    return nil
+  end
+
+  return {
+    committedAt = committedAt,
+    completeness = type(options["completeness"]) == "table" and options["completeness"] or nil,
+    keyPrefix = keyPrefix,
+    revision = revision,
+    token = token,
+    updatedAt = updatedAt,
+  }
+end
+
+local function snapshot_matches(candidate, expected)
+  if type(candidate) ~= "table" or type(expected) ~= "table" then
+    return false
+  end
+
+  local candidateToken = type(candidate["token"]) == "string" and candidate["token"] or nil
+  local expectedToken = type(expected["token"]) == "string" and expected["token"] or nil
+  if candidateToken and expectedToken and candidateToken == expectedToken then
+    return true
+  end
+
+  local candidateUpdatedAt = type(candidate["updatedAt"]) == "string" and candidate["updatedAt"] or nil
+  local expectedUpdatedAt = type(expected["updatedAt"]) == "string" and expected["updatedAt"] or nil
+  return candidateUpdatedAt and expectedUpdatedAt and candidateUpdatedAt == expectedUpdatedAt
+end
+
+local function read_pinned_cards_snapshot()
+  local cardsMeta = parse_json_object(redis.call("GET", KEYS[7]))
+  if cardsMeta then
+    local cardsMetaSnapshot = type(cardsMeta["userSnapshot"]) == "table" and cardsMeta["userSnapshot"] or cardsMeta
+    local normalizedCardsMetaSnapshot = normalize_durable_snapshot({
+      token = cardsMetaSnapshot["token"],
+      keyPrefix = type(cardsMetaSnapshot["token"]) == "string" and ("user:" .. payload["userId"] .. ":snapshot:" .. cardsMetaSnapshot["token"]) or nil,
+      revision = cardsMetaSnapshot["revision"],
+      updatedAt = cardsMetaSnapshot["updatedAt"],
+      committedAt = cardsMetaSnapshot["committedAt"],
+    })
+    if normalizedCardsMetaSnapshot then
+      return normalizedCardsMetaSnapshot
+    end
+  end
+
+  local cardsRecord = parse_json_object(redis.call("GET", KEYS[8]))
+  if cardsRecord and type(cardsRecord["userSnapshot"]) == "table" then
+    local cardsRecordSnapshot = cardsRecord["userSnapshot"]
+    return normalize_durable_snapshot({
+      token = cardsRecordSnapshot["token"],
+      keyPrefix = type(cardsRecordSnapshot["token"]) == "string" and ("user:" .. payload["userId"] .. ":snapshot:" .. cardsRecordSnapshot["token"]) or nil,
+      revision = cardsRecordSnapshot["revision"],
+      updatedAt = cardsRecordSnapshot["updatedAt"],
+      committedAt = cardsRecordSnapshot["committedAt"],
+    })
+  end
+
+  return nil
+end
+
 local function resolve_current_state()
   local pointer = parse_json_object(redis.call("GET", KEYS[1]))
   if pointer then
+    local currentSnapshot = normalize_durable_snapshot({
+      token = pointer["snapshotToken"],
+      keyPrefix = pointer["snapshotKeyPrefix"],
+      revision = pointer["revision"],
+      updatedAt = pointer["updatedAt"],
+      committedAt = pointer["committedAt"],
+      completeness = pointer["completeness"],
+    })
+    local retainedSnapshot = normalize_durable_snapshot({
+      token = pointer["retainedSnapshotToken"] or pointer["previousSnapshotToken"],
+      keyPrefix = pointer["retainedSnapshotKeyPrefix"] or pointer["previousSnapshotKeyPrefix"],
+      revision = pointer["retainedRevision"] or pointer["previousRevision"],
+      updatedAt = pointer["retainedUpdatedAt"] or pointer["previousUpdatedAt"],
+      committedAt = pointer["retainedCommittedAt"] or pointer["previousCommittedAt"],
+      completeness = pointer["retainedCompleteness"] or pointer["previousCompleteness"],
+    })
     return {
+      currentSnapshot = currentSnapshot,
       revision = tonumber(pointer["revision"]) or 0,
       updatedAt = type(pointer["updatedAt"]) == "string" and pointer["updatedAt"] or nil,
       usernameNormalized = normalize_username(pointer["usernameNormalized"]),
       snapshotToken = type(pointer["snapshotToken"]) == "string" and pointer["snapshotToken"] or nil,
       snapshotKeyPrefix = type(pointer["snapshotKeyPrefix"]) == "string" and pointer["snapshotKeyPrefix"] or nil,
       committedAt = type(pointer["committedAt"]) == "string" and pointer["committedAt"] or nil,
+      retainedSnapshot = retainedSnapshot,
+      retainedSnapshotToken = type(pointer["retainedSnapshotToken"]) == "string" and pointer["retainedSnapshotToken"] or nil,
+      retainedSnapshotKeyPrefix = type(pointer["retainedSnapshotKeyPrefix"]) == "string" and pointer["retainedSnapshotKeyPrefix"] or nil,
+      retainedRevision = tonumber(pointer["retainedRevision"]) or nil,
+      retainedUpdatedAt = type(pointer["retainedUpdatedAt"]) == "string" and pointer["retainedUpdatedAt"] or nil,
+      retainedCommittedAt = type(pointer["retainedCommittedAt"]) == "string" and pointer["retainedCommittedAt"] or nil,
       previousSnapshotToken = type(pointer["previousSnapshotToken"]) == "string" and pointer["previousSnapshotToken"] or nil,
       previousSnapshotKeyPrefix = type(pointer["previousSnapshotKeyPrefix"]) == "string" and pointer["previousSnapshotKeyPrefix"] or nil,
       previousRevision = tonumber(pointer["previousRevision"]) or nil,
       previousUpdatedAt = type(pointer["previousUpdatedAt"]) == "string" and pointer["previousUpdatedAt"] or nil,
       previousCommittedAt = type(pointer["previousCommittedAt"]) == "string" and pointer["previousCommittedAt"] or nil,
       completeness = type(pointer["completeness"]) == "table" and pointer["completeness"] or nil,
+      retainedCompleteness = type(pointer["retainedCompleteness"]) == "table" and pointer["retainedCompleteness"] or nil,
     }
   end
 
@@ -2552,11 +2783,36 @@ local function resolve_current_state()
 end
 
 local expectedUpdatedAt = type(payload["expectedUpdatedAt"]) == "string" and payload["expectedUpdatedAt"] or nil
+local expectedRevision = tonumber(payload["expectedRevision"])
+local expectedSnapshotToken = type(payload["expectedSnapshotToken"]) == "string" and payload["expectedSnapshotToken"] or nil
 local normalizedUsername = normalize_username(payload["normalizedUsername"])
 local currentState = resolve_current_state()
+local pinnedCardsSnapshot = read_pinned_cards_snapshot()
 
-if expectedUpdatedAt and currentState["updatedAt"] and currentState["updatedAt"] ~= expectedUpdatedAt then
-  return {0, currentState["updatedAt"]}
+local function build_conflict_result()
+  local currentUpdatedAt = type(currentState["updatedAt"]) == "string" and currentState["updatedAt"] or ""
+  local currentRevision = tonumber(currentState["revision"]) or 0
+  local currentSnapshotToken = type(currentState["snapshotToken"]) == "string" and currentState["snapshotToken"] or ""
+
+  return {0, currentUpdatedAt, tostring(currentRevision), currentSnapshotToken}
+end
+
+if expectedSnapshotToken and currentState["snapshotToken"] ~= expectedSnapshotToken then
+  return build_conflict_result()
+end
+
+if expectedRevision and expectedRevision > 0 then
+  local currentRevision = tonumber(currentState["revision"]) or 0
+  if currentRevision ~= expectedRevision then
+    return build_conflict_result()
+  end
+end
+
+if expectedUpdatedAt then
+  local currentUpdatedAt = currentState["updatedAt"]
+  if type(currentUpdatedAt) ~= "string" or string.len(currentUpdatedAt) == 0 or currentUpdatedAt ~= expectedUpdatedAt then
+    return build_conflict_result()
+  end
 end
 
 if normalizedUsername then
@@ -2621,14 +2877,21 @@ if normalizedUsername then
   commitPointer["usernameNormalized"] = normalizedUsername
 end
 
-if currentState["snapshotToken"] and currentState["snapshotKeyPrefix"] then
-  commitPointer["previousSnapshotToken"] = currentState["snapshotToken"]
-  commitPointer["previousSnapshotKeyPrefix"] = currentState["snapshotKeyPrefix"]
-  commitPointer["previousRevision"] = tonumber(currentState["revision"]) or nil
-  commitPointer["previousUpdatedAt"] = currentState["updatedAt"]
-  commitPointer["previousCommittedAt"] = currentState["committedAt"]
-  if currentState["completeness"] then
-    commitPointer["previousCompleteness"] = currentState["completeness"]
+local retainedSnapshot = nil
+if snapshot_matches(currentState["currentSnapshot"], pinnedCardsSnapshot) then
+  retainedSnapshot = currentState["currentSnapshot"]
+elseif snapshot_matches(currentState["retainedSnapshot"], pinnedCardsSnapshot) then
+  retainedSnapshot = currentState["retainedSnapshot"]
+end
+
+if retainedSnapshot then
+  commitPointer["retainedSnapshotToken"] = retainedSnapshot["token"]
+  commitPointer["retainedSnapshotKeyPrefix"] = retainedSnapshot["keyPrefix"]
+  commitPointer["retainedRevision"] = retainedSnapshot["revision"]
+  commitPointer["retainedUpdatedAt"] = retainedSnapshot["updatedAt"]
+  commitPointer["retainedCommittedAt"] = retainedSnapshot["committedAt"]
+  if retainedSnapshot["completeness"] then
+    commitPointer["retainedCompleteness"] = retainedSnapshot["completeness"]
   end
 end
 
@@ -2678,8 +2941,30 @@ end
 
 redis.call("DEL", KEYS[6])
 
-local staleSnapshotKeyPrefix = currentState["previousSnapshotKeyPrefix"]
-if type(staleSnapshotKeyPrefix) == "string" and string.len(staleSnapshotKeyPrefix) > 0 then
+local preservedSnapshotPrefixes = {}
+preservedSnapshotPrefixes[payload["snapshotKeyPrefix"]] = true
+if retainedSnapshot and type(retainedSnapshot["keyPrefix"]) == "string" and string.len(retainedSnapshot["keyPrefix"]) > 0 then
+  preservedSnapshotPrefixes[retainedSnapshot["keyPrefix"]] = true
+end
+
+local staleSnapshotPrefixes = {}
+local function mark_stale_snapshot_prefix(candidate)
+  local keyPrefix = type(candidate) == "table" and candidate["keyPrefix"] or nil
+  if type(keyPrefix) ~= "string" or string.len(keyPrefix) == 0 then
+    return
+  end
+
+  if preservedSnapshotPrefixes[keyPrefix] then
+    return
+  end
+
+  staleSnapshotPrefixes[keyPrefix] = true
+end
+
+mark_stale_snapshot_prefix(currentState["currentSnapshot"])
+mark_stale_snapshot_prefix(currentState["retainedSnapshot"])
+
+for staleSnapshotKeyPrefix, _ in pairs(staleSnapshotPrefixes) do
   for _, partName in ipairs(payload["allParts"]) do
     redis.call("DEL", staleSnapshotKeyPrefix .. ":" .. partName)
   end
@@ -2804,7 +3089,9 @@ if commitPointer then
   end
 
   local previousSnapshotKeyPrefix =
-    type(commitPointer["previousSnapshotKeyPrefix"]) == "string"
+    type(commitPointer["retainedSnapshotKeyPrefix"]) == "string"
+      and commitPointer["retainedSnapshotKeyPrefix"]
+      or type(commitPointer["previousSnapshotKeyPrefix"]) == "string"
       and commitPointer["previousSnapshotKeyPrefix"]
       or nil
   if previousSnapshotKeyPrefix then
@@ -2819,6 +3106,7 @@ delete_key(KEYS[3], deletedKeys)
 delete_key(KEYS[4], deletedKeys)
 delete_key(KEYS[5], deletedKeys)
 delete_key(KEYS[6], deletedKeys)
+delete_key(KEYS[7], deletedKeys)
 
 for _, alias in ipairs(aliasList) do
   local aliasKey = "username:" .. alias
@@ -2831,10 +3119,96 @@ for _, alias in ipairs(aliasList) do
   end
 end
 
-redis.call("SREM", KEYS[7], userId)
-redis.call("ZREM", KEYS[8], userId)
+redis.call("SREM", KEYS[8], userId)
+redis.call("ZREM", KEYS[9], userId)
 
 return {1, cjson.encode(deletedKeys), cjson.encode(removedAliasKeys)}
+`;
+
+const PRUNE_UNPINNED_RETAINED_SNAPSHOT_LUA = `
+local function parse_json_object(raw)
+  if type(raw) ~= "string" or string.len(raw) == 0 then
+    return nil
+  end
+
+  local ok, decoded = pcall(cjson.decode, raw)
+  if not ok or type(decoded) ~= "table" then
+    return nil
+  end
+
+  return decoded
+end
+
+local ok, decodedParts = pcall(cjson.decode, ARGV[1])
+local allParts = ok and type(decodedParts) == "table" and decodedParts or {}
+local commitPointer = parse_json_object(redis.call("GET", KEYS[1]))
+if not commitPointer then
+  return {0}
+end
+
+local retainedSnapshotToken =
+  type(commitPointer["retainedSnapshotToken"]) == "string"
+    and commitPointer["retainedSnapshotToken"]
+    or type(commitPointer["previousSnapshotToken"]) == "string"
+    and commitPointer["previousSnapshotToken"]
+    or nil
+local retainedSnapshotKeyPrefix =
+  type(commitPointer["retainedSnapshotKeyPrefix"]) == "string"
+    and commitPointer["retainedSnapshotKeyPrefix"]
+    or type(commitPointer["previousSnapshotKeyPrefix"]) == "string"
+    and commitPointer["previousSnapshotKeyPrefix"]
+    or nil
+
+if not retainedSnapshotToken or not retainedSnapshotKeyPrefix then
+  return {0}
+end
+
+local function read_pinned_cards_snapshot_token()
+  local cardsMeta = parse_json_object(redis.call("GET", KEYS[2]))
+  if cardsMeta then
+    local cardsMetaSnapshot = type(cardsMeta["userSnapshot"]) == "table" and cardsMeta["userSnapshot"] or cardsMeta
+    local cardsMetaToken = type(cardsMetaSnapshot["token"]) == "string" and cardsMetaSnapshot["token"] or nil
+    if cardsMetaToken and string.len(cardsMetaToken) > 0 then
+      return cardsMetaToken
+    end
+  end
+
+  local cardsRecord = parse_json_object(redis.call("GET", KEYS[3]))
+  if cardsRecord and type(cardsRecord["userSnapshot"]) == "table" then
+    local cardsRecordToken = type(cardsRecord["userSnapshot"]["token"]) == "string" and cardsRecord["userSnapshot"]["token"] or nil
+    if cardsRecordToken and string.len(cardsRecordToken) > 0 then
+      return cardsRecordToken
+    end
+  end
+
+  return nil
+end
+
+local pinnedCardsSnapshotToken = read_pinned_cards_snapshot_token()
+if pinnedCardsSnapshotToken and pinnedCardsSnapshotToken == retainedSnapshotToken then
+  return {0, retainedSnapshotToken}
+end
+
+for _, partName in ipairs(allParts) do
+  redis.call("DEL", retainedSnapshotKeyPrefix .. ":" .. partName)
+end
+
+commitPointer["retainedSnapshotToken"] = nil
+commitPointer["retainedSnapshotKeyPrefix"] = nil
+commitPointer["retainedRevision"] = nil
+commitPointer["retainedUpdatedAt"] = nil
+commitPointer["retainedCommittedAt"] = nil
+commitPointer["retainedCompleteness"] = nil
+commitPointer["previousSnapshotToken"] = nil
+commitPointer["previousSnapshotKeyPrefix"] = nil
+commitPointer["previousRevision"] = nil
+commitPointer["previousUpdatedAt"] = nil
+commitPointer["previousCommittedAt"] = nil
+commitPointer["previousCompleteness"] = nil
+
+redis.call("SET", KEYS[1], cjson.encode(commitPointer))
+
+return {1, retainedSnapshotToken}
 `;
 
 type SaveUserRecordScriptResult =
@@ -2847,6 +3221,8 @@ type SaveUserRecordScriptResult =
   | {
       didWrite: false;
       reason: "updated_at_conflict";
+      currentRevision?: number;
+      currentSnapshotToken?: string;
       currentUpdatedAt?: string;
     }
   | {
@@ -2905,9 +3281,20 @@ function parseSaveUserRecordScriptResult(
   }
 
   if (status === 0) {
+    const currentRevision = normalizeScriptStatus(result[2]);
+    const currentSnapshotToken =
+      typeof result[3] === "string" && result[3].length > 0
+        ? result[3]
+        : undefined;
+
     return {
       didWrite: false,
       reason: "updated_at_conflict",
+      currentRevision:
+        typeof currentRevision === "number" && currentRevision > 0
+          ? currentRevision
+          : undefined,
+      currentSnapshotToken,
       currentUpdatedAt:
         typeof result[1] === "string" && result[1].length > 0
           ? result[1]
@@ -2998,6 +3385,8 @@ export async function saveUserRecord(
   record: PersistedUserRecord,
   options?: {
     existingState?: PersistedUserState;
+    expectedRevision?: number;
+    expectedSnapshotToken?: string;
     expectedUpdatedAt?: string;
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
@@ -3012,10 +3401,24 @@ export async function saveUserRecord(
   const completeness = buildUserPayloadCompletenessFromParts(split);
   const snapshotToken = randomUUID();
   const snapshotKeyPrefix = getUserSnapshotKeyPrefix(userId, snapshotToken);
+  const expectedRevision =
+    options?.expectedRevision ??
+    (options?.expectedUpdatedAt &&
+    options.existingState?.revision &&
+    options.existingState.revision > 0
+      ? options.existingState.revision
+      : undefined);
+  const expectedSnapshotToken =
+    options?.expectedSnapshotToken ??
+    (options?.expectedUpdatedAt
+      ? options?.existingState?.snapshot?.token
+      : undefined);
   const savePayload = {
     userId,
     username: record.username,
     normalizedUsername,
+    expectedRevision,
+    expectedSnapshotToken,
     expectedUpdatedAt: options?.expectedUpdatedAt,
     existingState: options?.existingState
       ? {
@@ -3053,6 +3456,8 @@ export async function saveUserRecord(
         USER_REFRESH_INDEX_KEY,
         getUserDataKey(userId, "meta"),
         `user:${userId}`,
+        getCardsRecordMetaKey(userId),
+        getCardsRecordKey(userId),
       ],
       [JSON.stringify(savePayload)],
     ),
@@ -3066,6 +3471,8 @@ export async function saveUserRecord(
     }
 
     throw new UserRecordConflictError(userId, undefined, {
+      currentRevision: saveResult.currentRevision,
+      currentSnapshotToken: saveResult.currentSnapshotToken,
       currentUpdatedAt: saveResult.currentUpdatedAt,
     });
   }
@@ -3151,6 +3558,7 @@ export async function deleteUserRecord(
         getUserUsernameAliasSetKey(normalizedUserId),
         `user:${normalizedUserId}`,
         `cards:${normalizedUserId}`,
+        getCardsRecordMetaKey(normalizedUserId),
         `failed_updates:${normalizedUserId}`,
         USER_REFRESH_REGISTRY_KEY,
         USER_REFRESH_INDEX_KEY,
@@ -3165,6 +3573,20 @@ export async function deleteUserRecord(
   });
 
   return deleteResult;
+}
+
+export async function releaseUnpinnedRetainedUserSnapshot(
+  userId: string | number,
+): Promise<void> {
+  await redisClient.eval(
+    PRUNE_UNPINNED_RETAINED_SNAPSHOT_LUA,
+    [
+      getUserCommitKey(userId),
+      getCardsRecordMetaKey(userId),
+      getCardsRecordKey(userId),
+    ],
+    [JSON.stringify([...ALL_USER_DATA_PARTS])],
+  );
 }
 
 /**

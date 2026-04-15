@@ -434,6 +434,15 @@ export interface CardsRecordUserSnapshot {
   committedAt?: string;
 }
 
+/** Lightweight metadata mirrored beside full card records for hot reads and maintenance. @source */
+export interface CardsRecordMetadata {
+  userId: number;
+  updatedAt: string;
+  version?: number;
+  schemaVersion?: number;
+  userSnapshot?: CardsRecordUserSnapshot;
+}
+
 /** Current card-record schema version for compatibility-aware readers and writers. @source */
 export const CARDS_RECORD_SCHEMA_VERSION = 2;
 
@@ -580,6 +589,7 @@ export interface CardsRecord {
   cardOrder?: string[];
   globalSettings?: GlobalCardSettings;
   updatedAt: string;
+  version?: number;
   schemaVersion?: number;
   userSnapshot?: CardsRecordUserSnapshot;
 }

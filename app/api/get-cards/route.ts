@@ -9,7 +9,11 @@ import {
   scheduleAnalyticsIncrement,
   scheduleLowValueAnalyticsIncrement,
 } from "@/lib/api/telemetry";
-import { parseStoredCardsRecord } from "@/lib/card-data/fetching";
+import {
+  hasDurableStoredCardsUserSnapshot,
+  parseStoredCardsRecord,
+  resolveStoredCardsParentSnapshotState,
+} from "@/lib/card-data/fetching";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
 const CARDS_API_ENDPOINT = "Cards API";
@@ -126,6 +130,35 @@ export async function GET(request: Request) {
       `${endpoint}:cards:${numericUserId}`,
       numericUserId,
     );
+
+    if (hasDurableStoredCardsUserSnapshot(cardData.userSnapshot)) {
+      const parentSnapshotState = await resolveStoredCardsParentSnapshotState(
+        numericUserId,
+        cardData,
+      );
+
+      if (!parentSnapshotState) {
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Stored cards record lost its parent user snapshot",
+          { userId: numericUserId },
+          request,
+        );
+        trackCardsApiMetric(CARDS_API_FAILED_METRIC, request, {
+          lowValue: true,
+        });
+        return apiErrorResponse(
+          request,
+          500,
+          "Stored cards record is incomplete or corrupted",
+          {
+            category: "server_error",
+            retryable: false,
+          },
+        );
+      }
+    }
 
     logPrivacySafe(
       "log",

@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockLtrim,
   sharedRedisMockMget,
+  sharedRedisMockRpush,
 } from "@/tests/unit/__setup__";
 
 async function getResponseJson<T = unknown>(response: Response): Promise<T> {
@@ -250,9 +253,12 @@ describe("User API GET Endpoint", () => {
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
     mock.clearAllMocks();
+    sharedRedisMockDel.mockReset();
     sharedRedisMockGet.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockLtrim.mockReset();
+    sharedRedisMockRpush.mockReset();
     sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockMget.mockResolvedValue(USER_PART_KEYS.map(() => null));
     sharedRatelimitMockLimit.mockResolvedValue({
@@ -264,7 +270,8 @@ describe("User API GET Endpoint", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     mock.clearAllMocks();
     delete (process.env as Record<string, string | undefined>)[
       "NEXT_PUBLIC_APP_URL"
@@ -318,12 +325,46 @@ describe("User API GET Endpoint", () => {
       expect(sharedRedisMockGet).not.toHaveBeenCalledWith("user:123");
     });
 
+    it("should keep lifecycle access auditing for full reads", async () => {
+      mockStoredParts();
+
+      await expectOkJson("userId=123");
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+        "telemetry:user-lifecycle-audit:v1",
+        expect.any(String),
+      );
+      expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+        "telemetry:user-lifecycle-audit:v1",
+        -250,
+        -1,
+      );
+    });
+
     it("should return the lightweight bootstrap DTO when view=bootstrap is requested", async () => {
       mockStoredParts();
 
       await expectBootstrapJson("userId=123&view=bootstrap");
 
       expect(sharedRedisMockMget).toHaveBeenCalledWith("user:123:meta");
+    });
+
+    it("should skip lifecycle access audit writes for bootstrap lookups", async () => {
+      mockStoredParts();
+
+      await expectBootstrapJson("userId=123&view=bootstrap");
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(sharedRedisMockRpush).not.toHaveBeenCalledWith(
+        "telemetry:user-lifecycle-audit:v1",
+        expect.any(String),
+      );
+      expect(sharedRedisMockLtrim).not.toHaveBeenCalledWith(
+        "telemetry:user-lifecycle-audit:v1",
+        -250,
+        -1,
+      );
     });
 
     it("should resolve username to userId via index and fetch split user data", async () => {

@@ -4,8 +4,8 @@
  *
  * The card editor does not resend every persisted field on each save, so this
  * route merges incoming changes with the existing Redis record, keeps omitted
- * explicit per-card settings intact, and stores full card order separately so
- * untouched disabled cards can be synthesized again at read/editor time.
+ * explicit per-card settings intact, and stores only the authored card-order
+ * signal needed to reconstruct untouched supported cards at read/editor time.
  */
 import type { NextResponse } from "next/server";
 
@@ -27,11 +27,13 @@ import {
 import {
   storeCardsRequestSchema,
   validateCardData,
-  validateStoreCardsStatsData,
 } from "@/lib/api/validation";
-import { parseStoredCardsRecord as parsePersistedCardsRecord } from "@/lib/card-data/fetching";
+import {
+  getStoredCardsMetaKey,
+  parseStoredCardsRecord as parsePersistedCardsRecord,
+} from "@/lib/card-data/fetching";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
-import { getPersistedUserState } from "@/lib/server/user-data";
+import { releaseUnpinnedRetainedUserSnapshot } from "@/lib/server/user-data";
 import {
   CARDS_RECORD_SCHEMA_VERSION,
   CardsRecord,
@@ -41,7 +43,6 @@ import {
 import {
   clampBorderRadius,
   getColorInvalidReason,
-  safeParse,
   validateColorValue,
 } from "@/lib/utils";
 
@@ -154,43 +155,101 @@ function normalizeSupportedCardOrder(order?: readonly string[]): string[] {
   return normalized;
 }
 
-function buildPersistedCardOrder(opts: {
-  incomingCardOrder?: string[];
-  existingCardOrder?: string[];
-  existingCards: StoredCardConfig[];
-  mergedExplicitCardsByName: Map<string, StoredCardConfig>;
-}): string[] {
+function expandSupportedCardOrderSignal(
+  orderSignal: readonly string[] | undefined,
+  fallbackOrder: readonly string[],
+): string[] {
   const ordered: string[] = [];
   const seen = new Set<string>();
 
-  const pushName = (name: string) => {
-    if (!isValidCardType(name) || seen.has(name)) return;
+  for (const name of normalizeSupportedCardOrder(orderSignal)) {
+    if (seen.has(name)) continue;
     seen.add(name);
     ordered.push(name);
-  };
-
-  for (const name of normalizeSupportedCardOrder(opts.incomingCardOrder)) {
-    pushName(name);
   }
 
-  const fallbackExistingOrder =
-    opts.existingCardOrder && opts.existingCardOrder.length > 0
-      ? opts.existingCardOrder
-      : opts.existingCards.map((card) => card.cardName);
-
-  for (const name of normalizeSupportedCardOrder(fallbackExistingOrder)) {
-    pushName(name);
-  }
-
-  for (const name of opts.mergedExplicitCardsByName.keys()) {
-    pushName(name);
-  }
-
-  for (const name of SUPPORTED_BASE_CARD_TYPES) {
-    pushName(name);
+  for (const name of fallbackOrder) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    ordered.push(name);
   }
 
   return ordered;
+}
+
+function areStringArraysEqual(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function compressSupportedCardOrderSignal(
+  order: readonly string[],
+  fallbackOrder: readonly string[],
+): string[] {
+  const normalizedOrder = expandSupportedCardOrderSignal(order, fallbackOrder);
+
+  for (
+    let prefixLength = 0;
+    prefixLength <= normalizedOrder.length;
+    prefixLength += 1
+  ) {
+    const candidateSignal = normalizedOrder.slice(0, prefixLength);
+
+    if (
+      areStringArraysEqual(
+        expandSupportedCardOrderSignal(candidateSignal, fallbackOrder),
+        normalizedOrder,
+      )
+    ) {
+      return candidateSignal;
+    }
+  }
+
+  return normalizedOrder;
+}
+
+function resolveStoredCardOrderState(opts: {
+  hasIncomingCardOrder: boolean;
+  incomingCardOrder?: string[];
+  existingCardOrder?: string[];
+  existingCards: StoredCardConfig[];
+}): {
+  effectiveFullCardOrder: string[];
+  persistedCardOrder: string[];
+} {
+  const fallbackOrder = SUPPORTED_BASE_CARD_TYPES;
+
+  const effectiveFullCardOrder = opts.hasIncomingCardOrder
+    ? expandSupportedCardOrderSignal(
+        opts.incomingCardOrder ?? [],
+        fallbackOrder,
+      )
+    : opts.existingCardOrder && opts.existingCardOrder.length > 0
+      ? expandSupportedCardOrderSignal(opts.existingCardOrder, fallbackOrder)
+      : expandSupportedCardOrderSignal(
+          opts.existingCards.map((card) => card.cardName),
+          fallbackOrder,
+        );
+
+  return {
+    effectiveFullCardOrder,
+    persistedCardOrder: compressSupportedCardOrderSignal(
+      effectiveFullCardOrder,
+      fallbackOrder,
+    ),
+  };
 }
 
 /**
@@ -633,7 +692,7 @@ function applyIncomingCards(
  * 3) Any newly-supported card types appended in SUPPORTED_BASE_CARD_TYPES order
  */
 function buildOrderedStoredCards(opts: {
-  persistedCardOrder: string[];
+  effectiveCardOrder: string[];
   mergedExplicitCardsByName: Map<string, StoredCardConfig>;
 }): StoredCardConfig[] {
   const ordered: StoredCardConfig[] = [];
@@ -647,7 +706,7 @@ function buildOrderedStoredCards(opts: {
     seen.add(name);
   };
 
-  for (const name of opts.persistedCardOrder) {
+  for (const name of opts.effectiveCardOrder) {
     pushByName(name);
   }
 
@@ -661,18 +720,19 @@ function buildOrderedStoredCards(opts: {
 function normalizeIncomingCardOrder(raw: unknown): {
   cardOrder?: string[];
   invalid: boolean;
+  provided: boolean;
 } {
-  if (raw === undefined) return { invalid: false };
-  if (!Array.isArray(raw)) return { invalid: true };
+  if (raw === undefined) return { invalid: false, provided: false };
+  if (!Array.isArray(raw)) return { invalid: true, provided: true };
 
   const normalized: string[] = [];
   const seen = new Set<string>();
 
   for (const item of raw) {
-    if (typeof item !== "string") return { invalid: true };
+    if (typeof item !== "string") return { invalid: true, provided: true };
     const trimmed = item.trim();
     if (!trimmed) continue;
-    if (!isValidCardType(trimmed)) return { invalid: true };
+    if (!isValidCardType(trimmed)) return { invalid: true, provided: true };
     if (seen.has(trimmed)) continue;
     seen.add(trimmed);
     normalized.push(trimmed);
@@ -680,7 +740,8 @@ function normalizeIncomingCardOrder(raw: unknown): {
 
   return {
     invalid: false,
-    cardOrder: normalized.length > 0 ? normalized : undefined,
+    provided: true,
+    cardOrder: normalized,
   };
 }
 
@@ -731,54 +792,26 @@ function normalizeGlobalColorsForPreset(
  */
 async function validateIncomingPayload(
   validated: ReturnType<typeof validateCardData>,
-  statsData: unknown,
   endpoint: string,
   endpointKey: string,
   request: Request,
-  userId: number,
 ): Promise<NextResponse | undefined> {
   if (!validated.success) {
     scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return validated.error;
   }
 
-  const statsValidation = validateStoreCardsStatsData(statsData);
-  if (!statsValidation.success) {
-    const isSchemaValidationFailure =
-      statsValidation.errorMessage === "Invalid stats payload";
-    const errMsg = statsValidation.errorMessage;
-    logPrivacySafe(
-      "warn",
-      endpoint,
-      "Invalid store-cards stats payload",
-      {
-        userId,
-        error: errMsg,
-        ...(statsValidation.issue ? { issue: statsValidation.issue } : {}),
-      },
-      request,
-    );
-    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
-    return apiErrorResponse(
-      request,
-      400,
-      isSchemaValidationFailure ? "Invalid data" : `Invalid data: ${errMsg}`,
-      {
-        category: "invalid_data",
-        retryable: false,
-      },
-    );
-  }
-
   return undefined;
 }
 
 type ParsedStoreCardsBody = {
-  statsData: unknown;
   userId: number;
   incomingCards: unknown;
   incomingCardsCount: number;
   globalSettings?: Partial<GlobalCardSettings>;
+  hasCardOrder: boolean;
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
   ifMatchUpdatedAt?: string;
   cardOrder?: string[];
 };
@@ -798,73 +831,19 @@ local function parse_json_object(raw)
 end
 
 local function build_user_snapshot()
-  local commitPointer = parse_json_object(redis.call("GET", KEYS[2]))
+  local commitPointer = parse_json_object(redis.call("GET", KEYS[3]))
   if commitPointer then
-    local snapshot = {}
-    local hasValue = false
     local revision = tonumber(commitPointer["revision"])
     local updatedAt = type(commitPointer["updatedAt"]) == "string" and commitPointer["updatedAt"] or nil
     local committedAt = type(commitPointer["committedAt"]) == "string" and commitPointer["committedAt"] or nil
     local token = type(commitPointer["snapshotToken"]) == "string" and commitPointer["snapshotToken"] or nil
+    local snapshotKeyPrefix = type(commitPointer["snapshotKeyPrefix"]) == "string" and commitPointer["snapshotKeyPrefix"] or nil
 
-    if revision and revision > 0 then
-      snapshot["revision"] = revision
-      hasValue = true
-    end
-    if updatedAt and string.len(updatedAt) > 0 then
-      snapshot["updatedAt"] = updatedAt
-      hasValue = true
-    end
-    if committedAt and string.len(committedAt) > 0 then
-      snapshot["committedAt"] = committedAt
-      hasValue = true
-    end
-    if token and string.len(token) > 0 then
-      snapshot["token"] = token
-      hasValue = true
-    end
-
-    if hasValue then
-      return snapshot
-    end
-  end
-
-  local splitMeta = parse_json_object(redis.call("GET", KEYS[3]))
-  if splitMeta then
-    local snapshot = {}
-    local hasValue = false
-    local revision = tonumber(splitMeta["revision"])
-    local updatedAt = type(splitMeta["updatedAt"]) == "string" and splitMeta["updatedAt"] or nil
-    local committedAt = type(splitMeta["committedAt"]) == "string" and splitMeta["committedAt"] or nil
-    local token = type(splitMeta["snapshotToken"]) == "string" and splitMeta["snapshotToken"] or nil
-
-    if revision and revision > 0 then
-      snapshot["revision"] = revision
-      hasValue = true
-    end
-    if updatedAt and string.len(updatedAt) > 0 then
-      snapshot["updatedAt"] = updatedAt
-      hasValue = true
-    end
-    if committedAt and string.len(committedAt) > 0 then
-      snapshot["committedAt"] = committedAt
-      hasValue = true
-    end
-    if token and string.len(token) > 0 then
-      snapshot["token"] = token
-      hasValue = true
-    end
-
-    if hasValue then
-      return snapshot
-    end
-  end
-
-  local legacyRecord = parse_json_object(redis.call("GET", KEYS[4]))
-  if legacyRecord then
-    local updatedAt = type(legacyRecord["updatedAt"]) == "string" and legacyRecord["updatedAt"] or nil
-    if updatedAt and string.len(updatedAt) > 0 then
+    if revision and revision > 0 and updatedAt and string.len(updatedAt) > 0 and committedAt and string.len(committedAt) > 0 and token and string.len(token) > 0 and snapshotKeyPrefix and string.len(snapshotKeyPrefix) > 0 then
       return {
+        committedAt = committedAt,
+        revision = revision,
+        token = token,
         updatedAt = updatedAt,
       }
     end
@@ -873,55 +852,102 @@ local function build_user_snapshot()
   return nil
 end
 
+local function build_cards_meta(nextRecord, userSnapshot, version)
+  local cardsMeta = {
+    userId = nextRecord["userId"],
+    updatedAt = nextRecord["updatedAt"],
+    version = version,
+    userSnapshot = userSnapshot,
+  }
+
+  if type(nextRecord["schemaVersion"]) == "number" and nextRecord["schemaVersion"] > 0 then
+    cardsMeta["schemaVersion"] = nextRecord["schemaVersion"]
+  end
+
+  return cardsMeta
+end
+
+local current = redis.call("GET", KEYS[1])
+
 local function write_next_record()
   local nextRecord = parse_json_object(ARGV[2])
   if not nextRecord then
     redis.call("SET", KEYS[1], ARGV[2])
-    return
+    return {1}
   end
 
   local userSnapshot = build_user_snapshot()
-  if userSnapshot then
-    nextRecord["userSnapshot"] = userSnapshot
-  else
-    nextRecord["userSnapshot"] = nil
+  if not userSnapshot then
+    return {2}
   end
 
+  local currentRecord = parse_json_object(current)
+  local currentVersion = currentRecord and tonumber(currentRecord["version"]) or 0
+  local nextVersion = currentVersion and currentVersion > 0 and (currentVersion + 1) or 1
+
+  nextRecord["userSnapshot"] = userSnapshot
+  nextRecord["version"] = nextVersion
+
   redis.call("SET", KEYS[1], cjson.encode(nextRecord))
+  redis.call("SET", KEYS[2], cjson.encode(build_cards_meta(nextRecord, userSnapshot, nextVersion)))
+
+  return {1, nextRecord["updatedAt"], tostring(nextVersion), userSnapshot["token"], tostring(userSnapshot["revision"]), userSnapshot["updatedAt"], userSnapshot["committedAt"]}
 end
 
-local current = redis.call("GET", KEYS[1])
+local expectedSerializedCurrent = type(ARGV[3]) == "string" and string.len(ARGV[3]) > 0 and ARGV[3] or nil
 if not current then
-  write_next_record()
-  return {1}
+  if expectedSerializedCurrent then
+    return {0}
+  end
+
+  return write_next_record()
+end
+
+if expectedSerializedCurrent and current ~= expectedSerializedCurrent then
+  local decodedCurrent = parse_json_object(current)
+  local currentUpdatedAt = decodedCurrent and type(decodedCurrent["updatedAt"]) == "string" and string.len(decodedCurrent["updatedAt"]) > 0 and decodedCurrent["updatedAt"] or nil
+
+  return {0, currentUpdatedAt}
 end
 
 local ok, decoded = pcall(cjson.decode, current)
 if not ok or type(decoded) ~= "table" then
-  write_next_record()
-  return {1}
+  if expectedSerializedCurrent then
+    return {0}
+  end
+
+  return write_next_record()
 end
 
-local currentUpdatedAt = decoded["updatedAt"]
-if type(ARGV[1]) == "string" and string.len(ARGV[1]) > 0 and type(currentUpdatedAt) == "string" and string.len(currentUpdatedAt) > 0 and currentUpdatedAt ~= ARGV[1] then
+local currentUpdatedAt = type(decoded["updatedAt"]) == "string" and string.len(decoded["updatedAt"]) > 0 and decoded["updatedAt"] or nil
+local expectedUpdatedAt = type(ARGV[1]) == "string" and string.len(ARGV[1]) > 0 and ARGV[1] or nil
+if expectedUpdatedAt and currentUpdatedAt ~= expectedUpdatedAt then
   return {0, currentUpdatedAt}
 end
 
-write_next_record()
-return {1}
+return write_next_record()
 `;
 
 type IfMatchUpdatedAtCheckResult = {
   conflictResponse?: NextResponse;
+  expectedSerializedCurrentRecord?: string;
   shouldEnforceAtomicCheck: boolean;
 };
 
 type StoreCardsAtomicWriteResult =
-  | { didWrite: true }
-  | { didWrite: false; currentUpdatedAt: string };
+  | {
+      didWrite: true;
+      updatedAt?: string;
+      userSnapshot?: Required<NonNullable<CardsRecord["userSnapshot"]>>;
+    }
+  | {
+      didWrite: false;
+      currentUpdatedAt?: string;
+      reason: "conflict" | "missing_user_snapshot";
+    };
 
 async function createIfMatchConflictResponse(
-  currentUpdatedAt: string,
+  currentUpdatedAt: string | undefined,
   endpointKey: string,
   request: Request,
 ): Promise<NextResponse> {
@@ -944,9 +970,38 @@ async function createIfMatchConflictResponse(
     {
       category: "invalid_data",
       retryable: false,
-      additionalFields: {
-        currentUpdatedAt,
-      },
+      additionalFields: currentUpdatedAt
+        ? {
+            currentUpdatedAt,
+          }
+        : undefined,
+    },
+  );
+}
+
+async function createMissingUserSnapshotResponse(
+  endpointKey: string,
+  request: Request,
+): Promise<NextResponse> {
+  scheduleTelemetryTask(
+    () =>
+      incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      ),
+    {
+      endpoint: "Store Cards",
+      taskName: "analytics:store_cards:failed_requests",
+      request,
+    },
+  );
+
+  return apiErrorResponse(
+    request,
+    409,
+    "Conflict: a persisted user snapshot is required before saving cards. Please reload user data and try again.",
+    {
+      category: "invalid_data",
+      retryable: false,
     },
   );
 }
@@ -1003,10 +1058,11 @@ async function parseStoreCardsRequestBody(
   }
 
   const {
-    statsData,
     userId,
     cards: incomingCards,
     globalSettings,
+    ifMatchRevision,
+    ifMatchSnapshotToken,
     ifMatchUpdatedAt,
     cardOrder: rawCardOrder,
   } = parsedBody.data;
@@ -1029,11 +1085,13 @@ async function parseStoreCardsRequestBody(
 
   return {
     parsed: {
-      statsData,
       userId,
       incomingCards,
       incomingCardsCount,
       globalSettings,
+      hasCardOrder: cardOrderResult.provided,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
       ifMatchUpdatedAt,
       cardOrder,
     },
@@ -1041,48 +1099,87 @@ async function parseStoreCardsRequestBody(
 }
 async function enforceIfMatchUpdatedAt(
   existingData: unknown,
+  existingRecord: CardsRecord | undefined,
   ifMatchUpdatedAt: string | undefined,
-  endpoint: string,
+  ifMatchRevision: number | undefined,
+  ifMatchSnapshotToken: string | undefined,
   endpointKey: string,
-  cardsKey: string,
   request: Request,
 ): Promise<IfMatchUpdatedAtCheckResult> {
+  if (typeof existingData !== "string" || existingData.length === 0) {
+    return { shouldEnforceAtomicCheck: false };
+  }
+  const existingUpdatedAt =
+    typeof existingRecord?.updatedAt === "string" &&
+    existingRecord.updatedAt.length > 0
+      ? existingRecord.updatedAt
+      : undefined;
+
   if (!ifMatchUpdatedAt) {
-    return { shouldEnforceAtomicCheck: false };
-  }
-
-  try {
-    if (typeof existingData !== "string") {
-      return { shouldEnforceAtomicCheck: false };
-    }
-
-    const existingRecord = safeParse<CardsRecord>(
-      existingData,
-      `${endpoint}:existing-record:${cardsKey}`,
-    );
-    const existingUpdatedAt =
-      typeof existingRecord?.updatedAt === "string" &&
-      existingRecord.updatedAt.length > 0
-        ? existingRecord.updatedAt
-        : undefined;
-
-    if (existingUpdatedAt && existingUpdatedAt !== ifMatchUpdatedAt) {
-      return {
-        shouldEnforceAtomicCheck: false,
-        conflictResponse: await createIfMatchConflictResponse(
-          existingUpdatedAt,
-          endpointKey,
-          request,
-        ),
-      };
-    }
-
     return {
-      shouldEnforceAtomicCheck: existingUpdatedAt === ifMatchUpdatedAt,
+      shouldEnforceAtomicCheck: false,
+      conflictResponse: await createIfMatchConflictResponse(
+        existingUpdatedAt,
+        endpointKey,
+        request,
+      ),
     };
-  } catch {
-    return { shouldEnforceAtomicCheck: false };
   }
+
+  if (!existingRecord || !existingUpdatedAt) {
+    return {
+      shouldEnforceAtomicCheck: false,
+      conflictResponse: await createIfMatchConflictResponse(
+        undefined,
+        endpointKey,
+        request,
+      ),
+    };
+  }
+
+  if (
+    typeof ifMatchRevision === "number" &&
+    existingRecord.userSnapshot?.revision !== ifMatchRevision
+  ) {
+    return {
+      shouldEnforceAtomicCheck: false,
+      conflictResponse: await createIfMatchConflictResponse(
+        existingUpdatedAt,
+        endpointKey,
+        request,
+      ),
+    };
+  }
+
+  if (
+    ifMatchSnapshotToken &&
+    existingRecord.userSnapshot?.token !== ifMatchSnapshotToken
+  ) {
+    return {
+      shouldEnforceAtomicCheck: false,
+      conflictResponse: await createIfMatchConflictResponse(
+        existingUpdatedAt,
+        endpointKey,
+        request,
+      ),
+    };
+  }
+
+  if (existingUpdatedAt !== ifMatchUpdatedAt) {
+    return {
+      shouldEnforceAtomicCheck: false,
+      conflictResponse: await createIfMatchConflictResponse(
+        existingUpdatedAt,
+        endpointKey,
+        request,
+      ),
+    };
+  }
+
+  return {
+    shouldEnforceAtomicCheck: true,
+    expectedSerializedCurrentRecord: existingData,
+  };
 }
 
 function normalizeStoreCardsAtomicStatus(value: unknown): number | undefined {
@@ -1115,12 +1212,55 @@ function parseStoreCardsAtomicWriteResult(
 
   const status = normalizeStoreCardsAtomicStatus(result[0]);
   if (status === 1) {
-    return { didWrite: true };
+    const snapshotToken = result[3];
+    const snapshotRevision = normalizeStoreCardsAtomicStatus(result[4]);
+    const snapshotUpdatedAt = result[5];
+    const snapshotCommittedAt = result[6];
+
+    const userSnapshot =
+      typeof snapshotToken === "string" &&
+      snapshotToken.length > 0 &&
+      typeof snapshotUpdatedAt === "string" &&
+      snapshotUpdatedAt.length > 0 &&
+      typeof snapshotCommittedAt === "string" &&
+      snapshotCommittedAt.length > 0 &&
+      typeof snapshotRevision === "number" &&
+      snapshotRevision > 0
+        ? {
+            token: snapshotToken,
+            revision: snapshotRevision,
+            updatedAt: snapshotUpdatedAt,
+            committedAt: snapshotCommittedAt,
+          }
+        : undefined;
+
+    return {
+      didWrite: true,
+      updatedAt:
+        typeof result[1] === "string" && result[1].length > 0
+          ? result[1]
+          : undefined,
+      ...(userSnapshot ? { userSnapshot } : {}),
+    };
   }
 
   const currentUpdatedAt = result[1];
-  if (status === 0 && typeof currentUpdatedAt === "string") {
-    return { didWrite: false, currentUpdatedAt };
+  if (status === 0) {
+    return {
+      didWrite: false,
+      reason: "conflict",
+      currentUpdatedAt:
+        typeof currentUpdatedAt === "string" && currentUpdatedAt.length > 0
+          ? currentUpdatedAt
+          : undefined,
+    };
+  }
+
+  if (status === 2) {
+    return {
+      didWrite: false,
+      reason: "missing_user_snapshot",
+    };
   }
 
   throw new Error(
@@ -1130,6 +1270,7 @@ function parseStoreCardsAtomicWriteResult(
 
 async function storeCardsRecord(params: {
   cardsKey: string;
+  expectedSerializedCurrentRecord?: string;
   userId: number;
   serializedCardData: string;
   ifMatchUpdatedAt?: string;
@@ -1137,6 +1278,7 @@ async function storeCardsRecord(params: {
 }): Promise<StoreCardsAtomicWriteResult> {
   const {
     cardsKey,
+    expectedSerializedCurrentRecord,
     userId,
     serializedCardData,
     ifMatchUpdatedAt,
@@ -1147,6 +1289,7 @@ async function storeCardsRecord(params: {
     STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA,
     [
       cardsKey,
+      getStoredCardsMetaKey(userId),
       `user:${userId}:commit`,
       `user:${userId}:meta`,
       `user:${userId}`,
@@ -1154,6 +1297,7 @@ async function storeCardsRecord(params: {
     [
       ifMatchUpdatedAt && shouldEnforceAtomicCheck ? ifMatchUpdatedAt : "",
       serializedCardData,
+      expectedSerializedCurrentRecord ?? "",
     ],
   );
 
@@ -1222,6 +1366,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   existingCardOrder?: string[];
   existingGlobalSettings?: GlobalCardSettings;
   cardOrder?: string[];
+  hasCardOrder: boolean;
   globalSettings?: Partial<GlobalCardSettings>;
   endpoint: string;
   endpointKey: string;
@@ -1240,6 +1385,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     existingCardOrder,
     existingGlobalSettings,
     cardOrder,
+    hasCardOrder,
     globalSettings,
     endpoint,
     endpointKey,
@@ -1281,15 +1427,16 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     mergedExplicitCardsByName.set(cardName, card);
   }
 
-  const persistedCardOrder = buildPersistedCardOrder({
-    incomingCardOrder: cardOrder,
-    existingCardOrder,
-    existingCards,
-    mergedExplicitCardsByName,
-  });
+  const { effectiveFullCardOrder, persistedCardOrder } =
+    resolveStoredCardOrderState({
+      hasIncomingCardOrder: hasCardOrder,
+      incomingCardOrder: cardOrder,
+      existingCardOrder,
+      existingCards,
+    });
 
   const orderedStoredCards = buildOrderedStoredCards({
-    persistedCardOrder,
+    effectiveCardOrder: effectiveFullCardOrder,
     mergedExplicitCardsByName,
   });
 
@@ -1432,11 +1579,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     if (bodyParse.errorResponse) return bodyParse.errorResponse;
     const {
-      statsData,
       userId,
       incomingCards,
       incomingCardsCount,
       globalSettings,
+      hasCardOrder,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
       ifMatchUpdatedAt,
       cardOrder,
     } = bodyParse.parsed!;
@@ -1457,11 +1606,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const validateErrorResponse = await validateIncomingPayload(
       validated,
-      statsData,
       endpoint,
       endpointKey,
       request,
-      userId,
     );
     if (validateErrorResponse) return validateErrorResponse;
 
@@ -1487,18 +1634,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const existingData = await redisClient.get(cardsKey);
-
-    // Optimistic concurrency: reject when the record has been updated since the
-    // caller's expected version.
-    const ifMatchCheck = await enforceIfMatchUpdatedAt(
-      existingData,
-      ifMatchUpdatedAt,
-      endpoint,
-      endpointKey,
-      cardsKey,
-      request,
-    );
-    if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
     const existingRecord = parseExistingCardsRecord(
       existingData,
       endpoint,
@@ -1506,6 +1641,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       cardsKey,
       userId,
     );
+
+    // Optimistic concurrency: reject when the record has been updated since the
+    // caller's expected version.
+    const ifMatchCheck = await enforceIfMatchUpdatedAt(
+      existingData,
+      existingRecord,
+      ifMatchUpdatedAt,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
+      endpointKey,
+      request,
+    );
+    if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
     const existingCards = filterSupportedStoredCards(
       existingRecord?.cards ?? [],
       endpoint,
@@ -1521,6 +1669,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingCardOrder,
       existingGlobalSettings,
       cardOrder,
+      hasCardOrder,
       globalSettings,
       endpoint,
       endpointKey,
@@ -1551,12 +1700,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const storeResult = await storeCardsRecord({
       cardsKey,
+      expectedSerializedCurrentRecord:
+        ifMatchCheck.expectedSerializedCurrentRecord,
       userId,
       serializedCardData: JSON.stringify(cardData),
       ifMatchUpdatedAt,
       shouldEnforceAtomicCheck: ifMatchCheck.shouldEnforceAtomicCheck,
     });
     if (!storeResult.didWrite) {
+      if (storeResult.reason === "missing_user_snapshot") {
+        return createMissingUserSnapshotResponse(endpointKey, request);
+      }
+
       return createIfMatchConflictResponse(
         storeResult.currentUpdatedAt,
         endpointKey,
@@ -1573,16 +1728,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
-    let persistedUserState: Awaited<
-      ReturnType<typeof getPersistedUserState>
-    > | null = null;
+    const storedUpdatedAt = storeResult.updatedAt ?? cardData.updatedAt;
+
     try {
-      persistedUserState = await getPersistedUserState(userId);
+      await releaseUnpinnedRetainedUserSnapshot(userId);
     } catch (error) {
       logPrivacySafe(
         "warn",
         endpoint,
-        "Stored cards succeeded but persisted user state could not be reloaded for the protected-write grant",
+        "Stored cards succeeded but retained snapshot cleanup could not be completed",
         {
           userId,
           error: error instanceof Error ? error.message : String(error),
@@ -1595,11 +1749,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       await createProtectedWriteGrantCookieHeader({
         source: "stored_user",
         userId,
-        username: persistedUserState?.username,
       });
 
     return jsonWithCors(
-      { success: true, userId, updatedAt: cardData.updatedAt },
+      {
+        success: true,
+        userId,
+        updatedAt: storedUpdatedAt,
+        ...(storeResult.userSnapshot
+          ? { userSnapshot: storeResult.userSnapshot }
+          : {}),
+      },
       request,
       undefined,
       protectedWriteGrantHeader

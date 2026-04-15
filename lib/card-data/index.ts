@@ -8,6 +8,7 @@ export {
 } from "./config";
 export {
   fetchStoredCardsRecord,
+  fetchStoredCardsRecordCacheStamp,
   fetchUserData,
   fetchUserDataForCard,
   fetchUserDataForCardWithState,

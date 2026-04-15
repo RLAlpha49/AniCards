@@ -30,7 +30,7 @@ import {
 import {
   buildCardConfigFromParams,
   CardDataError,
-  fetchStoredCardsRecord,
+  fetchStoredCardsRecordCacheStamp,
   fetchUserDataForCardWithState,
   fetchUserDataWithState,
   needsCardConfigFromDb,
@@ -56,7 +56,11 @@ import {
   trackCacheMetric,
   tryAcquireSvgRevalidationLock,
 } from "@/lib/stores/svg-cache";
-import type { CardsRecord, UserRecord } from "@/lib/types/records";
+import type {
+  CardsRecord,
+  CardsRecordMetadata,
+  UserRecord,
+} from "@/lib/types/records";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   DEFAULT_CARD_BORDER_RADIUS,
@@ -798,7 +802,9 @@ function buildSavedCardRenderCacheKey(
   userId: number,
   cardType: string,
   params: Record<string, string | number | boolean | null | undefined>,
-  cardDoc: CardsRecord,
+  cardDoc:
+    | Pick<CardsRecord, "updatedAt" | "userSnapshot">
+    | Pick<CardsRecordMetadata, "updatedAt" | "userSnapshot">,
 ): string {
   return generateCacheKey(userId, cardType, {
     ...params,
@@ -1067,9 +1073,15 @@ export async function GET(request: Request) {
   );
 
   let preloadedCardDoc: CardsRecord | undefined;
+  let preloadedCardMeta:
+    | Pick<CardsRecordMetadata, "updatedAt" | "userSnapshot">
+    | undefined;
   if (needsDbCardConfig) {
     try {
-      preloadedCardDoc = await fetchStoredCardsRecord(effectiveUserId);
+      const savedCardCacheStamp =
+        await fetchStoredCardsRecordCacheStamp(effectiveUserId);
+      preloadedCardDoc = savedCardCacheStamp.preloadedCardDoc;
+      preloadedCardMeta = savedCardCacheStamp.cardMeta;
     } catch (error) {
       if (error instanceof CardDataError) {
         return handleCardDataError(error, request, params.baseCardType);
@@ -1079,12 +1091,12 @@ export async function GET(request: Request) {
     }
   }
 
-  const cacheKey = preloadedCardDoc
+  const cacheKey = preloadedCardMeta
     ? buildSavedCardRenderCacheKey(
         effectiveUserId,
         params.cardType,
         cacheKeyParams,
-        preloadedCardDoc,
+        preloadedCardMeta,
       )
     : generateCacheKey(effectiveUserId, params.cardType, cacheKeyParams);
 

@@ -604,17 +604,55 @@ async function emulateAtomicUserSaveEval(
     typeof payload.expectedUpdatedAt === "string"
       ? payload.expectedUpdatedAt
       : undefined;
+  const expectedRevision =
+    typeof payload.expectedRevision === "number" && payload.expectedRevision > 0
+      ? payload.expectedRevision
+      : undefined;
+  const expectedSnapshotToken =
+    typeof payload.expectedSnapshotToken === "string" &&
+    payload.expectedSnapshotToken.length > 0
+      ? payload.expectedSnapshotToken
+      : undefined;
   const currentUpdatedAt =
     typeof existingState?.updatedAt === "string"
       ? existingState.updatedAt
       : undefined;
+  const currentRevision =
+    typeof existingState?.revision === "number" && existingState.revision > 0
+      ? existingState.revision
+      : 0;
+  const currentSnapshotToken =
+    isRecord(existingState?.snapshot) &&
+    typeof existingState.snapshot.token === "string" &&
+    existingState.snapshot.token.length > 0
+      ? existingState.snapshot.token
+      : undefined;
 
-  if (
-    expectedUpdatedAt &&
-    currentUpdatedAt &&
-    currentUpdatedAt !== expectedUpdatedAt
-  ) {
-    return [0, currentUpdatedAt];
+  if (expectedSnapshotToken && currentSnapshotToken !== expectedSnapshotToken) {
+    return [
+      0,
+      currentUpdatedAt ?? "",
+      String(currentRevision),
+      currentSnapshotToken ?? "",
+    ];
+  }
+
+  if (expectedRevision && currentRevision !== expectedRevision) {
+    return [
+      0,
+      currentUpdatedAt ?? "",
+      String(currentRevision),
+      currentSnapshotToken ?? "",
+    ];
+  }
+
+  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    return [
+      0,
+      currentUpdatedAt ?? "",
+      String(currentRevision),
+      currentSnapshotToken ?? "",
+    ];
   }
 
   const revision =
@@ -687,6 +725,7 @@ async function emulateAtomicUserDeleteEval(
     aliasSetKey,
     legacyUserKey,
     cardsKey,
+    cardsMetaKey,
     failureKey,
     registryKey,
     refreshIndexKey,
@@ -746,22 +785,29 @@ async function emulateAtomicUserDeleteEval(
   }
 
   const previousSnapshotKeyPrefix =
-    typeof commitPointer?.previousSnapshotKeyPrefix === "string"
-      ? commitPointer.previousSnapshotKeyPrefix
-      : undefined;
+    typeof commitPointer?.retainedSnapshotKeyPrefix === "string"
+      ? commitPointer.retainedSnapshotKeyPrefix
+      : typeof commitPointer?.previousSnapshotKeyPrefix === "string"
+        ? commitPointer.previousSnapshotKeyPrefix
+        : undefined;
   if (previousSnapshotKeyPrefix) {
     payload.allParts.forEach((partName) => {
       deletedKeys.push(`${previousSnapshotKeyPrefix}:${partName}`);
     });
   }
 
-  [commitKey, aliasSetKey, legacyUserKey, cardsKey, failureKey].forEach(
-    (key) => {
-      if (typeof key === "string") {
-        deletedKeys.push(key);
-      }
-    },
-  );
+  [
+    commitKey,
+    aliasSetKey,
+    legacyUserKey,
+    cardsKey,
+    cardsMetaKey,
+    failureKey,
+  ].forEach((key) => {
+    if (typeof key === "string") {
+      deletedKeys.push(key);
+    }
+  });
 
   for (const alias of aliasValues) {
     const aliasKey = `username:${alias}`;
@@ -789,8 +835,12 @@ async function emulateAtomicStoreCardsEval(
   keys: unknown[],
   args: unknown[],
 ): Promise<unknown[]> {
-  const [cardsKey, commitKey, metaKey, legacyUserKey] = keys;
-  const [rawExpectedUpdatedAt, rawSerializedCardData] = args;
+  const [cardsKey, cardsMetaKey, commitKey] = keys;
+  const [
+    rawExpectedUpdatedAt,
+    rawSerializedCardData,
+    rawExpectedSerializedCurrent,
+  ] = args;
 
   if (
     typeof cardsKey !== "string" ||
@@ -803,17 +853,46 @@ async function emulateAtomicStoreCardsEval(
     typeof rawExpectedUpdatedAt === "string" && rawExpectedUpdatedAt.length > 0
       ? rawExpectedUpdatedAt
       : undefined;
+  const expectedSerializedCurrent =
+    typeof rawExpectedSerializedCurrent === "string" &&
+    rawExpectedSerializedCurrent.length > 0
+      ? rawExpectedSerializedCurrent
+      : undefined;
 
-  if (expectedUpdatedAt) {
-    const currentRecord = parseEvalJsonRecord(
-      await sharedRedisMockGet(cardsKey),
-    );
+  const fetchedCurrentRawRecord = await sharedRedisMockGet(cardsKey);
+  const currentRawRecord =
+    (fetchedCurrentRawRecord === undefined ||
+      fetchedCurrentRawRecord === null) &&
+    expectedSerializedCurrent
+      ? expectedSerializedCurrent
+      : fetchedCurrentRawRecord;
+
+  if (!currentRawRecord && expectedSerializedCurrent) {
+    return [0];
+  }
+
+  if (
+    expectedSerializedCurrent &&
+    typeof currentRawRecord === "string" &&
+    currentRawRecord !== expectedSerializedCurrent
+  ) {
+    const currentRecord = parseEvalJsonRecord(currentRawRecord);
     const currentUpdatedAt =
       typeof currentRecord?.updatedAt === "string"
         ? currentRecord.updatedAt
         : undefined;
 
-    if (currentUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    return [0, currentUpdatedAt];
+  }
+
+  if (expectedUpdatedAt) {
+    const currentRecord = parseEvalJsonRecord(currentRawRecord);
+    const currentUpdatedAt =
+      typeof currentRecord?.updatedAt === "string"
+        ? currentRecord.updatedAt
+        : undefined;
+
+    if (currentUpdatedAt !== expectedUpdatedAt) {
       return [0, currentUpdatedAt];
     }
   }
@@ -828,36 +907,56 @@ async function emulateAtomicStoreCardsEval(
     typeof commitKey === "string"
       ? parseEvalJsonRecord(await sharedRedisMockGet(commitKey))
       : null;
-  const splitMeta =
-    typeof metaKey === "string"
-      ? parseEvalJsonRecord(await sharedRedisMockGet(metaKey))
-      : null;
-  const legacyRecord =
-    typeof legacyUserKey === "string"
-      ? parseEvalJsonRecord(await sharedRedisMockGet(legacyUserKey))
-      : null;
-
   const userSnapshot =
-    buildEvalStoredCardsUserSnapshotFromRecord({
-      record: commitPointer,
-      tokenKey: "snapshotToken",
-    }) ??
-    buildEvalStoredCardsUserSnapshotFromRecord({
-      record: splitMeta,
-      tokenKey: "snapshotToken",
-    }) ??
-    buildEvalStoredCardsUserSnapshotFromRecord({
-      record: legacyRecord,
-    });
+    typeof commitPointer?.snapshotKeyPrefix === "string"
+      ? buildEvalStoredCardsUserSnapshotFromRecord({
+          record: commitPointer,
+          tokenKey: "snapshotToken",
+        })
+      : undefined;
 
-  if (userSnapshot) {
-    nextRecord.userSnapshot = userSnapshot;
-  } else {
-    Reflect.deleteProperty(nextRecord, "userSnapshot");
+  if (!userSnapshot) {
+    return [2];
   }
 
+  const currentVersion =
+    typeof currentRawRecord === "string"
+      ? (parseEvalJsonRecord(currentRawRecord)?.version as number | undefined)
+      : undefined;
+  const nextVersion =
+    typeof currentVersion === "number" && currentVersion > 0
+      ? currentVersion + 1
+      : 1;
+
+  nextRecord.userSnapshot = userSnapshot;
+  nextRecord.version = nextVersion;
+
   await sharedRedisMockSet(cardsKey, JSON.stringify(nextRecord));
-  return [1];
+  if (typeof cardsMetaKey === "string") {
+    await sharedRedisMockSet(
+      cardsMetaKey,
+      JSON.stringify({
+        userId: nextRecord.userId,
+        updatedAt: nextRecord.updatedAt,
+        version: nextVersion,
+        ...(typeof nextRecord.schemaVersion === "number" &&
+        nextRecord.schemaVersion > 0
+          ? { schemaVersion: nextRecord.schemaVersion }
+          : {}),
+        userSnapshot,
+      }),
+    );
+  }
+
+  return [
+    1,
+    nextRecord.updatedAt,
+    String(nextVersion),
+    userSnapshot.token,
+    String(userSnapshot.revision),
+    userSnapshot.updatedAt,
+    userSnapshot.committedAt,
+  ];
 }
 
 async function defaultRedisEval(
@@ -874,14 +973,14 @@ async function defaultRedisEval(
     }
   }
 
-  if (keyList.length === 8 && argList.length === 2) {
+  if (keyList.length === 9 && argList.length === 2) {
     const deletePayload = parseEvalDeletePayload(argList);
     if (deletePayload) {
       return emulateAtomicUserDeleteEval(keyList, argList);
     }
   }
 
-  if (keyList.length === 4 && argList.length === 2) {
+  if (keyList.length === 5 && argList.length === 3) {
     return emulateAtomicStoreCardsEval(keyList, argList);
   }
 
