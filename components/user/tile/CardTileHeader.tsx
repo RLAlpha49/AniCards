@@ -1,7 +1,14 @@
 "use client";
 
-import { GripVertical, Info, Settings } from "lucide-react";
-import { memo, useCallback } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
+  GripVertical,
+  Info,
+  Settings,
+} from "lucide-react";
+import { memo, useCallback, useState } from "react";
 
 import {
   containsMath,
@@ -10,6 +17,11 @@ import {
 } from "@/components/MathTooltipContent";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
 import { Switch } from "@/components/ui/Switch";
 import {
   Tooltip,
@@ -19,6 +31,15 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { CardTileDragHandleProps } from "../CardCategorySection";
+
+export type CardTileReorderControls = {
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
+  onMoveEarlier: () => void;
+  onMoveLater: () => void;
+  position: number;
+  total: number;
+};
 
 interface CardTileHeaderProps {
   label: string;
@@ -32,6 +53,8 @@ interface CardTileHeaderProps {
   onOpenSettings: () => void;
 
   dragHandleProps?: CardTileDragHandleProps;
+  reorderControls?: CardTileReorderControls;
+  preferTapInfoDisclosure?: boolean;
 }
 
 export const CardTileHeader = memo(function CardTileHeader({
@@ -45,10 +68,14 @@ export const CardTileHeader = memo(function CardTileHeader({
   onToggleSelection,
   onOpenSettings,
   dragHandleProps,
+  reorderControls,
+  preferTapInfoDisclosure = false,
 }: Readonly<CardTileHeaderProps>) {
   const hasMathTooltip = Boolean(
     tooltipContent && containsMath(tooltipContent),
   );
+  const [isInfoPopoverOpen, setIsInfoPopoverOpen] = useState(false);
+  const [isReorderPopoverOpen, setIsReorderPopoverOpen] = useState(false);
 
   const prefetchMathTooltip = useCallback(() => {
     if (!hasMathTooltip) return;
@@ -58,6 +85,42 @@ export const CardTileHeader = memo(function CardTileHeader({
   let statusDotClass = "bg-gold/30 dark:bg-gold/20";
   if (enabled) statusDotClass = "bg-gold";
   if (isModified) statusDotClass = "bg-amber-500";
+
+  const infoButton = tooltipContent ? (
+    <button
+      type="button"
+      data-tour="card-info"
+      onPointerEnter={prefetchMathTooltip}
+      onFocus={prefetchMathTooltip}
+      className={cn(
+        `
+          flex size-11 shrink-0 touch-manipulation-safe items-center justify-center rounded-full
+          text-muted-foreground transition-colors
+          sm:size-6
+        `,
+        "hover:bg-gold/5 hover:text-foreground",
+        `
+          focus:outline-none
+          focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+        `,
+      )}
+      aria-label={`Info about ${label}`}
+    >
+      <Info className="size-4 sm:size-3.5" aria-hidden="true" />
+    </button>
+  ) : null;
+
+  const infoContent = tooltipContent ? (
+    hasMathTooltip ? (
+      <MathTooltipContent content={tooltipContent} />
+    ) : (
+      <p>{tooltipContent}</p>
+    )
+  ) : null;
+
+  const showReorderControls = Boolean(
+    reorderControls && reorderControls.total > 1,
+  );
 
   return (
     <div className="
@@ -110,52 +173,110 @@ export const CardTileHeader = memo(function CardTileHeader({
             </span>
           ) : null}
 
-          {tooltipContent && (
-            <Tooltip
-              onOpenChange={(open) => {
-                if (open) prefetchMathTooltip();
-              }}
-            >
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  data-tour="card-info"
-                  onPointerEnter={prefetchMathTooltip}
-                  onFocus={prefetchMathTooltip}
-                  className={cn(
-                    `
-                      flex size-11 shrink-0 touch-manipulation-safe items-center justify-center
-                      rounded-full text-muted-foreground transition-colors
-                      sm:size-6
-                    `,
-                    "hover:bg-gold/5 hover:text-foreground",
-                    `
-                      focus:outline-none
-                      focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
-                    `,
-                  )}
-                  aria-label={`Info about ${label}`}
-                >
-                  <Info className="size-4 sm:size-3.5" aria-hidden="true" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                className="max-w-xs text-xs/relaxed"
-                sideOffset={8}
+          {tooltipContent ? (
+            preferTapInfoDisclosure ? (
+              <Popover
+                open={isInfoPopoverOpen}
+                onOpenChange={(open) => {
+                  setIsInfoPopoverOpen(open);
+                  if (open) prefetchMathTooltip();
+                }}
               >
-                {hasMathTooltip ? (
-                  <MathTooltipContent content={tooltipContent} />
-                ) : (
-                  <p>{tooltipContent}</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          )}
+                <PopoverTrigger asChild>{infoButton}</PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  sideOffset={8}
+                  className="max-w-xs text-xs/relaxed"
+                >
+                  {infoContent}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Tooltip
+                onOpenChange={(open) => {
+                  if (open) prefetchMathTooltip();
+                }}
+              >
+                <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="max-w-xs text-xs/relaxed"
+                  sideOffset={8}
+                >
+                  {infoContent}
+                </TooltipContent>
+              </Tooltip>
+            )
+          ) : null}
         </div>
       </div>
 
       <div className="flex items-center gap-2">
+        {showReorderControls && reorderControls ? (
+          <Popover
+            open={isReorderPopoverOpen}
+            onOpenChange={setIsReorderPopoverOpen}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-tour="card-reorder-controls"
+                className="
+                  size-11 touch-manipulation-safe p-0 text-muted-foreground transition-colors
+                  hover:bg-gold/10 hover:text-gold
+                  sm:size-9
+                  dark:hover:bg-gold/10
+                "
+                aria-label={`Reorder options for ${label}`}
+                title="Reorder without dragging"
+              >
+                <ChevronsUpDown className="size-4" aria-hidden="true" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="end" side="bottom">
+              <p className="px-2 pb-2 text-[11px] text-muted-foreground">
+                Position {reorderControls.position} of {reorderControls.total}
+              </p>
+
+              <div className="flex flex-col gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!reorderControls.canMoveEarlier}
+                  className="h-12 min-h-12 justify-start"
+                  aria-label={`Move ${label} earlier`}
+                  onClick={() => {
+                    reorderControls.onMoveEarlier();
+                    setIsReorderPopoverOpen(false);
+                  }}
+                >
+                  <ArrowUp className="mr-2 size-4" aria-hidden="true" />
+                  Move earlier
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!reorderControls.canMoveLater}
+                  className="h-12 min-h-12 justify-start"
+                  aria-label={`Move ${label} later`}
+                  onClick={() => {
+                    reorderControls.onMoveLater();
+                    setIsReorderPopoverOpen(false);
+                  }}
+                >
+                  <ArrowDown className="mr-2 size-4" aria-hidden="true" />
+                  Move later
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : null}
+
         {dragHandleProps ? (
           <button
             type="button"

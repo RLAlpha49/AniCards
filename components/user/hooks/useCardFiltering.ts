@@ -20,6 +20,34 @@ type ParsedCardSearchQuery = {
 
 export type { ParsedCardSearchQuery };
 
+export type CardSearchSyntaxHint = {
+  id: string;
+  label: string;
+  token: string;
+  description: string;
+};
+
+export const CARD_SEARCH_SYNTAX_HINTS: readonly CardSearchSyntaxHint[] = [
+  {
+    id: "group-core-stats",
+    label: 'group:"Core Stats"',
+    token: 'group:"Core Stats"',
+    description: "Limit results to cards in the Core Stats group.",
+  },
+  {
+    id: "enabled-true",
+    label: "enabled:true",
+    token: "enabled:true",
+    description: "Show only cards that are currently enabled.",
+  },
+  {
+    id: "custom-yes",
+    label: "custom:yes",
+    token: "custom:yes",
+    description: "Show only cards with per-card custom settings.",
+  },
+] as const;
+
 export function tokenizeQuery(input: string): string[] {
   const tokens: string[] = [];
   let current = "";
@@ -44,6 +72,28 @@ export function tokenizeQuery(input: string): string[] {
   const final = current.trim();
   if (final) tokens.push(final);
   return tokens;
+}
+
+export function appendCardSearchToken(query: string, token: string): string {
+  const normalizedToken = token.trim();
+  if (!normalizedToken) return query.trim();
+
+  const existingTokens = new Set(
+    tokenizeQuery(query).map((entry) => entry.trim().toLowerCase()),
+  );
+  const normalizedTokenParts = tokenizeQuery(normalizedToken).map((entry) =>
+    entry.trim().toLowerCase(),
+  );
+
+  if (
+    normalizedTokenParts.length > 0 &&
+    normalizedTokenParts.every((entry) => existingTokens.has(entry))
+  ) {
+    return query.trim();
+  }
+
+  const trimmedQuery = query.trim();
+  return trimmedQuery ? `${trimmedQuery} ${normalizedToken}` : normalizedToken;
 }
 
 function splitKeyValueToken(

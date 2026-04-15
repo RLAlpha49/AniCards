@@ -283,6 +283,10 @@ test.describe("User page mobile ergonomics", () => {
     const variantSelectTrigger = tile.getByRole("combobox", {
       name: /^variant$/i,
     });
+    const variantInfoButton = tile.getByRole("button", {
+      name: /^variant info$/i,
+    });
+    await expectMinTouchTarget(variantInfoButton, "Variant info button");
     await expectMinTouchTarget(variantSelectTrigger, "Variant select trigger");
     await variantSelectTrigger.click();
 
@@ -344,8 +348,26 @@ test.describe("User page mobile ergonomics", () => {
     await reorderButton.scrollIntoViewIfNeeded();
     await reorderButton.click();
 
+    const reorderOptionsButton = tile.getByRole("button", {
+      name: /reorder options for anime stats/i,
+    });
     const dragHandle = tile.locator('[data-tour="card-drag-handle"]');
+    await expectMinTouchTarget(
+      reorderOptionsButton,
+      "Card reorder options button",
+    );
     await expectMinTouchTarget(dragHandle, "Card drag handle");
+
+    await reorderOptionsButton.click();
+    await expectMinTouchTarget(
+      page.getByRole("button", { name: /move anime stats earlier/i }),
+      "Move earlier reorder option",
+    );
+    await expectMinTouchTarget(
+      page.getByRole("button", { name: /move anime stats later/i }),
+      "Move later reorder option",
+    );
+    await page.keyboard.press("Escape");
   });
 });
 

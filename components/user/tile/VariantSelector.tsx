@@ -1,9 +1,14 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { memo, useId } from "react";
+import { memo, useId, useState } from "react";
 
 import { Label } from "@/components/ui/Label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
 import {
   Select,
   SelectContent,
@@ -29,6 +34,7 @@ interface VariantSelectorProps {
   getVariantTooltip?: (variantId: string) => string | null;
   label?: string;
   onOpenChange?: (open: boolean) => void;
+  preferTapInfoDisclosure?: boolean;
 }
 
 export const VariantSelector = memo(function VariantSelector({
@@ -38,8 +44,10 @@ export const VariantSelector = memo(function VariantSelector({
   getVariantTooltip,
   label = "Variant",
   onOpenChange,
+  preferTapInfoDisclosure = false,
 }: Readonly<VariantSelectorProps>) {
   const triggerId = useId();
+  const [isInfoPopoverOpen, setIsInfoPopoverOpen] = useState(false);
 
   if (!variations || variations.length <= 1) return null;
 
@@ -49,6 +57,23 @@ export const VariantSelector = memo(function VariantSelector({
       : variations[0].id;
 
   const selectedTooltip = getVariantTooltip?.(effectiveVariant) ?? null;
+  const infoButton = selectedTooltip ? (
+    <button
+      type="button"
+      data-tour="card-variant-info"
+      className="
+        flex size-11 touch-manipulation-safe items-center justify-center rounded-full
+        text-muted-foreground transition-colors
+        hover:text-foreground
+        focus:outline-none
+        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+        sm:size-7
+      "
+      aria-label={`${label} info`}
+    >
+      <Info className="size-3.5" aria-hidden="true" />
+    </button>
+  ) : null;
 
   return (
     <div className="border-t-2 border-gold/15 px-4 py-3 dark:border-gold/10">
@@ -62,30 +87,33 @@ export const VariantSelector = memo(function VariantSelector({
           {label}
         </Label>
         {selectedTooltip ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                data-tour="card-variant-info"
-                className="
-                  rounded-full p-0.5 text-muted-foreground transition-colors
-                  hover:text-foreground
-                  focus:outline-none
-                  focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
-                "
-                aria-label={`${label} info`}
-              >
-                <Info className="size-3.5" aria-hidden="true" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="max-w-xs text-xs"
-              sideOffset={8}
+          preferTapInfoDisclosure ? (
+            <Popover
+              open={isInfoPopoverOpen}
+              onOpenChange={setIsInfoPopoverOpen}
             >
-              <p>{selectedTooltip}</p>
-            </TooltipContent>
-          </Tooltip>
+              <PopoverTrigger asChild>{infoButton}</PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="start"
+                className="max-w-xs text-xs"
+                sideOffset={8}
+              >
+                <p>{selectedTooltip}</p>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-xs text-xs"
+                sideOffset={8}
+              >
+                <p>{selectedTooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          )
         ) : null}
       </div>
 

@@ -29,7 +29,10 @@ import type { CardTileDragHandleProps } from "@/components/user/CardCategorySect
 import { CardSettingsDialog } from "@/components/user/CardSettingsDialog";
 import { buildPreviewUrl } from "@/components/user/tile/buildPreviewUrl";
 import { CardPreview } from "@/components/user/tile/CardPreview";
-import { CardTileHeader } from "@/components/user/tile/CardTileHeader";
+import {
+  CardTileHeader,
+  type CardTileReorderControls,
+} from "@/components/user/tile/CardTileHeader";
 import { DisabledState } from "@/components/user/tile/DisabledState";
 import { VariantSelector } from "@/components/user/tile/VariantSelector";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
@@ -66,12 +69,14 @@ interface CardTileProps {
   isFavoritesGrid?: boolean;
   /** Optional info tooltip content (overrides default from card-info-tooltips) */
   infoTooltip?: string;
-
   /** Optional drag handle wiring (used for drag-and-drop reordering). */
   dragHandleProps?: CardTileDragHandleProps;
-
+  /** Optional deterministic reorder fallback controls. */
+  reorderControls?: CardTileReorderControls;
   /** Whether the tile is currently being dragged. */
   isDragging?: boolean;
+  /** Prefer tap/click disclosures over hover-only tooltips. */
+  preferTapInfoDisclosure?: boolean;
 }
 
 const DEFAULT_CARD_CONFIG: CardEditorConfig = {
@@ -275,6 +280,7 @@ type ExpandedPreviewDialogProps = {
   currentVariant: string;
   onVariantChange: (variant: string) => void;
   getVariantTooltipForCard: (variantId: string) => string | null;
+  preferTapInfoDisclosure?: boolean;
 };
 
 function ExpandedPreviewDialog({
@@ -298,6 +304,7 @@ function ExpandedPreviewDialog({
   currentVariant,
   onVariantChange,
   getVariantTooltipForCard,
+  preferTapInfoDisclosure = false,
 }: Readonly<ExpandedPreviewDialogProps>) {
   const isComparing = compareEnabled && Boolean(comparePreviewUrl);
 
@@ -422,6 +429,7 @@ function ExpandedPreviewDialog({
                 onVariantChange={onVariantChange}
                 getVariantTooltip={getVariantTooltipForCard}
                 label="Variant (applies to this card)"
+                preferTapInfoDisclosure={preferTapInfoDisclosure}
               />
             </motion.div>
           )}
@@ -441,7 +449,9 @@ export const CardTile = memo(function CardTile({
   isFavoritesGrid = false,
   infoTooltip,
   dragHandleProps,
+  reorderControls,
   isDragging = false,
+  preferTapInfoDisclosure = false,
 }: Readonly<CardTileProps>) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewExpandedOpen, setPreviewExpandedOpen] = useState(false);
@@ -824,6 +834,8 @@ export const CardTile = memo(function CardTile({
         onToggleSelection={handleToggleSelection}
         onOpenSettings={openSettings}
         dragHandleProps={dragHandleProps}
+        reorderControls={reorderControls}
+        preferTapInfoDisclosure={preferTapInfoDisclosure}
       />
 
       {config.enabled ? (
@@ -864,6 +876,7 @@ export const CardTile = memo(function CardTile({
             currentVariant={config.variant}
             onVariantChange={handleVariantChange}
             getVariantTooltip={getVariantTooltipForCard}
+            preferTapInfoDisclosure={preferTapInfoDisclosure}
           />
 
           <CardSettingsDialog
@@ -927,6 +940,7 @@ export const CardTile = memo(function CardTile({
             currentVariant={config.variant}
             onVariantChange={handleVariantChange}
             getVariantTooltipForCard={getVariantTooltipForCard}
+            preferTapInfoDisclosure={preferTapInfoDisclosure}
           />
         </>
       ) : null}

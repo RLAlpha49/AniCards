@@ -137,6 +137,8 @@ import { useEditorTour } from "./editor/EditorTour";
 import { ReorderModeHint } from "./editor/ReorderModeHint";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
 import {
+  appendCardSearchToken,
+  CARD_SEARCH_SYNTAX_HINTS,
   CustomFilter,
   parseCustomFilterParam,
   prefetchCardFilteringFuzzySearch,
@@ -178,6 +180,78 @@ function ShortcutHint({ children }: Readonly<{ children: string }>) {
     </kbd>
   );
 }
+
+function InfoDisclosureButton({
+  ariaLabel,
+  content,
+  prefersTapDisclosure,
+  className,
+  dataTestId,
+}: Readonly<{
+  ariaLabel: string;
+  content: ReactNode;
+  prefersTapDisclosure: boolean;
+  className?: string;
+  dataTestId?: string;
+}>) {
+  const trigger = (
+    <button
+      type="button"
+      data-testid={dataTestId}
+      className={cn(
+        "flex items-center justify-center text-muted-foreground transition-colors",
+        "hover:bg-gold/5 hover:text-foreground",
+        `
+          focus:outline-none
+          focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+        `,
+        className,
+      )}
+      aria-label={ariaLabel}
+    >
+      <Info className="size-4" aria-hidden="true" />
+    </button>
+  );
+
+  if (prefersTapDisclosure) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent side="top" className="max-w-xs text-xs/relaxed">
+          {content}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-xs text-xs/relaxed"
+        >
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+type EditorCardRenderContext = {
+  dragHandleProps?: CardTileDragHandleProps;
+  isDragging?: boolean;
+  reorderControls?: {
+    canMoveEarlier: boolean;
+    canMoveLater: boolean;
+    onMoveEarlier: () => void;
+    onMoveLater: () => void;
+    position: number;
+    total: number;
+  };
+};
 
 const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
   idle: "Preparing...",
@@ -989,12 +1063,19 @@ function ReorderModeToolbarToggle({
           className="max-w-xs text-xs/relaxed"
         >
           {canEnterReorderMode ? (
-            <p>
-              Drag cards by the handle to reorder within each category. Changes
-              save automatically.
-              <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
-              <ShortcutHint>Esc</ShortcutHint>
-            </p>
+            <div className="space-y-2">
+              <p>
+                Drag cards by the handle to reorder within each category.
+                Changes save automatically.
+                <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
+                <ShortcutHint>Esc</ShortcutHint>
+              </p>
+              <p>
+                Prefer step-by-step moves? Each card also exposes reorder
+                options so touch devices can move cards earlier or later without
+                dragging.
+              </p>
+            </div>
           ) : (
             <p>
               Clear the search box and set visibility to <strong>All</strong> to
@@ -1529,10 +1610,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
     renderCardTile: (
       cardType: RenderableCardType,
       index: number,
-      ctx?: {
-        dragHandleProps?: CardTileDragHandleProps;
-        isDragging?: boolean;
-      },
+      ctx?: EditorCardRenderContext,
     ) => ReactNode;
     reorderCardsInScope: (opts: {
       activeId: string;
@@ -1598,6 +1676,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
     <div className="space-y-6" data-tour="card-groups">
       {Object.entries(props.filteredGroups).map(
         ([groupName, filteredCards], index) => {
+          const scopeIds = filteredCards.map((cardType) => cardType.id);
           const stats = props.filteredGroupTotals[groupName] ??
             props.groupTotals[groupName] ?? {
               total: filteredCards.length,
@@ -1630,7 +1709,39 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
                 }
                 defaultExpanded={index === 0}
                 cards={filteredCards}
-                renderCard={props.renderCardTile}
+                renderCard={(cardType, cardIndex, ctx) => {
+                  const previousId = scopeIds[cardIndex - 1];
+                  const nextId = scopeIds[cardIndex + 1];
+
+                  return props.renderCardTile(cardType, cardIndex, {
+                    dragHandleProps: ctx?.dragHandleProps,
+                    isDragging: ctx?.isDragging,
+                    reorderControls: props.isReorderMode
+                      ? {
+                          canMoveEarlier: typeof previousId === "string",
+                          canMoveLater: typeof nextId === "string",
+                          onMoveEarlier: () => {
+                            if (!previousId) return;
+                            props.reorderCardsInScope({
+                              activeId: cardType.id,
+                              overId: previousId,
+                              scopeIds,
+                            });
+                          },
+                          onMoveLater: () => {
+                            if (!nextId) return;
+                            props.reorderCardsInScope({
+                              activeId: cardType.id,
+                              overId: nextId,
+                              scopeIds,
+                            });
+                          },
+                          position: cardIndex + 1,
+                          total: scopeIds.length,
+                        }
+                      : undefined,
+                  });
+                }}
                 getCardKey={(cardType) => cardType.id}
                 scrollMarginKey={props.layoutVersion}
                 reorderable={props.isReorderMode}
@@ -2115,8 +2226,12 @@ export function UserPageEditor({
   const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();
   const currentSearch = searchParams.toString();
-  const { prefersReducedMotion, prefersReducedData, prefersSimplifiedMotion } =
-    useMotionPreferences();
+  const {
+    prefersCoarsePointer,
+    prefersReducedMotion,
+    prefersReducedData,
+    prefersSimplifiedMotion,
+  } = useMotionPreferences();
   const scrollBehavior = useMemo(
     () =>
       getMotionSafeScrollBehavior(prefersReducedMotion, {
@@ -2645,14 +2760,17 @@ export function UserPageEditor({
     [setGroupExpanded],
   );
 
+  const handleAppendSearchToken = useCallback((token: string) => {
+    prefetchCardFilteringFuzzySearch();
+    setQuery((prev) => appendCardSearchToken(prev, token));
+    searchRef.current?.focus();
+  }, []);
+
   const renderCardTile = useCallback(
     (
       cardType: RenderableCardType,
       _index: number,
-      ctx?: {
-        dragHandleProps?: CardTileDragHandleProps;
-        isDragging?: boolean;
-      },
+      ctx?: EditorCardRenderContext,
     ) => (
       <CardTile
         cardId={cardType.id}
@@ -2663,10 +2781,12 @@ export function UserPageEditor({
         supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
         isFavoritesGrid={cardType.id === "favoritesGrid"}
         dragHandleProps={isReorderMode ? ctx?.dragHandleProps : undefined}
+        reorderControls={isReorderMode ? ctx?.reorderControls : undefined}
         isDragging={isReorderMode ? ctx?.isDragging : false}
+        preferTapInfoDisclosure={prefersCoarsePointer}
       />
     ),
-    [isReorderMode],
+    [isReorderMode, prefersCoarsePointer],
   );
 
   const saveState = useMemo(
@@ -3052,43 +3172,37 @@ export function UserPageEditor({
                       title='Try: group:"Core Stats" custom:yes enabled:true'
                     />
 
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "absolute top-1/2 right-2 -translate-y-1/2",
-                              "flex size-11 items-center justify-center sm:size-7",
-                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              `
-                                dark:text-muted-foreground
-                                dark:hover:bg-gold/5 dark:hover:text-foreground
-                              `,
-                              `
-                                focus:outline-none
-                                focus-visible:ring-2 focus-visible:ring-gold/50
-                                focus-visible:ring-offset-1
-                              `,
-                            )}
-                            aria-label="Help: searching cards"
-                          >
-                            <Info className="size-4" aria-hidden="true" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          sideOffset={8}
-                          className="max-w-xs text-xs/relaxed"
-                        >
+                    <InfoDisclosureButton
+                      ariaLabel="Help: searching cards"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        "absolute top-1/2 right-2 -translate-y-1/2",
+                        "size-11 sm:size-7",
+                        `dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground`,
+                      )}
+                      content={
+                        <div className="space-y-2">
                           <p>
-                            Search cards by name. Use Ctrl/Cmd+F to focus the
-                            search box from anywhere.
-                            <ShortcutHint>Ctrl/Cmd+F</ShortcutHint>
+                            Search cards by name, or tap a syntax hint below to
+                            drop a structured filter into the query box.
                           </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                          <div className="space-y-1">
+                            {CARD_SEARCH_SYNTAX_HINTS.map((hint) => (
+                              <p key={hint.id}>
+                                <span className="font-mono text-[11px] text-gold-dim dark:text-gold">
+                                  {hint.token}
+                                </span>{" "}
+                                — {hint.description}
+                              </p>
+                            ))}
+                          </div>
+                          <p>
+                            Use Ctrl/Cmd+F to focus the search box from
+                            anywhere.
+                          </p>
+                        </div>
+                      }
+                    />
                   </div>
                   <Select
                     value={selectedGroup}
@@ -3131,6 +3245,35 @@ export function UserPageEditor({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div
+                  className="flex flex-wrap items-center gap-2 px-1"
+                  aria-label="Quick search syntax hints"
+                >
+                  <span className="
+                    text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase
+                  ">
+                    Quick filters
+                  </span>
+                  {CARD_SEARCH_SYNTAX_HINTS.map((hint) => (
+                    <Button
+                      key={hint.id}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAppendSearchToken(hint.token)}
+                      className="
+                        h-8 border border-gold/20 bg-background/70 px-2.5 text-[11px] font-medium
+                        text-muted-foreground
+                        hover:border-gold/35 hover:bg-gold/8 hover:text-foreground
+                        dark:border-gold/15
+                      "
+                      title={hint.description}
+                    >
+                      <span className="font-mono">{hint.label}</span>
+                    </Button>
+                  ))}
                 </div>
 
                 <div className="flex items-center gap-2 px-1">
@@ -3223,42 +3366,20 @@ export function UserPageEditor({
                       Disabled
                     </Button>
 
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            data-testid="disabled-cards-info"
-                            className={cn(
-                              `
-                                ml-0.5 flex size-11 items-center justify-center transition-colors
-                                sm:size-8
-                              `,
-                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              `
-                                dark:text-muted-foreground
-                                dark:hover:bg-gold/5 dark:hover:text-foreground
-                              `,
-                              `
-                                focus:outline-none
-                                focus-visible:ring-2 focus-visible:ring-gold/50
-                                focus-visible:ring-offset-1
-                              `,
-                            )}
-                            aria-label="Info about disabled cards"
-                          >
-                            <Info className="size-4" aria-hidden="true" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          className="max-w-xs text-xs/relaxed"
-                          sideOffset={8}
-                        >
-                          <p>{DISABLED_CARD_INFO}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <InfoDisclosureButton
+                      ariaLabel="Info about disabled cards"
+                      dataTestId="disabled-cards-info"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        `
+                          ml-0.5 size-11
+                          sm:size-8
+                          dark:text-muted-foreground
+                          dark:hover:bg-gold/5 dark:hover:text-foreground
+                        `,
+                      )}
+                      content={<p>{DISABLED_CARD_INFO}</p>}
+                    />
                   </div>
 
                   <div className="hidden h-6 w-px bg-gold/20 sm:block dark:bg-gold/15" />
@@ -3316,41 +3437,21 @@ export function UserPageEditor({
                       Uncustomized
                     </Button>
 
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "ml-0.5 flex size-8 items-center justify-center transition-colors",
-                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              `
-                                dark:text-muted-foreground
-                                dark:hover:bg-gold/5 dark:hover:text-foreground
-                              `,
-                              `
-                                focus:outline-none
-                                focus-visible:ring-2 focus-visible:ring-gold/50
-                                focus-visible:ring-offset-1
-                              `,
-                            )}
-                            aria-label="Info about customizations filter"
-                          >
-                            <Info className="size-4" aria-hidden="true" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          className="max-w-xs text-xs/relaxed"
-                          sideOffset={8}
-                        >
-                          <p>
-                            Filter cards by whether they have custom per-card
-                            settings (colors, borders, advanced settings).
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <InfoDisclosureButton
+                      ariaLabel="Info about customizations filter"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        "ml-0.5 size-8",
+                        `dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground`,
+                      )}
+                      content={
+                        <p>
+                          Filter cards by whether they have custom per-card
+                          settings such as colors, borders, or advanced chart
+                          options.
+                        </p>
+                      }
+                    />
                   </div>
                 </div>
 

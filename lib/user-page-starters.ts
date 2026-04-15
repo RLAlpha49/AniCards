@@ -46,6 +46,7 @@ function buildPresetSnapshot(colorPreset: string): SettingsSnapshot {
 export interface EditorStarterStyle {
   id: string;
   name: string;
+  intentLabel: string;
   description: string;
   snapshot: SettingsSnapshot;
 }
@@ -54,18 +55,21 @@ export const EDITOR_STARTER_STYLES: readonly EditorStarterStyle[] = [
   {
     id: "starter:anicards-dark",
     name: "AniCards Dark",
+    intentLabel: "Gallery match",
     description: "Matches the dark gallery previews.",
     snapshot: buildPresetSnapshot("anicardsDarkGradient"),
   },
   {
     id: "starter:anicards-light",
     name: "AniCards Light",
+    intentLabel: "Bright + clean",
     description: "A bright, clean version of the house style.",
     snapshot: buildPresetSnapshot("anicardsLightGradient"),
   },
   {
     id: "starter:aurora-night",
     name: "Aurora Night",
+    intentLabel: "High contrast",
     description: "A vivid alternative for users who want more contrast.",
     snapshot: buildPresetSnapshot("arcticAurora"),
   },

@@ -84,7 +84,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
     [
       orderedList(
         "Start with the curated card set that AniCards enables for new profiles, then toggle more on whenever you want.",
-        "Use one of the starter styles or send a look over from the examples gallery, then fine-tune it in Global Settings.",
+        "Use one of the visual starter styles (each card shows a quick preview and intent label), or send a look over from the examples gallery, then fine-tune it in Global Settings.",
         "From there, each card gives you options to snag a URL, copy AniList-ready text, or download an image directly.",
       ),
       note(
@@ -133,13 +133,14 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
     ["search", "filters", "visibility", "categories"],
     [
       paragraph(
-        "The search box matches cards by name — straightforward enough. One thing worth knowing: your active filters get baked into the URL, which means you can share a filtered view just by sending the link.",
+        "The search box matches cards by name — straightforward enough. One thing worth knowing: your active filters get baked into the URL, which means you can share a filtered view just by sending the link. If you spot the quick syntax chips under the search box, tap one and AniCards will insert the matching filter token for you.",
       ),
       unorderedList(
         "Ctrl/Cmd+F — drops your cursor into the search box.",
         "Ctrl/Cmd+Shift+F — opens up the category dropdown.",
         "Visibility toggle — bounce between All, Enabled, and Disabled cards.",
         "Ctrl/Cmd+E — quick-swaps between Enabled and All.",
+        'Syntax chips — tap one to add filters like enabled:true, custom:yes, or group:"Core Stats" without typing the token by hand.',
       ),
     ],
     '[data-tour="card-search"]',
@@ -162,15 +163,16 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
   createTopic(
     "reorder-mode",
     "Reorder mode",
-    "Shuffle cards around inside each category by dragging them.",
+    "Shuffle cards around inside each category by dragging them or using step-by-step move controls.",
     ["reorder", "drag", "sort"],
     [
       paragraph(
-        "Flip on Reorder mode and grab cards by the little handle (≡) to drag them wherever you want inside their category.",
+        "Flip on Reorder mode and grab cards by the little handle (≡) to drag them wherever you want inside their category. If you'd rather not drag — especially on touch devices — each card also exposes reorder options that move it earlier or later one step at a time.",
       ),
       unorderedList(
         "Ctrl/Cmd+D — switches Reorder mode on or off (when it's available).",
         "Esc — drops you right out of Reorder mode.",
+        "Open a card's reorder options to move it earlier or later without dragging.",
       ),
       note(
         "Fair warning — Reorder mode stays disabled while you've got filters running. Otherwise you'd be rearranging a partial list, which gets confusing fast.",
@@ -227,7 +229,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "Click the dropdown on any card tile to pick a different chart style.",
         "Toggle Compare mode to throw two variants side-by-side on the same card.",
         "Expand the preview for a full-screen look at any variant you're considering.",
-        "Hover over a variant name and you'll get a tooltip breaking down what that visualization shows.",
+        "Use the info button next to Variant to open a quick explanation of what the current visualization shows — hover works on desktop, tap opens it on touch devices.",
       ),
     ],
   ),
@@ -374,6 +376,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "custom:yes or custom:no — shows only cards with (or without) custom settings.",
         'Mix tokens with plain text: group:"Anime Deep Dive" genre.',
         "Wrap multi-word values in quotes.",
+        "The quick filter chips under search insert the same tokens for you when you just want a shortcut.",
       ),
     ],
   ),

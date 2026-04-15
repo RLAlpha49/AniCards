@@ -28,20 +28,42 @@ export async function waitForAppReady(page: Page): Promise<void> {
 
 export async function dismissAnalyticsPromptIfVisible(
   page: Page,
-): Promise<void> {
+): Promise<boolean> {
   const dismissButton = page.getByRole("button", {
     name: /keep it off/i,
   });
 
   if (await dismissButton.isVisible()) {
     await dismissButton.click();
+    await expect(dismissButton).toBeHidden({ timeout: 5000 });
+    return true;
+  }
+
+  return false;
+}
+
+async function settleAnalyticsControls(page: Page): Promise<void> {
+  const analyticsToggle = page.getByRole("button", {
+    name: /analytics (on|off)/i,
+  });
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (await dismissAnalyticsPromptIfVisible(page)) {
+      return;
+    }
+
+    if (await analyticsToggle.isVisible()) {
+      return;
+    }
+
+    await page.waitForTimeout(100);
   }
 }
 
 export async function gotoReady(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await waitForAppReady(page);
-  await dismissAnalyticsPromptIfVisible(page);
+  await settleAnalyticsControls(page);
 }
 
 export async function waitForUiReady(target: Locator): Promise<void> {

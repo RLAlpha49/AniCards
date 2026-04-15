@@ -83,6 +83,7 @@ const {
   useDebouncedEditorUrlSync,
 } = await import("@/components/user/UserPageEditor");
 const {
+  appendCardSearchToken,
   parseCardSearchQuery,
   summarizeCardFilters,
   tokenizeQuery,
@@ -109,6 +110,19 @@ describe("editor filter query semantics", () => {
     expect(
       tokenizeQuery('group:"Core Stats" custom:yes enabled:true seasonal'),
     ).toEqual(["group:Core Stats", "custom:yes", "enabled:true", "seasonal"]);
+  });
+
+  it("appends structured filter tokens without duplicating them", () => {
+    expect(appendCardSearchToken("", "enabled:true")).toBe("enabled:true");
+    expect(
+      appendCardSearchToken("seasonal favorites", 'group:"Core Stats"'),
+    ).toBe('seasonal favorites group:"Core Stats"');
+    expect(
+      appendCardSearchToken(
+        'seasonal favorites group:"Core Stats"',
+        'group:"Core Stats"',
+      ),
+    ).toBe('seasonal favorites group:"Core Stats"');
   });
 
   it("parses free text and custom filter tokens symmetrically", () => {

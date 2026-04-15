@@ -12,10 +12,134 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { gradientToCss } from "@/lib/colorUtils";
 import type { EditorStarterStyle } from "@/lib/user-page-starters";
 
 import { DraftRestoreNotice } from "./DraftRestoreNotice";
 import { SaveConflictNotice } from "./SaveConflictNotice";
+
+type StarterPreviewColor = EditorStarterStyle["snapshot"]["colors"][number];
+
+function starterColorToCss(value: StarterPreviewColor): string {
+  return typeof value === "string" ? value : gradientToCss(value);
+}
+
+function starterColorToSolid(value: StarterPreviewColor): string {
+  return typeof value === "string"
+    ? value
+    : (value.stops[0]?.color ?? "#d5a944");
+}
+
+function StarterStyleCard({
+  starterStyle,
+  onApply,
+}: Readonly<{
+  starterStyle: EditorStarterStyle;
+  onApply: (starterStyle: EditorStarterStyle) => void;
+}>) {
+  const [titleColor, backgroundColor, textColor, accentColor] =
+    starterStyle.snapshot.colors;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onApply(starterStyle)}
+      className="
+        group text-left transition-transform duration-200
+        hover:-translate-y-0.5
+        focus:outline-none
+        focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2
+      "
+      aria-label={`Apply ${starterStyle.name} starter style`}
+    >
+      <div className="
+        border border-gold/20 bg-background/75 p-3 shadow-sm transition-colors
+        group-hover:border-gold/35
+        dark:border-gold/15
+      ">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-display text-[11px] tracking-[0.16em] text-foreground uppercase">
+              {starterStyle.name}
+            </p>
+            <span className="
+              mt-2 inline-flex items-center border border-gold/20 bg-gold/8 px-2 py-1 text-[10px]
+              font-semibold tracking-[0.14em] text-gold-dim uppercase
+              dark:text-gold
+            ">
+              {starterStyle.intentLabel}
+            </span>
+          </div>
+
+          <span className="
+            text-[10px] font-semibold tracking-[0.16em] text-gold-dim uppercase
+            dark:text-gold
+          ">
+            Apply
+          </span>
+        </div>
+
+        <div className="mt-3 border border-gold/15 bg-background/70 p-2 dark:border-gold/10">
+          <div
+            className="overflow-hidden border border-gold/10"
+            style={{ background: starterColorToCss(backgroundColor) }}
+            aria-hidden="true"
+          >
+            <div
+              className="flex items-center justify-between border-b px-2 py-1"
+              style={{ borderColor: `${starterColorToSolid(accentColor)}33` }}
+            >
+              <span
+                className="truncate text-[10px] font-semibold"
+                style={{ color: starterColorToSolid(titleColor) }}
+              >
+                AniCards preview
+              </span>
+              <span
+                className="size-2 rounded-full"
+                style={{ background: starterColorToCss(accentColor) }}
+              />
+            </div>
+
+            <div className="p-2">
+              <div className="flex items-end gap-1.5">
+                {[0.55, 0.8, 0.65, 0.95].map((scale, index) => (
+                  <span
+                    key={`${starterStyle.id}-bar-${index}`}
+                    className="h-7 flex-1 rounded-sm"
+                    style={{
+                      background:
+                        index % 2 === 0
+                          ? starterColorToCss(accentColor)
+                          : starterColorToCss(textColor),
+                      opacity: index % 2 === 0 ? 0.85 : 0.38,
+                      transform: `scaleY(${scale})`,
+                      transformOrigin: "bottom",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 flex gap-1.5" aria-hidden="true">
+            {starterStyle.snapshot.colors.map((color, index) => (
+              <span
+                key={`${starterStyle.id}-swatch-${index}`}
+                className="h-2 flex-1 rounded-full"
+                style={{ background: starterColorToCss(color) }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          {starterStyle.description}
+        </p>
+      </div>
+    </button>
+  );
+}
 
 export function EditorNotices({
   showConflictNotice,
@@ -163,8 +287,12 @@ export function EditorNotices({
                     whenever you're ready.
                   </li>
                   <li>
-                    Try one of the starter styles here, then open{" "}
+                    Try one of the visual starter looks here, then open{" "}
                     <strong>Global Settings</strong> to fine-tune it.
+                  </li>
+                  <li>
+                    Use the quick filter chips under search when you want to
+                    jump straight to a group, enabled state, or custom cards.
                   </li>
                   <li>
                     Want more looks? The live examples gallery can pipe a style
@@ -172,20 +300,24 @@ export function EditorNotices({
                   </li>
                 </ul>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {starterStyles.map((starterStyle) => (
-                    <Button
-                      key={starterStyle.id}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onApplyStarterStyle(starterStyle)}
-                      className="border-gold/20 bg-background/70"
-                    >
-                      {starterStyle.name}
-                    </Button>
-                  ))}
+                <div className="mt-4">
+                  <p className="
+                    text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase
+                  ">
+                    Starter looks
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    {starterStyles.map((starterStyle) => (
+                      <StarterStyleCard
+                        key={starterStyle.id}
+                        starterStyle={starterStyle}
+                        onApply={onApplyStarterStyle}
+                      />
+                    ))}
+                  </div>
+                </div>
 
+                <div className="mt-3 flex flex-wrap gap-2">
                   <a
                     href="/examples"
                     className="
