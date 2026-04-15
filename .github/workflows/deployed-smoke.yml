@@ -46,68 +46,7 @@ jobs:
         env:
           DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
           TARGET_URL: ${{ github.event.deployment_status.target_url }}
-        run: |
-          node <<'NODE'
-          const { appendFileSync } = require("node:fs");
-
-          const trustedPreviewHostPattern = /^anicards(?:-[a-z0-9-]+)+\.vercel\.app$/;
-          const rawCandidate =
-            (process.env.DEPLOYMENT_URL || process.env.TARGET_URL || "").trim();
-
-          if (!rawCandidate) {
-            throw new Error(
-              "deployment_status is missing both environment_url and target_url.",
-            );
-          }
-
-          let parsedUrl;
-          try {
-            parsedUrl = new URL(rawCandidate);
-          } catch {
-            throw new Error(
-              `Deployment URL must be a valid absolute http(s) URL: ${rawCandidate}`,
-            );
-          }
-
-          if (!/^https?:$/.test(parsedUrl.protocol)) {
-            throw new Error(`Deployment URL must use http(s): ${rawCandidate}`);
-          }
-
-          if (parsedUrl.username || parsedUrl.password) {
-            throw new Error(
-              "Deployment URL must not include embedded credentials.",
-            );
-          }
-
-          const normalizedHost = parsedUrl.hostname.toLowerCase();
-          const isTrustedPreviewHost = trustedPreviewHostPattern.test(
-            normalizedHost,
-          );
-          const isTrustedProductionHost =
-            normalizedHost === "anicards.alpha49.com";
-
-          if (!isTrustedPreviewHost && !isTrustedProductionHost) {
-            throw new Error(`Refusing unexpected deployment host: ${normalizedHost}`);
-          }
-
-          appendFileSync(
-            process.env.GITHUB_ENV,
-            `PLAYWRIGHT_BASE_URL=${parsedUrl.origin}\n`,
-          );
-          appendFileSync(
-            process.env.GITHUB_ENV,
-            `PLAYWRIGHT_CAN_SEND_BYPASS=${isTrustedPreviewHost ? "1" : "0"}\n`,
-          );
-
-          console.log(`[INFO] Using deployed smoke URL: ${parsedUrl.origin}`);
-          console.log(
-            `[INFO] ${
-              isTrustedPreviewHost
-                ? "Trusted AniCards preview host detected; bypass headers may be used if configured."
-                : "Public AniCards host detected; bypass headers disabled."
-            }`,
-          );
-          NODE
+        run: bun ./scripts/resolve-playwright-deployment-url.ts
 
       - name: Wait for deployed Vercel URL
         env:

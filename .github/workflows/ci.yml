@@ -390,9 +390,9 @@ jobs:
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
 
-      - name: Run Playwright smoke tests (Firefox)
+      - name: Run Playwright local smoke tests (Firefox)
         id: playwright_firefox_smoke
-        run: bun run test:e2e:deployed-smoke -- --project=firefox
+        run: bun run test:e2e -- tests/e2e/smoke/unmocked-app-shell.spec.ts --project=firefox
 
       - name: Upload Playwright artifacts (Firefox Smoke)
         if: ${{ always() && steps.playwright_firefox_smoke.outcome == 'failure' }}

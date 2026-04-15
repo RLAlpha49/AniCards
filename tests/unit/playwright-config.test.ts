@@ -167,12 +167,9 @@ describe("playwright.config", () => {
     expect(config.use?.extraHTTPHeaders).toBeUndefined();
 
     const chromiumProject = config.projects?.[0];
-    expect(chromiumProject?.testIgnore).toEqual(
-      expect.arrayContaining([
-        module.PLAYWRIGHT_LABS_TEST_MATCH,
-        module.PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH,
-      ]),
-    );
+    expect(chromiumProject?.testIgnore).toEqual([
+      module.PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH,
+    ]);
   });
 
   it("switches to local production boot mode when requested", async () => {
@@ -207,31 +204,11 @@ describe("playwright.config", () => {
     );
   });
 
-  it("moves labs coverage behind dedicated labs projects", async () => {
-    const module = await importPlaywrightConfigModule("labs-matrix");
-    const config = module.createPlaywrightConfig({
-      PLAYWRIGHT_FULL_MATRIX: "1",
-      PLAYWRIGHT_ONLY_LABS: "1",
-    });
-
-    expect(config.projects?.map((project) => project.name)).toEqual([
-      "chromium-labs",
-      "mobile-chrome-labs",
-      "firefox-labs",
-    ]);
-    expect(
-      config.projects?.every(
-        (project) => project.testMatch === module.PLAYWRIGHT_LABS_TEST_MATCH,
-      ),
-    ).toBe(true);
-  });
-
   it("normalizes trusted preview URLs and sends only approved bypass headers", async () => {
     const module = await importPlaywrightConfigModule("trusted-preview");
     const config = module.createPlaywrightConfig({
       PLAYWRIGHT_BASE_URL:
         "https://anicards-git-main-alpha49.vercel.app/path?build=123",
-      PLAYWRIGHT_REAL_USER_E2E: "true",
       VERCEL_AUTOMATION_BYPASS_SECRET: "preview-secret",
     });
 
@@ -240,7 +217,6 @@ describe("playwright.config", () => {
       "https://anicards-git-main-alpha49.vercel.app",
     );
     expect(config.use?.extraHTTPHeaders).toEqual({
-      "x-playwright-client-ip": "127.0.0.1",
       "x-vercel-protection-bypass": "preview-secret",
       "x-vercel-set-bypass-cookie": "true",
     });
@@ -256,6 +232,20 @@ describe("playwright.config", () => {
     expect(config.webServer).toBeUndefined();
     expect(config.use?.baseURL).toBe("https://example.com");
     expect(config.use?.extraHTTPHeaders).toBeUndefined();
+  });
+
+  it("requires trusted AniCards hosts for deployed smoke base URLs", async () => {
+    const module = await importPlaywrightConfigModule("trusted-smoke-base-url");
+
+    expect(
+      module.parseTrustedAniCardsBaseUrl(
+        "https://anicards-git-main-alpha49.vercel.app/path?build=123",
+      ).origin,
+    ).toBe("https://anicards-git-main-alpha49.vercel.app");
+
+    expect(() =>
+      module.parseTrustedAniCardsBaseUrl("https://example.com/not-anicards"),
+    ).toThrow(/AniCards production host or an AniCards Vercel preview host/i);
   });
 
   it("rejects invalid external base URLs", async () => {

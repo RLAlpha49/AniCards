@@ -7,27 +7,26 @@
 import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
 
+import {
+  DEFAULT_PLAYWRIGHT_BASE_URL,
+  isTrustedAniCardsPreviewHost,
+  parsePlaywrightBaseUrl,
+} from "./lib/playwright-base-url";
+
+export * from "./lib/playwright-base-url";
+
 type PlaywrightConfigShape = Parameters<typeof defineConfig>[0];
 type PlaywrightProjects = NonNullable<PlaywrightConfigShape["projects"]>;
 type PlaywrightProject = PlaywrightProjects[number];
 type PlaywrightEnv = Readonly<Record<string, string | undefined>>;
 
-export const DEFAULT_PLAYWRIGHT_BASE_URL = "http://localhost:3000";
 export const PLAYWRIGHT_ARTIFACTS_DIR = "./.artifacts";
-export const ANICARDS_PRODUCTION_HOST = "anicards.alpha49.com";
-export const ANICARDS_VERCEL_PREVIEW_HOST_PATTERN =
-  /^anicards(?:-[a-z0-9]+)+\.vercel\.app$/;
-export const PLAYWRIGHT_LABS_TEST_MATCH =
-  /tests[\\/]e2e[\\/]labs[\\/].+\.spec\.[jt]sx?$/;
 export const PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH =
   /tests[\\/]e2e[\\/]user[\\/]user-mobile\.spec\.[jt]sx?$/;
 
 const PLAYWRIGHT_STANDARD_TEST_IGNORE = [
-  PLAYWRIGHT_LABS_TEST_MATCH,
   PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH,
 ] as const;
-
-const PLAYWRIGHT_MOBILE_TEST_IGNORE = [PLAYWRIGHT_LABS_TEST_MATCH] as const;
 
 function readOptionalEnvValue(
   env: PlaywrightEnv,
@@ -47,49 +46,6 @@ export function loadPlaywrightEnv(projectDir = process.cwd()) {
     process.env.NODE_ENV !== "production",
     console,
     true,
-  );
-}
-
-export function parsePlaywrightBaseUrl(rawBaseUrl?: string): URL | undefined {
-  const trimmedBaseUrl = rawBaseUrl?.trim();
-  if (!trimmedBaseUrl) {
-    return undefined;
-  }
-
-  let parsedBaseUrl: URL;
-  try {
-    parsedBaseUrl = new URL(trimmedBaseUrl);
-  } catch {
-    throw new Error(
-      `PLAYWRIGHT_BASE_URL must be a valid absolute http(s) URL: ${trimmedBaseUrl}`,
-    );
-  }
-
-  if (!/^https?:$/.test(parsedBaseUrl.protocol)) {
-    throw new Error(`PLAYWRIGHT_BASE_URL must use http(s): ${trimmedBaseUrl}`);
-  }
-
-  if (parsedBaseUrl.username || parsedBaseUrl.password) {
-    throw new Error(
-      "PLAYWRIGHT_BASE_URL must not include embedded credentials.",
-    );
-  }
-
-  return parsedBaseUrl;
-}
-
-export function isTrustedAniCardsHost(hostname: string): boolean {
-  const normalizedHostname = hostname.trim().toLowerCase();
-
-  return (
-    normalizedHostname === ANICARDS_PRODUCTION_HOST ||
-    ANICARDS_VERCEL_PREVIEW_HOST_PATTERN.test(normalizedHostname)
-  );
-}
-
-export function isTrustedAniCardsPreviewHost(hostname: string): boolean {
-  return ANICARDS_VERCEL_PREVIEW_HOST_PATTERN.test(
-    hostname.trim().toLowerCase(),
   );
 }
 
@@ -119,7 +75,6 @@ function createStandardProjects(
 
   const mobileChromeProject = {
     name: "mobile-chrome",
-    testIgnore: [...PLAYWRIGHT_MOBILE_TEST_IGNORE],
     use: { ...devices["Pixel 5"] },
   } satisfies PlaywrightProject;
 
@@ -134,21 +89,11 @@ function createStandardProjects(
     : [chromiumProject];
 }
 
-function createLabsProjects(includeFullMatrix: boolean): PlaywrightProjects {
-  return createStandardProjects(includeFullMatrix).map((project) => ({
-    name: `${project.name}-labs`,
-    testMatch: PLAYWRIGHT_LABS_TEST_MATCH,
-    use: project.use,
-  }));
-}
-
 function buildExtraHttpHeaders(options: {
   automationBypassSecret?: string;
-  includeRealHandlerIpHeader: boolean;
   parsedBaseUrl?: URL;
 }): Record<string, string> | undefined {
-  const { automationBypassSecret, includeRealHandlerIpHeader, parsedBaseUrl } =
-    options;
+  const { automationBypassSecret, parsedBaseUrl } = options;
   const shouldSendBypassHeaders = Boolean(
     automationBypassSecret &&
     parsedBaseUrl &&
@@ -160,11 +105,6 @@ function buildExtraHttpHeaders(options: {
       ? {
           "x-vercel-protection-bypass": automationBypassSecret,
           "x-vercel-set-bypass-cookie": "true",
-        }
-      : {}),
-    ...(includeRealHandlerIpHeader
-      ? {
-          "x-playwright-client-ip": "127.0.0.1",
         }
       : {}),
   };
@@ -188,23 +128,14 @@ export function createPlaywrightConfig(
   const useLocalProductionServer = isEnabledFlag(
     readOptionalEnvValue(env, "PLAYWRIGHT_LOCAL_PRODUCTION"),
   );
-  const includeRealHandlerIpHeader = isEnabledFlag(
-    readOptionalEnvValue(env, "PLAYWRIGHT_REAL_USER_E2E"),
-  );
   const includeFullMatrix =
     Boolean(readOptionalEnvValue(env, "CI")) ||
     isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"));
-  const labsOnly = isEnabledFlag(
-    readOptionalEnvValue(env, "PLAYWRIGHT_ONLY_LABS"),
-  );
   const isCi = Boolean(readOptionalEnvValue(env, "CI"));
   const shouldLaunchLocalServer = !parsedBaseUrl;
-  const projects = labsOnly
-    ? createLabsProjects(includeFullMatrix)
-    : createStandardProjects(includeFullMatrix);
+  const projects = createStandardProjects(includeFullMatrix);
   const resolvedExtraHTTPHeaders = buildExtraHttpHeaders({
     automationBypassSecret,
-    includeRealHandlerIpHeader,
     parsedBaseUrl,
   });
 

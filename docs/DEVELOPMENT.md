@@ -51,7 +51,7 @@ The template in [`.env.example`](../.env.example) is grouped by concern. Match t
 | SVG and CORS tuning                    | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`                                | Optional local card or embed testing                                       |
 | Cron protection                        | `CRON_SECRET`                                                        | Operator or cron endpoint testing; required outside local dev              |
 | Protected route request proof          | `API_SECRET_TOKEN`                                                   | Prod deploys and parity testing of protected proxy/write routes            |
-| Trusted proxy/client IP headers        | `TRUSTED_CLIENT_IP_HEADERS`                                          | Non-default proxy/CDN setups or real-handler Playwright runs               |
+| Trusted proxy/client IP headers        | `TRUSTED_CLIENT_IP_HEADERS`                                          | Non-default proxy/CDN setups                                               |
 | Local cron escape hatch                | `ALLOW_UNSECURED_CRON_IN_DEV=true`                                   | Optional local-only testing without cron auth                              |
 | Upstream degradation toggle            | `ANILIST_UPSTREAM_DEGRADED_MODE=true`                                | Optional local resilience testing                                          |
 
@@ -69,7 +69,6 @@ Fill in the AniList token, Upstash Redis credentials, and whichever cron setting
 
 - `API_SECRET_TOKEN` signs the short-lived request-proof cookie used by `/api/anilist`, `/api/store-users`, `/api/store-cards`, and `/api/convert`. Production must set it. Local development falls back to an internal dev secret, but adding a real value to `.env.local` is the easiest way to get production-parity behavior when you need to debug request-proof failures.
 - `TRUSTED_CLIENT_IP_HEADERS` is only needed when your proxy/CDN does not use the built-in trusted headers (`x-vercel-forwarded-for` on Vercel and `cf-connecting-ip` on Cloudflare). Leave it blank on those defaults; otherwise set a comma-separated list of lowercase header names that carry the real client IP.
-- `bun run test:e2e:user:real` and `bun run test:e2e:user:real:local-prod` already inject `x-playwright-client-ip` and set `TRUSTED_CLIENT_IP_HEADERS=x-playwright-client-ip` for that session, so you usually do not need to add that override to `.env.local` unless you are reproducing the same proxy path outside those scripts.
 
 ## Start the dev server
 
@@ -100,13 +99,11 @@ There is no separate `bun run format` script in this repository — `bun run for
 
 ### Playwright entrypoints beyond `bun run test:e2e`
 
-Treat `bun run test:e2e` as the default Playwright path. Reach for the specialized wrappers only when you specifically need a local production build, the real `/user` handlers, or a deployed smoke target.
+Treat `bun run test:e2e` as the default Playwright path. Reach for the specialized wrappers only when you specifically need a local production build or a deployed smoke target.
 
 - `bun run test:e2e` — default Playwright path. Start here for normal browser validation; it boots the local dev server unless `PLAYWRIGHT_BASE_URL` is already set.
 - `bun run test:e2e:local-prod` — same suite against a local production build (`bun run build && bun run start`). Use when build output, headers, caching, or other production-only behavior matters.
-- `bun run test:e2e:user:real` — Chromium-only `/user` real-handler specs against the local dev server. Use when validating real user-page save/edit flows; the script injects the trusted `x-playwright-client-ip` header and matching `TRUSTED_CLIENT_IP_HEADERS` override for you.
-- `bun run test:e2e:user:real:local-prod` — same real-handler `/user` specs against a local production build. Use as the highest-fidelity local check for protected user flows before shipping.
-- `bun run test:e2e:deployed-smoke` — minimal smoke for the deployed app shell and `robots.txt`. Use after deploys or against preview/staging targets; set `PLAYWRIGHT_BASE_URL` and `VERCEL_AUTOMATION_BYPASS_SECRET` when needed.
+- `bun run test:e2e:deployed-smoke` — minimal smoke for the deployed app shell and `robots.txt`. Use after deploys or against preview/staging targets only; set `PLAYWRIGHT_BASE_URL` and `VERCEL_AUTOMATION_BYPASS_SECRET` when needed.
 
 Playwright reads `.env` and `.env.local`, so reusable values such as `PLAYWRIGHT_BASE_URL` or `VERCEL_AUTOMATION_BYPASS_SECRET` can live there when that fits your workflow.
 
