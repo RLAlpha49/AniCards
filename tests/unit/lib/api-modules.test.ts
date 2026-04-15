@@ -310,29 +310,6 @@ describe("api module hardening", () => {
     });
   });
 
-  it("allows the Playwright client IP header during explicit real-handler automation", () => {
-    process.env = {
-      ...process.env,
-      NODE_ENV: "production",
-      PLAYWRIGHT_REAL_USER_E2E: "1",
-      TRUSTED_CLIENT_IP_HEADERS: "x-playwright-client-ip",
-    };
-
-    const result = resolveVerifiedClientIp(
-      new Request("http://localhost/api/test", {
-        headers: {
-          "x-playwright-client-ip": "198.51.100.24",
-        },
-      }),
-    );
-
-    expect(result).toEqual({
-      verified: true,
-      ip: "198.51.100.24",
-      source: "x-playwright-client-ip",
-    });
-  });
-
   it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior outside production", async () => {
     const limiter = {
       limit: mock().mockResolvedValue({

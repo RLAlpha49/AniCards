@@ -11,8 +11,6 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
   readonly string[]
 >;
 
-const PLAYWRIGHT_TRUSTED_CLIENT_IP_HEADER = "x-playwright-client-ip";
-
 const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
 const REQUEST_PROOF_VERSION = 1;
 const REQUEST_PROOF_USER_AGENT_MAX_LENGTH = 240;
@@ -79,15 +77,6 @@ function normalizeHeaderName(value: string): string | null {
   }
 
   return /^[a-z0-9-]+$/.test(normalized) ? normalized : null;
-}
-
-function isExplicitAutomationClientIpHeaderAllowed(
-  headerName: string,
-): boolean {
-  return (
-    process.env.PLAYWRIGHT_REAL_USER_E2E === "1" &&
-    headerName === PLAYWRIGHT_TRUSTED_CLIENT_IP_HEADER
-  );
 }
 
 export function getTrustedClientIpHeaderNames(): string[] {
@@ -163,10 +152,6 @@ function hasTrustedProxyProvenance(
   headerName: string,
 ): boolean {
   if (!isProduction()) {
-    return true;
-  }
-
-  if (isExplicitAutomationClientIpHeaderAllowed(headerName)) {
     return true;
   }
 
