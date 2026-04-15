@@ -5,14 +5,15 @@ import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
 test.describe("Privacy disclosure", () => {
   test("renders the public privacy summary with current retention details", async ({
     page,
-  }, testInfo) => {
-    test.skip(
-      testInfo.project.name === "mobile-chrome",
-      "The mobile project validates the card-based retention layout in the dedicated mobile spec below.",
-    );
-
+  }) => {
     await gotoReady(page, "/privacy");
+    const usesMobileRetentionLayout =
+      (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) < 768;
     const desktopRetentionTable = page.getByTestId("privacy-retention-table");
+    const mobileRetentionCards = page.getByTestId("privacy-retention-cards");
+    const retentionSurface = usesMobileRetentionLayout
+      ? mobileRetentionCards
+      : desktopRetentionTable;
 
     await expect(
       page.getByRole("heading", {
@@ -28,23 +29,28 @@ test.describe("Privacy disclosure", () => {
         name: /retention & limits/i,
       }),
     ).toBeVisible();
-    await expect(desktopRetentionTable).toBeVisible();
+    await expect(retentionSurface).toBeVisible();
+    if (usesMobileRetentionLayout) {
+      await expect(desktopRetentionTable).toBeHidden();
+    }
     await expect(
-      desktopRetentionTable.getByText(/monthly buckets with a ~400-day ttl/i),
+      retentionSurface.getByText(/monthly buckets with a ~400-day ttl/i),
     ).toBeVisible();
-    await expect(page.getByText(/browser storage only/i).first()).toBeVisible();
     await expect(
-      desktopRetentionTable.getByText(
+      retentionSurface.getByText(/browser storage only/i).first(),
+    ).toBeVisible();
+    await expect(
+      retentionSurface.getByText(
         /lifecycle audit entries age out after 14 days/i,
       ),
     ).toBeVisible();
     await expect(
-      desktopRetentionTable.getByText(
+      retentionSurface.getByText(
         /client error retry queue.*expire after 7 days/i,
       ),
     ).toBeVisible();
     await expect(
-      desktopRetentionTable.getByText(
+      retentionSurface.getByText(
         /structured error reports age out after 14 days/i,
       ),
     ).toBeVisible();

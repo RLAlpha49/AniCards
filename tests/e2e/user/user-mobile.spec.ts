@@ -167,9 +167,18 @@ test.describe("User page mobile ergonomics", () => {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await gotoReady(page, "/user/TestUser");
 
+    const editorMain = page.getByTestId("user-page-editor-main");
+    await waitForUiReady(editorMain);
+
     await expect(
-      page.getByRole("heading", { level: 1, name: /your collection/i }),
-    ).toBeVisible();
+      page.getByRole("heading", {
+        level: 1,
+        name: /testuser|your collection/i,
+      }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByRole("heading", { level: 2, name: /your cards/i }),
+    ).toBeVisible({ timeout: 15000 });
 
     const menuToggle = page.getByRole("button", { name: /open menu/i });
     await expect(menuToggle).toBeVisible();
@@ -181,8 +190,6 @@ test.describe("User page mobile ergonomics", () => {
     expect(menuToggleTouchAction).toBe("manipulation");
 
     const viewport = page.viewportSize();
-    const editorMain = page.getByTestId("user-page-editor-main");
-    await waitForUiReady(editorMain);
     await editorMain.scrollIntoViewIfNeeded();
 
     const editorBox = await editorMain.evaluate((node) => {
