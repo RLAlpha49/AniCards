@@ -6,6 +6,16 @@
       "observedLicenseExpression": "(MIT OR GPL-3.0-or-later)",
       "selectedLicense": "MIT",
       "reason": "AniCards uses JSZip under its permissive MIT option for client-side ZIP export."
+    },
+    "@img/sharp-libvips-linux-x64@1.2.4": {
+      "observedLicenseExpression": "LGPL-3.0-or-later",
+      "selectedLicense": "LGPL-3.0-or-later",
+      "reason": "Sharp's Linux x64 libvips binary is required for image processing and is explicitly reviewed as an LGPL exception."
+    },
+    "@img/sharp-libvips-linuxmusl-x64@1.2.4": {
+      "observedLicenseExpression": "LGPL-3.0-or-later",
+      "selectedLicense": "LGPL-3.0-or-later",
+      "reason": "Sharp's Linux musl x64 libvips binary is required for image processing and is explicitly reviewed as an LGPL exception."
     }
   }
 }
