@@ -26,6 +26,17 @@ type UnitTestTelemetryGlobals = typeof globalThis & {
   ANICARDS_UNIT_TEST_RUNTIME?: boolean;
 };
 
+const IS_TELEMETRY_TEST_PROCESS = (() => {
+  const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
+
+  return (
+    unitTestGlobals.ANICARDS_UNIT_TEST === true ||
+    unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === true ||
+    process.env[TELEMETRY_TEST_ENV_FLAG] === "true" ||
+    process.env.NODE_ENV === "test"
+  );
+})();
+
 type TelemetryTaskSchedulingOptions = {
   endpoint?: string;
   forceRequestContext?: boolean;
@@ -68,8 +79,8 @@ const pendingLowValueAnalyticsBatches = new Map<
 
 export function isUnitTestRuntime(): boolean {
   const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
-  if (unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === true) {
-    return true;
+  if (typeof unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === "boolean") {
+    return unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME;
   }
 
   if (typeof unitTestGlobals.ANICARDS_UNIT_TEST === "boolean") {
@@ -122,6 +133,7 @@ export function scheduleTelemetryTask(
   const endpoint = options?.endpoint ?? "Telemetry";
   const forceRequestContext = options?.forceRequestContext ?? false;
   const isTrackedUnitTestRuntime = isUnitTestRuntime();
+  const shouldTrackPendingTaskForTests = IS_TELEMETRY_TEST_PROCESS;
 
   const runTask = async () => {
     try {
@@ -142,7 +154,9 @@ export function scheduleTelemetryTask(
 
   if (!forceRequestContext && isTrackedUnitTestRuntime) {
     const pendingTask = runTask();
-    trackPendingTelemetryTaskForTests(pendingTask);
+    if (shouldTrackPendingTaskForTests) {
+      trackPendingTelemetryTaskForTests(pendingTask);
+    }
     return;
   }
 
@@ -157,7 +171,7 @@ export function scheduleTelemetryTask(
       await runTask();
     });
 
-    if (isTrackedUnitTestRuntime) {
+    if (shouldTrackPendingTaskForTests) {
       trackPendingTelemetryTaskForTests(pendingTask);
     }
 
@@ -178,7 +192,7 @@ export function scheduleTelemetryTask(
       );
 
       const fallbackTask = runTask();
-      if (isTrackedUnitTestRuntime) {
+      if (shouldTrackPendingTaskForTests) {
         trackPendingTelemetryTaskForTests(fallbackTask);
         return;
       }
@@ -188,7 +202,7 @@ export function scheduleTelemetryTask(
   }
 
   const pendingTask = runTask();
-  if (isTrackedUnitTestRuntime) {
+  if (shouldTrackPendingTaskForTests) {
     trackPendingTelemetryTaskForTests(pendingTask);
     return;
   }

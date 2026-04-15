@@ -115,14 +115,6 @@ async function createReadableRequestProofToken(options: {
 }
 
 function disableUnitTestRuntimeForThisTest(): void {
-  process.env.ANICARDS_UNIT_TEST = "false";
-
-  (
-    globalThis as typeof globalThis & {
-      ANICARDS_UNIT_TEST?: boolean;
-      ANICARDS_UNIT_TEST_RUNTIME?: boolean;
-    }
-  ).ANICARDS_UNIT_TEST = false;
   (
     globalThis as typeof globalThis & {
       ANICARDS_UNIT_TEST?: boolean;
@@ -312,6 +304,7 @@ describe("api module hardening", () => {
   });
 
   it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior outside production", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
     const limiter = {
       limit: mock().mockResolvedValue({
         success: true,
@@ -323,23 +316,29 @@ describe("api module hardening", () => {
       }),
     } as never;
 
-    const response = await checkRateLimit(
-      new Request("http://localhost/api/test"),
-      { ip: "127.0.0.1" },
-      "Test API",
-      "test_api",
-      limiter,
-    );
+    try {
+      const response = await checkRateLimit(
+        new Request("http://localhost/api/test"),
+        { ip: "127.0.0.1" },
+        "Test API",
+        "test_api",
+        limiter,
+      );
 
-    await flushScheduledTelemetryTasksForTests();
+      await flushScheduledTelemetryTasksForTests();
 
-    expect(response).toBeNull();
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:rate_limit_timeouts",
-    );
+      expect(response).toBeNull();
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toContain(
+        "analytics:test_api:rate_limit_timeouts",
+      );
+    } finally {
+      observedIncrements.release();
+    }
   });
 
   it("fails closed on rate-limit timeouts in production", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+
     process.env = {
       ...process.env,
       NODE_ENV: "production",
@@ -356,32 +355,36 @@ describe("api module hardening", () => {
       }),
     } as never;
 
-    const response = await checkRateLimit(
-      createApiRequest(),
-      {
-        ip: "198.51.100.24",
-        source: "x-vercel-forwarded-for",
-        verified: true,
-      },
-      "Test API",
-      "test_api",
-      limiter,
-    );
+    try {
+      const response = await checkRateLimit(
+        createApiRequest(),
+        {
+          ip: "198.51.100.24",
+          source: "x-vercel-forwarded-for",
+          verified: true,
+        },
+        "Test API",
+        "test_api",
+        limiter,
+      );
 
-    await flushScheduledTelemetryTasksForTests();
+      await flushScheduledTelemetryTasksForTests();
 
-    expect(response?.status).toBe(503);
-    expect(await response?.json()).toMatchObject({
-      error: "Rate limiting is temporarily unavailable",
-      retryable: true,
-      status: 503,
-    });
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:rate_limit_timeouts",
-    );
-    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-      "analytics:test_api:failed_requests",
-    );
+      expect(response?.status).toBe(503);
+      expect(await response?.json()).toMatchObject({
+        error: "Rate limiting is temporarily unavailable",
+        retryable: true,
+        status: 503,
+      });
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining([
+          "analytics:test_api:rate_limit_timeouts",
+          "analytics:test_api:failed_requests",
+        ]),
+      );
+    } finally {
+      observedIncrements.release();
+    }
   });
 
   it("rejects oversized JSON payloads before handlers parse them", async () => {
