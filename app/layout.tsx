@@ -34,6 +34,7 @@ import { Providers } from "./providers";
 // client component can attach event handlers.
 const EARLY_ACCESSIBILITY_SHELL_SCRIPT = `(function () {
   const root = document.documentElement;
+  root.dataset.jsEnabled = 'true';
   const focusableSelector = [
     'a[href]',
     'button:not([disabled])',

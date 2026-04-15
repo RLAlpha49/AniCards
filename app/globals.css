@@ -139,6 +139,10 @@ body {
   flex-direction: column;
 }
 
+html:not([data-js-enabled="true"]) [data-mobile-menu-toggle="true"] {
+  display: none !important;
+}
+
 @layer base {
   * {
     @apply border-border;

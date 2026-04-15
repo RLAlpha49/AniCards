@@ -623,6 +623,7 @@ describe("Card SVG Route", () => {
         "Client Error: Missing parameter: cardType",
         400,
       );
+      expect(sharedRatelimitMockLimit).not.toHaveBeenCalled();
     });
 
     it("should return 400 when both userId and username are missing", async () => {

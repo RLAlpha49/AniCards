@@ -966,9 +966,9 @@ function createInternalErrorResponse(request: Request): Response {
  * GET handler for generating card SVGs.
  *
  * Workflow:
- * 1. Rate-limit by source IP.
- * 2. Check in-memory LRU cache (fast path).
- * 3. Validate query params and translate them to a normalized shape.
+ * 1. Validate query params and translate them to a normalized shape.
+ * 2. Rate-limit valid requests by source IP before expensive work.
+ * 3. Check in-memory LRU cache (fast path).
  * 4. Fetch and normalize user/card data.
  * 5. Generate the card SVG and return it with cache/CORS headers.
  * 6. Cache result for next time (LRU).
@@ -989,6 +989,13 @@ export async function GET(request: Request) {
     endpointKey: "card_svg",
     ip,
   });
+
+  const paramsResult = extractAndValidateParams(request);
+  if (paramsResult instanceof Response) {
+    await trackFailedRequest(undefined, paramsResult.status);
+    return paramsResult;
+  }
+  const params = paramsResult;
 
   const rateLimitResponse = await checkRateLimit(
     request,
@@ -1031,13 +1038,6 @@ export async function GET(request: Request) {
     { ip, queryParamCount: new URL(request.url).searchParams.size },
     request,
   );
-
-  const paramsResult = extractAndValidateParams(request);
-  if (paramsResult instanceof Response) {
-    await trackFailedRequest(undefined, paramsResult.status);
-    return paramsResult;
-  }
-  const params = paramsResult;
   const isManualRefresh = params._t !== null;
   const successCachePolicy = resolveCardSuccessCachePolicy(params, {
     manualRefresh: isManualRefresh,
