@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { resetRealRedisClientForTests } from "@/lib/api/clients";
 import {
   apiErrorResponse,
   handleError,
@@ -144,7 +145,10 @@ describe("api module hardening", () => {
       ...originalEnv,
       NEXT_PUBLIC_APP_URL: "http://localhost",
       NODE_ENV: "test",
+      UPSTASH_REDIS_REST_TOKEN: "unit-test-upstash-token",
+      UPSTASH_REDIS_REST_URL: "https://unit-test.upstash.io",
     };
+    resetRealRedisClientForTests();
     sharedRedisMockIncr.mockReset();
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRedisMockIncrRaw.mockReset();
@@ -162,6 +166,7 @@ describe("api module hardening", () => {
 
   afterEach(async () => {
     await flushScheduledTelemetryTasksForTests();
+    resetRealRedisClientForTests();
     process.env = originalEnv;
     mock.clearAllMocks();
   });
