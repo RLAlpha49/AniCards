@@ -233,6 +233,7 @@ async function fetchUserData(
     const { response: res, payload } = await requestClientJson(
       `/api/get-user?${params.toString()}`,
       {
+        cache: "no-store",
         signal: options.signal,
         timeoutMs: options.timeoutMs,
       },

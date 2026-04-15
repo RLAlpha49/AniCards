@@ -2407,6 +2407,7 @@ export function UserPageEditor({
     startSetup,
     shouldResumeSetup: hasPendingSetup,
   });
+  const hasAutoRetriedLoadRef = useRef(false);
 
   const {
     saveNow,
@@ -2715,6 +2716,22 @@ export function UserPageEditor({
       console.error("Failed to retry loading the user page:", error);
     });
   }, [reload]);
+
+  useEffect(() => {
+    if (!isLoading && !loadError) {
+      hasAutoRetriedLoadRef.current = false;
+      return;
+    }
+
+    if (!canRetryLoadInPlace || hasAutoRetriedLoadRef.current) {
+      return;
+    }
+
+    hasAutoRetriedLoadRef.current = true;
+    reload().catch((error) => {
+      console.error("Failed to auto-retry loading the user page:", error);
+    });
+  }, [canRetryLoadInPlace, loadError, reload]);
 
   const helpDialog = useMemo(() => {
     if (!hasRequestedHelpDialog) {

@@ -5,14 +5,25 @@
 // preview, expanded view, and new-tab view stay in sync.
 
 import { ExternalLink, Eye, MoreHorizontal, RotateCw } from "lucide-react";
-import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
+import { type PreviewFetchPriority } from "@/components/user/tile/preview-cache";
 import { useCachedCardPreview } from "@/components/user/tile/useCachedCardPreview";
 import { type CardDownloadFormat, cn, toCardApiHref } from "@/lib/utils";
+
+const PREVIEW_VIEWPORT_ROOT_MARGIN = "240px 0px";
 
 function withCacheBust(apiHref: string, cacheBust: string | null): string {
   if (!cacheBust) return apiHref;
@@ -202,6 +213,8 @@ interface CardPreviewProps {
   borderRadiusValue?: string | number;
   previewSize?: "sm" | "md" | "lg";
   hideCopyDownload?: boolean;
+  prefersCoarsePointer?: boolean;
+  fetchPriority?: PreviewFetchPriority;
 }
 
 export const CardPreview = memo(function CardPreview({
@@ -226,6 +239,8 @@ export const CardPreview = memo(function CardPreview({
   borderRadiusValue,
   previewSize = "md",
   hideCopyDownload = false,
+  prefersCoarsePointer = false,
+  fetchPriority = "visible",
 }: Readonly<CardPreviewProps>) {
   const { downloadTitle, downloadDescrId } = getDownloadA11yState({
     previewUrl,
@@ -239,8 +254,65 @@ export const CardPreview = memo(function CardPreview({
     [previewUrl],
   );
 
-  const { imageSrc, isLoading, error, refresh } =
-    useCachedCardPreview(openHrefBase);
+  const previewRootRef = useRef<HTMLDivElement | null>(null);
+  const [isInViewport, setIsInViewport] = useState(fetchPriority === "active");
+
+  useEffect(() => {
+    if (!openHrefBase) {
+      setIsInViewport(false);
+      return;
+    }
+
+    if (fetchPriority === "active") {
+      setIsInViewport(true);
+      return;
+    }
+
+    const previewRoot = previewRootRef.current;
+    if (!previewRoot) {
+      setIsInViewport(true);
+      return;
+    }
+
+    if (typeof IntersectionObserver !== "function") {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setIsInViewport(entries.some((entry) => entry.isIntersecting));
+      },
+      {
+        root: null,
+        rootMargin: PREVIEW_VIEWPORT_ROOT_MARGIN,
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(previewRoot);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [fetchPriority, openHrefBase]);
+
+  const [showActions, setShowActions] = useState(false);
+  const isPreviewActive =
+    fetchPriority === "active" ||
+    isAnyPopoverOpen ||
+    showActions ||
+    forceActionsVisible;
+  const shouldLoadPreview =
+    Boolean(openHrefBase) && (isPreviewActive || isInViewport);
+
+  const { imageSrc, isLoading, error, refresh } = useCachedCardPreview(
+    openHrefBase,
+    {
+      enabled: shouldLoadPreview,
+      priority: isPreviewActive ? "active" : fetchPriority,
+    },
+  );
 
   const [lastRefreshToken, setLastRefreshToken] = useState<string | null>(null);
 
@@ -253,8 +325,17 @@ export const CardPreview = memo(function CardPreview({
     [openHrefBase, lastRefreshToken],
   );
 
-  // Local state to support tapping/focus to reveal quick actions on touch / keyboard
-  const [showActions, setShowActions] = useState(false);
+  const handleRefresh = useCallback(() => {
+    void (async () => {
+      try {
+        const token = await refresh();
+        if (token) setLastRefreshToken(token);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("Failed to refresh preview:", error);
+      }
+    })();
+  }, [refresh]);
 
   // Close the actions overlay on Escape when opened via the toggle
   useEffect(() => {
@@ -313,16 +394,21 @@ export const CardPreview = memo(function CardPreview({
           size="md"
           className="text-muted-foreground"
           text={isLoading ? "Loading preview..." : "Preview unavailable"}
+          liveRegion="off"
         />
       </div>
     );
   }
 
   const overlayPinned = isAnyPopoverOpen || showActions || forceActionsVisible;
+  const showDesktopActionOverlay = !prefersCoarsePointer;
+  const showReachableActionBar =
+    prefersCoarsePointer || !showDesktopActionOverlay;
 
   return (
     <div className="bg-gold/3 dark:bg-gold/2">
       <div
+        ref={previewRootRef}
         data-tour="card-preview"
         className="group/card-preview relative aspect-2/1 overflow-hidden"
         onPointerEnter={() => onHoverChange?.(true)}
@@ -330,42 +416,46 @@ export const CardPreview = memo(function CardPreview({
       >
         {previewNode}
 
-        {/* Subtle scrim for better hierarchy when actions appear */}
-        <div
-          aria-hidden="true"
-          className={cn(
-            `
-              pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15 via-black/0
-              to-black/0
-              md:block
-            `,
-            "transition-opacity duration-200",
-            overlayPinned
-              ? "opacity-100"
-              : `
-                opacity-0
-                group-focus-within/card-preview:opacity-100
-                group-hover/card-preview:opacity-100
-              `,
-          )}
-        />
+        {showDesktopActionOverlay ? (
+          <>
+            {/* Subtle scrim for better hierarchy when actions appear */}
+            <div
+              aria-hidden="true"
+              className={cn(
+                `
+                  pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15
+                  via-black/0 to-black/0
+                  md:block
+                `,
+                "transition-opacity duration-200",
+                overlayPinned
+                  ? "opacity-100"
+                  : `
+                    opacity-0
+                    group-focus-within/card-preview:opacity-100
+                    group-hover/card-preview:opacity-100
+                  `,
+              )}
+            />
 
-        {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
-        <button
-          type="button"
-          aria-label={`Toggle actions for ${label}`}
-          aria-pressed={showActions}
-          onClick={() => setShowActions((v) => !v)}
-          className="
-            pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
-            justify-center rounded-full bg-white/10 text-white opacity-0
-            focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
-            focus-visible:ring-white/70 focus-visible:outline-none
-            md:inline-flex
-          "
-        >
-          <MoreHorizontal className="size-4" aria-hidden="true" />
-        </button>
+            {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
+            <button
+              type="button"
+              aria-label={`Toggle actions for ${label}`}
+              aria-pressed={showActions}
+              onClick={() => setShowActions((v) => !v)}
+              className="
+                pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
+                justify-center rounded-full bg-white/10 text-white opacity-0
+                focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
+                focus-visible:ring-white/70 focus-visible:outline-none
+                md:inline-flex
+              "
+            >
+              <MoreHorizontal className="size-4" aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
 
         {!previewUrl && (
           <span id={previewUnavailableId} className="sr-only">
@@ -377,50 +467,99 @@ export const CardPreview = memo(function CardPreview({
             Preparing download...
           </span>
         )}
+        {showDesktopActionOverlay ? (
+          <div
+            className={cn(
+              `
+                pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
+                transition-opacity duration-300
+                md:flex
+              `,
+              overlayPinned
+                ? "opacity-100"
+                : `
+                  opacity-0
+                  group-focus-within/card-preview:opacity-100
+                  group-hover/card-preview:opacity-100
+                `,
+            )}
+          >
+            <OpenInNewTabButton
+              openHref={openHref}
+              label={label}
+              isPreviewAvailable={Boolean(previewUrl)}
+              previewUnavailableId={previewUnavailableId}
+            />
+
+            <RefreshPreviewButton
+              disabled={!previewUrl || isLoading}
+              title={previewUrl ? "Refresh preview" : "Preview not available"}
+              ariaLabel={`Refresh preview for ${label}`}
+              onRefresh={handleRefresh}
+            />
+
+            {hideCopyDownload ? null : (
+              <>
+                <div className="pointer-events-auto">
+                  <CopyPopover
+                    open={copyPopoverOpen}
+                    onOpenChange={setCopyPopoverOpen}
+                    previewUrl={previewUrl}
+                    copiedFormat={copiedFormat}
+                    copyError={copyError}
+                    onCopyUrl={onCopyUrl}
+                    onCopyAniList={onCopyAniList}
+                    previewUnavailableId={previewUnavailableId}
+                  />
+                </div>
+                <div className="pointer-events-auto">
+                  <DownloadPopover
+                    open={downloadPopoverOpen}
+                    onOpenChange={setDownloadPopoverOpen}
+                    previewUrl={previewUrl}
+                    isDownloading={isDownloading}
+                    downloadError={downloadError}
+                    onDownload={onDownload}
+                    downloadDescrId={downloadDescrId}
+                    downloadTitle={downloadTitle}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {showReachableActionBar ? (
         <div
           className={cn(
-            `
-              pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
-              transition-opacity duration-300
-              md:flex
-            `,
-            overlayPinned
-              ? "opacity-100"
-              : `
-                opacity-0
-                group-focus-within/card-preview:opacity-100
-                group-hover/card-preview:opacity-100
-              `,
+            "border-t border-gold/10 p-2",
+            showDesktopActionOverlay ? "md:hidden" : undefined,
           )}
         >
-          <OpenInNewTabButton
-            openHref={openHref}
-            label={label}
-            isPreviewAvailable={Boolean(previewUrl)}
-            previewUnavailableId={previewUnavailableId}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <OpenInNewTabButton
+              openHref={openHref}
+              label={label}
+              isPreviewAvailable={Boolean(previewUrl)}
+              previewUnavailableId={previewUnavailableId}
+              className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+              iconClassName="size-4"
+              visibleLabel="Open"
+            />
 
-          <RefreshPreviewButton
-            disabled={!previewUrl || isLoading}
-            title={previewUrl ? "Refresh preview" : "Preview not available"}
-            ariaLabel={`Refresh preview for ${label}`}
-            onRefresh={() => {
-              void (async () => {
-                try {
-                  const token = await refresh();
-                  if (token) setLastRefreshToken(token);
-                } catch (err) {
-                  const error =
-                    err instanceof Error ? err : new Error(String(err));
-                  console.error("Failed to refresh preview:", error);
-                }
-              })();
-            }}
-          />
+            <RefreshPreviewButton
+              disabled={!previewUrl || isLoading}
+              title={previewUrl ? "Refresh preview" : "Preview not available"}
+              ariaLabel={`Refresh preview for ${label}`}
+              className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+              iconClassName="size-4"
+              visibleLabel="Refresh"
+              onRefresh={handleRefresh}
+            />
 
-          {hideCopyDownload ? null : (
-            <>
-              <div className="pointer-events-auto">
+            {hideCopyDownload ? null : (
+              <>
                 <CopyPopover
                   open={copyPopoverOpen}
                   onOpenChange={setCopyPopoverOpen}
@@ -430,9 +569,10 @@ export const CardPreview = memo(function CardPreview({
                   onCopyUrl={onCopyUrl}
                   onCopyAniList={onCopyAniList}
                   previewUnavailableId={previewUnavailableId}
+                  triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                  triggerLabel="Copy"
                 />
-              </div>
-              <div className="pointer-events-auto">
+
                 <DownloadPopover
                   open={downloadPopoverOpen}
                   onOpenChange={setDownloadPopoverOpen}
@@ -442,77 +582,14 @@ export const CardPreview = memo(function CardPreview({
                   onDownload={onDownload}
                   downloadDescrId={downloadDescrId}
                   downloadTitle={downloadTitle}
+                  triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                  triggerLabel="Download"
                 />
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
-
-      <div className="border-t border-gold/10 p-2 md:hidden">
-        <div className="grid grid-cols-2 gap-2">
-          <OpenInNewTabButton
-            openHref={openHref}
-            label={label}
-            isPreviewAvailable={Boolean(previewUrl)}
-            previewUnavailableId={previewUnavailableId}
-            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-            iconClassName="size-4"
-            visibleLabel="Open"
-          />
-
-          <RefreshPreviewButton
-            disabled={!previewUrl || isLoading}
-            title={previewUrl ? "Refresh preview" : "Preview not available"}
-            ariaLabel={`Refresh preview for ${label}`}
-            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-            iconClassName="size-4"
-            visibleLabel="Refresh"
-            onRefresh={() => {
-              void (async () => {
-                try {
-                  const token = await refresh();
-                  if (token) setLastRefreshToken(token);
-                } catch (err) {
-                  const error =
-                    err instanceof Error ? err : new Error(String(err));
-                  console.error("Failed to refresh preview:", error);
-                }
-              })();
-            }}
-          />
-
-          {hideCopyDownload ? null : (
-            <>
-              <CopyPopover
-                open={copyPopoverOpen}
-                onOpenChange={setCopyPopoverOpen}
-                previewUrl={previewUrl}
-                copiedFormat={copiedFormat}
-                copyError={copyError}
-                onCopyUrl={onCopyUrl}
-                onCopyAniList={onCopyAniList}
-                previewUnavailableId={previewUnavailableId}
-                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-                triggerLabel="Copy"
-              />
-
-              <DownloadPopover
-                open={downloadPopoverOpen}
-                onOpenChange={setDownloadPopoverOpen}
-                previewUrl={previewUrl}
-                isDownloading={isDownloading}
-                downloadError={downloadError}
-                onDownload={onDownload}
-                downloadDescrId={downloadDescrId}
-                downloadTitle={downloadTitle}
-                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-                triggerLabel="Download"
-              />
-            </>
-          )}
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 });

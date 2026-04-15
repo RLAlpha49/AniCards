@@ -129,21 +129,24 @@ export const test = base.extend<AniCardsFixtures>({
 
 async function fulfillSuccessfulCardRoute(route: Route): Promise<void> {
   const url = new URL(route.request().url());
-  const username = url.searchParams.get("username");
+  const username = url.searchParams.get("username")?.trim() ?? null;
+  const userId = url.searchParams.get("userId")?.trim() ?? null;
 
-  if (!username) {
+  if (!username && !userId) {
     await route.fulfill({
       status: 400,
       contentType: "image/svg+xml",
-      body: createErrorSvg("Missing username parameter"),
+      body: createErrorSvg("Missing userId or username parameter"),
     });
     return;
   }
 
+  const previewIdentity = username || `User ${userId}`;
+
   await route.fulfill({
     status: 200,
     contentType: "image/svg+xml",
-    body: createMockCardSvg(username),
+    body: createMockCardSvg(previewIdentity),
     headers: {
       "Access-Control-Allow-Origin": "*",
       "X-Card-Border-Radius": "8",

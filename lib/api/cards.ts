@@ -143,6 +143,7 @@ export async function fetchUserCards(
     const { response: res, payload } = await requestClientJson(
       `/api/get-cards?userId=${encodeURIComponent(userId)}`,
       {
+        cache: "no-store",
         signal: options.signal,
         timeoutMs: options.timeoutMs,
       },

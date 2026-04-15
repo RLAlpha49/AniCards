@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAndCachePreviewObjectUrl,
   getCachedPreviewObjectUrl,
+  type PreviewFetchPriority,
 } from "./preview-cache";
 
 export type CachedCardPreviewState = {
@@ -15,12 +16,21 @@ export type CachedCardPreviewState = {
   refresh: () => Promise<string | null>;
 };
 
+type UseCachedCardPreviewOptions = {
+  enabled?: boolean;
+  priority?: PreviewFetchPriority;
+};
+
 export function useCachedCardPreview(
   apiHref: string | null,
+  options: UseCachedCardPreviewOptions = {},
 ): CachedCardPreviewState {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const enabled = options.enabled ?? true;
+  const priority = options.priority ?? "visible";
 
   const abortRef = useRef<AbortController | null>(null);
   const latestHrefRef = useRef<string | null>(null);
@@ -45,6 +55,13 @@ export function useCachedCardPreview(
       return;
     }
 
+    setImageSrc(null);
+
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
     const ac = new AbortController();
     abortRef.current = ac;
     setIsLoading(true);
@@ -52,6 +69,7 @@ export function useCachedCardPreview(
     void (async () => {
       try {
         const objectUrl = await fetchAndCachePreviewObjectUrl(apiHref, {
+          priority,
           signal: ac.signal,
         });
 
@@ -72,7 +90,7 @@ export function useCachedCardPreview(
     return () => {
       ac.abort();
     };
-  }, [apiHref]);
+  }, [apiHref, enabled, priority]);
 
   const refresh = useCallback(async () => {
     if (!apiHref) return null;
@@ -89,6 +107,7 @@ export function useCachedCardPreview(
       const objectUrl = await fetchAndCachePreviewObjectUrl(apiHref, {
         cacheBust: token,
         force: true,
+        priority: "active",
         signal: ac.signal,
       });
       if (latestHrefRef.current !== apiHref) return token;

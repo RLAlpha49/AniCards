@@ -102,6 +102,8 @@ type CardPreviewActionProps = Pick<
   | "onDownload"
   | "isAnyPopoverOpen"
   | "forceActionsVisible"
+  | "prefersCoarsePointer"
+  | "fetchPriority"
 >;
 
 type CompareControlsProps = {
@@ -869,6 +871,8 @@ export const CardTile = memo(function CardTile({
             forceActionsVisible={forcePreviewActionsVisible}
             onHoverChange={setIsPreviewHovered}
             borderRadiusValue={borderRadiusValue}
+            prefersCoarsePointer={preferTapInfoDisclosure}
+            fetchPriority="active"
           />
 
           <VariantSelector
@@ -917,6 +921,8 @@ export const CardTile = memo(function CardTile({
               onDownload: handleDownload,
               isAnyPopoverOpen,
               forceActionsVisible: forcePreviewActionsVisible,
+              prefersCoarsePointer: preferTapInfoDisclosure,
+              fetchPriority: "active",
             }}
             compareActions={{
               isDownloading: isCompareDownloading,
@@ -932,6 +938,8 @@ export const CardTile = memo(function CardTile({
               onDownload: handleCompareDownload,
               isAnyPopoverOpen: isAnyComparePopoverOpen,
               forceActionsVisible: forceComparePreviewActionsVisible,
+              prefersCoarsePointer: preferTapInfoDisclosure,
+              fetchPriority: "active",
             }}
             previewUnavailableId={`${previewUnavailableId}-expanded`}
             convertingId={`${convertingId}-expanded`}
