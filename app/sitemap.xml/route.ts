@@ -9,6 +9,8 @@ import {
 import { listPublicUserProfileSitemapEntries } from "@/lib/server/user-data";
 import { resolveSiteUrl } from "@/lib/site-config";
 
+export const dynamic = "force-dynamic";
+
 const SITEMAP_CACHE_CONTROL =
   "public, s-maxage=3600, stale-while-revalidate=600";
 

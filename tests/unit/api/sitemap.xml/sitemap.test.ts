@@ -58,6 +58,13 @@ async function getSitemap(siteUrl?: string) {
 }
 
 describe("sitemap.xml route", () => {
+  it("forces request-time rendering so builds do not require Redis-backed sitemap data", async () => {
+    const modulePath = `../../../../app/sitemap.xml/route?cacheBust=${Date.now()}`;
+    const { dynamic } = await import(modulePath);
+
+    expect(dynamic).toBe("force-dynamic");
+  });
+
   it("returns a cacheable XML sitemap with curated public routes, canonical profile entries, and only trustworthy lastmod timestamps", async () => {
     listPublicUserProfileSitemapEntriesMock.mockResolvedValue([
       { username: "Alpha49", lastmod: PROFILE_LASTMOD },
