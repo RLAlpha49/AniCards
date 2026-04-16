@@ -2830,34 +2830,53 @@ describe("Card SVG Route", () => {
     it("should default to https://anilist.co in production", async () => {
       const prevNodeEnv = process.env.NODE_ENV;
       const prevConfig = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+      const prevRedisUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const prevRedisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
       (process.env as Record<string, string | undefined>)["NODE_ENV"] =
         "production";
+      (process.env as Record<string, string | undefined>)[
+        "UPSTASH_REDIS_REST_URL"
+      ] = "https://unit-test.upstash.io";
+      (process.env as Record<string, string | undefined>)[
+        "UPSTASH_REDIS_REST_TOKEN"
+      ] = "unit-test-token";
       delete (process.env as Record<string, string | undefined>)[
         "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
       ];
 
-      const cardsData = createMockCardData("animeStats", "default");
-      const userData = createMockUserData(542244, "testUser", {
-        User: { statistics: { anime: {} } },
-      });
-      setupSuccessfulMocks(cardsData, userData);
+      try {
+        const cardsData = createMockCardData("animeStats", "default");
+        const userData = createMockUserData(542244, "testUser", {
+          User: { statistics: { anime: {} } },
+        });
+        setupSuccessfulMocks(cardsData, userData);
 
-      const req = new Request(
-        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-        { headers: { origin: "http://localhost:3000" } },
-      );
-      const res = await GET(req);
+        const req = new Request(
+          createRequestUrl(baseUrl, {
+            userId: "542244",
+            cardType: "animeStats",
+          }),
+          { headers: { origin: "http://localhost:3000" } },
+        );
+        const res = await GET(req);
 
-      expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-        "https://anilist.co",
-      );
-
-      (process.env as Record<string, string | undefined>)["NODE_ENV"] =
-        prevNodeEnv;
-      (process.env as Record<string, string | undefined>)[
-        "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
-      ] = prevConfig;
+        expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+          "https://anilist.co",
+        );
+      } finally {
+        (process.env as Record<string, string | undefined>)["NODE_ENV"] =
+          prevNodeEnv;
+        (process.env as Record<string, string | undefined>)[
+          "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+        ] = prevConfig;
+        (process.env as Record<string, string | undefined>)[
+          "UPSTASH_REDIS_REST_URL"
+        ] = prevRedisUrl;
+        (process.env as Record<string, string | undefined>)[
+          "UPSTASH_REDIS_REST_TOKEN"
+        ] = prevRedisToken;
+      }
     });
 
     it("should set Vary header to Origin for cache variation", async () => {

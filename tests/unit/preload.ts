@@ -360,7 +360,10 @@ const sharedRedisFakeClient = {
   },
 };
 
-export const sharedRedisFromEnvMock = mock(() => sharedRedisFakeClient);
+export const sharedRedisFromEnvMock = mock((options?: unknown) => {
+  void options;
+  return sharedRedisFakeClient;
+});
 
 const delegatingRatelimitLimit = (...args: unknown[]) =>
   (sharedRatelimitMockLimit as unknown as (...callArgs: unknown[]) => unknown)(
@@ -380,7 +383,7 @@ const RatelimitMockClass = mock().mockImplementation(() => ({
 
 mock.module("@upstash/redis", () => ({
   Redis: {
-    fromEnv: () => sharedRedisFromEnvMock(),
+    fromEnv: (options: unknown) => sharedRedisFromEnvMock(options),
   },
 }));
 
