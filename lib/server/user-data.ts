@@ -23,6 +23,7 @@ import {
   PersistedUserRecord,
   PublicUserRecord,
   PublicUserRecordMetadata,
+  PublicUserSnapshotRef,
   ReconstructedUserRecord,
   ReviewsPage,
   SeasonalPreferenceTotalsEntry,
@@ -164,16 +165,51 @@ export interface UserDataReadResult {
   snapshotMatched: boolean;
 }
 
-export type UserLifecycleAuditAction = "access" | "delete" | "save";
+export type UserLifecycleAuditAction =
+  | "access"
+  | "delete"
+  | "save"
+  | "privacy_request_fulfillment"
+  | "privacy_request_intake";
 
 export type UserLifecycleAuditTriggerSource =
   | "cron_cleanup_404"
   | "cron_refresh"
   | "legacy_migration"
   | "legacy_split_rewrite"
+  | "privacy_request_access"
+  | "privacy_request_delete"
+  | "privacy_request_export"
+  | "privacy_request_other"
   | "user_data_delete"
   | "user_data_fetch"
   | "user_data_save";
+
+export type PrivacyRightsAuditStage = "fulfillment" | "intake";
+
+export type PrivacyRightsAuditRequestType =
+  | "access"
+  | "delete"
+  | "export"
+  | "other";
+
+const PRIVACY_RIGHTS_AUDIT_ACTION_BY_STAGE = {
+  fulfillment: "privacy_request_fulfillment",
+  intake: "privacy_request_intake",
+} as const satisfies Record<
+  PrivacyRightsAuditStage,
+  Extract<UserLifecycleAuditAction, `privacy_request_${string}`>
+>;
+
+const PRIVACY_RIGHTS_TRIGGER_SOURCE_BY_TYPE = {
+  access: "privacy_request_access",
+  delete: "privacy_request_delete",
+  export: "privacy_request_export",
+  other: "privacy_request_other",
+} as const satisfies Record<
+  PrivacyRightsAuditRequestType,
+  Extract<UserLifecycleAuditTriggerSource, `privacy_request_${string}`>
+>;
 
 interface UserLifecycleAuditEntry {
   action: UserLifecycleAuditAction;
@@ -705,11 +741,26 @@ function buildPublicUserRecordMetadata(
     storageFormat = "legacy-split";
   }
 
+  const publicSnapshot = buildPublicUserSnapshotRef(state.snapshot);
+
   return {
     storageFormat,
     schemaVersion: state.schemaVersion,
-    ...(state.snapshot ? { snapshot: state.snapshot } : {}),
+    ...(publicSnapshot ? { snapshot: publicSnapshot } : {}),
     completeness: state.completeness ?? buildDefaultUserPayloadCompleteness(),
+  };
+}
+
+function buildPublicUserSnapshotRef(
+  snapshot: UserSnapshotRef | undefined,
+): PublicUserSnapshotRef | undefined {
+  if (!snapshot) {
+    return undefined;
+  }
+
+  return {
+    token: snapshot.token,
+    revision: snapshot.revision,
   };
 }
 
@@ -934,6 +985,30 @@ function scheduleUserLifecycleAuditEvent(options: {
     endpoint: "User Data",
     taskName: `user-lifecycle-audit:${options.action}:${options.triggerSource}`,
   });
+}
+
+/**
+ * Records maintainer-side intake and fulfillment milestones for the manual,
+ * contact-based privacy-rights workflow without introducing a self-serve API.
+ */
+export async function recordManualPrivacyRightsAuditEvent(options: {
+  awaitAudit?: boolean;
+  requestType: PrivacyRightsAuditRequestType;
+  stage: PrivacyRightsAuditStage;
+  userId: string | number;
+}): Promise<void> {
+  const auditOptions = {
+    action: PRIVACY_RIGHTS_AUDIT_ACTION_BY_STAGE[options.stage],
+    triggerSource: PRIVACY_RIGHTS_TRIGGER_SOURCE_BY_TYPE[options.requestType],
+    userId: options.userId,
+  };
+
+  if (options.awaitAudit === false) {
+    scheduleUserLifecycleAuditEvent(auditOptions);
+    return;
+  }
+
+  await auditUserLifecycleEvent(auditOptions);
 }
 
 function logIntegrityFailure(

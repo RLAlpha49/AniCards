@@ -730,7 +730,9 @@ paths:
         Resolves a stored user by numeric `userId` or by normalized `username`.
         When both are provided, `userId` wins. The public response intentionally
         omits internal request metadata such as redacted IP buckets and record
-        timestamps. Successful reads also refresh a lighter per-user
+        timestamps. The exposed `recordMeta.snapshot` identifier is limited to a
+        stable token plus revision and does not include `updatedAt` or
+        `committedAt`. Successful reads also refresh a lighter per-user
         `stored_user` protected write grant for the same user. That grant is
         sufficient for `/api/store-cards` but does not carry the stats hash
         required by `/api/store-users`.
@@ -1807,9 +1809,12 @@ paths:
         and returns it. Stored report history is capped at 50 entries and 14
         days, retaining aggregate error-buffer envelopes and compact rolling
         error counts while omitting detailed retained/evicted triage snapshots
-        from the long-lived history. Runtime analytics collection in the web
-        app is consent-gated; this endpoint only reads the already-persisted
-        aggregate counters and reports.
+        from the long-lived history. Browser Google Analytics collection in the
+        web app is consent-gated, but this endpoint reads already-persisted
+        server-side operational counters and reports regardless of that browser
+        toggle. When `ERROR_ALERT_WEBHOOK_URL` is configured, the cron can also
+        send a minimized outbound alert payload containing counts, rates,
+        reasons, and optional request IDs to the configured HTTPS webhook.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
@@ -4108,12 +4113,28 @@ components:
           type: string
           format: date-time
 
+    PublicUserSnapshotRef:
+      type: object
+      additionalProperties: false
+      description: >-
+        Public snapshot identifier exposed by `/api/get-user`. Internal
+        snapshot timestamps are intentionally excluded.
+      properties:
+        token:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+      required:
+        - token
+        - revision
     PublicUserRecordMetadata:
       type: object
       additionalProperties: false
       description: >-
         Public metadata about the sampled record returned by `/api/get-user`,
-        including storage shape and snapshot completeness.
+        including storage shape and snapshot completeness. Public snapshot
+        metadata excludes `updatedAt` and `committedAt`.
       properties:
         storageFormat:
           type: string
@@ -4125,7 +4146,7 @@ components:
           type: integer
           minimum: 1
         snapshot:
-          $ref: "#/components/schemas/UserSnapshotRef"
+          $ref: "#/components/schemas/PublicUserSnapshotRef"
         completeness:
           $ref: "#/components/schemas/UserPayloadCompleteness"
       required:

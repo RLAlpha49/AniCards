@@ -38,6 +38,9 @@ The write path does not intentionally persist raw IP addresses. The only active 
 - optional global settings
 - `updatedAt`
 
+The paired read route `/api/get-cards` is public by numeric AniList `userId`
+and returns that saved card configuration without additional authentication.
+
 ### Browser-stored consent state
 
 Analytics consent lives client-side in local storage under:
@@ -67,6 +70,21 @@ When AniCards is deployed on Vercel and runtime telemetry is enabled by the depl
 - **Vercel Speed Insights**
 
 These runtime signals are deployment-controlled. They are not turned on or off by the browser-stored Google Analytics consent choice.
+
+### Optional error-alert webhook egress
+
+If `ERROR_ALERT_WEBHOOK_URL` is configured, `/api/cron/analytics-reporting`
+can POST a compact operational alert summary to that external HTTPS endpoint.
+
+That outbound payload is intentionally limited to:
+
+- alert reasons
+- comparison window and threshold metadata
+- error-buffer counts and saturation rates
+- optional request / operation IDs when present on the cron request
+
+Detailed retained or evicted triage samples are not included in this outbound
+webhook payload.
 
 ### Structured error reports
 
@@ -127,6 +145,8 @@ How it works:
 - Google Analytics is disabled by default
 - the consent banner only appears when a tracking ID is actually configured
 - granting consent enables Google Analytics pageviews and events
+- server-side operational counters for route health, availability, and error
+  reporting continue independently of the Google Analytics browser consent choice
 - Vercel Analytics and Speed Insights render whenever runtime telemetry is enabled for a Vercel deployment, independent of the Google Analytics consent state
 - revoking consent stops future Google Analytics events immediately
 
@@ -221,7 +241,17 @@ Retention posture:
 
 ## Public access and data minimization
 
-The public `/api/get-user` response is deliberately designed to omit internal persistence metadata — things like request IP buckets and internal record timestamps. It returns a bounded public DTO rather than the full internal storage shape.
+The public `/api/get-user` response is deliberately designed to omit internal
+persistence metadata — things like request IP buckets and internal record
+timestamps. It returns a bounded public DTO rather than the full internal
+storage shape.
+
+The exposed `recordMeta.snapshot` identifier is limited to a stable snapshot
+token plus revision and intentionally excludes `updatedAt` and `committedAt`.
+
+The public `/api/get-cards` route is separate from that bounded user DTO: it
+returns saved card editor configuration by numeric `userId`, so saved card
+settings should be treated as publicly retrievable data.
 
 ## Export and deletion
 
@@ -234,6 +264,10 @@ What actually exists today:
 - those local exports are not the same as deleting or exporting server-side user snapshots
 
 Until a self-serve flow exists, deletion and export requests require manual maintainer handling. The repo's contact address is `contact@alpha49.com`.
+
+The server-side lifecycle audit model now supports dedicated privacy-rights
+intake and fulfillment events for that manual workflow, so maintainers can
+record when a contact-based request was received and when it was completed.
 
 ## Related docs
 

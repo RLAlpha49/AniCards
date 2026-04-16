@@ -19,7 +19,8 @@ const sections = [
     heading: "Data Collection",
     lead: "Here's the short version of what is stored — and what stays in your browser.",
     paragraphs: [
-      "When you save data, AniCards may store a trimmed snapshot of your AniList profile alongside your card settings. Google Analytics consent is not copied into those server-side records — it lives in browser storage only, and it starts in the off state.",
+      "When you save data, AniCards may store a trimmed snapshot of your AniList profile alongside your card settings. Saved card configurations are publicly retrievable by numeric AniList user ID, while the public user lookup keeps its snapshot metadata down to a token, revision, and completeness info instead of exposing internal record timestamps.",
+      "Google Analytics consent is not copied into those server-side records — it lives in browser storage only, and it starts in the off state.",
       "Protected write routes and client error reports use a short-lived server-issued request proof cookie. Its readable payload carries a signed expiry plus hashed network and browser bindings — not your raw IP address or full user-agent string — and any accepted error report is minimized before it reaches storage.",
     ],
   },
@@ -27,10 +28,11 @@ const sections = [
     id: "telemetry",
     ordinal: "02",
     heading: "Telemetry",
-    lead: "Analytics only kicks in when you say so.",
+    lead: "Google Analytics is opt-in, but a few operational signals still keep the lights on.",
     paragraphs: [
       "If you've consented, Google Analytics sends normalized pageviews and bounded events on route patterns like /user/* instead of raw profile URLs. We deliberately stay away from replaying your full browsing trail.",
-      "Runtime telemetry such as Vercel Analytics and Speed Insights is separate from Google Analytics consent. If a client error report cannot be delivered right away, AniCards can keep the same minimized payload in a capped local or session storage retry queue until it succeeds or expires.",
+      "Server-side operational counters for route health, availability, and structured error reporting continue regardless of the Google Analytics toggle, and runtime telemetry such as Vercel Analytics and Speed Insights is controlled separately by the deployment.",
+      "If a client error report cannot be delivered right away, AniCards can keep the same minimized payload in a capped local or session storage retry queue until it succeeds or expires. If an optional error-alert webhook is configured, the reporting cron can also send a compact operational alert summary — counts, rates, reasons, and optional request IDs — to that external HTTPS endpoint.",
     ],
   },
   {
@@ -72,7 +74,7 @@ const sections = [
       {
         label: "Audit logs",
         detail:
-          "Server-side lifecycle audit entries age out after 14 days, and the live list stays capped at 250 entries.",
+          "Server-side lifecycle audit entries — including manual privacy-rights intake and fulfillment events when maintainers record them — age out after 14 days, and the live list stays capped at 250 entries.",
       },
       {
         label: "Failure counters",
@@ -88,6 +90,7 @@ const sections = [
     lead: "Manual for now — reach out anytime.",
     paragraphs: [
       "There is no public self-serve export or deletion flow yet. For manual requests, email contact@alpha49.com and we'll handle it directly.",
+      "That workflow stays contact-based on purpose. On the server side, the lifecycle audit model now supports dedicated intake and fulfillment events for those manual privacy-rights requests instead of pretending there is a self-serve portal hiding somewhere.",
     ],
   },
 ] as const;

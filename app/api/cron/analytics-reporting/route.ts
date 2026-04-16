@@ -724,6 +724,33 @@ function buildErrorSpikeAlertMessage(options: {
   ].join("\n");
 }
 
+function buildErrorSpikeAlertWebhookDetails(options: {
+  operationId?: string;
+  requestId?: string;
+  snapshot: ErrorReportBufferSnapshot;
+  summary: ErrorSpikeAlertSummary;
+}): AnalyticsMetricGroup {
+  return {
+    ...(options.operationId ? { operationId: options.operationId } : {}),
+    ...(options.requestId ? { requestId: options.requestId } : {}),
+    reasons: options.summary.reasons,
+    comparisonWindow: options.summary.comparisonWindow,
+    minNewReportsThreshold: options.summary.minNewReportsThreshold,
+    errorReportBuffer: {
+      capacity: options.snapshot.capacity,
+      retained: options.snapshot.retained,
+      totalCaptured: options.snapshot.totalCaptured,
+      totalDropped: options.snapshot.totalDropped,
+      cumulativeSaturationRate: options.snapshot.cumulativeSaturationRate,
+    },
+    interval: {
+      newCapturedSinceLastReport: options.summary.newCapturedSinceLastReport,
+      newDroppedSinceLastReport: options.summary.newDroppedSinceLastReport,
+      intervalSaturationRate: options.summary.intervalSaturationRate,
+    },
+  };
+}
+
 async function sendErrorSpikeAlert(options: {
   endpoint: string;
   operationId?: string;
@@ -751,21 +778,7 @@ async function sendErrorSpikeAlert(options: {
           text: message,
           content: message,
           source: "anicards-error-alert",
-          details: {
-            ...(options.operationId
-              ? { operationId: options.operationId }
-              : {}),
-            ...(options.requestId ? { requestId: options.requestId } : {}),
-            reasons: options.summary.reasons,
-            errorReports: options.snapshot,
-            interval: {
-              newCapturedSinceLastReport:
-                options.summary.newCapturedSinceLastReport,
-              newDroppedSinceLastReport:
-                options.summary.newDroppedSinceLastReport,
-              intervalSaturationRate: options.summary.intervalSaturationRate,
-            },
-          },
+          details: buildErrorSpikeAlertWebhookDetails(options),
         }),
       },
       timeoutMs: ERROR_ALERT_TIMEOUT_MS,

@@ -418,11 +418,22 @@ export interface UserSnapshotRef {
   committedAt: string;
 }
 
+/**
+ * Public snapshot identifier exposed on `/api/get-user` metadata.
+ *
+ * Internal snapshot timestamps are intentionally excluded from the public DTO.
+ * @source
+ */
+export interface PublicUserSnapshotRef {
+  token: string;
+  revision: number;
+}
+
 /** Public metadata about the sampled user payload returned by `/api/get-user`. @source */
 export interface PublicUserRecordMetadata {
   storageFormat: "committed-split" | "legacy-split" | "legacy";
   schemaVersion: number;
-  snapshot?: UserSnapshotRef;
+  snapshot?: PublicUserSnapshotRef;
   completeness: UserPayloadCompleteness;
 }
 

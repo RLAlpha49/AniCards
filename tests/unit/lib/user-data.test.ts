@@ -29,6 +29,7 @@ const {
   getPersistedUserState,
   listPublicUserProfileSitemapEntries,
   listStalestUserIds,
+  recordManualPrivacyRightsAuditEvent,
   reconstructPublicUserRecord,
   reconstructUserBootstrapRecord,
   reconstructUserRecord,
@@ -478,6 +479,67 @@ describe("user-data persistence", () => {
       userId: 21,
       username: "RoundTripUser",
       avatarUrl: "https://example.com/avatar-medium.webp",
+    });
+  });
+
+  it("strips snapshot timestamps from public record metadata while preserving the stable identifier", () => {
+    const split = splitUserRecord(createPersistedUserRecord());
+
+    const publicRecord = reconstructPublicUserRecord(split, {
+      state: {
+        userId: "21",
+        storageFormat: "split",
+        schemaVersion: USER_RECORD_SCHEMA_VERSION,
+        revision: 3,
+        createdAt: "2026-03-27T00:00:00.000Z",
+        updatedAt: "2026-03-27T00:00:01.000Z",
+        committedAt: "2026-03-27T00:00:02.000Z",
+        username: "RoundTripUser",
+        normalizedUsername: "roundtripuser",
+        snapshot: {
+          token: "snapshot-21-3",
+          revision: 3,
+          updatedAt: "2026-03-27T00:00:01.000Z",
+          committedAt: "2026-03-27T00:00:02.000Z",
+        },
+      },
+    });
+    const bootstrapRecord = reconstructUserBootstrapRecord(
+      { meta: split.meta },
+      {
+        state: {
+          userId: "21",
+          storageFormat: "split",
+          schemaVersion: USER_RECORD_SCHEMA_VERSION,
+          revision: 3,
+          createdAt: "2026-03-27T00:00:00.000Z",
+          updatedAt: "2026-03-27T00:00:01.000Z",
+          committedAt: "2026-03-27T00:00:02.000Z",
+          username: "RoundTripUser",
+          normalizedUsername: "roundtripuser",
+          snapshot: {
+            token: "snapshot-21-3",
+            revision: 3,
+            updatedAt: "2026-03-27T00:00:01.000Z",
+            committedAt: "2026-03-27T00:00:02.000Z",
+          },
+        },
+      },
+    );
+
+    expect(publicRecord.recordMeta).toMatchObject({
+      storageFormat: "committed-split",
+      schemaVersion: USER_RECORD_SCHEMA_VERSION,
+      snapshot: {
+        token: "snapshot-21-3",
+        revision: 3,
+      },
+    });
+    expect(publicRecord.recordMeta?.snapshot).not.toHaveProperty("updatedAt");
+    expect(publicRecord.recordMeta?.snapshot).not.toHaveProperty("committedAt");
+    expect(bootstrapRecord.recordMeta?.snapshot).toEqual({
+      token: "snapshot-21-3",
+      revision: 3,
     });
   });
 
@@ -1046,6 +1108,35 @@ describe("user-data persistence", () => {
       -250,
       -1,
     );
+  });
+
+  it("records manual privacy-rights intake and fulfillment audit events", async () => {
+    await recordManualPrivacyRightsAuditEvent({
+      userId: "55",
+      requestType: "delete",
+      stage: "intake",
+    });
+    await recordManualPrivacyRightsAuditEvent({
+      userId: "55",
+      requestType: "delete",
+      stage: "fulfillment",
+    });
+
+    const auditCalls = sharedRedisMockRpush.mock.calls.filter(
+      ([key]) => key === "telemetry:user-lifecycle-audit:v1",
+    );
+
+    expect(auditCalls).toHaveLength(2);
+    expect(JSON.parse(String(auditCalls[0]?.[1]))).toMatchObject({
+      action: "privacy_request_intake",
+      triggerSource: "privacy_request_delete",
+      userId: "55",
+    });
+    expect(JSON.parse(String(auditCalls[1]?.[1]))).toMatchObject({
+      action: "privacy_request_fulfillment",
+      triggerSource: "privacy_request_delete",
+      userId: "55",
+    });
   });
 
   it("prunes expired lifecycle audit entries before appending the next event", async () => {

@@ -40,10 +40,15 @@ test.describe("Privacy disclosure", () => {
       retentionSurface.getByText(/browser storage only/i).first(),
     ).toBeVisible();
     await expect(
-      retentionSurface.getByText(
-        /lifecycle audit entries age out after 14 days/i,
-      ),
+      retentionSurface.getByText(/lifecycle audit entries.*14 days/i),
     ).toBeVisible();
+    await expect(
+      page.getByText(/saved card configurations are publicly retrievable/i),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/server-side operational counters/i),
+    ).toBeVisible();
+    await expect(page.getByText(/optional error-alert webhook/i)).toBeVisible();
     await expect(
       retentionSurface.getByText(
         /client error retry queue.*expire after 7 days/i,

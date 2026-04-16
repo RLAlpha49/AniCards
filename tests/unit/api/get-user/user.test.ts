@@ -557,6 +557,56 @@ describe("User API GET Endpoint", () => {
       expect(json).not.toHaveProperty("pages");
       expect(json).not.toHaveProperty("aggregates");
     });
+
+    it("should expose only token and revision for committed public snapshot metadata", async () => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === "user:123:commit") {
+          return Promise.resolve(
+            JSON.stringify({
+              userId: "123",
+              storageFormat: "split-user-v2",
+              readShape: "committed-user-snapshot-v1",
+              schemaVersion: 2,
+              revision: 3,
+              createdAt: "2026-03-20T08:00:00.000Z",
+              updatedAt: "2026-03-21T10:00:00.000Z",
+              username: "testUser",
+              usernameNormalized: "testuser",
+              committedAt: "2026-03-21T10:00:05.000Z",
+              snapshotToken: "snapshot-123-3",
+              snapshotKeyPrefix: "user:123:snapshot:snapshot-123-3",
+            }),
+          );
+        }
+
+        return Promise.resolve(null);
+      });
+      mockStoredParts();
+
+      const res = await callGet("userId=123");
+      expect(res.status).toBe(200);
+      const json = await getResponseJson<Record<string, unknown>>(res);
+
+      expect(json.recordMeta).toMatchObject({
+        storageFormat: "committed-split",
+        schemaVersion: 2,
+        snapshot: {
+          token: "snapshot-123-3",
+          revision: 3,
+        },
+      });
+      expect(json).not.toHaveProperty("requestMetadata");
+      expect(json).not.toHaveProperty("createdAt");
+      expect(json).not.toHaveProperty("updatedAt");
+      expect(json.recordMeta).not.toHaveProperty("snapshot.updatedAt");
+      expect(json.recordMeta).not.toHaveProperty("snapshot.committedAt");
+      expect(
+        (json.recordMeta as { snapshot?: Record<string, unknown> }).snapshot,
+      ).not.toHaveProperty("updatedAt");
+      expect(
+        (json.recordMeta as { snapshot?: Record<string, unknown> }).snapshot,
+      ).not.toHaveProperty("committedAt");
+    });
   });
 
   describe("Response Headers and CORS", () => {

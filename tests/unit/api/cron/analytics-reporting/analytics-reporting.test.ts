@@ -667,6 +667,70 @@ describe("Analytics & Reporting Cron API", () => {
     expect(fetchBody.details?.requestId).toBe("req-analytics-report-12345");
   });
 
+  it("minimizes webhook alert payloads to aggregate error-buffer counts", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const recentGeneratedAt = new Date(
+      Date.now() - 60 * 60 * 1000,
+    ).toISOString();
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: {
+          observability: {
+            errorReports: {
+              capacity: 250,
+              retained: 5,
+              totalCaptured: 5,
+              totalDropped: 0,
+              cumulativeSaturationRate: 0,
+            },
+          },
+        },
+        raw_data: {},
+        generatedAt: recentGeneratedAt,
+      }),
+    ]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
+    sharedRedisMockMget.mockResolvedValueOnce(
+      createRollingWindowCounterValues(),
+    );
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+    sharedRedisMockExpire.mockResolvedValueOnce(1);
+
+    await expectSuccessfulReport(await POST(createCronRequest()));
+
+    const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+    const fetchBody = JSON.parse(
+      String((firstFetchCall?.[1] as RequestInit | undefined)?.body),
+    ) as {
+      details?: {
+        errorReportBuffer?: Record<string, unknown>;
+        errorReports?: unknown;
+      };
+    };
+
+    expect(fetchBody.details?.errorReportBuffer).toEqual({
+      capacity: 250,
+      retained: 0,
+      totalCaptured: 40,
+      totalDropped: 3,
+      cumulativeSaturationRate: 0.075,
+    });
+    expect(fetchBody.details).not.toHaveProperty("errorReports");
+  });
+
   it("keeps cron reporting successful when webhook delivery fails", async () => {
     process.env.ERROR_ALERT_WEBHOOK_URL =
       "https://hooks.example.test/services/error-spikes";
