@@ -90,6 +90,27 @@ function getReportedErrorPayload(callIndex = 0) {
   }>(fetchCall?.[1]);
 }
 
+async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
+  await flushMicrotasks(cycles);
+  await new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, 0);
+  });
+  await flushMicrotasks(cycles);
+}
+
+async function waitForReportedAnalyticsCalls(
+  expectedCalls: number,
+  maxAttempts = 10,
+): Promise<void> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (fetchMock.mock.calls.length >= expectedCalls) {
+      return;
+    }
+
+    await flushAnalyticsTelemetry();
+  }
+}
+
 beforeEach(() => {
   resetHappyDom();
   pathname = "/user/Alex";
@@ -108,6 +129,7 @@ beforeEach(() => {
     routerPush: () => Promise.resolve(undefined),
     searchParams,
   } satisfies NextNavigationState;
+  (globalThis.window as Window & { dataLayer?: unknown[] }).dataLayer = [];
 
   Object.defineProperty(globalThis, "gtag", {
     configurable: true,
@@ -165,7 +187,7 @@ describe("useGoogleAnalytics", () => {
     );
 
     await act(async () => {
-      await flushMicrotasks();
+      await flushAnalyticsTelemetry();
     });
 
     expect(gtagMock).toHaveBeenNthCalledWith(
@@ -190,7 +212,7 @@ describe("useGoogleAnalytics", () => {
     rerender({ consentGranted: true });
 
     await act(async () => {
-      await flushMicrotasks();
+      await flushAnalyticsTelemetry();
     });
 
     expect(gtagMock).toHaveBeenNthCalledWith(
@@ -206,14 +228,14 @@ describe("useGoogleAnalytics", () => {
     );
   });
 
-  it("skips pageview tracking when consent is missing or the GA id is not configured", async () => {
+  it("skips pageview tracking when consent is missing", async () => {
     process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
     globalThis.window.localStorage.setItem(
       ANALYTICS_CONSENT_STORAGE_KEY,
       "granted",
     );
 
-    const { rerender } = renderHook(
+    renderHook(
       ({ consentGranted }: { consentGranted: boolean }) =>
         useGoogleAnalytics(consentGranted),
       {
@@ -227,14 +249,46 @@ describe("useGoogleAnalytics", () => {
       await flushMicrotasks();
     });
 
-    delete process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-    rerender({ consentGranted: true });
+    expect(gtagMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports pageview precondition failures when the analytics bootstrap is unavailable", async () => {
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
+    globalThis.window.localStorage.setItem(
+      ANALYTICS_CONSENT_STORAGE_KEY,
+      "granted",
+    );
+    (globalThis.window as Window & { dataLayer?: unknown[] }).dataLayer =
+      undefined;
+
+    Object.defineProperty(globalThis, "gtag", {
+      configurable: true,
+      value: undefined,
+      writable: true,
+    });
+
+    renderHook(() => useGoogleAnalytics(true));
 
     await act(async () => {
-      await flushMicrotasks();
+      await waitForReportedAnalyticsCalls(1);
     });
 
     expect(gtagMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_pageview_dispatch",
+      metadata: expect.objectContaining({
+        analyticsBootstrapReady: false,
+        analyticsDataLayerAvailable: false,
+        analyticsFailureReason: "bootstrap_not_ready",
+        analyticsGtagAvailable: false,
+        analyticsHook: "use_google_analytics",
+        pagePath: "/user/[username]?filter=[redacted]",
+        pageTitle: "user_profile",
+      }),
+    });
   });
 
   it("reports pageview dispatch failures with normalized page metadata", async () => {
@@ -250,11 +304,7 @@ describe("useGoogleAnalytics", () => {
     renderHook(() => useGoogleAnalytics(true));
 
     await act(async () => {
-      await flushMicrotasks(10);
-      await new Promise<void>((resolve) => {
-        globalThis.setTimeout(resolve, 0);
-      });
-      await flushMicrotasks(10);
+      await waitForReportedAnalyticsCalls(1);
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -264,6 +314,7 @@ describe("useGoogleAnalytics", () => {
       category: "network_error",
       metadata: expect.objectContaining({
         analyticsFailureBucket: "network",
+        analyticsFailureReason: "dispatch_call_failed",
         pagePath: "/user/[username]?filter=[redacted]",
         pageTitle: "user_profile",
       }),

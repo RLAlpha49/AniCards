@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   buildAnalyticsConsentMode,
@@ -46,9 +46,22 @@ export default function GoogleAnalytics({
 }: Readonly<GoogleAnalyticsProps>) {
   const serializedTrackingId = JSON.stringify(trackingId);
   const defaultConsentMode = JSON.stringify(buildAnalyticsConsentMode(false));
+  const hasInitializedConsentSync = useRef(false);
 
   useEffect(() => {
-    updateAnalyticsConsentMode(consentGranted);
+    if (!hasInitializedConsentSync.current) {
+      hasInitializedConsentSync.current = true;
+
+      if (!consentGranted) {
+        return;
+      }
+    }
+
+    updateAnalyticsConsentMode(consentGranted, {
+      analyticsComponent: "google_analytics",
+      scriptId: "google_analytics_bootstrap",
+      scriptStrategy: "afterInteractive",
+    });
   }, [consentGranted]);
 
   const handleLoaderError = (error: Error) => {

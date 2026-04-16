@@ -195,6 +195,39 @@ describe("google analytics privacy utilities", () => {
     expect(hasAnalyticsConsent()).toBe(false);
   });
 
+  it("reports consent update failures when the analytics bootstrap is not ready", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: createStorageMock(),
+        dispatchEvent: dispatchEventMock,
+      } as unknown as Window,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "gtag", {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+
+    setAnalyticsConsentState("granted");
+    await waitForReportedAnalyticsCalls(fetchMock, 1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_consent_update",
+      metadata: expect.objectContaining({
+        analyticsBootstrapReady: false,
+        analyticsDataLayerAvailable: false,
+        analyticsFailureReason: "bootstrap_not_ready",
+        analyticsGtagAvailable: false,
+        consentGranted: true,
+        pagePath: "/",
+      }),
+    });
+  });
+
   it("normalizes user routes and stat card paths without leaking identifiers", () => {
     expect(
       normalizeAnalyticsPage({
@@ -317,6 +350,7 @@ describe("google analytics privacy utilities", () => {
       metadata: expect.objectContaining({
         analyticsFailureBucket: "network",
         analyticsFailureCount: 1,
+        analyticsFailureReason: "dispatch_call_failed",
         analyticsSuppressedDuplicates: 0,
         pagePath: "/user/[username]?filter=[redacted]",
         pageTitle: "user_profile",
@@ -391,13 +425,14 @@ describe("google analytics privacy utilities", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getReportedErrorPayload(0)).toMatchObject({
+      route: "/",
       source: "analytics_instrumentation",
       userAction: "analytics_consent_update",
       metadata: expect.objectContaining({
         analyticsConsentPersistence: "local_storage",
+        analyticsFailureReason: "storage_write_failed",
         consentGranted: true,
         consentState: "granted",
-        pagePath: "/",
       }),
     });
   });

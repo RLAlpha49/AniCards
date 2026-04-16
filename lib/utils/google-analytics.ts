@@ -20,6 +20,36 @@ type AnalyticsInstrumentationUserAction =
   | "analytics_pageview_dispatch"
   | "analytics_safe_track"
   | "analytics_script_load";
+type AnalyticsPreconditionFailureReason =
+  | "bootstrap_not_ready"
+  | "consent_not_granted"
+  | "measurement_id_missing";
+type AnalyticsInstrumentationFailureReason =
+  | AnalyticsPreconditionFailureReason
+  | "dispatch_call_failed"
+  | "storage_write_failed"
+  | "update_call_failed";
+
+const ANALYTICS_PRECONDITION_FAILURE_DETAILS: Record<
+  AnalyticsPreconditionFailureReason,
+  {
+    errorName: string;
+    message: string;
+  }
+> = {
+  bootstrap_not_ready: {
+    errorName: "AnalyticsBootstrapNotReadyError",
+    message: "Google Analytics bootstrap is not ready",
+  },
+  consent_not_granted: {
+    errorName: "AnalyticsConsentNotGrantedError",
+    message: "Google Analytics consent is not granted",
+  },
+  measurement_id_missing: {
+    errorName: "AnalyticsMeasurementIdMissingError",
+    message: "Google Analytics measurement ID is not configured",
+  },
+};
 
 const MAX_ANALYTICS_TOKEN_LENGTH = 48;
 const ANALYTICS_FAILURE_REPORT_COOLDOWN_MS = 1000 * 60;
@@ -130,6 +160,25 @@ const getStorage = (): Storage | undefined => {
     return undefined;
   }
 };
+
+const getAnalyticsBootstrapState = (): {
+  bootstrapReady: boolean;
+  dataLayerAvailable: boolean;
+  gtagAvailable: boolean;
+} => {
+  const dataLayerAvailable = Array.isArray(globalThis.window?.dataLayer);
+  const gtagAvailable = Boolean(getGtag());
+
+  return {
+    bootstrapReady: dataLayerAvailable && gtagAvailable,
+    dataLayerAvailable,
+    gtagAvailable,
+  };
+};
+
+export function isAnalyticsBootstrapReady(): boolean {
+  return getAnalyticsBootstrapState().bootstrapReady;
+}
 
 const sanitizeAnalyticsToken = (
   value: string,
@@ -332,6 +381,30 @@ const sanitizeAnalyticsTelemetryMetadata = (
     : undefined;
 };
 
+const buildAnalyticsFailureReasonMetadata = (
+  reason: AnalyticsInstrumentationFailureReason,
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>,
+): Record<string, AnalyticsTelemetryMetadataValue | undefined> => {
+  const bootstrapState = getAnalyticsBootstrapState();
+
+  return {
+    analyticsBootstrapReady: bootstrapState.bootstrapReady,
+    analyticsDataLayerAvailable: bootstrapState.dataLayerAvailable,
+    analyticsFailureReason: reason,
+    analyticsGtagAvailable: bootstrapState.gtagAvailable,
+    ...metadata,
+  };
+};
+
+const createAnalyticsPreconditionError = (
+  reason: AnalyticsPreconditionFailureReason,
+): Error => {
+  const details = ANALYTICS_PRECONDITION_FAILURE_DETAILS[reason];
+  const error = new Error(details.message);
+  error.name = details.errorName;
+  return error;
+};
+
 const getCurrentAnalyticsPagePath = (): string | undefined => {
   if (globalThis.location === undefined) {
     return undefined;
@@ -507,6 +580,23 @@ export const reportAnalyticsInstrumentationFailure = (
     });
 };
 
+export const reportAnalyticsPreconditionFailure = (options: {
+  userAction: AnalyticsInstrumentationUserAction;
+  reason: AnalyticsPreconditionFailureReason;
+  category?: ErrorCategory;
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>;
+}): Promise<void> => {
+  return reportAnalyticsInstrumentationFailure({
+    userAction: options.userAction,
+    error: createAnalyticsPreconditionError(options.reason),
+    category: options.category,
+    metadata: buildAnalyticsFailureReasonMetadata(
+      options.reason,
+      options.metadata,
+    ),
+  });
+};
+
 const buildAnalyticsErrorLabel = (
   errorType: string,
   errorMessage?: string,
@@ -612,9 +702,25 @@ export function buildAnalyticsConsentMode(granted: boolean): {
   };
 }
 
-export function updateAnalyticsConsentMode(granted: boolean): void {
+export function updateAnalyticsConsentMode(
+  granted: boolean,
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>,
+): void {
   const gtag = getGtag();
-  if (!gtag) return;
+  const failureMetadata = {
+    consentGranted: granted,
+    pagePath: getCurrentAnalyticsPagePath(),
+    ...metadata,
+  };
+
+  if (!gtag) {
+    void reportAnalyticsPreconditionFailure({
+      userAction: "analytics_consent_update",
+      reason: "bootstrap_not_ready",
+      metadata: failureMetadata,
+    });
+    return;
+  }
 
   try {
     gtag("consent", "update", buildAnalyticsConsentMode(granted));
@@ -622,9 +728,10 @@ export function updateAnalyticsConsentMode(granted: boolean): void {
     void reportAnalyticsInstrumentationFailure({
       userAction: "analytics_consent_update",
       error,
-      metadata: {
-        consentGranted: granted,
-      },
+      metadata: buildAnalyticsFailureReasonMetadata(
+        "update_call_failed",
+        failureMetadata,
+      ),
     });
   }
 }
@@ -654,12 +761,12 @@ export function setAnalyticsConsentState(
       void reportAnalyticsInstrumentationFailure({
         userAction: "analytics_consent_update",
         error,
-        metadata: {
+        metadata: buildAnalyticsFailureReasonMetadata("storage_write_failed", {
           analyticsConsentPersistence: "local_storage",
           consentGranted: nextState === "granted",
           consentState: nextState,
           pagePath: getCurrentAnalyticsPagePath(),
-        },
+        }),
       });
     }
   }
@@ -719,9 +826,11 @@ export function normalizeAnalyticsPage({
 export const pageview = ({
   pathname,
   search,
+  metadata,
 }: {
   pathname: string;
   search?: string | URLSearchParams;
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>;
 }): void => {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   const gtag = getGtag();
@@ -742,10 +851,11 @@ export const pageview = ({
       void reportAnalyticsInstrumentationFailure({
         userAction: "analytics_pageview_dispatch",
         error,
-        metadata: {
+        metadata: buildAnalyticsFailureReasonMetadata("dispatch_call_failed", {
           pagePath,
           pageTitle,
-        },
+          ...metadata,
+        }),
       });
     }
   }
