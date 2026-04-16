@@ -1,6 +1,47 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 
-import nextConfig from "../../next.config";
+const DEFAULT_API_URL = "http://localhost:3000";
+const previousApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+process.env.NEXT_PUBLIC_API_URL = DEFAULT_API_URL;
+
+const { default: nextConfig, getRequiredNextPublicApiUrl } =
+  await import("../../next.config");
+
+afterAll(() => {
+  if (previousApiUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_API_URL;
+    return;
+  }
+
+  process.env.NEXT_PUBLIC_API_URL = previousApiUrl;
+});
+
+describe("next.config NEXT_PUBLIC_API_URL contract", () => {
+  it("fails fast when NEXT_PUBLIC_API_URL is missing", () => {
+    expect(() => getRequiredNextPublicApiUrl({ NODE_ENV: "test" })).toThrow(
+      /NEXT_PUBLIC_API_URL/,
+    );
+  });
+
+  it("fails fast when NEXT_PUBLIC_API_URL is not an absolute http(s) URL", () => {
+    expect(() =>
+      getRequiredNextPublicApiUrl({
+        NODE_ENV: "test",
+        NEXT_PUBLIC_API_URL: "/api",
+      }),
+    ).toThrow(/absolute http\(s\) URL/i);
+  });
+
+  it("accepts an absolute http(s) NEXT_PUBLIC_API_URL", () => {
+    expect(
+      getRequiredNextPublicApiUrl({
+        NODE_ENV: "test",
+        NEXT_PUBLIC_API_URL: DEFAULT_API_URL,
+      }),
+    ).toBe(DEFAULT_API_URL);
+  });
+});
 
 describe("next.config static headers", () => {
   it("enforces HSTS across the currently served anicards subdomain surface", async () => {

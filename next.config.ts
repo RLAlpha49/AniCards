@@ -8,6 +8,34 @@
 
 import type { NextConfig } from "next";
 
+export function getRequiredNextPublicApiUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const apiUrl = env.NEXT_PUBLIC_API_URL?.trim();
+
+  if (!apiUrl) {
+    throw new Error(
+      "Missing required NEXT_PUBLIC_API_URL. AniCards no longer falls back to the production API host; set NEXT_PUBLIC_API_URL explicitly in .env.local or your deployment environment.",
+    );
+  }
+
+  let parsedApiUrl: URL;
+
+  try {
+    parsedApiUrl = new URL(apiUrl);
+  } catch {
+    throw new Error("NEXT_PUBLIC_API_URL must be an absolute http(s) URL.");
+  }
+
+  if (parsedApiUrl.protocol !== "http:" && parsedApiUrl.protocol !== "https:") {
+    throw new Error("NEXT_PUBLIC_API_URL must be an absolute http(s) URL.");
+  }
+
+  return apiUrl;
+}
+
+const requiredNextPublicApiUrl = getRequiredNextPublicApiUrl();
+
 /**
  * Note: The main CSP header with nonces is injected via middleware (app/middleware.ts)
  * to enable per-request nonce generation. Static security headers are configured here.
@@ -20,8 +48,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
-    NEXT_PUBLIC_API_URL:
-      process.env.NEXT_PUBLIC_API_URL ?? "https://api.anicards.alpha49.com",
+    NEXT_PUBLIC_API_URL: requiredNextPublicApiUrl,
   },
   serverExternalPackages: ["@napi-rs/canvas"],
   images: {
