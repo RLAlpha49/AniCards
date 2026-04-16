@@ -220,6 +220,10 @@ jobs:
     permissions:
       actions: read
       contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
       - name: Checkout code
@@ -277,6 +281,10 @@ jobs:
     permissions:
       actions: read
       contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
       - name: Checkout code
@@ -334,6 +342,10 @@ jobs:
     permissions:
       actions: read
       contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
       - name: Checkout code
@@ -391,6 +403,10 @@ jobs:
     permissions:
       actions: read
       contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
       - name: Checkout code
