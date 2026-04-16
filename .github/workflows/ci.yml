@@ -41,7 +41,7 @@ jobs:
           bun-version: latest
 
       - name: Enforce dependency license policy
-        run: bun run validate:licenses
+        run: bun run check:licenses
 
   lint:
     name: Lint
@@ -58,7 +58,7 @@ jobs:
           bun-version: latest
 
       - name: Run lint
-        run: bun run validate:lint
+        run: bun run lint
 
   typecheck:
     name: Type Check
@@ -75,7 +75,7 @@ jobs:
           bun-version: latest
 
       - name: Run type check
-        run: bun run validate:typecheck
+        run: bun run typecheck
 
   unused:
     name: Unused Code Check
@@ -126,7 +126,7 @@ jobs:
           API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
           bun run validate:production-env
-          bun run validate:build
+          bun run build
 
       - name: Upload Next build
         uses: actions/upload-artifact@v7

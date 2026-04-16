@@ -20,7 +20,7 @@
   },
   "tags": ["-@internal"],
   "ignoreDependencies": ["postcss-load-config"],
-  "ignoreBinaries": ["AGPL", "LGPL", "NGPL"],
+  "ignoreBinaries": [],
   "exclude": ["devDependencies"],
   "ignoreExportsUsedInFile": true
 }

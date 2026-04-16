@@ -71,7 +71,7 @@ jobs:
           printf '%s\n' "should_apply=$should_apply" >> "$GITHUB_OUTPUT"
           printf '%s\n' "run_mode=$run_mode" >> "$GITHUB_OUTPUT"
 
-      - name: Check for semver-bounded package updates
+      - name: Check for package updates
         id: check-updates
         env:
           RUN_MODE: ${{ steps.automation-mode.outputs.run_mode }}
@@ -94,18 +94,18 @@ jobs:
             elif [ "$RUN_MODE" = "manual-report-only" ]; then
               printf '%s\n' 'This run is report-only because package application was disabled for this dispatch.'
             else
-              printf '%s\n' 'This run can refresh the dependency PR, but only with validated patch/minor updates.'
+              printf '%s\n' 'This run can refresh the dependency PR with validated dependency updates.'
             fi
             printf '%s\n' ''
-            printf '%s\n' '### Patch/minor candidates'
+            printf '%s\n' '### Dependency update candidates'
             printf '%s\n' '```'
             if [ -n "$NCU_OUTPUT" ]; then
               printf '%s\n' "$NCU_OUTPUT"
             else
-              printf '%s\n' "No patch/minor dependency updates found."
+              printf '%s\n' "No dependency updates found."
             fi
             printf '%s\n' '```'
-            printf '%s\n' 'Automatic package.json updates remain patch/minor only. Major releases are surfaced separately as report-only backlog.'
+            printf '%s\n' 'Automatic package.json updates now track the latest published versions. Major releases are still surfaced separately as report-only backlog.'
           } >> "$GITHUB_STEP_SUMMARY"
 
           {
@@ -125,15 +125,10 @@ jobs:
 
       - name: Report major-version backlog
         id: major-backlog
+        env:
+          UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
         run: |
           set -euo pipefail
-
-          LATEST_UPDATE_INFO=$(bun run update:check:latest:json || true)
-          if [ -z "$LATEST_UPDATE_INFO" ]; then
-            LATEST_UPDATE_INFO='{}'
-          fi
-
-          export LATEST_UPDATE_INFO
           export PACKAGE_JSON_PATH="$GITHUB_WORKSPACE/package.json"
           export MAJOR_SUMMARY_PATH="$RUNNER_TEMP/major-update-backlog.md"
 
@@ -143,9 +138,7 @@ jobs:
           const packageJson = JSON.parse(
             fs.readFileSync(process.env.PACKAGE_JSON_PATH, "utf8"),
           );
-          const latestUpdateInfo = JSON.parse(
-            process.env.LATEST_UPDATE_INFO || "{}",
-          );
+          const latestUpdateInfo = JSON.parse(process.env.UPDATE_INFO || "{}");
           const currentRanges = {
             ...(packageJson.dependencies ?? {}),
             ...(packageJson.devDependencies ?? {}),
@@ -367,7 +360,7 @@ jobs:
           set -euo pipefail
 
           if [ "$HAS_MANIFEST_UPDATES" = "true" ]; then
-            bun run update:apply
+            bun run update
           fi
 
           bun install
@@ -441,7 +434,7 @@ jobs:
           {
             printf '%s\n' 'Closing this automated dependency PR because the latest validated refresh produced no remaining package.json or bun.lock changes.'
             printf '%s\n' ''
-            printf '%s\n' 'A future scheduled run will recreate the branch automatically if new validated patch/minor updates appear.'
+            printf '%s\n' 'A future scheduled run will recreate the branch automatically if new validated dependency updates appear.'
           } > "$COMMENT_FILE"
 
           gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"

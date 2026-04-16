@@ -52,9 +52,9 @@ jobs:
           CRON_SECRET: ci-placeholder-cron-secret
           API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
-          bun run validate:typecheck
+          bun run typecheck
           bun run validate:production-env
-          bun run validate:build
+          bun run build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
