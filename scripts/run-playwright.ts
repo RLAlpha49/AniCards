@@ -1,4 +1,4 @@
-import { parseTrustedAniCardsBaseUrl } from "../lib/playwright-base-url";
+import { resolveTrustedAniCardsBaseUrl } from "../lib/playwright-base-url";
 
 type PlaywrightRunMode = "test-e2e" | "deployed-smoke" | "local-prod";
 
@@ -8,10 +8,6 @@ type PlaywrightRunConfiguration = {
 };
 
 const DEPLOYED_SMOKE_SPEC = "tests/e2e/smoke/unmocked-app-shell.spec.ts";
-
-function isEnabledFlag(value: string | undefined): boolean {
-  return value === "1" || value?.toLowerCase() === "true";
-}
 
 function getRequestedProjects(argv: readonly string[]): string[] {
   const requestedProjects: string[] = [];
@@ -125,7 +121,8 @@ function resolveDeployedSmokeBaseUrl(): string {
     throw new Error("PLAYWRIGHT_BASE_URL is required for deployed smoke runs.");
   }
 
-  return parseTrustedAniCardsBaseUrl(rawBaseUrl, "PLAYWRIGHT_BASE_URL").origin;
+  return resolveTrustedAniCardsBaseUrl(rawBaseUrl, "PLAYWRIGHT_BASE_URL")
+    .origin;
 }
 
 function main(argv: readonly string[] = Bun.argv): never {

@@ -8,9 +8,9 @@ import { loadEnvConfig } from "@next/env";
 import { defineConfig, devices } from "@playwright/test";
 
 import {
+  buildPlaywrightAutomationBypassHeaders,
   DEFAULT_PLAYWRIGHT_BASE_URL,
-  isTrustedAniCardsPreviewHost,
-  parsePlaywrightBaseUrl,
+  resolvePlaywrightBaseUrl,
 } from "./lib/playwright-base-url";
 
 export * from "./lib/playwright-base-url";
@@ -89,38 +89,13 @@ function createStandardProjects(
     : [chromiumProject];
 }
 
-function buildExtraHttpHeaders(options: {
-  automationBypassSecret?: string;
-  parsedBaseUrl?: URL;
-}): Record<string, string> | undefined {
-  const { automationBypassSecret, parsedBaseUrl } = options;
-  const shouldSendBypassHeaders = Boolean(
-    automationBypassSecret &&
-    parsedBaseUrl &&
-    isTrustedAniCardsPreviewHost(parsedBaseUrl.hostname),
-  );
-
-  const extraHTTPHeaders = {
-    ...(shouldSendBypassHeaders
-      ? {
-          "x-vercel-protection-bypass": automationBypassSecret,
-          "x-vercel-set-bypass-cookie": "true",
-        }
-      : {}),
-  };
-
-  return Object.keys(extraHTTPHeaders).length > 0
-    ? extraHTTPHeaders
-    : undefined;
-}
-
 export function createPlaywrightConfig(
   env: PlaywrightEnv = process.env,
 ): PlaywrightConfigShape {
-  const parsedBaseUrl = parsePlaywrightBaseUrl(
+  const resolvedBaseUrl = resolvePlaywrightBaseUrl(
     readOptionalEnvValue(env, "PLAYWRIGHT_BASE_URL"),
   );
-  const baseURL = parsedBaseUrl?.origin ?? DEFAULT_PLAYWRIGHT_BASE_URL;
+  const baseURL = resolvedBaseUrl?.origin ?? DEFAULT_PLAYWRIGHT_BASE_URL;
   const automationBypassSecret = readOptionalEnvValue(
     env,
     "VERCEL_AUTOMATION_BYPASS_SECRET",
@@ -132,11 +107,11 @@ export function createPlaywrightConfig(
     Boolean(readOptionalEnvValue(env, "CI")) ||
     isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"));
   const isCi = Boolean(readOptionalEnvValue(env, "CI"));
-  const shouldLaunchLocalServer = !parsedBaseUrl;
+  const shouldLaunchLocalServer = !resolvedBaseUrl;
   const projects = createStandardProjects(includeFullMatrix);
-  const resolvedExtraHTTPHeaders = buildExtraHttpHeaders({
+  const resolvedExtraHTTPHeaders = buildPlaywrightAutomationBypassHeaders({
     automationBypassSecret,
-    parsedBaseUrl,
+    resolvedBaseUrl,
   });
 
   return {

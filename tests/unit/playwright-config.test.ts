@@ -206,12 +206,20 @@ describe("playwright.config", () => {
 
   it("normalizes trusted preview URLs and sends only approved bypass headers", async () => {
     const module = await importPlaywrightConfigModule("trusted-preview");
+    const resolvedBaseUrl = module.resolvePlaywrightBaseUrl(
+      "https://anicards-git-main-alpha49.vercel.app/path?build=123",
+    );
     const config = module.createPlaywrightConfig({
       PLAYWRIGHT_BASE_URL:
         "https://anicards-git-main-alpha49.vercel.app/path?build=123",
       VERCEL_AUTOMATION_BYPASS_SECRET: "preview-secret",
     });
 
+    expect(resolvedBaseUrl).toMatchObject({
+      canSendBypassHeaders: true,
+      isTrustedAniCardsHost: true,
+      origin: "https://anicards-git-main-alpha49.vercel.app",
+    });
     expect(config.webServer).toBeUndefined();
     expect(config.use?.baseURL).toBe(
       "https://anicards-git-main-alpha49.vercel.app",
@@ -224,11 +232,19 @@ describe("playwright.config", () => {
 
   it("refuses to send bypass headers to untrusted external hosts", async () => {
     const module = await importPlaywrightConfigModule("untrusted-preview");
+    const resolvedBaseUrl = module.resolvePlaywrightBaseUrl(
+      "https://example.com/not-anicards",
+    );
     const config = module.createPlaywrightConfig({
       PLAYWRIGHT_BASE_URL: "https://example.com/not-anicards",
       VERCEL_AUTOMATION_BYPASS_SECRET: "preview-secret",
     });
 
+    expect(resolvedBaseUrl).toMatchObject({
+      canSendBypassHeaders: false,
+      isTrustedAniCardsHost: false,
+      origin: "https://example.com",
+    });
     expect(config.webServer).toBeUndefined();
     expect(config.use?.baseURL).toBe("https://example.com");
     expect(config.use?.extraHTTPHeaders).toBeUndefined();
@@ -238,13 +254,13 @@ describe("playwright.config", () => {
     const module = await importPlaywrightConfigModule("trusted-smoke-base-url");
 
     expect(
-      module.parseTrustedAniCardsBaseUrl(
+      module.resolveTrustedAniCardsBaseUrl(
         "https://anicards-git-main-alpha49.vercel.app/path?build=123",
       ).origin,
     ).toBe("https://anicards-git-main-alpha49.vercel.app");
 
     expect(() =>
-      module.parseTrustedAniCardsBaseUrl("https://example.com/not-anicards"),
+      module.resolveTrustedAniCardsBaseUrl("https://example.com/not-anicards"),
     ).toThrow(/AniCards production host or an AniCards Vercel preview host/i);
   });
 

@@ -1,9 +1,6 @@
 import { appendFileSync } from "node:fs";
 
-import {
-  isTrustedAniCardsPreviewHost,
-  parseTrustedAniCardsBaseUrl,
-} from "../lib/playwright-base-url";
+import { resolveTrustedAniCardsBaseUrl } from "../lib/playwright-base-url";
 
 const rawCandidate = (
   process.env.DEPLOYMENT_URL ||
@@ -17,7 +14,10 @@ if (!rawCandidate) {
   );
 }
 
-const parsedUrl = parseTrustedAniCardsBaseUrl(rawCandidate, "Deployment URL");
+const resolvedBaseUrl = resolveTrustedAniCardsBaseUrl(
+  rawCandidate,
+  "Deployment URL",
+);
 const githubEnvPath = process.env.GITHUB_ENV?.trim();
 
 if (!githubEnvPath) {
@@ -25,19 +25,19 @@ if (!githubEnvPath) {
     "GITHUB_ENV is required to publish deployed smoke environment variables.",
   );
 }
-
-const isTrustedPreviewHost = isTrustedAniCardsPreviewHost(parsedUrl.hostname);
-
-appendFileSync(githubEnvPath, `PLAYWRIGHT_BASE_URL=${parsedUrl.origin}\n`);
 appendFileSync(
   githubEnvPath,
-  `PLAYWRIGHT_CAN_SEND_BYPASS=${isTrustedPreviewHost ? "1" : "0"}\n`,
+  `PLAYWRIGHT_BASE_URL=${resolvedBaseUrl.origin}\n`,
+);
+appendFileSync(
+  githubEnvPath,
+  `PLAYWRIGHT_CAN_SEND_BYPASS=${resolvedBaseUrl.canSendBypassHeaders ? "1" : "0"}\n`,
 );
 
-console.log(`[INFO] Using deployed smoke URL: ${parsedUrl.origin}`);
+console.log(`[INFO] Using deployed smoke URL: ${resolvedBaseUrl.origin}`);
 console.log(
   `[INFO] ${
-    isTrustedPreviewHost
+    resolvedBaseUrl.canSendBypassHeaders
       ? "Trusted AniCards preview host detected; bypass headers may be used if configured."
       : "Public AniCards host detected; bypass headers disabled."
   }`,

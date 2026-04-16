@@ -3,6 +3,24 @@ export const ANICARDS_PRODUCTION_HOST = "anicards.alpha49.com";
 export const ANICARDS_VERCEL_PREVIEW_HOST_PATTERN =
   /^anicards(?:-[a-z0-9]+)+\.vercel\.app$/;
 
+export interface ResolvedPlaywrightBaseUrl {
+  canSendBypassHeaders: boolean;
+  isTrustedAniCardsHost: boolean;
+  origin: string;
+  parsedUrl: URL;
+}
+
+function createResolvedPlaywrightBaseUrl(
+  parsedBaseUrl: URL,
+): ResolvedPlaywrightBaseUrl {
+  return {
+    canSendBypassHeaders: isTrustedAniCardsPreviewHost(parsedBaseUrl.hostname),
+    isTrustedAniCardsHost: isTrustedAniCardsHost(parsedBaseUrl.hostname),
+    origin: parsedBaseUrl.origin,
+    parsedUrl: parsedBaseUrl,
+  };
+}
+
 export function parsePlaywrightBaseUrl(
   rawBaseUrl?: string,
   label = "PLAYWRIGHT_BASE_URL",
@@ -32,6 +50,17 @@ export function parsePlaywrightBaseUrl(
   return parsedBaseUrl;
 }
 
+export function resolvePlaywrightBaseUrl(
+  rawBaseUrl?: string,
+  label = "PLAYWRIGHT_BASE_URL",
+): ResolvedPlaywrightBaseUrl | undefined {
+  const parsedBaseUrl = parsePlaywrightBaseUrl(rawBaseUrl, label);
+
+  return parsedBaseUrl
+    ? createResolvedPlaywrightBaseUrl(parsedBaseUrl)
+    : undefined;
+}
+
 export function isTrustedAniCardsHost(hostname: string): boolean {
   const normalizedHostname = hostname.trim().toLowerCase();
 
@@ -47,20 +76,43 @@ export function isTrustedAniCardsPreviewHost(hostname: string): boolean {
   );
 }
 
-export function parseTrustedAniCardsBaseUrl(
+export function buildPlaywrightAutomationBypassHeaders(options: {
+  automationBypassSecret?: string;
+  resolvedBaseUrl?: Pick<ResolvedPlaywrightBaseUrl, "canSendBypassHeaders">;
+}): Record<string, string> | undefined {
+  const { automationBypassSecret, resolvedBaseUrl } = options;
+
+  if (!automationBypassSecret || !resolvedBaseUrl?.canSendBypassHeaders) {
+    return undefined;
+  }
+
+  return {
+    "x-vercel-protection-bypass": automationBypassSecret,
+    "x-vercel-set-bypass-cookie": "true",
+  };
+}
+
+export function resolveTrustedAniCardsBaseUrl(
   rawBaseUrl: string,
   label = "PLAYWRIGHT_BASE_URL",
-): URL {
-  const parsedBaseUrl = parsePlaywrightBaseUrl(rawBaseUrl, label);
-  if (!parsedBaseUrl) {
+): ResolvedPlaywrightBaseUrl {
+  const resolvedBaseUrl = resolvePlaywrightBaseUrl(rawBaseUrl, label);
+  if (!resolvedBaseUrl) {
     throw new Error(`${label} is required.`);
   }
 
-  if (!isTrustedAniCardsHost(parsedBaseUrl.hostname)) {
+  if (!resolvedBaseUrl.isTrustedAniCardsHost) {
     throw new Error(
       `${label} must target the AniCards production host or an AniCards Vercel preview host: ${rawBaseUrl.trim()}`,
     );
   }
 
-  return parsedBaseUrl;
+  return resolvedBaseUrl;
+}
+
+export function parseTrustedAniCardsBaseUrl(
+  rawBaseUrl: string,
+  label = "PLAYWRIGHT_BASE_URL",
+): URL {
+  return resolveTrustedAniCardsBaseUrl(rawBaseUrl, label).parsedUrl;
 }
