@@ -1,8 +1,13 @@
-import "@/tests/unit/__setup__";
-
 import { cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { Window } from "happy-dom";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import { createElement, type ErrorInfo } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -13,91 +18,13 @@ import {
 } from "@/components/ErrorBoundary";
 import { useAppRouterErrorBoundaryReporting } from "@/hooks/useAppRouterErrorBoundaryReporting";
 import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
+import {
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
 
-let restoreDomGlobals: (() => Promise<void>) | null = null;
-
-function installDomGlobals() {
-  const window = new Window({
-    url: "http://localhost/error-boundary",
-  });
-  Object.assign(window, {
-    Error,
-    SyntaxError,
-    TypeError,
-  });
-  const descriptors = new Map<string, PropertyDescriptor | undefined>();
-  const animationFrameHandles = new Set<ReturnType<typeof setTimeout>>();
-
-  const assignGlobal = (key: string, value: unknown) => {
-    descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-    Object.defineProperty(globalThis, key, {
-      configurable: true,
-      value,
-      writable: true,
-    });
-  };
-
-  assignGlobal("window", window);
-  assignGlobal("document", window.document);
-  assignGlobal("location", window.location);
-  assignGlobal("navigator", window.navigator);
-  assignGlobal("CustomEvent", window.CustomEvent);
-  assignGlobal("Element", window.Element);
-  assignGlobal("Event", window.Event);
-  assignGlobal("EventTarget", window.EventTarget);
-  assignGlobal("FocusEvent", window.FocusEvent);
-  assignGlobal("HTMLElement", window.HTMLElement);
-  assignGlobal("HTMLAnchorElement", window.HTMLAnchorElement);
-  assignGlobal("HTMLButtonElement", window.HTMLButtonElement);
-  assignGlobal("Node", window.Node);
-  assignGlobal("SVGElement", window.SVGElement);
-  assignGlobal("Text", window.Text);
-  assignGlobal("getComputedStyle", window.getComputedStyle.bind(window));
-  assignGlobal("requestAnimationFrame", ((callback: FrameRequestCallback) => {
-    const handle = setTimeout(() => {
-      animationFrameHandles.delete(handle);
-      callback(Date.now());
-    }, 0);
-
-    animationFrameHandles.add(handle);
-    return handle;
-  }) as unknown as typeof requestAnimationFrame);
-  assignGlobal("cancelAnimationFrame", ((
-    handle: ReturnType<typeof setTimeout>,
-  ) => {
-    animationFrameHandles.delete(handle);
-    clearTimeout(handle);
-  }) as unknown as typeof cancelAnimationFrame);
-  assignGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-
-  return async () => {
-    cleanup();
-
-    await Promise.resolve();
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0);
-    });
-
-    for (const handle of animationFrameHandles) {
-      clearTimeout(handle);
-    }
-    animationFrameHandles.clear();
-
-    window.document.body.innerHTML = "";
-
-    if (typeof window.close === "function") {
-      window.close();
-    }
-
-    for (const [key, descriptor] of descriptors) {
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, key);
-      }
-    }
-  };
-}
+installHappyDom("http://localhost/error-boundary");
 
 function readLastConsoleJsonLog(method: "error" | "log") {
   const calls = (
@@ -143,12 +70,19 @@ function ThrowingComponent(props: Readonly<{ error: Error }>): null {
 
 beforeEach(() => {
   allowConsoleWarningsAndErrors();
-  restoreDomGlobals = installDomGlobals();
+  resetHappyDom("http://localhost/error-boundary");
 });
 
 afterEach(async () => {
-  await restoreDomGlobals?.();
-  restoreDomGlobals = null;
+  cleanup();
+  await Promise.resolve();
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+});
+
+afterAll(() => {
+  restoreHappyDom();
 });
 
 describe("ErrorBoundary fallback model", () => {

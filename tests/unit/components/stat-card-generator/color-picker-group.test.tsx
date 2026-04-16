@@ -1,5 +1,3 @@
-import "@/tests/unit/__setup__";
-
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   afterAll,
@@ -11,13 +9,18 @@ import {
   it,
   mock,
 } from "bun:test";
-import { Window } from "happy-dom";
 import React, { type ComponentProps, type ReactNode } from "react";
 
 import type { ColorValue } from "@/lib/types/card";
+import {
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
 
-let restoreDomGlobals: (() => void) | null = null;
 let ColorPickerGroup: typeof import("@/components/stat-card-generator/ColorPickerGroup").ColorPickerGroup;
+
+installHappyDom("http://localhost/colors");
 
 type MotionDivProps = ComponentProps<"div"> & {
   animate?: unknown;
@@ -108,87 +111,6 @@ function isGradientChange(
   );
 }
 
-function installDomGlobals() {
-  const window = new Window({
-    url: "http://localhost/colors",
-  });
-  Object.assign(window, {
-    Error,
-    SyntaxError,
-    TypeError,
-  });
-  const descriptors = new Map<string, PropertyDescriptor | undefined>();
-  const animationFrameHandles = new Set<ReturnType<typeof setTimeout>>();
-
-  const assignGlobal = (key: string, value: unknown) => {
-    descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-    Object.defineProperty(globalThis, key, {
-      configurable: true,
-      value,
-      writable: true,
-    });
-  };
-
-  assignGlobal("window", window);
-  assignGlobal("document", window.document);
-  assignGlobal("navigator", window.navigator);
-  assignGlobal("CustomEvent", window.CustomEvent);
-  assignGlobal("Element", window.Element);
-  assignGlobal("Event", window.Event);
-  assignGlobal("EventTarget", window.EventTarget);
-  assignGlobal("FocusEvent", window.FocusEvent);
-  assignGlobal("HTMLElement", window.HTMLElement);
-  assignGlobal("HTMLButtonElement", window.HTMLButtonElement);
-  assignGlobal("HTMLInputElement", window.HTMLInputElement);
-  assignGlobal("InputEvent", window.InputEvent);
-  assignGlobal("KeyboardEvent", window.KeyboardEvent);
-  assignGlobal("MouseEvent", window.MouseEvent);
-  assignGlobal("MutationObserver", window.MutationObserver);
-  assignGlobal("Node", window.Node);
-  assignGlobal("SVGElement", window.SVGElement);
-  assignGlobal("Text", window.Text);
-  assignGlobal("getComputedStyle", window.getComputedStyle.bind(window));
-  assignGlobal("requestAnimationFrame", ((callback: FrameRequestCallback) => {
-    const handle = setTimeout(() => {
-      animationFrameHandles.delete(handle);
-      callback(Date.now());
-    }, 0);
-
-    animationFrameHandles.add(handle);
-    return handle;
-  }) as unknown as typeof requestAnimationFrame);
-  assignGlobal("cancelAnimationFrame", ((
-    handle: ReturnType<typeof setTimeout>,
-  ) => {
-    animationFrameHandles.delete(handle);
-    clearTimeout(handle);
-  }) as unknown as typeof cancelAnimationFrame);
-  assignGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-
-  return () => {
-    cleanup();
-
-    for (const handle of animationFrameHandles) {
-      clearTimeout(handle);
-    }
-    animationFrameHandles.clear();
-
-    window.document.body.innerHTML = "";
-
-    if (typeof window.close === "function") {
-      window.close();
-    }
-
-    for (const [key, descriptor] of descriptors) {
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, key);
-      }
-    }
-  };
-}
-
 function renderColorPicker(initialValue: ColorValue, disableGradient = false) {
   const onChange = mock((nextValue: ColorValue) => nextValue);
 
@@ -232,15 +154,15 @@ describe("ColorPickerGroup", () => {
   });
 
   beforeEach(() => {
-    restoreDomGlobals = installDomGlobals();
+    resetHappyDom("http://localhost/colors");
   });
 
   afterEach(() => {
-    restoreDomGlobals?.();
-    restoreDomGlobals = null;
+    cleanup();
   });
 
   afterAll(() => {
+    restoreHappyDom();
     mock.restore();
   });
 

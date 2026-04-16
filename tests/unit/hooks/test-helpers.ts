@@ -13,35 +13,113 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-const GLOBAL_KEYS = [
-  "window",
-  "document",
-  "navigator",
-  "location",
-  "self",
-  "Node",
-  "Element",
-  "HTMLElement",
-  "HTMLAnchorElement",
-  "DocumentFragment",
-  "Event",
-  "CustomEvent",
-  "MouseEvent",
-  "KeyboardEvent",
-  "MutationObserver",
-  "getComputedStyle",
-  "requestAnimationFrame",
-  "cancelAnimationFrame",
-  "IS_REACT_ACT_ENVIRONMENT",
-] as const;
+export type InstallHappyDomOptions = {
+  additionalGlobals?: Record<string, unknown>;
+  includeResizeObserver?:
+    | boolean
+    | {
+        new (...args: unknown[]): unknown;
+      };
+  url?: string;
+};
+
+type HappyDomOptionsInput = InstallHappyDomOptions | string | undefined;
+
+type NormalizedInstallHappyDomOptions = {
+  additionalGlobals: Record<string, unknown>;
+  includeResizeObserver:
+    | boolean
+    | {
+        new (...args: unknown[]): unknown;
+      };
+  url: string;
+};
+
+const DEFAULT_HAPPY_DOM_URL = "https://anicards.test/";
+const DEFAULT_HAPPY_DOM_OPTIONS: NormalizedInstallHappyDomOptions = {
+  additionalGlobals: {},
+  includeResizeObserver: false,
+  url: DEFAULT_HAPPY_DOM_URL,
+};
 
 let domWindow: GlobalWindow | null = null;
-const originalDescriptors = new Map<
-  (typeof GLOBAL_KEYS)[number],
-  PropertyDescriptor | undefined
->();
+let currentHappyDomOptions: NormalizedInstallHappyDomOptions = {
+  ...DEFAULT_HAPPY_DOM_OPTIONS,
+};
+const originalDescriptors = new Map<string, PropertyDescriptor | undefined>();
+const animationFrameHandles = new Set<ReturnType<typeof setTimeout>>();
 
-function setGlobalValue(key: (typeof GLOBAL_KEYS)[number], value: unknown) {
+const requestAnimationFrameStub = ((callback: FrameRequestCallback) => {
+  const handle = setTimeout(() => {
+    animationFrameHandles.delete(handle);
+    callback(Date.now());
+  }, 0);
+
+  animationFrameHandles.add(handle);
+  return handle as unknown as number;
+}) as typeof requestAnimationFrame;
+
+const cancelAnimationFrameStub = ((handle: number) => {
+  const timerHandle = handle as unknown as ReturnType<typeof setTimeout>;
+
+  animationFrameHandles.delete(timerHandle);
+  clearTimeout(timerHandle);
+}) as typeof cancelAnimationFrame;
+
+function clearPendingAnimationFrames() {
+  for (const handle of animationFrameHandles) {
+    clearTimeout(handle);
+  }
+
+  animationFrameHandles.clear();
+}
+
+function normalizeInstallHappyDomOptions(
+  options: HappyDomOptionsInput,
+  baseOptions: NormalizedInstallHappyDomOptions,
+): NormalizedInstallHappyDomOptions {
+  if (typeof options === "string") {
+    return {
+      ...baseOptions,
+      url: options,
+    };
+  }
+
+  return {
+    additionalGlobals: {
+      ...baseOptions.additionalGlobals,
+      ...options?.additionalGlobals,
+    },
+    includeResizeObserver:
+      options?.includeResizeObserver ?? baseOptions.includeResizeObserver,
+    url: options?.url ?? baseOptions.url,
+  };
+}
+
+function createNoopResizeObserverConstructor() {
+  return class ResizeObserverStub {
+    disconnect() {
+      return undefined;
+    }
+
+    observe() {
+      return undefined;
+    }
+
+    unobserve() {
+      return undefined;
+    }
+  };
+}
+
+function setGlobalValue(key: string, value: unknown) {
+  if (!originalDescriptors.has(key)) {
+    originalDescriptors.set(
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    );
+  }
+
   Object.defineProperty(globalThis, key, {
     configurable: true,
     writable: true,
@@ -49,64 +127,108 @@ function setGlobalValue(key: (typeof GLOBAL_KEYS)[number], value: unknown) {
   });
 }
 
-export function installHappyDom(url = "https://anicards.test/") {
+function applyHappyDomGlobals(options: NormalizedInstallHappyDomOptions) {
+  if (!domWindow) {
+    return;
+  }
+
+  Object.assign(domWindow, {
+    Error,
+    SyntaxError,
+    TypeError,
+  });
+  Object.defineProperty(domWindow, "requestAnimationFrame", {
+    configurable: true,
+    value: requestAnimationFrameStub,
+    writable: true,
+  });
+  Object.defineProperty(domWindow, "cancelAnimationFrame", {
+    configurable: true,
+    value: cancelAnimationFrameStub,
+    writable: true,
+  });
+
+  const resizeObserverValue =
+    options.includeResizeObserver === true
+      ? createNoopResizeObserverConstructor()
+      : options.includeResizeObserver || undefined;
+
+  const globalValues: Record<string, unknown> = {
+    window: domWindow,
+    document: domWindow.document,
+    navigator: domWindow.navigator,
+    location: domWindow.location,
+    self: domWindow,
+    Node: domWindow.Node,
+    Element: domWindow.Element,
+    Event: domWindow.Event,
+    EventTarget: domWindow.EventTarget,
+    CustomEvent: domWindow.CustomEvent,
+    MouseEvent: domWindow.MouseEvent,
+    KeyboardEvent: domWindow.KeyboardEvent,
+    FocusEvent: domWindow.FocusEvent,
+    InputEvent: domWindow.InputEvent,
+    MutationObserver: domWindow.MutationObserver,
+    HTMLElement: domWindow.HTMLElement,
+    HTMLAnchorElement: domWindow.HTMLAnchorElement,
+    HTMLButtonElement: domWindow.HTMLButtonElement,
+    HTMLFormElement: domWindow.HTMLFormElement,
+    HTMLInputElement: domWindow.HTMLInputElement,
+    DocumentFragment: domWindow.DocumentFragment,
+    SVGElement: domWindow.SVGElement,
+    Text: domWindow.Text,
+    ResizeObserver: resizeObserverValue,
+    getComputedStyle: domWindow.getComputedStyle.bind(domWindow),
+    requestAnimationFrame: requestAnimationFrameStub,
+    cancelAnimationFrame: cancelAnimationFrameStub,
+    IS_REACT_ACT_ENVIRONMENT: true,
+    ...options.additionalGlobals,
+  };
+
+  for (const [key, value] of Object.entries(globalValues)) {
+    setGlobalValue(key, value);
+  }
+}
+
+export function installHappyDom(options?: HappyDomOptionsInput) {
+  currentHappyDomOptions = normalizeInstallHappyDomOptions(
+    options,
+    DEFAULT_HAPPY_DOM_OPTIONS,
+  );
+
   if (!domWindow) {
     domWindow = new GlobalWindow();
-    domWindow.location.href = url;
-
-    for (const key of GLOBAL_KEYS) {
-      if (!originalDescriptors.has(key)) {
-        originalDescriptors.set(
-          key,
-          Object.getOwnPropertyDescriptor(globalThis, key),
-        );
-      }
-    }
-
-    setGlobalValue("window", domWindow);
-    setGlobalValue("document", domWindow.document);
-    setGlobalValue("navigator", domWindow.navigator);
-    setGlobalValue("location", domWindow.location);
-    setGlobalValue("self", domWindow);
-    setGlobalValue("Node", domWindow.Node);
-    setGlobalValue("Element", domWindow.Element);
-    setGlobalValue("HTMLElement", domWindow.HTMLElement);
-    setGlobalValue("HTMLAnchorElement", domWindow.HTMLAnchorElement);
-    setGlobalValue("DocumentFragment", domWindow.DocumentFragment);
-    setGlobalValue("Event", domWindow.Event);
-    setGlobalValue("CustomEvent", domWindow.CustomEvent);
-    setGlobalValue("MouseEvent", domWindow.MouseEvent);
-    setGlobalValue("KeyboardEvent", domWindow.KeyboardEvent);
-    setGlobalValue("MutationObserver", domWindow.MutationObserver);
-    setGlobalValue(
-      "getComputedStyle",
-      domWindow.getComputedStyle.bind(domWindow),
-    );
-    setGlobalValue(
-      "requestAnimationFrame",
-      domWindow.requestAnimationFrame.bind(domWindow),
-    );
-    setGlobalValue(
-      "cancelAnimationFrame",
-      domWindow.cancelAnimationFrame.bind(domWindow),
-    );
-    setGlobalValue("IS_REACT_ACT_ENVIRONMENT", true);
   }
+
+  domWindow.location.href = currentHappyDomOptions.url;
+  applyHappyDomGlobals(currentHappyDomOptions);
 
   return domWindow;
 }
 
-export function resetHappyDom() {
+export function resetHappyDom(options?: HappyDomOptionsInput) {
   if (!domWindow) return;
 
+  currentHappyDomOptions = normalizeInstallHappyDomOptions(
+    options,
+    currentHappyDomOptions,
+  );
+
+  clearPendingAnimationFrames();
   domWindow.document.head.innerHTML = "";
   domWindow.document.body.innerHTML = "";
   domWindow.localStorage.clear();
   domWindow.sessionStorage.clear();
-  domWindow.location.href = "https://anicards.test/";
+  domWindow.location.href = currentHappyDomOptions.url;
+  applyHappyDomGlobals(currentHappyDomOptions);
 }
 
 export function restoreHappyDom() {
+  clearPendingAnimationFrames();
+  currentHappyDomOptions = {
+    ...DEFAULT_HAPPY_DOM_OPTIONS,
+  };
+
   if (domWindow) {
     void Promise.resolve()
       .then(() => domWindow?.happyDOM.abort())

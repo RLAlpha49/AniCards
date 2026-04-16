@@ -1,5 +1,3 @@
-import "@/tests/unit/__setup__";
-
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -12,8 +10,13 @@ import {
   it,
   mock,
 } from "bun:test";
-import { Window } from "happy-dom";
 import { type ComponentProps, forwardRef, type ReactNode } from "react";
+
+import {
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
 
 const routerPush = mock((href: string) => Promise.resolve(href));
 const routerReplace = mock((href: string) => Promise.resolve(href));
@@ -39,9 +42,13 @@ const gtagMock = mock(
 );
 const NEXT_NAVIGATION_STATE_KEY = "__ANICARDS_TEST_NEXT_NAVIGATION__";
 let rejectNextPush = false;
-let restoreDomGlobals: (() => void) | null = null;
 let SearchForm: typeof import("@/components/search/SearchForm").SearchForm;
 let SearchHeroShell: typeof import("@/app/search/SearchHeroShell").default;
+
+installHappyDom({
+  includeResizeObserver: true,
+  url: "http://localhost/search",
+});
 
 type NextNavigationState = {
   pathname: string;
@@ -251,103 +258,6 @@ mock.module("@/components/search/SearchHeroSection", () => ({
   ),
 }));
 
-function installDomGlobals() {
-  const window = new Window({
-    url: "http://localhost/search",
-  });
-  Object.assign(window, {
-    Error,
-    SyntaxError,
-    TypeError,
-  });
-  const descriptors = new Map<string, PropertyDescriptor | undefined>();
-  const animationFrameHandles = new Set<ReturnType<typeof setTimeout>>();
-
-  const assignGlobal = (key: string, value: unknown) => {
-    descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-    Object.defineProperty(globalThis, key, {
-      configurable: true,
-      value,
-      writable: true,
-    });
-  };
-
-  class ResizeObserverStub {
-    observe() {
-      return undefined;
-    }
-
-    unobserve() {
-      return undefined;
-    }
-
-    disconnect() {
-      return undefined;
-    }
-  }
-
-  assignGlobal("window", window);
-  assignGlobal("document", window.document);
-  assignGlobal("navigator", window.navigator);
-  assignGlobal("CustomEvent", window.CustomEvent);
-  assignGlobal("Element", window.Element);
-  assignGlobal("Event", window.Event);
-  assignGlobal("EventTarget", window.EventTarget);
-  assignGlobal("FocusEvent", window.FocusEvent);
-  assignGlobal("HTMLElement", window.HTMLElement);
-  assignGlobal("HTMLButtonElement", window.HTMLButtonElement);
-  assignGlobal("HTMLFormElement", window.HTMLFormElement);
-  assignGlobal("HTMLInputElement", window.HTMLInputElement);
-  assignGlobal("InputEvent", window.InputEvent);
-  assignGlobal("KeyboardEvent", window.KeyboardEvent);
-  assignGlobal("MouseEvent", window.MouseEvent);
-  assignGlobal("MutationObserver", window.MutationObserver);
-  assignGlobal("Node", window.Node);
-  assignGlobal("SVGElement", window.SVGElement);
-  assignGlobal("Text", window.Text);
-  assignGlobal("getComputedStyle", window.getComputedStyle.bind(window));
-  assignGlobal("requestAnimationFrame", ((callback: FrameRequestCallback) => {
-    const handle = setTimeout(() => {
-      animationFrameHandles.delete(handle);
-      callback(Date.now());
-    }, 0);
-
-    animationFrameHandles.add(handle);
-    return handle;
-  }) as unknown as typeof requestAnimationFrame);
-  assignGlobal("cancelAnimationFrame", ((
-    handle: ReturnType<typeof setTimeout>,
-  ) => {
-    animationFrameHandles.delete(handle);
-    clearTimeout(handle);
-  }) as unknown as typeof cancelAnimationFrame);
-  assignGlobal("ResizeObserver", ResizeObserverStub);
-  assignGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-
-  return () => {
-    cleanup();
-
-    for (const handle of animationFrameHandles) {
-      clearTimeout(handle);
-    }
-    animationFrameHandles.clear();
-
-    window.document.body.innerHTML = "";
-
-    if (typeof window.close === "function") {
-      window.close();
-    }
-
-    for (const [key, descriptor] of descriptors) {
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, key);
-      }
-    }
-  };
-}
-
 function submitSearchForm() {
   const form = document.querySelector("form");
   if (!(form instanceof HTMLFormElement)) {
@@ -383,7 +293,7 @@ describe("SearchForm", () => {
 
   beforeEach(() => {
     rejectNextPush = false;
-    restoreDomGlobals = installDomGlobals();
+    resetHappyDom("http://localhost/search");
     globalThis.window.localStorage.setItem(
       ANALYTICS_CONSENT_STORAGE_KEY,
       "granted",
@@ -398,8 +308,11 @@ describe("SearchForm", () => {
       value: gtagMock,
       writable: true,
     });
-    (globalThis.window as unknown as Window & { gtag?: typeof gtagMock }).gtag =
-      gtagMock;
+    (
+      globalThis.window as unknown as Window & {
+        gtag?: (...args: unknown[]) => void;
+      }
+    ).gtag = gtagMock as unknown as (...args: unknown[]) => void;
     Object.defineProperty(globalThis.window.history, "replaceState", {
       configurable: true,
       value: historyReplaceState,
@@ -424,8 +337,7 @@ describe("SearchForm", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    restoreDomGlobals?.();
-    restoreDomGlobals = null;
+    cleanup();
     Object.defineProperty(globalThis, "gtag", {
       configurable: true,
       value: originalGtag,
@@ -440,6 +352,7 @@ describe("SearchForm", () => {
   });
 
   afterAll(() => {
+    restoreHappyDom();
     mock.restore();
   });
 
