@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { jsonWithCors } from "@/lib/api/cors";
 import { logPrivacySafe } from "@/lib/api/logging";
-import { scheduleAnalyticsIncrement } from "@/lib/api/telemetry";
+import { getRequestContext } from "@/lib/api/request-context";
+import {
+  buildLatencyBucketMetricKeys,
+  scheduleAnalyticsIncrement,
+  scheduleLowValueAnalyticsBatch,
+} from "@/lib/api/telemetry";
 import {
   type ErrorCategory,
   getErrorDetails,
@@ -251,6 +256,21 @@ export function handleError(
     request,
     taskName: analyticsMetric,
   });
+
+  const endpointKey = getRequestContext(request)?.endpointKey;
+  if (endpointKey) {
+    const latencyMetrics = buildLatencyBucketMetricKeys(
+      endpointKey,
+      duration,
+      "failure",
+    );
+    scheduleLowValueAnalyticsBatch(latencyMetrics, {
+      endpoint,
+      logContext,
+      request,
+      taskName: `${analyticsMetric}:latency`,
+    });
+  }
 
   const handledError = resolveHandledApiErrorDetails(
     error,

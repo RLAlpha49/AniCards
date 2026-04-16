@@ -2,6 +2,7 @@ import { generateSecureId } from "@/lib/utils";
 
 export interface ApiRequestContext {
   requestId: string;
+  operationId: string;
   method: string;
   path: string;
   ip?: string;
@@ -11,9 +12,14 @@ export interface ApiRequestContext {
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 const REQUEST_ID_HEADER = "X-Request-Id";
+const OPERATION_ID_HEADER = "X-Operation-Id";
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 
 function isSafeRequestId(value: string): boolean {
+  return REQUEST_ID_PATTERN.test(value);
+}
+
+function isSafeOperationId(value: string): boolean {
   return REQUEST_ID_PATTERN.test(value);
 }
 
@@ -23,6 +29,10 @@ function createRequestId(): string {
   }
 
   return generateSecureId("request");
+}
+
+function createOperationId(): string {
+  return generateSecureId("op");
 }
 
 function getRequestPath(request: Request): string {
@@ -38,6 +48,17 @@ function resolveProvidedRequestId(
 ): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed || !isSafeRequestId(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function resolveProvidedOperationId(
+  value: string | null | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || !isSafeOperationId(trimmed)) {
     return undefined;
   }
 
@@ -62,8 +83,9 @@ function mergeHeaderList(
 
 export function ensureRequestContext(
   request: Request,
-  options?: Partial<Omit<ApiRequestContext, "requestId">> & {
+  options?: Partial<Omit<ApiRequestContext, "requestId" | "operationId">> & {
     requestId?: string;
+    operationId?: string;
   },
 ): ApiRequestContext {
   const existing = apiRequestContextStore.get(request);
@@ -75,9 +97,18 @@ export function ensureRequestContext(
     ) ??
     existing?.requestId ??
     createRequestId();
+  const operationId =
+    resolveProvidedOperationId(options?.operationId) ??
+    resolveProvidedOperationId(request.headers.get(OPERATION_ID_HEADER)) ??
+    resolveProvidedOperationId(
+      request.headers.get(OPERATION_ID_HEADER.toLowerCase()),
+    ) ??
+    existing?.operationId ??
+    createOperationId();
 
   const nextContext: ApiRequestContext = {
     requestId,
+    operationId,
     method: options?.method ?? existing?.method ?? request.method,
     path: options?.path ?? existing?.path ?? getRequestPath(request),
     ...((options?.ip ?? existing?.ip)
@@ -115,6 +146,20 @@ export function getRequestId(request?: Request): string | undefined {
     resolveProvidedRequestId(request.headers.get(REQUEST_ID_HEADER)) ??
     resolveProvidedRequestId(
       request.headers.get(REQUEST_ID_HEADER.toLowerCase()),
+    )
+  );
+}
+
+export function getOperationId(request?: Request): string | undefined {
+  if (!request) {
+    return undefined;
+  }
+
+  return (
+    apiRequestContextStore.get(request)?.operationId ??
+    resolveProvidedOperationId(request.headers.get(OPERATION_ID_HEADER)) ??
+    resolveProvidedOperationId(
+      request.headers.get(OPERATION_ID_HEADER.toLowerCase()),
     )
   );
 }

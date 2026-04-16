@@ -3254,6 +3254,11 @@ describe("Card SVG Route", () => {
       expect(incrCalls).toContain(
         "analytics:card_svg:successful_requests:animeStats",
       );
+      expect(
+        incrCalls.some((metric) =>
+          metric.startsWith("analytics:card_svg:latency_buckets:success:"),
+        ),
+      ).toBe(true);
 
       sharedRedisMockIncr.mockClear();
 
@@ -3269,6 +3274,11 @@ describe("Card SVG Route", () => {
       incrCalls = mockCalls.map((call) => call[0]);
 
       expect(incrCalls).toContain("analytics:card_svg:cache_hits");
+      expect(
+        incrCalls.some((metric) =>
+          metric.startsWith("analytics:card_svg:latency_buckets:success:"),
+        ),
+      ).toBe(true);
     });
   });
 

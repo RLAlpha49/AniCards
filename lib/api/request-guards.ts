@@ -18,21 +18,28 @@ import {
   verifyRequestProofToken,
 } from "@/lib/api/request-proof";
 import {
-  buildAnalyticsMetricKey,
-  scheduleLowValueAnalyticsIncrement,
+  buildFailedRequestMetricKeys,
+  scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 
 function incrementFailedRequestMetric(
   endpointName: string,
   endpointKey: string,
   request: Request,
+  reasonCode?: string,
 ): void {
-  const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-  scheduleLowValueAnalyticsIncrement(metric, {
+  const metrics = buildFailedRequestMetricKeys(endpointKey, reasonCode);
+  scheduleLowValueAnalyticsBatch(metrics, {
     endpoint: endpointName,
     request,
-    taskName: metric,
+    taskName: metrics[0],
   });
+}
+
+function getUnverifiedClientIpReasonCode(
+  clientIp: Extract<VerifiedClientIpResult, { verified: false }>,
+): string {
+  return `client_ip_${clientIp.reason}`;
 }
 
 function createUnverifiedClientIpResponse(
@@ -50,7 +57,12 @@ function createUnverifiedClientIpResponse(
     },
     request,
   );
-  incrementFailedRequestMetric(endpointName, endpointKey, request);
+  incrementFailedRequestMetric(
+    endpointName,
+    endpointKey,
+    request,
+    getUnverifiedClientIpReasonCode(clientIp),
+  );
 
   return apiErrorResponse(request, 503, "Client IP could not be verified", {
     category: "server_error",
@@ -97,7 +109,12 @@ async function validateRequestProof(
     },
     request,
   );
-  incrementFailedRequestMetric(endpointName, endpointKey, request);
+  incrementFailedRequestMetric(
+    endpointName,
+    endpointKey,
+    request,
+    `request_proof_${verification.reason}`,
+  );
 
   return apiErrorResponse(
     request,
@@ -133,7 +150,12 @@ export function validateSameOrigin(
       undefined,
       request,
     );
-    incrementFailedRequestMetric(endpointName, endpointKey, request);
+    incrementFailedRequestMetric(
+      endpointName,
+      endpointKey,
+      request,
+      "origin_misconfigured",
+    );
 
     return apiErrorResponse(request, 503, "Server misconfigured", {
       category: "server_error",
@@ -155,7 +177,12 @@ export function validateSameOrigin(
       { allowedOrigin },
       request,
     );
-    incrementFailedRequestMetric(endpointName, endpointKey, request);
+    incrementFailedRequestMetric(
+      endpointName,
+      endpointKey,
+      request,
+      "missing_origin",
+    );
 
     return apiErrorResponse(request, 401, "Unauthorized", {
       category: "authentication",
@@ -171,7 +198,12 @@ export function validateSameOrigin(
       { origin, allowedOrigin },
       request,
     );
-    incrementFailedRequestMetric(endpointName, endpointKey, request);
+    incrementFailedRequestMetric(
+      endpointName,
+      endpointKey,
+      request,
+      "cross_origin",
+    );
 
     return apiErrorResponse(request, 401, "Unauthorized", {
       category: "authentication",
@@ -208,7 +240,12 @@ function createProtectedWriteGrantResponse(
     },
     request,
   );
-  incrementFailedRequestMetric(endpointName, endpointKey, request);
+  incrementFailedRequestMetric(
+    endpointName,
+    endpointKey,
+    request,
+    `protected_write_grant_${reason}`,
+  );
 
   return apiErrorResponse(
     request,
@@ -296,6 +333,7 @@ export interface ApiInitResult {
   endpoint: string;
   endpointKey: string;
   requestId: string;
+  operationId: string;
   errorResponse?: NextResponse<ApiError>;
 }
 
@@ -336,6 +374,7 @@ export async function initializeApiRequest(
       endpoint,
       endpointKey,
       requestId: requestContext.requestId,
+      operationId: requestContext.operationId,
       errorResponse: createUnverifiedClientIpResponse(
         request,
         endpoint,
@@ -361,6 +400,7 @@ export async function initializeApiRequest(
         endpoint,
         endpointKey,
         requestId: requestContext.requestId,
+        operationId: requestContext.operationId,
         errorResponse: rateLimitResponse,
       };
     }
@@ -380,6 +420,7 @@ export async function initializeApiRequest(
         endpoint,
         endpointKey,
         requestId: requestContext.requestId,
+        operationId: requestContext.operationId,
         errorResponse: requestProofResponse,
       };
     }
@@ -401,6 +442,7 @@ export async function initializeApiRequest(
         endpoint,
         endpointKey,
         requestId: requestContext.requestId,
+        operationId: requestContext.operationId,
         errorResponse: sameOriginResponse,
       };
     }
@@ -412,5 +454,6 @@ export async function initializeApiRequest(
     endpoint,
     endpointKey,
     requestId: requestContext.requestId,
+    operationId: requestContext.operationId,
   };
 }

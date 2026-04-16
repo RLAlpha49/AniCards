@@ -12,7 +12,10 @@ import { readJsonRequestBody } from "@/lib/api/request-body";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
-  incrementAnalytics,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
+  scheduleAnalyticsBatch,
+  scheduleLowValueAnalyticsBatch,
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 import {
@@ -288,17 +291,66 @@ async function executeAniListRequest(
   return { data, operationInfo };
 }
 
-/**
- * Increments the given analytics metric via the shared fail-open helper.
- * @param metric - Metric name used for analytics tracking.
- * @source
- */
-function trackAnalytics(metric: string, request: Request): void {
-  scheduleTelemetryTask(() => incrementAnalytics(metric), {
-    endpoint: "AniList API",
-    taskName: metric,
-    request,
-  });
+function getAniListRejectionReason(error: unknown): string | undefined {
+  if (!(error instanceof AniListRequestError)) {
+    return undefined;
+  }
+
+  if (error.message.includes("Unsupported AniList operation")) {
+    return "unsupported_operation";
+  }
+
+  if (error.message.includes("Invalid AniList username")) {
+    return "invalid_username";
+  }
+
+  if (error.message.includes("Invalid AniList userId")) {
+    return "invalid_user_id";
+  }
+
+  return undefined;
+}
+
+function trackAniListSuccess(request: Request, durationMs: number): void {
+  const successMetric = buildAnalyticsMetricKey(
+    "anilist_api",
+    "successful_requests",
+  );
+
+  scheduleAnalyticsBatch(
+    [
+      successMetric,
+      ...buildLatencyBucketMetricKeys("anilist_api", durationMs, "success"),
+    ],
+    {
+      endpoint: "AniList API",
+      request,
+      taskName: successMetric,
+    },
+  );
+}
+
+function trackAniListFailure(
+  request: Request,
+  durationMs: number,
+  reasonCode?: string,
+): void {
+  const failedMetric = buildAnalyticsMetricKey(
+    "anilist_api",
+    "failed_requests",
+  );
+
+  scheduleLowValueAnalyticsBatch(
+    [
+      ...buildFailedRequestMetricKeys("anilist_api", reasonCode),
+      ...buildLatencyBucketMetricKeys("anilist_api", durationMs, "failure"),
+    ],
+    {
+      endpoint: "AniList API",
+      request,
+      taskName: failedMetric,
+    },
+  );
 }
 
 /**
@@ -421,7 +473,7 @@ export async function POST(request: Request) {
     return testResponse;
   }
 
-  const { startTime, endpoint, endpointKey } = init;
+  const { startTime, endpoint, endpointKey, operationId } = init;
   let operationInfo: OperationInfo = {
     name: "unknown",
     userIdentifier: "not_provided",
@@ -440,11 +492,6 @@ export async function POST(request: Request) {
     const result = await executeAniListRequest(requestData, request, startTime);
     operationInfo = result.operationInfo;
 
-    trackAnalytics(
-      buildAnalyticsMetricKey("anilist_api", "successful_requests"),
-      request,
-    );
-
     const protectedWriteGrantHeader =
       operationInfo.name === "GetUserStats"
         ? await createProtectedWriteGrantCookieHeader({
@@ -455,7 +502,7 @@ export async function POST(request: Request) {
           })
         : null;
 
-    return jsonWithCors(
+    const response = jsonWithCors(
       result.data,
       request,
       undefined,
@@ -465,6 +512,10 @@ export async function POST(request: Request) {
           }
         : undefined,
     );
+
+    trackAniListSuccess(request, Date.now() - startTime);
+
+    return response;
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     const errorMessage =
@@ -502,6 +553,7 @@ export async function POST(request: Request) {
           errorCategory,
           {
             executionEnvironment: "server",
+            operationId,
             statusCode,
             source: "api_route",
             metadata: {
@@ -517,10 +569,7 @@ export async function POST(request: Request) {
       },
     );
 
-    trackAnalytics(
-      buildAnalyticsMetricKey("anilist_api", "failed_requests"),
-      request,
-    );
+    trackAniListFailure(request, duration, getAniListRejectionReason(error));
 
     return apiErrorResponse(
       request,

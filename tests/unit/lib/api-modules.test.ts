@@ -27,6 +27,8 @@ import {
   ANALYTICS_COUNTER_TTL_SECONDS,
   ANALYTICS_REPORTING_INDEX_KEY,
   buildAnalyticsStorageKey,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
   flushScheduledTelemetryTasksForTests,
   incrementAnalytics,
   incrementAnalyticsBatch,
@@ -184,6 +186,27 @@ describe("api module hardening", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
     );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests:reason:missing_origin",
+    );
+  });
+
+  it("builds bounded reason-coded failed-request metrics", () => {
+    expect(buildFailedRequestMetricKeys("test_api", "Invalid JSON!!")).toEqual([
+      "analytics:test_api:failed_requests",
+      "analytics:test_api:failed_requests:reason:invalid_json",
+    ]);
+  });
+
+  it("builds normalized latency bucket metrics for endpoint outcomes", () => {
+    expect(buildLatencyBucketMetricKeys("test_api", 275, "success")).toEqual([
+      "analytics:test_api:latency_buckets:250_499ms",
+      "analytics:test_api:latency_buckets:success:250_499ms",
+    ]);
+    expect(buildLatencyBucketMetricKeys("test_api", 5_200, "failure")).toEqual([
+      "analytics:test_api:latency_buckets:gte_5000ms",
+      "analytics:test_api:latency_buckets:failure:gte_5000ms",
+    ]);
   });
 
   it("allows missing Origin headers only when requireOrigin is explicitly disabled", () => {
@@ -423,6 +446,38 @@ describe("api module hardening", () => {
     );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests:reason:payload_too_large",
+    );
+  });
+
+  it("records reason-coded metrics for invalid JSON payloads", async () => {
+    const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+      new Request("http://localhost/api/test", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost",
+          "Content-Type": "application/json",
+        },
+        body: "{ invalid json",
+      }),
+      {
+        endpointName: "Test API",
+        endpointKey: "test_api",
+      },
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(bodyResult.success).toBe(false);
+    if (bodyResult.success) {
+      throw new Error("Expected invalid JSON body to be rejected");
+    }
+
+    expect(bodyResult.errorResponse.status).toBe(400);
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests:reason:invalid_json",
     );
   });
 
@@ -1306,6 +1361,7 @@ describe("api module hardening", () => {
 
     const result = await initializeApiRequest(
       createApiRequest({
+        "x-operation-id": "op-route-init-12345",
         "user-agent": "AniCardsTest/3.0",
         "x-request-id": "req-init-12345",
         "x-vercel-forwarded-for": "198.51.100.42",
@@ -1320,6 +1376,7 @@ describe("api module hardening", () => {
     expect(result.endpoint).toBe("Test API");
     expect(result.endpointKey).toBe("test_api");
     expect(result.ip).toBe("198.51.100.42");
+    expect(result.operationId).toBe("op-route-init-12345");
     expect(result.requestId).toBe("req-init-12345");
     expect(typeof result.startTime).toBe("number");
     expect(limit).toHaveBeenCalledWith("198.51.100.42", {

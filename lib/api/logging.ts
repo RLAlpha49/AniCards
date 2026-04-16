@@ -37,6 +37,10 @@ function normalizeRequestId(value: unknown): string | undefined {
   return trimmed;
 }
 
+function normalizeOperationId(value: unknown): string | undefined {
+  return normalizeRequestId(value);
+}
+
 export function logPrivacySafe(
   level: "log" | "warn" | "error",
   endpoint: string,
@@ -51,11 +55,12 @@ export function logPrivacySafe(
       }))
     : undefined;
   const requestIdFromContext = normalizeRequestId(context?.requestId);
+  const operationIdFromContext = normalizeOperationId(context?.operationId);
 
   const safeContextEntries = Object.entries(context ?? {}).flatMap(
     ([key, value]) => {
       const normalizedKey = key.replaceAll(/_/g, "").toLowerCase();
-      if (normalizedKey === "requestid") {
+      if (normalizedKey === "requestid" || normalizedKey === "operationid") {
         return [];
       }
 
@@ -82,6 +87,11 @@ export function logPrivacySafe(
     ...((requestIdFromContext ?? requestContext?.requestId)
       ? {
           requestId: requestIdFromContext ?? requestContext?.requestId,
+        }
+      : {}),
+    ...((operationIdFromContext ?? requestContext?.operationId)
+      ? {
+          operationId: operationIdFromContext ?? requestContext?.operationId,
         }
       : {}),
     ...(requestContext?.method ? { method: requestContext.method } : {}),

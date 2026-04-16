@@ -93,6 +93,9 @@ function buildRejectedErrorReportBreadcrumb(
       ? { userAction: payload.userAction }
       : {}),
     ...(requestId ? { requestId } : {}),
+    ...(typeof payload.operationId === "string"
+      ? { operationId: payload.operationId }
+      : {}),
     issueCount: issues.length,
     ...(issueFields.length > 0 ? { issueFields: issueFields.join(",") } : {}),
   };
@@ -115,6 +118,7 @@ export async function POST(request: Request) {
   const {
     endpoint,
     endpointKey,
+    operationId: ingestionOperationId,
     requestId: ingestionRequestId,
     startTime,
   } = init;
@@ -190,6 +194,7 @@ export async function POST(request: Request) {
       retryable: reportPayload.retryable,
       recoverySuggestions: reportPayload.recoverySuggestions,
       requestId,
+      operationId: reportPayload.operationId ?? ingestionOperationId,
       errorName: reportPayload.errorName,
       route: reportPayload.route,
       statusCode: reportPayload.statusCode,
@@ -229,6 +234,9 @@ export async function POST(request: Request) {
     userAction: recordedReport.userAction,
     ...(recordedReport.requestId
       ? { requestId: recordedReport.requestId }
+      : {}),
+    ...(recordedReport.operationId
+      ? { operationId: recordedReport.operationId }
       : {}),
   };
 

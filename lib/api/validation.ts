@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import { ERROR_CATEGORIES } from "@/lib/error-messages";
 import {
   sanitizeErrorReportMetadata,
   sanitizeErrorReportRoute,
@@ -621,16 +622,7 @@ const errorReportSourceSchema = z.enum([
   "app_router_error_boundary",
   "api_route",
 ]);
-const errorCategorySchema = z.enum([
-  "user_not_found",
-  "rate_limited",
-  "network_error",
-  "invalid_data",
-  "server_error",
-  "timeout",
-  "authentication",
-  "unknown",
-]);
+const errorCategorySchema = z.enum(ERROR_CATEGORIES);
 const recoverySuggestionSchema = z
   .object({
     title: sanitizeRequiredErrorReportText(120),
@@ -675,6 +667,16 @@ export const errorReportPayloadSchema = z
     retryable: z.boolean().optional(),
     recoverySuggestions: z.array(recoverySuggestionSchema).max(6).optional(),
     requestId: z
+      .preprocess((value) => {
+        if (typeof value !== "string") {
+          return undefined;
+        }
+
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+      }, z.string().regex(REQUEST_ID_PATTERN).optional())
+      .optional(),
+    operationId: z
       .preprocess((value) => {
         if (typeof value !== "string") {
           return undefined;

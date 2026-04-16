@@ -16,8 +16,8 @@ import {
 } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
-  buildAnalyticsMetricKey,
-  scheduleLowValueAnalyticsIncrement,
+  buildFailedRequestMetricKeys,
+  scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 
 const DEFAULT_JSON_BODY_LIMIT_BYTES = 512 * 1024;
@@ -27,16 +27,17 @@ function scheduleFailedRequestMetric(
   options: {
     endpointKey: string;
     endpointName: string;
+    reasonCode: string;
   },
 ): void {
-  const metric = buildAnalyticsMetricKey(
+  const metrics = buildFailedRequestMetricKeys(
     options.endpointKey,
-    "failed_requests",
+    options.reasonCode,
   );
-  scheduleLowValueAnalyticsIncrement(metric, {
+  scheduleLowValueAnalyticsBatch(metrics, {
     endpoint: options.endpointName,
     request,
-    taskName: metric,
+    taskName: metrics[0],
   });
 }
 
@@ -110,7 +111,10 @@ export async function readJsonRequestBody<T>(
       request,
     );
 
-    scheduleFailedRequestMetric(request, options);
+    scheduleFailedRequestMetric(request, {
+      ...options,
+      reasonCode: "payload_too_large",
+    });
 
     return {
       success: false,
@@ -122,7 +126,10 @@ export async function readJsonRequestBody<T>(
   try {
     rawBody = await request.text();
   } catch {
-    scheduleFailedRequestMetric(request, options);
+    scheduleFailedRequestMetric(request, {
+      ...options,
+      reasonCode: "invalid_json",
+    });
 
     return {
       success: false,
@@ -145,7 +152,10 @@ export async function readJsonRequestBody<T>(
       request,
     );
 
-    scheduleFailedRequestMetric(request, options);
+    scheduleFailedRequestMetric(request, {
+      ...options,
+      reasonCode: "payload_too_large",
+    });
 
     return {
       success: false,
@@ -159,7 +169,10 @@ export async function readJsonRequestBody<T>(
       data: JSON.parse(rawBody) as T,
     };
   } catch {
-    scheduleFailedRequestMetric(request, options);
+    scheduleFailedRequestMetric(request, {
+      ...options,
+      reasonCode: "invalid_json",
+    });
 
     return {
       success: false,

@@ -163,6 +163,42 @@ describe("error reports API route", () => {
     expect(report.requestId).toBe("req-payload-12345");
   });
 
+  it("persists payload operation IDs and falls back to ingestion operation IDs", async () => {
+    const payloadResponse = await POST(
+      createRequest(
+        {
+          source: "client_hook",
+          userAction: "render_component_tree",
+          message: "Failed to fetch user Alex profile",
+          operationId: "op-payload-12345",
+        },
+        {
+          "x-operation-id": "op-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(payloadResponse.status).toBe(200);
+
+    const payloadReport = JSON.parse(
+      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    ) as { operationId?: string };
+    expect(payloadReport.operationId).toBe("op-payload-12345");
+
+    const ingestionResponse = await POST(
+      createRequest(undefined, {
+        "x-operation-id": "op-ingestion-only-12345",
+      }),
+    );
+
+    expect(ingestionResponse.status).toBe(200);
+
+    const ingestionReport = JSON.parse(
+      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    ) as { operationId?: string };
+    expect(ingestionReport.operationId).toBe("op-ingestion-only-12345");
+  });
+
   it("persists structured API error facts supplied by the client payload", async () => {
     const response = await POST(
       createRequest(
@@ -171,7 +207,7 @@ describe("error reports API route", () => {
           userAction: "user_page_load",
           message:
             "Conflict: data was updated elsewhere. Please reload and try again.",
-          category: "invalid_data",
+          category: "conflict",
           retryable: false,
           requestId: "req-structured-client-12345",
           route: "/user/Alex?tab=cards",
@@ -212,7 +248,7 @@ describe("error reports API route", () => {
       metadata?: Record<string, string>;
     };
 
-    expect(report.category).toBe("invalid_data");
+    expect(report.category).toBe("conflict");
     expect(report.retryable).toBe(false);
     expect(report.requestId).toBe("req-structured-client-12345");
     expect(report.route).toBe("/user/[username]");

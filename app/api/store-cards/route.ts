@@ -21,8 +21,11 @@ import {
 } from "@/lib/api/request-guards";
 import {
   buildAnalyticsMetricKey,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
   incrementAnalytics,
-  scheduleTelemetryTask,
+  scheduleAnalyticsBatch,
+  scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 import {
   storeCardsRequestSchema,
@@ -89,11 +92,42 @@ function scheduleStoreCardsMetric(
   endpointKey: string,
   metric: "failed_requests" | "successful_requests",
   request: Request,
+  options?: {
+    durationMs?: number;
+    reasonCode?: string;
+  },
 ): void {
-  const analyticsMetric = buildAnalyticsMetricKey(endpointKey, metric);
-  scheduleTelemetryTask(() => incrementAnalytics(analyticsMetric), {
+  const metrics =
+    metric === "failed_requests"
+      ? [
+          ...buildFailedRequestMetricKeys(endpointKey, options?.reasonCode),
+          ...(typeof options?.durationMs === "number"
+            ? buildLatencyBucketMetricKeys(
+                endpointKey,
+                options.durationMs,
+                "failure",
+              )
+            : []),
+        ]
+      : [
+          buildAnalyticsMetricKey(endpointKey, metric),
+          ...(typeof options?.durationMs === "number"
+            ? buildLatencyBucketMetricKeys(
+                endpointKey,
+                options.durationMs,
+                "success",
+              )
+            : []),
+        ];
+
+  const scheduleMetrics =
+    metric === "failed_requests"
+      ? scheduleLowValueAnalyticsBatch
+      : scheduleAnalyticsBatch;
+
+  scheduleMetrics(metrics, {
     endpoint,
-    taskName: analyticsMetric,
+    taskName: metrics[0],
     request,
   });
 }
@@ -795,9 +829,19 @@ async function validateIncomingPayload(
   endpoint: string,
   endpointKey: string,
   request: Request,
+  startTime: number,
 ): Promise<NextResponse | undefined> {
   if (!validated.success) {
-    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "failed_requests",
+      request,
+      {
+        durationMs: Date.now() - startTime,
+        reasonCode: "payload_rejected",
+      },
+    );
     return validated.error;
   }
 
@@ -948,20 +992,15 @@ type StoreCardsAtomicWriteResult =
 
 async function createIfMatchConflictResponse(
   currentUpdatedAt: string | undefined,
+  endpoint: string,
   endpointKey: string,
   request: Request,
+  startTime: number,
 ): Promise<NextResponse> {
-  scheduleTelemetryTask(
-    () =>
-      incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      ),
-    {
-      endpoint: "Store Cards",
-      taskName: "analytics:store_cards:failed_requests",
-      request,
-    },
-  );
+  scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request, {
+    durationMs: Date.now() - startTime,
+    reasonCode: "if_match_conflict",
+  });
 
   return apiErrorResponse(
     request,
@@ -980,20 +1019,15 @@ async function createIfMatchConflictResponse(
 }
 
 async function createMissingUserSnapshotResponse(
+  endpoint: string,
   endpointKey: string,
   request: Request,
+  startTime: number,
 ): Promise<NextResponse> {
-  scheduleTelemetryTask(
-    () =>
-      incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      ),
-    {
-      endpoint: "Store Cards",
-      taskName: "analytics:store_cards:failed_requests",
-      request,
-    },
-  );
+  scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request, {
+    durationMs: Date.now() - startTime,
+    reasonCode: "missing_user_snapshot",
+  });
 
   return apiErrorResponse(
     request,
@@ -1010,6 +1044,7 @@ async function parseStoreCardsRequestBody(
   request: Request,
   endpoint: string,
   endpointKey: string,
+  startTime: number,
 ): Promise<{ parsed?: ParsedStoreCardsBody; errorResponse?: NextResponse }> {
   const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
     request,
@@ -1028,9 +1063,24 @@ async function parseStoreCardsRequestBody(
 
   const parsedBody = storeCardsRequestSchema.safeParse(body);
   if (!parsedBody.success) {
-    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
-
     const issueField = parsedBody.error.issues[0]?.path[0];
+
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "failed_requests",
+      request,
+      {
+        durationMs: Date.now() - startTime,
+        reasonCode:
+          issueField === "userId"
+            ? "invalid_user_id"
+            : issueField === "cardOrder"
+              ? "invalid_card_order"
+              : "payload_rejected",
+      },
+    );
+
     if (issueField === "userId") {
       return {
         errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
@@ -1073,7 +1123,16 @@ async function parseStoreCardsRequestBody(
 
   const cardOrderResult = normalizeIncomingCardOrder(rawCardOrder);
   if (cardOrderResult.invalid) {
-    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "failed_requests",
+      request,
+      {
+        durationMs: Date.now() - startTime,
+        reasonCode: "invalid_card_order",
+      },
+    );
     return {
       errorResponse: apiErrorResponse(request, 400, "Invalid cardOrder", {
         category: "invalid_data",
@@ -1103,8 +1162,10 @@ async function enforceIfMatchUpdatedAt(
   ifMatchUpdatedAt: string | undefined,
   ifMatchRevision: number | undefined,
   ifMatchSnapshotToken: string | undefined,
+  endpoint: string,
   endpointKey: string,
   request: Request,
+  startTime: number,
 ): Promise<IfMatchUpdatedAtCheckResult> {
   if (typeof existingData !== "string" || existingData.length === 0) {
     return { shouldEnforceAtomicCheck: false };
@@ -1120,8 +1181,10 @@ async function enforceIfMatchUpdatedAt(
       shouldEnforceAtomicCheck: false,
       conflictResponse: await createIfMatchConflictResponse(
         existingUpdatedAt,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       ),
     };
   }
@@ -1131,8 +1194,10 @@ async function enforceIfMatchUpdatedAt(
       shouldEnforceAtomicCheck: false,
       conflictResponse: await createIfMatchConflictResponse(
         undefined,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       ),
     };
   }
@@ -1145,8 +1210,10 @@ async function enforceIfMatchUpdatedAt(
       shouldEnforceAtomicCheck: false,
       conflictResponse: await createIfMatchConflictResponse(
         existingUpdatedAt,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       ),
     };
   }
@@ -1159,8 +1226,10 @@ async function enforceIfMatchUpdatedAt(
       shouldEnforceAtomicCheck: false,
       conflictResponse: await createIfMatchConflictResponse(
         existingUpdatedAt,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       ),
     };
   }
@@ -1170,8 +1239,10 @@ async function enforceIfMatchUpdatedAt(
       shouldEnforceAtomicCheck: false,
       conflictResponse: await createIfMatchConflictResponse(
         existingUpdatedAt,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       ),
     };
   }
@@ -1371,6 +1442,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   endpoint: string;
   endpointKey: string;
   request: Request;
+  startTime: number;
 }): Promise<
   | {
       orderedStoredCards: StoredCardConfig[];
@@ -1390,6 +1462,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     endpoint,
     endpointKey,
     request,
+    startTime,
   } = params;
 
   const existingCardsMap = new Map<string, StoredCardConfig>(
@@ -1405,7 +1478,16 @@ async function assembleStoredCardsAndGlobalSettings(params: {
       { invalidColorKey: sanitizeResult.invalidColorStringKey },
       request,
     );
-    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "failed_requests",
+      request,
+      {
+        durationMs: Date.now() - startTime,
+        reasonCode: "payload_rejected",
+      },
+    );
     return {
       errorResponse: apiErrorResponse(request, 400, "Invalid data", {
         category: "invalid_data",
@@ -1485,6 +1567,7 @@ async function validateCardColors(
   endpoint: string,
   endpointKey: string,
   request: Request,
+  startTime: number,
 ): Promise<NextResponse | undefined> {
   const requiredColorFields = [
     "titleColor",
@@ -1518,6 +1601,10 @@ async function validateCardColors(
           endpointKey,
           "failed_requests",
           request,
+          {
+            durationMs: Date.now() - startTime,
+            reasonCode: "payload_rejected",
+          },
         );
         return apiErrorResponse(request, 400, "Invalid data", {
           category: "invalid_data",
@@ -1539,6 +1626,10 @@ async function validateCardColors(
           endpointKey,
           "failed_requests",
           request,
+          {
+            durationMs: Date.now() - startTime,
+            reasonCode: "payload_rejected",
+          },
         );
         return apiErrorResponse(request, 400, "Invalid data", {
           category: "invalid_data",
@@ -1576,6 +1667,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       endpoint,
       endpointKey,
+      startTime,
     );
     if (bodyParse.errorResponse) return bodyParse.errorResponse;
     const {
@@ -1609,6 +1701,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       endpointKey,
       request,
+      startTime,
     );
     if (validateErrorResponse) return validateErrorResponse;
 
@@ -1650,8 +1743,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       ifMatchUpdatedAt,
       ifMatchRevision,
       ifMatchSnapshotToken,
+      endpoint,
       endpointKey,
       request,
+      startTime,
     );
     if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
     const existingCards = filterSupportedStoredCards(
@@ -1674,6 +1769,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       endpointKey,
       request,
+      startTime,
     });
     if ("errorResponse" in assembly) return assembly.errorResponse;
     const { orderedStoredCards, mergedGlobalSettings, persistedCardOrder } =
@@ -1684,6 +1780,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       endpointKey,
       request,
+      startTime,
     );
     if (colorValidationError) return colorValidationError;
 
@@ -1709,13 +1806,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
     if (!storeResult.didWrite) {
       if (storeResult.reason === "missing_user_snapshot") {
-        return createMissingUserSnapshotResponse(endpointKey, request);
+        return createMissingUserSnapshotResponse(
+          endpoint,
+          endpointKey,
+          request,
+          startTime,
+        );
       }
 
       return createIfMatchConflictResponse(
         storeResult.currentUpdatedAt,
+        endpoint,
         endpointKey,
         request,
+        startTime,
       );
     }
 
@@ -1726,6 +1830,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpointKey,
       "successful_requests",
       request,
+      {
+        durationMs: duration,
+      },
     );
 
     const storedUpdatedAt = storeResult.updatedAt ?? cardData.updatedAt;

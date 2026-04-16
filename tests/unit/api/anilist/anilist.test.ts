@@ -173,9 +173,13 @@ describe("AniList API Route", () => {
       });
 
       await flushScheduledTelemetryTasksForTests();
-      expect(capturedIncr.calls).toContainEqual([
-        "analytics:anilist_api:successful_requests",
-      ]);
+      const metrics = capturedIncr.calls.map((call) => String(call[0]));
+      expect(metrics).toContain("analytics:anilist_api:successful_requests");
+      expect(
+        metrics.some((metric) =>
+          metric.startsWith("analytics:anilist_api:latency_buckets:success:"),
+        ),
+      ).toBe(true);
     } finally {
       capturedIncr.release();
     }
@@ -253,33 +257,50 @@ describe("AniList API Route", () => {
 
   it("rejects invalid user identifiers before contacting AniList", async () => {
     setEnvironment("test");
+    const capturedIncr = captureSharedRedisIncrCalls();
 
-    const invalidUserIdResponse = await POST(
-      createAniListRequest({
-        body: {
-          operation: "GetUserStats",
-          variables: { userId: -1 },
-        },
-      }),
-    );
-    expect(invalidUserIdResponse.status).toBe(400);
-    expect((await invalidUserIdResponse.json()).error).toContain(
-      "Invalid AniList userId",
-    );
+    try {
+      const invalidUserIdResponse = await POST(
+        createAniListRequest({
+          body: {
+            operation: "GetUserStats",
+            variables: { userId: -1 },
+          },
+        }),
+      );
+      expect(invalidUserIdResponse.status).toBe(400);
+      expect((await invalidUserIdResponse.json()).error).toContain(
+        "Invalid AniList userId",
+      );
 
-    const invalidUserNameResponse = await POST(
-      createAniListRequest({
-        body: {
-          operation: "GetUserId",
-          variables: { userName: "   " },
-        },
-      }),
-    );
-    expect(invalidUserNameResponse.status).toBe(400);
-    expect((await invalidUserNameResponse.json()).error).toContain(
-      "Invalid AniList username",
-    );
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+      await flushScheduledTelemetryTasksForTests();
+
+      const invalidUserNameResponse = await POST(
+        createAniListRequest({
+          body: {
+            operation: "GetUserId",
+            variables: { userName: "   " },
+          },
+        }),
+      );
+      expect(invalidUserNameResponse.status).toBe(400);
+      expect((await invalidUserNameResponse.json()).error).toContain(
+        "Invalid AniList username",
+      );
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+
+      await flushScheduledTelemetryTasksForTests();
+
+      const metrics = capturedIncr.calls.map((call) => String(call[0]));
+      expect(metrics).toContain(
+        "analytics:anilist_api:failed_requests:reason:invalid_user_id",
+      );
+      expect(metrics).toContain(
+        "analytics:anilist_api:failed_requests:reason:invalid_username",
+      );
+    } finally {
+      capturedIncr.release();
+    }
   });
 
   it("rejects missing or mismatched origins for browser-facing mutations", async () => {

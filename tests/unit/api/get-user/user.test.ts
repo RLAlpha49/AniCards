@@ -4,6 +4,7 @@ import { GET, OPTIONS } from "@/app/api/get-user/route";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockGet,
@@ -622,18 +623,40 @@ describe("User API GET Endpoint", () => {
 
   describe("Analytics Tracking", () => {
     it("should increment successful_requests analytics on successful fetch", async () => {
-      mockStoredParts();
-      await callGet("userId=123");
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:user_api:successful_requests",
-      );
+      const observedIncrements = captureSharedRedisIncrCalls();
+
+      try {
+        mockStoredParts();
+        await callGet("userId=123");
+        await flushScheduledTelemetryTasksForTests();
+
+        const metrics = observedIncrements.calls.map((call) => String(call[0]));
+        expect(metrics).toContain("analytics:user_api:successful_requests");
+        expect(
+          metrics.some((metric) =>
+            metric.startsWith("analytics:user_api:latency_buckets:success:"),
+          ),
+        ).toBe(true);
+      } finally {
+        observedIncrements.release();
+      }
     });
 
     it("should increment failed_requests analytics when missing parameters", async () => {
-      await callGet();
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:user_api:failed_requests",
-      );
+      const observedIncrements = captureSharedRedisIncrCalls();
+
+      try {
+        await callGet();
+        await flushScheduledTelemetryTasksForTests();
+
+        const metrics = observedIncrements.calls.map((call) => String(call[0]));
+        expect(metrics).toContain("analytics:user_api:failed_requests");
+        expect(metrics).toContain(
+          "analytics:user_api:failed_requests:reason:missing_lookup_target",
+        );
+      } finally {
+        observedIncrements.release();
+      }
     });
 
     it("should increment failed_requests analytics when Redis error occurs", async () => {

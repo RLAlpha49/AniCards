@@ -61,6 +61,21 @@ type AnalyticsMetricCount = {
   metric: string;
 };
 
+export type AnalyticsLatencyOutcome = "success" | "failure";
+
+const ANALYTICS_REASON_CODE_FALLBACK = "unknown";
+const ANALYTICS_REASON_CODE_MAX_LENGTH = 48;
+const ANALYTICS_LATENCY_BUCKETS = [
+  { label: "lt_050ms", maxMs: 49 },
+  { label: "050_099ms", maxMs: 99 },
+  { label: "100_249ms", maxMs: 249 },
+  { label: "250_499ms", maxMs: 499 },
+  { label: "500_999ms", maxMs: 999 },
+  { label: "1000_2499ms", maxMs: 2499 },
+  { label: "2500_4999ms", maxMs: 4999 },
+  { label: "gte_5000ms", maxMs: Number.POSITIVE_INFINITY },
+] as const;
+
 type PendingLowValueAnalyticsBatch = {
   endpoint: string;
   logContext?: Record<string, unknown>;
@@ -219,6 +234,81 @@ export function buildAnalyticsMetricKey(
   const normalized = String(endpointKey).toLowerCase().replaceAll(/\s+/g, "_");
   const base = `analytics:${normalized}:${metric}`;
   return extraSuffix ? `${base}:${extraSuffix}` : base;
+}
+
+export function normalizeAnalyticsReasonCode(reasonCode: string): string {
+  const normalized = reasonCode
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
+    .slice(0, ANALYTICS_REASON_CODE_MAX_LENGTH)
+    .replaceAll(/^_+|_+$/g, "");
+
+  return normalized.length > 0 ? normalized : ANALYTICS_REASON_CODE_FALLBACK;
+}
+
+export function buildReasonCodedMetricKey(
+  endpointKey: string,
+  metric: string,
+  reasonCode: string,
+): string {
+  return buildAnalyticsMetricKey(
+    endpointKey,
+    metric,
+    `reason:${normalizeAnalyticsReasonCode(reasonCode)}`,
+  );
+}
+
+export function buildFailedRequestMetricKeys(
+  endpointKey: string,
+  reasonCode?: string,
+): string[] {
+  const failedMetric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+
+  return reasonCode
+    ? [
+        failedMetric,
+        buildReasonCodedMetricKey(endpointKey, "failed_requests", reasonCode),
+      ]
+    : [failedMetric];
+}
+
+export function getAnalyticsLatencyBucket(durationMs: number): string {
+  const normalizedDurationMs = Number.isFinite(durationMs)
+    ? Math.max(0, Math.trunc(durationMs))
+    : 0;
+
+  for (const bucket of ANALYTICS_LATENCY_BUCKETS) {
+    if (normalizedDurationMs <= bucket.maxMs) {
+      return bucket.label;
+    }
+  }
+
+  return ANALYTICS_LATENCY_BUCKETS[ANALYTICS_LATENCY_BUCKETS.length - 1].label;
+}
+
+export function buildLatencyBucketMetricKeys(
+  endpointKey: string,
+  durationMs: number,
+  outcome?: AnalyticsLatencyOutcome,
+): string[] {
+  const bucket = getAnalyticsLatencyBucket(durationMs);
+  const metrics = [
+    buildAnalyticsMetricKey(endpointKey, "latency_buckets", bucket),
+  ];
+
+  if (outcome) {
+    metrics.push(
+      buildAnalyticsMetricKey(
+        endpointKey,
+        "latency_buckets",
+        `${outcome}:${bucket}`,
+      ),
+    );
+  }
+
+  return metrics;
 }
 
 export function buildAnalyticsStorageKey(

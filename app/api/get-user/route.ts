@@ -16,8 +16,11 @@ import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
-  scheduleAnalyticsIncrement,
-  scheduleLowValueAnalyticsIncrement,
+  buildAnalyticsMetricKey,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
+  scheduleAnalyticsBatch,
+  scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 import { isValidUsername } from "@/lib/api/validation";
 import {
@@ -37,25 +40,54 @@ const ratelimit = createRateLimiter({
   hotPath: true,
 });
 const USER_API_ENDPOINT = "User API";
-const USER_API_FAILED_METRIC = "analytics:user_api:failed_requests";
-const USER_API_SUCCESS_METRIC = "analytics:user_api:successful_requests";
+const USER_API_ENDPOINT_KEY = "user_api";
+const USER_API_FAILED_METRIC = buildAnalyticsMetricKey(
+  USER_API_ENDPOINT_KEY,
+  "failed_requests",
+);
+const USER_API_SUCCESS_METRIC = buildAnalyticsMetricKey(
+  USER_API_ENDPOINT_KEY,
+  "successful_requests",
+);
 
-function trackUserApiMetric(
-  metric: string,
+function trackUserApiSuccess(request: Request, durationMs: number): void {
+  scheduleAnalyticsBatch(
+    [
+      USER_API_SUCCESS_METRIC,
+      ...buildLatencyBucketMetricKeys(
+        USER_API_ENDPOINT_KEY,
+        durationMs,
+        "success",
+      ),
+    ],
+    {
+      endpoint: USER_API_ENDPOINT,
+      request,
+      taskName: USER_API_SUCCESS_METRIC,
+    },
+  );
+}
+
+function trackUserApiFailure(
   request: Request,
-  options?: {
-    lowValue?: boolean;
-  },
+  durationMs: number,
+  reasonCode: string,
 ): void {
-  const scheduleMetric = options?.lowValue
-    ? scheduleLowValueAnalyticsIncrement
-    : scheduleAnalyticsIncrement;
-
-  scheduleMetric(metric, {
-    endpoint: USER_API_ENDPOINT,
-    request,
-    taskName: metric,
-  });
+  scheduleLowValueAnalyticsBatch(
+    [
+      ...buildFailedRequestMetricKeys(USER_API_ENDPOINT_KEY, reasonCode),
+      ...buildLatencyBucketMetricKeys(
+        USER_API_ENDPOINT_KEY,
+        durationMs,
+        "failure",
+      ),
+    ],
+    {
+      endpoint: USER_API_ENDPOINT,
+      request,
+      taskName: USER_API_FAILED_METRIC,
+    },
+  );
 }
 
 function respondWithUserApiError(
@@ -63,12 +95,18 @@ function respondWithUserApiError(
   status: number,
   error: string,
   logMessage: string,
-  context?: Record<string, unknown>,
+  context: Record<string, unknown> | undefined,
+  options: {
+    reasonCode: string;
+    startTime: number;
+  },
 ): Response {
   logPrivacySafe("warn", USER_API_ENDPOINT, logMessage, context, request);
-  trackUserApiMetric(USER_API_FAILED_METRIC, request, {
-    lowValue: true,
-  });
+  trackUserApiFailure(
+    request,
+    Date.now() - options.startTime,
+    options.reasonCode,
+  );
   return apiErrorResponse(request, status, error);
 }
 
@@ -112,6 +150,7 @@ async function resolveLookupTarget(
   request: Request,
   userIdParam: string | null,
   usernameParam: string | null,
+  startTime: number,
 ): Promise<
   | {
       userId: number;
@@ -125,6 +164,11 @@ async function resolveLookupTarget(
       400,
       "Missing userId or username parameter",
       "Missing userId or username parameter",
+      undefined,
+      {
+        reasonCode: "missing_lookup_target",
+        startTime,
+      },
     );
   }
 
@@ -137,12 +181,20 @@ async function resolveLookupTarget(
         "Invalid userId parameter",
         "Invalid userId parameter provided",
         { userId: userIdParam },
+        {
+          reasonCode: "invalid_user_id",
+          startTime,
+        },
       );
     }
 
-    logPrivacySafe("log", USER_API_ENDPOINT, "Resolved lookup by userId", {
-      userId: numericUserId,
-    });
+    logPrivacySafe(
+      "log",
+      USER_API_ENDPOINT,
+      "Resolved lookup by userId",
+      { userId: numericUserId },
+      request,
+    );
     return { userId: numericUserId };
   }
 
@@ -153,6 +205,10 @@ async function resolveLookupTarget(
       "Invalid username parameter",
       "Invalid username parameter provided",
       { username: usernameParam },
+      {
+        reasonCode: "invalid_username",
+        startTime,
+      },
     );
   }
 
@@ -165,6 +221,10 @@ async function resolveLookupTarget(
       "User not found",
       "User not found for username",
       { username: usernameParam },
+      {
+        reasonCode: "not_found",
+        startTime,
+      },
     );
   }
 
@@ -175,6 +235,7 @@ async function handleStaleUsernameAlias(
   request: Request,
   userId: number,
   normalizedLookupUsername: string,
+  startTime: number,
   canonicalUsername?: string,
   state?: PersistedUserState | null,
 ): Promise<Response> {
@@ -196,9 +257,7 @@ async function handleStaleUsernameAlias(
     state,
   });
 
-  trackUserApiMetric(USER_API_FAILED_METRIC, request, {
-    lowValue: true,
-  });
+  trackUserApiFailure(request, Date.now() - startTime, "stale_username_alias");
   return apiErrorResponse(request, 404, "User not found");
 }
 
@@ -241,6 +300,7 @@ export async function GET(request: Request) {
       request,
       userIdParam,
       usernameParam,
+      startTime,
     );
     if (resolvedLookup instanceof Response) {
       return resolvedLookup;
@@ -273,9 +333,7 @@ export async function GET(request: Request) {
         },
         request,
       );
-      trackUserApiMetric(USER_API_FAILED_METRIC, request, {
-        lowValue: true,
-      });
+      trackUserApiFailure(request, duration, "not_found");
       return apiErrorResponse(request, 404, "User not found");
     }
 
@@ -297,6 +355,7 @@ export async function GET(request: Request) {
         request,
         numericUserId,
         normalizedLookupUsername,
+        startTime,
         canonicalUsername,
         userDataState,
       );
@@ -312,7 +371,7 @@ export async function GET(request: Request) {
       },
       request,
     );
-    trackUserApiMetric(USER_API_SUCCESS_METRIC, request);
+    trackUserApiSuccess(request, duration);
 
     const protectedWriteGrantHeader =
       await createProtectedWriteGrantCookieHeader({

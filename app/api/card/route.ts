@@ -19,10 +19,13 @@ import {
 } from "@/lib/api/rate-limit";
 import {
   ensureRequestContext,
+  getOperationId,
   withRequestIdHeaders,
 } from "@/lib/api/request-context";
 import {
   buildAnalyticsMetricKey,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
   incrementAnalyticsBatch,
   scheduleDeferredAnalyticsBatch,
   scheduleTelemetryTask,
@@ -409,6 +412,11 @@ function extractAndValidateParams(
       undefined,
       request,
     );
+    void trackFailedRequest({
+      request,
+      status: 400,
+      reasonCode: "missing_card_type",
+    });
     return new Response(
       toCleanSvgResponse(svgError(`Client Error: Missing parameter: cardType`)),
       {
@@ -426,6 +434,11 @@ function extractAndValidateParams(
       undefined,
       request,
     );
+    void trackFailedRequest({
+      request,
+      status: 400,
+      reasonCode: "missing_user_identifier",
+    });
     return new Response(
       toCleanSvgResponse(
         svgError(`Client Error: Missing parameter: userId or username`),
@@ -448,6 +461,11 @@ function extractAndValidateParams(
         { userId },
         request,
       );
+      void trackFailedRequest({
+        request,
+        status: 400,
+        reasonCode: "invalid_user_id",
+      });
       return new Response(
         toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
         {
@@ -469,6 +487,11 @@ function extractAndValidateParams(
       { cardType },
       request,
     );
+    void trackFailedRequest({
+      request,
+      status: 400,
+      reasonCode: "invalid_card_type",
+    });
     return new Response(
       toCleanSvgResponse(svgError("Client Error: Invalid card type")),
       {
@@ -492,6 +515,11 @@ function extractAndValidateParams(
       },
       request,
     );
+    void trackFailedRequest({
+      request,
+      status: 400,
+      reasonCode: "invalid_color_preset",
+    });
     return new Response(
       toCleanSvgResponse(svgError("Client Error: Invalid colorPreset")),
       {
@@ -525,6 +553,11 @@ function extractAndValidateParams(
       },
       request,
     );
+    void trackFailedRequest({
+      request,
+      status: 400,
+      reasonCode: `invalid_${paramName}`,
+    });
     return new Response(
       toCleanSvgResponse(svgError(`Client Error: Invalid ${paramName}`)),
       {
@@ -569,22 +602,39 @@ function extractAndValidateParams(
  * @returns Promise that resolves once analytics calls are fired (errors are ignored).
  * @source
  */
-async function trackFailedRequest(
-  baseCardType?: string,
-  status?: number,
-): Promise<void> {
+async function trackFailedRequest(options?: {
+  request?: Request;
+  baseCardType?: string;
+  status?: number;
+  reasonCode?: string;
+  durationMs?: number;
+}): Promise<void> {
   const metric = buildAnalyticsMetricKey("card_svg", "failed_requests");
-  const metrics = [metric];
+  const metrics = [
+    ...buildFailedRequestMetricKeys("card_svg", options?.reasonCode),
+  ];
 
-  if (baseCardType) {
-    metrics.push(`${metric}:${baseCardType}`);
+  if (options?.baseCardType) {
+    metrics.push(`${metric}:${options.baseCardType}`);
   }
 
-  if (typeof status === "number") {
-    metrics.push(`${metric}:status:${status}`);
-    if (baseCardType) {
-      metrics.push(`${metric}:${baseCardType}:status:${status}`);
+  if (typeof options?.status === "number") {
+    metrics.push(`${metric}:status:${options.status}`);
+    if (options.baseCardType) {
+      metrics.push(
+        `${metric}:${options.baseCardType}:status:${options.status}`,
+      );
     }
+  }
+
+  if (typeof options?.durationMs === "number") {
+    metrics.push(
+      ...buildLatencyBucketMetricKeys(
+        "card_svg",
+        options.durationMs,
+        "failure",
+      ),
+    );
   }
 
   await incrementAnalyticsBatch(metrics);
@@ -599,12 +649,26 @@ async function trackFailedRequest(
  * @returns Promise that resolves once analytics calls are fired.
  * @source
  */
-async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
+async function trackSuccessfulRequest(
+  baseCardType: string,
+  request?: Request,
+  durationMs?: number,
+): Promise<void> {
   const metric = buildAnalyticsMetricKey("card_svg", "successful_requests");
-  scheduleDeferredAnalyticsBatch([metric, `${metric}:${baseCardType}`], {
-    endpoint: "Card SVG",
-    taskName: "card-svg-successful-requests",
-  });
+  scheduleDeferredAnalyticsBatch(
+    [
+      metric,
+      `${metric}:${baseCardType}`,
+      ...(typeof durationMs === "number"
+        ? buildLatencyBucketMetricKeys("card_svg", durationMs, "success")
+        : []),
+    ],
+    {
+      endpoint: "Card SVG",
+      request,
+      taskName: "card-svg-successful-requests",
+    },
+  );
 }
 
 /**
@@ -618,6 +682,7 @@ async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
 async function resolveEffectiveUserId(
   params: ValidatedParams,
   request: Request,
+  startTime: number,
 ): Promise<{ userId: number } | { error: Response }> {
   if (params.numericUserId) {
     return { userId: params.numericUserId };
@@ -637,6 +702,7 @@ async function resolveEffectiveUserId(
             ),
             request,
             params.baseCardType,
+            startTime,
           ),
         };
       }
@@ -655,7 +721,13 @@ async function resolveEffectiveUserId(
       { username: params.username },
       request,
     );
-    await trackFailedRequest(params.baseCardType, 404);
+    await trackFailedRequest({
+      request,
+      baseCardType: params.baseCardType,
+      status: 404,
+      reasonCode: "not_found",
+      durationMs: Date.now() - startTime,
+    });
     return {
       error: new Response(
         toCleanSvgResponse(svgError("Not Found: User not found")),
@@ -667,7 +739,13 @@ async function resolveEffectiveUserId(
     };
   }
 
-  await trackFailedRequest(params.baseCardType, 400);
+  await trackFailedRequest({
+    request,
+    baseCardType: params.baseCardType,
+    status: 400,
+    reasonCode: "missing_user_identifier",
+    durationMs: Date.now() - startTime,
+  });
   return {
     error: new Response(
       toCleanSvgResponse(svgError("Client Error: Missing user identifier")),
@@ -687,9 +765,16 @@ function handleValidationError(
   validationResult: { error: string; status?: number },
   request: Request,
   baseCardType: string,
+  startTime: number,
 ): Response {
   const status = validationResult.status ?? 500;
-  void trackFailedRequest(baseCardType, status);
+  void trackFailedRequest({
+    request,
+    baseCardType,
+    status,
+    reasonCode: status === 404 ? "not_found" : "invalid_user_record",
+    durationMs: Date.now() - startTime,
+  });
 
   if (status === 404) {
     return new Response(
@@ -717,8 +802,20 @@ async function handleCardDataError(
   err: CardDataError,
   request: Request,
   baseCardType: string,
+  startTime: number,
 ): Promise<Response> {
-  await trackFailedRequest(baseCardType, err.status);
+  await trackFailedRequest({
+    request,
+    baseCardType,
+    status: err.status,
+    reasonCode:
+      err.status === 404
+        ? "not_found"
+        : err.status >= 400 && err.status < 500
+          ? "request_rejected"
+          : err.category,
+    durationMs: Date.now() - startTime,
+  });
 
   await trackUserActionError(
     `card_svg_generation_${baseCardType}`,
@@ -726,6 +823,7 @@ async function handleCardDataError(
     err.category,
     {
       executionEnvironment: "server",
+      operationId: getOperationId(request),
       statusCode: err.status,
       source: "api_route",
       metadata: {
@@ -992,7 +1090,6 @@ export async function GET(request: Request) {
 
   const paramsResult = extractAndValidateParams(request);
   if (paramsResult instanceof Response) {
-    await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
   const params = paramsResult;
@@ -1043,7 +1140,7 @@ export async function GET(request: Request) {
     manualRefresh: isManualRefresh,
   });
 
-  const userIdResult = await resolveEffectiveUserId(params, request);
+  const userIdResult = await resolveEffectiveUserId(params, request, startTime);
   if ("error" in userIdResult) {
     return userIdResult.error;
   }
@@ -1084,7 +1181,12 @@ export async function GET(request: Request) {
       preloadedCardMeta = savedCardCacheStamp.cardMeta;
     } catch (error) {
       if (error instanceof CardDataError) {
-        return handleCardDataError(error, request, params.baseCardType);
+        return handleCardDataError(
+          error,
+          request,
+          params.baseCardType,
+          startTime,
+        );
       }
 
       throw error;
@@ -1140,6 +1242,11 @@ export async function GET(request: Request) {
         { userId: effectiveUserId, durationMs: Date.now() - startTime },
         request,
       );
+      void trackSuccessfulRequest(
+        params.baseCardType,
+        request,
+        Date.now() - startTime,
+      );
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
         request,
@@ -1168,6 +1275,12 @@ export async function GET(request: Request) {
         "Served SVG from shared cache",
         { userId: effectiveUserId, durationMs: Date.now() - startTime },
         request,
+      );
+
+      void trackSuccessfulRequest(
+        params.baseCardType,
+        request,
+        Date.now() - startTime,
       );
 
       return createSuccessResponse(
@@ -1252,6 +1365,7 @@ async function loadUserAndCardConfig(
   params: ValidatedParams,
   effectiveUserId: number,
   request: Request,
+  startTime: number,
   options?: {
     preloadedCardDoc?: CardsRecord;
   },
@@ -1303,6 +1417,7 @@ async function loadUserAndCardConfig(
           validationResult,
           request,
           params.baseCardType,
+          startTime,
         ),
       };
     }
@@ -1337,6 +1452,7 @@ async function loadUserAndCardConfig(
         validationResult,
         request,
         params.baseCardType,
+        startTime,
       ),
     };
   }
@@ -1384,6 +1500,7 @@ async function generateCardResponse(
       params,
       effectiveUserId,
       request,
+      startTime,
       {
         preloadedCardDoc: options?.preloadedCardDoc,
       },
@@ -1480,7 +1597,7 @@ async function generateCardResponse(
       );
     }
 
-    void trackSuccessfulRequest(params.baseCardType);
+    void trackSuccessfulRequest(params.baseCardType, request, duration);
     return createSuccessResponse(svgContent, request, cardConfig.borderRadius, {
       cacheSource: options?.manualRefresh ? "refresh" : "render",
       cachePolicy:
@@ -1491,7 +1608,7 @@ async function generateCardResponse(
     });
   } catch (err: unknown) {
     if (err instanceof CardDataError) {
-      return handleCardDataError(err, request, params.baseCardType);
+      return handleCardDataError(err, request, params.baseCardType, startTime);
     }
 
     const duration = Date.now() - startTime;
@@ -1514,6 +1631,7 @@ async function generateCardResponse(
       "server_error",
       {
         executionEnvironment: "server",
+        operationId: getOperationId(request),
         statusCode: 500,
         source: "api_route",
         metadata: {
@@ -1523,7 +1641,13 @@ async function generateCardResponse(
       },
     );
 
-    await trackFailedRequest(params.baseCardType, 500);
+    await trackFailedRequest({
+      request,
+      baseCardType: params.baseCardType,
+      status: 500,
+      reasonCode: "render_failed",
+      durationMs: duration,
+    });
     return createInternalErrorResponse(request);
   }
 }
