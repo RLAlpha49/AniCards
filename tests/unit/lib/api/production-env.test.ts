@@ -6,6 +6,7 @@ const BASE_PRODUCTION_ENV = {
   API_SECRET_TOKEN: "ci-placeholder-request-proof-secret",
   CRON_SECRET: "ci-placeholder-cron-secret",
   NEXT_PUBLIC_APP_URL: "https://anicards.alpha49.com",
+  NODE_ENV: "production",
   UPSTASH_REDIS_REST_TOKEN: "ci-placeholder-upstash-token",
   UPSTASH_REDIS_REST_URL: "https://example.upstash.io",
 } as const;
