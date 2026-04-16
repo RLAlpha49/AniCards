@@ -24,6 +24,8 @@
     "update": "bun run update:apply",
     "update:check": "npm-check-updates --target minor",
     "update:check:json": "npm-check-updates --target minor --jsonUpgraded",
+    "update:check:latest": "npm-check-updates --target latest",
+    "update:check:latest:json": "npm-check-updates --target latest --jsonUpgraded",
     "update:apply": "npm-check-updates -u --target minor",
     "check:licenses": "node ./scripts/check-licenses.mjs",
     "generate:sbom": "node -e \"require('node:fs').mkdirSync('.artifacts/sbom', { recursive: true });\" && cdxgen -t js --no-install-deps --required-only --spec-version 1.6 --output .artifacts/sbom/anicards.cdx.json .",
