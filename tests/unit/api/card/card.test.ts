@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { createRateLimiter } from "@/lib/api/rate-limit";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
@@ -541,7 +542,7 @@ describe("Card SVG Route", () => {
       });
     });
 
-    it("should echo X-Request-Id on SVG responses", async () => {
+    it("should return the forwarded X-Request-Id on SVG responses", async () => {
       const cardsData = createMockCardData("animeStats", "default");
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
@@ -553,7 +554,7 @@ describe("Card SVG Route", () => {
         {
           headers: {
             origin: "http://example.dev",
-            "x-request-id": "req-card-12345",
+            [INTERNAL_REQUEST_ID_HEADER]: "req-card-12345",
           },
         },
       );

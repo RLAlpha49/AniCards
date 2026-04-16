@@ -13,6 +13,7 @@ import {
   getRateLimitIdentity,
 } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   initializeApiRequest,
   validateSameOrigin,
@@ -518,7 +519,7 @@ describe("api module hardening", () => {
         userAction: "render_component_tree",
       },
       request: createApiRequest({
-        "x-request-id": "req-error-report-reject-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-error-report-reject-12345",
       }),
     });
 
@@ -1151,7 +1152,7 @@ describe("api module hardening", () => {
     });
   });
 
-  it("returns a 429 response with rate-limit headers and request-id propagation", async () => {
+  it("returns a 429 response with rate-limit headers and forwarded request-id propagation", async () => {
     const reset = Date.now() + 5_000;
     const limit = mock().mockResolvedValue({
       success: false,
@@ -1167,7 +1168,7 @@ describe("api module hardening", () => {
     const request = createApiRequest({
       "cf-ipcountry": "CA",
       "user-agent": "AniCardsTest/2.0",
-      "x-request-id": "req-rate-limit-12345",
+      [INTERNAL_REQUEST_ID_HEADER]: "req-rate-limit-12345",
     });
 
     const response = await checkRateLimit(
@@ -1349,7 +1350,7 @@ describe("api module hardening", () => {
     }
   });
 
-  it("returns initializeApiRequest context from request headers on success", async () => {
+  it("returns initializeApiRequest context from request headers and the forwarded request ID on success", async () => {
     const limit = mock().mockResolvedValue({
       success: true,
       limit: 10,
@@ -1363,7 +1364,7 @@ describe("api module hardening", () => {
       createApiRequest({
         "x-operation-id": "op-route-init-12345",
         "user-agent": "AniCardsTest/3.0",
-        "x-request-id": "req-init-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-init-12345",
         "x-vercel-forwarded-for": "198.51.100.42",
         "x-vercel-ip-country": "US",
       }),
@@ -1386,7 +1387,7 @@ describe("api module hardening", () => {
     });
   });
 
-  it("short-circuits initializeApiRequest with a request-id aware rate-limit response", async () => {
+  it("short-circuits initializeApiRequest with a forwarded request-id aware rate-limit response", async () => {
     const limiter = {
       limit: mock().mockResolvedValue({
         success: false,
@@ -1399,7 +1400,7 @@ describe("api module hardening", () => {
 
     const result = await initializeApiRequest(
       createApiRequest({
-        "x-request-id": "req-init-limited-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-init-limited-12345",
       }),
       "Test API",
       "test_api",
@@ -1568,10 +1569,10 @@ describe("api module hardening", () => {
     });
   });
 
-  it("builds apiErrorResponse payloads with merged headers and request-id exposure", async () => {
+  it("builds apiErrorResponse payloads with merged headers and forwarded request-id exposure", async () => {
     const response = apiErrorResponse(
       createApiRequest({
-        "x-request-id": "req-api-error-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-api-error-12345",
       }),
       422,
       "Invalid filter",
@@ -1614,7 +1615,7 @@ describe("api module hardening", () => {
   it("builds invalidJsonResponse payloads with the expected invalid-data contract", async () => {
     const response = invalidJsonResponse(
       createApiRequest({
-        "x-request-id": "req-invalid-json-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-invalid-json-12345",
       }),
       {
         headers: {

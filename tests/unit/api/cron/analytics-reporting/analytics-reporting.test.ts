@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   allowConsoleWarningsAndErrors,
   sharedRedisMockExpire,
@@ -189,7 +190,7 @@ describe("Analytics & Reporting Cron API", () => {
     await expectApiErrorResponse(
       await POST(createCronRequest(null)),
       503,
-      "CRON_SECRET is not configured",
+      "Server misconfigured",
     );
   });
 
@@ -257,7 +258,7 @@ describe("Analytics & Reporting Cron API", () => {
     );
   });
 
-  it("echoes X-Request-Id on analytics reporting responses", async () => {
+  it("returns the forwarded X-Request-Id on analytics reporting responses", async () => {
     setupAnalyticsData({ "analytics:visits": "100" });
 
     const response = await POST(
@@ -265,7 +266,7 @@ describe("Analytics & Reporting Cron API", () => {
         method: "POST",
         headers: {
           "x-cron-secret": CRON_SECRET,
-          "x-request-id": "req-analytics-12345",
+          [INTERNAL_REQUEST_ID_HEADER]: "req-analytics-12345",
         },
       }),
     );
@@ -646,7 +647,7 @@ describe("Analytics & Reporting Cron API", () => {
         createCronRequest(CRON_SECRET, {
           headers: {
             "x-operation-id": "op-analytics-report-12345",
-            "x-request-id": "req-analytics-report-12345",
+            [INTERNAL_REQUEST_ID_HEADER]: "req-analytics-report-12345",
           },
         }),
       ),

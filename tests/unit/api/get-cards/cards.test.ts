@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
@@ -550,7 +551,7 @@ describe("Cards API GET Endpoint", () => {
       expect(res.headers.get("Access-Control-Allow-Origin")).toBeDefined();
     });
 
-    it("should echo X-Request-Id when provided", async () => {
+    it("should return the forwarded X-Request-Id when middleware provides one", async () => {
       const cardData = createStoredCardsRecord({
         userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
@@ -560,7 +561,7 @@ describe("Cards API GET Endpoint", () => {
         headers: {
           "x-forwarded-for": "127.0.0.1",
           origin: "http://example.dev",
-          "x-request-id": "req-cards-12345",
+          [INTERNAL_REQUEST_ID_HEADER]: "req-cards-12345",
         },
       });
       const res = await GET(req);

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
@@ -606,12 +607,12 @@ describe("User API GET Endpoint", () => {
       );
     });
 
-    it("should echo X-Request-Id when the caller provides one", async () => {
+    it("should return the forwarded X-Request-Id when middleware provides one", async () => {
       mockStoredParts();
 
       const res = await callGet("userId=123", {
         origin: "http://example.dev",
-        "x-request-id": "req-user-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-user-12345",
       });
 
       expect(res.headers.get("X-Request-Id")).toBe("req-user-12345");

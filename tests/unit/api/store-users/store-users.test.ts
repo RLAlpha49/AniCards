@@ -16,6 +16,7 @@ import {
 } from "bun:test";
 
 import { createProtectedWriteGrantCookie } from "@/lib/api/protected-write-grants";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
@@ -1499,7 +1500,7 @@ describe("Store Users API", () => {
       expect(res.headers.get("Content-Type")).toBe("application/json");
     });
 
-    it("should echo X-Request-Id in success responses", async () => {
+    it("should return the forwarded X-Request-Id in success responses", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValueOnce(true);
@@ -1512,7 +1513,7 @@ describe("Store Users API", () => {
             "x-forwarded-for": "127.0.0.1",
             origin: "http://localhost",
             "Content-Type": "application/json",
-            "x-request-id": requestId,
+            [INTERNAL_REQUEST_ID_HEADER]: requestId,
           },
           body: JSON.stringify({
             userId: 101,

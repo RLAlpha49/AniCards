@@ -15,6 +15,7 @@ import {
 } from "bun:test";
 
 import { createProtectedWriteGrantCookie } from "@/lib/api/protected-write-grants";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
@@ -200,7 +201,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
     });
 
-    it("should echo X-Request-Id on successful writes", async () => {
+    it("should return the forwarded X-Request-Id on successful writes", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const response = await POST(
         new Request("http://localhost/api/store-cards", {
@@ -210,7 +211,7 @@ describe("Store Cards API POST Endpoint", () => {
             "x-vercel-forwarded-for": "127.0.0.1",
             origin: "http://localhost",
             "Content-Type": "application/json",
-            "x-request-id": "req-store-cards-12345",
+            [INTERNAL_REQUEST_ID_HEADER]: "req-store-cards-12345",
           },
           body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
         }),

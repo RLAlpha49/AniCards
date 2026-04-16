@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { OPTIONS, POST } from "@/app/api/anilist/route";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
@@ -581,13 +582,13 @@ describe("AniList API Route", () => {
     );
   });
 
-  it("echoes X-Request-Id on successful responses", async () => {
+  it("returns the forwarded X-Request-Id on successful responses", async () => {
     setEnvironment("test");
     mockJsonFetch({ data: { User: { id: 123 } } });
 
     const response = await POST(
       createAniListRequest({
-        headers: { "x-request-id": "req-anilist-12345" },
+        headers: { [INTERNAL_REQUEST_ID_HEADER]: "req-anilist-12345" },
         body: {
           operation: "GetUserStats",
           variables: { userId: 123 },

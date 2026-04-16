@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
@@ -327,11 +328,7 @@ describe("Cron API Route", () => {
   it("fails closed when CRON_SECRET is missing unless explicitly allowed in development", async () => {
     delete process.env.CRON_SECRET;
     const closedResponse = await POST(createCronRequest(null));
-    await expectApiErrorResponse(
-      closedResponse,
-      503,
-      "CRON_SECRET is not configured",
-    );
+    await expectApiErrorResponse(closedResponse, 503, "Server misconfigured");
 
     process.env = { ...process.env, NODE_ENV: "development" };
     process.env.ALLOW_UNSECURED_CRON_IN_DEV = "true";
@@ -358,14 +355,14 @@ describe("Cron API Route", () => {
     expect(text).toContain("No stored users are currently queued for refresh.");
   });
 
-  it("echoes X-Request-Id on cron responses", async () => {
+  it("returns the forwarded X-Request-Id on cron responses", async () => {
     sharedRedisMockSmembers.mockResolvedValueOnce([]);
 
     const response = await POST(
       new Request("http://localhost/api/cron", {
         headers: {
           "x-cron-secret": CRON_SECRET,
-          "x-request-id": "req-cron-12345",
+          [INTERNAL_REQUEST_ID_HEADER]: "req-cron-12345",
         },
       }),
     );

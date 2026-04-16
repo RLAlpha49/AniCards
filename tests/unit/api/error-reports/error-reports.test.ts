@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { OPTIONS, POST } from "@/app/api/error-reports/route";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
@@ -116,10 +117,10 @@ describe("error reports API route", () => {
     expect(report).not.toHaveProperty("username");
   });
 
-  it("persists the resolved request ID in the structured report", async () => {
+  it("persists the middleware-resolved request ID in the structured report", async () => {
     const response = await POST(
       createRequest(undefined, {
-        "x-request-id": "req-error-route-12345",
+        [INTERNAL_REQUEST_ID_HEADER]: "req-error-route-12345",
       }),
     );
 
@@ -146,7 +147,7 @@ describe("error reports API route", () => {
           route: "/user/Alex?tab=cards",
         },
         {
-          "x-request-id": "req-ingestion-99999",
+          [INTERNAL_REQUEST_ID_HEADER]: "req-ingestion-99999",
         },
       ),
     );
@@ -224,7 +225,7 @@ describe("error reports API route", () => {
           },
         },
         {
-          "x-request-id": "req-ingestion-99999",
+          [INTERNAL_REQUEST_ID_HEADER]: "req-ingestion-99999",
         },
       ),
     );
@@ -525,7 +526,7 @@ describe("error reports API route", () => {
             userAction: "submit_error_feedback",
           },
           {
-            "x-request-id": "req-error-reject-12345",
+            [INTERNAL_REQUEST_ID_HEADER]: "req-error-reject-12345",
           },
         ),
       );
@@ -626,8 +627,8 @@ describe("error reports API route", () => {
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
       "http://localhost",
     );
-    expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
-      "X-Request-Id",
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe(
+      "Content-Type",
     );
     expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
       "POST",
