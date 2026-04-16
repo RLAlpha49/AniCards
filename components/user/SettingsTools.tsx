@@ -70,7 +70,11 @@ import {
   stringifyWorkspaceBackup,
 } from "@/lib/user-page-settings-io";
 import { writeSettingsTemplatesToStorage } from "@/lib/user-page-settings-templates";
-import { type CardDownloadFormat, cn } from "@/lib/utils";
+import {
+  type CardDownloadFormat,
+  cn,
+  trimOuterRepeatedCharacter,
+} from "@/lib/utils";
 
 import {
   buildShareableCards,
@@ -122,11 +126,12 @@ function buildWorkspaceBackupFilename(params: {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
-  const identity = (params.username || params.userId || "workspace")
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "")
-    .slice(0, 40);
+  const identity = trimOuterRepeatedCharacter(
+    (params.username || params.userId || "workspace")
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9_-]+/g, "-"),
+    "-",
+  ).slice(0, 40);
 
   return `anicards-${identity || "workspace"}-workspace-backup-${y}${m}${d}.json`;
 }

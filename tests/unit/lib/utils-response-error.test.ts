@@ -5,7 +5,24 @@ import { describe, expect, it } from "bun:test";
 import {
   getResponseErrorMessage,
   getStructuredResponseError,
+  trimOuterRepeatedCharacter,
 } from "@/lib/utils";
+
+describe("trimOuterRepeatedCharacter", () => {
+  it("trims repeated edge characters without touching inner content", () => {
+    expect(trimOuterRepeatedCharacter("---workspace-backup---", "-")).toBe(
+      "workspace-backup",
+    );
+    expect(trimOuterRepeatedCharacter("__reason__code__", "_")).toBe(
+      "reason__code",
+    );
+  });
+
+  it("returns the original string when the trim character is invalid", () => {
+    expect(trimOuterRepeatedCharacter("--keep--", "")).toBe("--keep--");
+    expect(trimOuterRepeatedCharacter("--keep--", "--")).toBe("--keep--");
+  });
+});
 
 describe("structured response error parsing", () => {
   it("preserves structured API error facts and request IDs from JSON payloads", () => {

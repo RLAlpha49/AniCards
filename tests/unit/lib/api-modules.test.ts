@@ -34,6 +34,7 @@ import {
   incrementAnalytics,
   incrementAnalyticsBatch,
   incrementAnalyticsBatchCounts,
+  normalizeAnalyticsReasonCode,
   scheduleDeferredAnalyticsBatch,
   scheduleLowValueAnalyticsIncrement,
   scheduleTelemetryTask,
@@ -197,6 +198,15 @@ describe("api module hardening", () => {
       "analytics:test_api:failed_requests",
       "analytics:test_api:failed_requests:reason:invalid_json",
     ]);
+  });
+
+  it("normalizes analytics reason codes after slicing without leaving edge underscores", () => {
+    expect(
+      normalizeAnalyticsReasonCode(
+        `${"!".repeat(12)}Alpha reason${"!".repeat(80)}`,
+      ),
+    ).toBe("alpha_reason");
+    expect(normalizeAnalyticsReasonCode("!!!!")).toBe("unknown");
   });
 
   it("builds normalized latency bucket metrics for endpoint outcomes", () => {

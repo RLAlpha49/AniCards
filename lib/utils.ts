@@ -139,6 +139,35 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Trim repeated runs of a single character from the start and end of a string
+ * without relying on regex backtracking.
+ */
+export function trimOuterRepeatedCharacter(
+  value: string,
+  character: string,
+): string {
+  const normalizedValue = String(value ?? "");
+  if (character.length !== 1 || normalizedValue.length === 0) {
+    return normalizedValue;
+  }
+
+  let start = 0;
+  let end = normalizedValue.length;
+
+  while (start < end && normalizedValue[start] === character) {
+    start += 1;
+  }
+
+  while (end > start && normalizedValue[end - 1] === character) {
+    end -= 1;
+  }
+
+  return start === 0 && end === normalizedValue.length
+    ? normalizedValue
+    : normalizedValue.slice(start, end);
+}
+
+/**
  * Type guard to check if a color value is a gradient definition.
  * @param value - The color value to check.
  * @returns True if the value is a GradientDefinition object.

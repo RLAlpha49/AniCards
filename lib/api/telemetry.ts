@@ -1,5 +1,6 @@
 import { redisClient } from "@/lib/api/clients";
 import { logPrivacySafe } from "@/lib/api/logging";
+import { trimOuterRepeatedCharacter } from "@/lib/utils";
 
 type AnalyticsRedisPipeline = {
   incr: (key: string) => AnalyticsRedisPipeline;
@@ -237,13 +238,16 @@ export function buildAnalyticsMetricKey(
 }
 
 export function normalizeAnalyticsReasonCode(reasonCode: string): string {
-  const normalized = reasonCode
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "_")
-    .replaceAll(/^_+|_+$/g, "")
-    .slice(0, ANALYTICS_REASON_CODE_MAX_LENGTH)
-    .replaceAll(/^_+|_+$/g, "");
+  const normalized = trimOuterRepeatedCharacter(
+    trimOuterRepeatedCharacter(
+      reasonCode
+        .trim()
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, "_"),
+      "_",
+    ).slice(0, ANALYTICS_REASON_CODE_MAX_LENGTH),
+    "_",
+  );
 
   return normalized.length > 0 ? normalized : ANALYTICS_REASON_CODE_FALLBACK;
 }

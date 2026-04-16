@@ -123,7 +123,7 @@ import {
   EDITOR_STARTER_STYLES,
   type EditorStarterStyle,
 } from "@/lib/user-page-starters";
-import { cn } from "@/lib/utils";
+import { cn, trimOuterRepeatedCharacter } from "@/lib/utils";
 
 import {
   BulkConfirmDialog,
@@ -2651,11 +2651,12 @@ export function UserPageEditor({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const identity = (payload.username || payload.userId || "workspace")
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9_-]+/g, "-")
-      .replaceAll(/^-+|-+$/g, "")
-      .slice(0, 40);
+    const identity = trimOuterRepeatedCharacter(
+      (payload.username || payload.userId || "workspace")
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9_-]+/g, "-"),
+      "-",
+    ).slice(0, 40);
     a.download = `anicards-${identity || "workspace"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
