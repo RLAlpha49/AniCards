@@ -31,9 +31,11 @@ const readSvgMarkupFromUrl = mock(async () => "<svg />");
 const toCardApiHref = mock((previewUrl: string): string | null => previewUrl);
 const cn = (...inputs: Array<string | false | null | undefined>) =>
   inputs.filter(Boolean).join(" ");
+const actualUtils = await import("@/lib/utils");
 
 mock.module("@/components/user/tile/preview-cache", () => previewCache);
 mock.module("@/lib/utils", () => ({
+  ...actualUtils,
   cn,
   convertSvgToBlob,
   getAbsoluteUrl,
