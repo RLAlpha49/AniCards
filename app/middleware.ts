@@ -3,34 +3,64 @@ import { NextResponse } from "next/server";
 
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
+  INTERNAL_REQUEST_ID_HEADER,
+  REQUEST_ID_HEADER,
+} from "@/lib/api/request-context";
+import {
   createRequestProofCookie,
   getRequestProofCookie,
   REQUEST_PROOF_COOKIE_NAME,
   resolveVerifiedClientIp,
-  verifyRequestProofToken,
 } from "@/lib/api/request-proof";
 import { buildCSPHeader } from "@/lib/csp-config";
 import { generateSecureId } from "@/lib/utils";
 
-const REQUEST_ID_HEADER = "x-request-id";
 const REQUEST_ID_MIDDLEWARE_MATCHER =
   "/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)";
-const INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES = [
+const DOCUMENT_INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES = [
   "/examples",
   "/user",
-  "/StatCards",
 ] as const;
+const DOCUMENT_FETCH_DESTINATIONS = new Set(["document", "iframe"]);
 
-function isSafeRequestId(value: string): boolean {
-  return /^[A-Za-z0-9._:-]{8,120}$/.test(value);
+function pathnameLooksLikeDocument(pathname: string): boolean {
+  const lastSegment = pathname.split("/").filter(Boolean).at(-1);
+  return !lastSegment?.includes(".");
 }
 
-function getOrCreateRequestId(request: NextRequest): string {
-  const existing = request.headers.get(REQUEST_ID_HEADER)?.trim();
-  if (existing && isSafeRequestId(existing)) {
-    return existing;
+function acceptsHtmlDocument(request: NextRequest): boolean {
+  const acceptHeader = request.headers.get("accept")?.toLowerCase() ?? "";
+  return (
+    acceptHeader.includes("text/html") ||
+    acceptHeader.includes("application/xhtml+xml")
+  );
+}
+
+function isDocumentRequest(request: NextRequest, pathname: string): boolean {
+  if (!["GET", "HEAD"].includes(request.method.toUpperCase())) {
+    return false;
   }
 
+  if (pathname.startsWith("/api/")) {
+    return false;
+  }
+
+  if (!pathnameLooksLikeDocument(pathname)) {
+    return false;
+  }
+
+  const fetchDestination = request.headers.get("sec-fetch-dest")?.toLowerCase();
+  const fetchMode = request.headers.get("sec-fetch-mode")?.toLowerCase();
+
+  return (
+    acceptsHtmlDocument(request) ||
+    DOCUMENT_FETCH_DESTINATIONS.has(fetchDestination ?? "") ||
+    fetchMode === "navigate" ||
+    (!fetchDestination && !fetchMode)
+  );
+}
+
+function getOrCreateRequestId(): string {
   if (typeof crypto?.randomUUID === "function") {
     return crypto.randomUUID();
   }
@@ -68,7 +98,7 @@ function shouldAllowInlineStyleAttributes(pathname: string): boolean {
     return true;
   }
 
-  return INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES.some(
+  return DOCUMENT_INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }
@@ -91,8 +121,12 @@ function generateNonce(): string {
 async function maybeRefreshRequestProof(
   request: NextRequest,
   response: NextResponse,
-  isApiRequest: boolean,
+  shouldBootstrapRequestProof: boolean,
 ): Promise<void> {
+  if (!shouldBootstrapRequestProof) {
+    return;
+  }
+
   const clientIp = resolveVerifiedClientIp(request);
   const existingProofCookie = getRequestProofCookie(request);
 
@@ -119,26 +153,6 @@ async function maybeRefreshRequestProof(
     }
 
     return;
-  }
-
-  if (isApiRequest) {
-    if (!existingProofCookie) {
-      return;
-    }
-
-    const verification = await verifyRequestProofToken(existingProofCookie, {
-      ip: clientIp.ip,
-      userAgent: request.headers.get("user-agent"),
-    });
-    if (!verification.valid) {
-      response.cookies.set({
-        name: REQUEST_PROOF_COOKIE_NAME,
-        value: "",
-        maxAge: 0,
-        path: "/",
-      });
-      return;
-    }
   }
 
   const proofCookie = await createRequestProofCookie({
@@ -174,16 +188,18 @@ async function maybeRefreshRequestProof(
  * @source
  */
 export async function middleware(request: NextRequest) {
-  const requestId = getOrCreateRequestId(request);
+  const requestId = getOrCreateRequestId();
   const pathname = getRequestPathname(request);
-  const isApiRequest = pathname.startsWith("/api/");
-  const nonce = isApiRequest ? undefined : generateNonce();
+  const isDocumentNavigationRequest = isDocumentRequest(request, pathname);
+  const nonce = isDocumentNavigationRequest ? generateNonce() : undefined;
   const isDevelopment = process.env.NODE_ENV === "development";
   const allowInlineStyleAttributes = shouldAllowInlineStyleAttributes(pathname);
   const requestRoute = getRequestRoute(request);
 
   const forwardedHeaders = new Headers(request.headers);
-  forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
+  forwardedHeaders.delete(REQUEST_ID_HEADER);
+  forwardedHeaders.delete(INTERNAL_REQUEST_ID_HEADER);
+  forwardedHeaders.set(INTERNAL_REQUEST_ID_HEADER, requestId);
   forwardedHeaders.set("x-request-route", requestRoute);
 
   const cspHeader = nonce
@@ -208,14 +224,18 @@ export async function middleware(request: NextRequest) {
       headers: forwardedHeaders,
     },
   });
-  response.headers.set("X-Request-Id", requestId);
+  response.headers.set(REQUEST_ID_HEADER, requestId);
 
   if (nonce && cspHeader) {
     response.headers.set("Content-Security-Policy", cspHeader);
     response.headers.set("x-nonce", nonce);
   }
 
-  await maybeRefreshRequestProof(request, response, isApiRequest);
+  await maybeRefreshRequestProof(
+    request,
+    response,
+    isDocumentNavigationRequest,
+  );
 
   return response;
 }

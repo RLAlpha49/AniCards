@@ -10,6 +10,13 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
   (typeof DEFAULT_TRUSTED_CLIENT_IP_HEADERS)[number],
   readonly string[]
 >;
+const DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS = Array.from(
+  new Set(
+    Object.values(DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS).flatMap(
+      (headers) => headers,
+    ),
+  ),
+);
 
 const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
 const REQUEST_PROOF_VERSION = 1;
@@ -158,7 +165,7 @@ function hasTrustedProxyProvenance(
   const provenanceHeaders =
     DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS[
       headerName as keyof typeof DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS
-    ];
+    ] ?? DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS;
 
   if (!provenanceHeaders) {
     return false;
@@ -296,7 +303,7 @@ function base64ToBytes(value: string): Uint8Array {
     return bytes;
   }
 
-  return new Uint8Array(Buffer.from(value, "base64"));
+  return Uint8Array.from(Buffer.from(value, "base64"));
 }
 
 function base64urlEncodeBytes(bytes: Uint8Array): string {
@@ -313,12 +320,36 @@ function base64urlEncodeText(value: string): string {
   return base64urlEncodeBytes(textEncoder.encode(value));
 }
 
-function base64urlDecodeText(value: string): string {
+function base64urlDecodeBytes(value: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9_-]+$/u.test(value)) {
+    return null;
+  }
+
   const padded = value
     .replaceAll("-", "+")
     .replaceAll("_", "/")
     .padEnd(Math.ceil(value.length / 4) * 4, "=");
-  return textDecoder.decode(base64ToBytes(padded));
+
+  try {
+    return base64ToBytes(padded);
+  } catch {
+    return null;
+  }
+}
+
+function base64urlDecodeText(value: string): string {
+  const decodedBytes = base64urlDecodeBytes(value);
+  if (!decodedBytes) {
+    throw new Error("Invalid base64url payload segment");
+  }
+
+  return textDecoder.decode(decodedBytes);
+}
+
+function cloneBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
 }
 
 async function getRequestProofCryptoKey(secret: string): Promise<CryptoKey> {
@@ -349,6 +380,31 @@ async function signRequestProofSegment(
   );
 
   return base64urlEncodeBytes(new Uint8Array(signature));
+}
+
+async function verifyRequestProofSignature(
+  payloadSegment: string,
+  signatureSegment: string,
+  secret: string,
+): Promise<boolean> {
+  const signatureBytes = base64urlDecodeBytes(signatureSegment);
+  if (!signatureBytes) {
+    return false;
+  }
+
+  const key = await getRequestProofCryptoKey(secret);
+  const signatureBuffer = cloneBytesToArrayBuffer(signatureBytes);
+
+  try {
+    return await crypto.subtle.verify(
+      "HMAC",
+      key,
+      signatureBuffer,
+      textEncoder.encode(payloadSegment),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isRequestProofPayload(value: unknown): value is RequestProofPayload {
@@ -483,11 +539,12 @@ export async function verifyRequestProofToken(
     return { valid: false, reason: "malformed_token" };
   }
 
-  const expectedSignature = await signRequestProofSegment(
+  const signatureIsValid = await verifyRequestProofSignature(
     payloadSegment,
+    signatureSegment,
     secret,
   );
-  if (expectedSignature !== signatureSegment) {
+  if (!signatureIsValid) {
     return { valid: false, reason: "invalid_signature" };
   }
 

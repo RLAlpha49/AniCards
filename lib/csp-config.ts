@@ -82,6 +82,21 @@ function normalizeCanonicalApiImageSourceOrigin(
   }
 }
 
+function normalizeConnectSourceOrigin(
+  urlString: string | undefined,
+): string | null {
+  if (!urlString) {
+    return null;
+  }
+
+  try {
+    const url = new URL(urlString);
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getImageSrcAllowlist(
   options: {
     apiUrl?: string;
@@ -111,6 +126,25 @@ export function getImageSrcAllowlist(
 }
 
 const IMAGE_SRC_ALLOWLIST = getImageSrcAllowlist();
+
+export function getConnectSrcAllowlist(
+  options: {
+    upstashRedisRestUrl?: string;
+  } = {},
+): string[] {
+  const upstashRedisRestUrl =
+    options.upstashRedisRestUrl ?? process.env.UPSTASH_REDIS_REST_URL;
+
+  return [
+    ...new Set(
+      [normalizeConnectSourceOrigin(upstashRedisRestUrl)].filter(
+        (origin): origin is string => Boolean(origin),
+      ),
+    ),
+  ];
+}
+
+const CONNECT_SRC_ALLOWLIST = getConnectSrcAllowlist();
 
 /**
  * CSP Directives Configuration
@@ -170,7 +204,7 @@ export const CSP_DIRECTIVES = {
   connectSrc: [
     CSP_KEYWORDS.SELF,
     "https://graphql.anilist.co",
-    "https://*.upstash.io",
+    ...CONNECT_SRC_ALLOWLIST,
     "https://va.vercel-scripts.com",
     "https://vitals.vercel-insights.com",
     "https://www.google-analytics.com",

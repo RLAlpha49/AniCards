@@ -11,7 +11,8 @@ export interface ApiRequestContext {
 }
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
-const REQUEST_ID_HEADER = "X-Request-Id";
+export const REQUEST_ID_HEADER = "X-Request-Id";
+export const INTERNAL_REQUEST_ID_HEADER = "x-anicards-request-id";
 const OPERATION_ID_HEADER = "X-Operation-Id";
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 
@@ -33,6 +34,14 @@ function createRequestId(): string {
 
 function createOperationId(): string {
   return generateSecureId("op");
+}
+
+function resolveInternalRequestId(
+  request: Pick<Request, "headers"> | undefined,
+): string | undefined {
+  return resolveProvidedRequestId(
+    request?.headers.get(INTERNAL_REQUEST_ID_HEADER),
+  );
 }
 
 function getRequestPath(request: Request): string {
@@ -91,19 +100,16 @@ export function ensureRequestContext(
   const existing = apiRequestContextStore.get(request);
   const requestId =
     resolveProvidedRequestId(options?.requestId) ??
-    resolveProvidedRequestId(request.headers.get(REQUEST_ID_HEADER)) ??
-    resolveProvidedRequestId(
-      request.headers.get(REQUEST_ID_HEADER.toLowerCase()),
-    ) ??
     existing?.requestId ??
+    resolveInternalRequestId(request) ??
     createRequestId();
   const operationId =
     resolveProvidedOperationId(options?.operationId) ??
+    existing?.operationId ??
     resolveProvidedOperationId(request.headers.get(OPERATION_ID_HEADER)) ??
     resolveProvidedOperationId(
       request.headers.get(OPERATION_ID_HEADER.toLowerCase()),
     ) ??
-    existing?.operationId ??
     createOperationId();
 
   const nextContext: ApiRequestContext = {
@@ -141,13 +147,17 @@ export function getRequestId(request?: Request): string | undefined {
     return undefined;
   }
 
-  return (
-    apiRequestContextStore.get(request)?.requestId ??
-    resolveProvidedRequestId(request.headers.get(REQUEST_ID_HEADER)) ??
-    resolveProvidedRequestId(
-      request.headers.get(REQUEST_ID_HEADER.toLowerCase()),
-    )
-  );
+  const existingRequestId = apiRequestContextStore.get(request)?.requestId;
+  if (existingRequestId) {
+    return existingRequestId;
+  }
+
+  const internalRequestId = resolveInternalRequestId(request);
+  if (internalRequestId) {
+    return internalRequestId;
+  }
+
+  return ensureRequestContext(request).requestId;
 }
 
 export function getOperationId(request?: Request): string | undefined {
@@ -155,13 +165,21 @@ export function getOperationId(request?: Request): string | undefined {
     return undefined;
   }
 
-  return (
-    apiRequestContextStore.get(request)?.operationId ??
+  const existingOperationId = apiRequestContextStore.get(request)?.operationId;
+  if (existingOperationId) {
+    return existingOperationId;
+  }
+
+  const providedOperationId =
     resolveProvidedOperationId(request.headers.get(OPERATION_ID_HEADER)) ??
     resolveProvidedOperationId(
       request.headers.get(OPERATION_ID_HEADER.toLowerCase()),
-    )
-  );
+    );
+  if (providedOperationId) {
+    return providedOperationId;
+  }
+
+  return ensureRequestContext(request).operationId;
 }
 
 export function withRequestIdHeaders(

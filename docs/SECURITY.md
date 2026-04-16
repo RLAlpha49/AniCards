@@ -11,15 +11,17 @@ The long-lived reference for security-sensitive behavior in the codebase. Code c
 
 ## Content Security Policy
 
-AniCards applies a nonce-based CSP on all HTML routes. No `unsafe-inline` for scripts.
+AniCards applies a nonce-based CSP on document responses. No `unsafe-inline` for scripts.
 
 ### The nonce flow
 
 1. `proxy.ts` receives the matched request under the Next.js 16 convention and delegates into `app/middleware.ts`.
-2. `app/middleware.ts` creates a fresh request ID for matched routes, and a fresh 128-bit nonce for non-API HTML routes.
+2. `app/middleware.ts` creates a fresh server-owned request ID for matched routes, and a fresh 128-bit nonce only for document requests.
 3. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and includes that nonce in `script-src`.
 4. The nonce travels into the app via the `x-nonce` request header.
 5. `app/layout.tsx` reads it with `getRequestNonce()` and passes it to any component that renders inline scripts.
+
+Matched routes also expose that same server-generated request ID back to clients through the `X-Request-Id` response header. It is an opaque response correlation ID; sending `X-Request-Id` on the request does not override the canonical server ID.
 
 ### Development `unsafe-eval`
 
@@ -36,10 +38,20 @@ The directive list is defined in `lib/csp-config.ts`. Notable allowlists cover:
 
 - AniCards same-origin assets
 - AniList GraphQL
-- Upstash
+- the explicitly configured Upstash REST origin (when present)
 - Google Analytics / Google Tag Manager
 - Vercel Analytics / Speed Insights
 - Google Fonts
+
+### Inline style attribute compatibility
+
+Production keeps `style-src-attr 'unsafe-inline'` limited to the current document routes that still rely on bounded inline style attributes for layout, animation timing, or generated background values:
+
+- `/`
+- `/examples`
+- `/user`
+
+Legacy media-style routes such as `/StatCards/[username]/[key].svg`, `/card.svg`, and `/card.png` no longer enter the document CSP path.
 
 ### Nonce and hydration
 
@@ -65,7 +77,7 @@ CSP is excluded here — middleware generates it dynamically.
 The `lib/api/*` modules centralize the common API protections:
 
 - shared rate limiting
-- request ID creation and propagation
+- server-generated request ID creation and propagation
 - privacy-safe logging
 - structured JSON/text response helpers
 - same-origin enforcement for browser-facing mutation routes
@@ -83,6 +95,8 @@ Some routes intentionally skip same-origin validation — they're designed to wo
 - `/api/card` and its aliases
 
 These still enforce bounded DTOs, CORS policy, and rate limiting.
+
+When production cannot verify client-IP provenance for those public reads, the routes fall back to tighter anonymous rate-limit buckets instead of returning an unconditional `503`. Routes that explicitly require a verified client IP still fail closed.
 
 ### Operator cron routes
 
