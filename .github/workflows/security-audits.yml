@@ -45,6 +45,7 @@ jobs:
 
       - name: Run Bun typecheck and build for CodeQL
         env:
+          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
           NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
           UPSTASH_REDIS_REST_URL: https://example.upstash.io
           UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token

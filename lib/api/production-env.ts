@@ -1,6 +1,7 @@
 export type RequiredProductionEnvName =
   | "API_SECRET_TOKEN"
   | "CRON_SECRET"
+  | "NEXT_PUBLIC_API_URL"
   | "NEXT_PUBLIC_APP_URL"
   | "UPSTASH_REDIS_REST_TOKEN"
   | "UPSTASH_REDIS_REST_URL";
@@ -46,6 +47,12 @@ function isValidHttpsUrl(value: string): boolean {
 }
 
 const REQUIRED_PRODUCTION_ENV_REQUIREMENTS = [
+  {
+    name: "NEXT_PUBLIC_API_URL",
+    description: "build-time public API configuration",
+    invalidMessage: "NEXT_PUBLIC_API_URL must be an absolute http(s) URL.",
+    validate: isValidHttpUrl,
+  },
   {
     name: "NEXT_PUBLIC_APP_URL",
     description: "same-origin and JSON API CORS enforcement",
