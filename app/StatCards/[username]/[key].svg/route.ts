@@ -7,6 +7,7 @@ const LEGACY_NOTICE_CACHE_CONTROL =
   "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600";
 const LEGACY_NOTICE_EDGE_CACHE_CONTROL =
   "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600";
+const LEGACY_NOTICE_X_ROBOTS_TAG = "noindex, noimageindex, noarchive";
 
 export async function GET() {
   const svgContent = `
@@ -31,6 +32,7 @@ export async function GET() {
       "Cache-Control": LEGACY_NOTICE_CACHE_CONTROL,
       "CDN-Cache-Control": LEGACY_NOTICE_EDGE_CACHE_CONTROL,
       "Edge-Cache-Control": LEGACY_NOTICE_EDGE_CACHE_CONTROL,
+      "X-Robots-Tag": LEGACY_NOTICE_X_ROBOTS_TAG,
     },
   });
 }

@@ -52,10 +52,14 @@ paths:
         Accepts only the built-in AniCards AniList operations `GetUserId` and
         `GetUserStats`, forwards the canonical server-side GraphQL document for
         the selected operation, and returns the upstream `data` payload
-        unwrapped. Supplying `operation` is the preferred contract. Deprecated
-        query-text compatibility remains available only for the server-approved
-        documents and rejects arbitrary custom GraphQL operations with `400`.
-        JSON request bodies larger than `32768` bytes are rejected with `413`,
+        unwrapped. Successful `GetUserStats` responses also refresh a per-user
+        protected write grant with a stats hash for the approved snapshot;
+        that stronger grant can authorize both `/api/store-users` and
+        `/api/store-cards`, while `GetUserId` does not mint a write grant.
+        Supplying `operation` is the preferred contract. Deprecated query-text
+        compatibility remains available only for the server-approved documents
+        and rejects arbitrary custom GraphQL operations with `400`. JSON
+        request bodies larger than `32768` bytes are rejected with `413`,
         while malformed JSON bodies return `400`. In production this route also
         enforces verified-client-IP,
         request-proof, same-origin, and shared rate-limit guards.
@@ -514,12 +518,14 @@ paths:
       operationId: "renderLegacyStatCardsNotice"
       tags:
         - "card"
-      summary: "Serve the legacy StatCards compatibility notice"
+      summary: "Serve the migration-only legacy StatCards notice"
       description: >-
-        Legacy compatibility endpoint kept alive for older StatCards embed
-        URLs. The `username` and `key` path segments are preserved only so
-        historical links continue to resolve; the handler ignores both values
-        and returns the same cacheable static SVG notice for every request.
+        Migration-only compatibility endpoint kept alive for older StatCards
+        embed URLs. The `username` and `key` path segments are preserved only
+        so historical links continue to resolve; the handler ignores both
+        values, returns the same cacheable static SVG notice for every
+        request, and explicitly marks the response as non-indexable with
+        `X-Robots-Tag`.
       parameters:
         - in: path
           name: username
@@ -541,7 +547,7 @@ paths:
             compatibility only. It does not affect the response body.
       responses:
         "200":
-          description: "Cacheable static SVG migration notice"
+          description: "Cacheable static SVG migration notice with non-indexing crawl directives"
           headers:
             Cache-Control:
               description: "Browser cache policy for the notice SVG"
@@ -558,6 +564,11 @@ paths:
               schema:
                 type: string
               example: "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+            X-Robots-Tag:
+              description: "Non-indexing crawl directive for this migration-only SVG"
+              schema:
+                type: string
+              example: "noindex, noimageindex, noarchive"
           content:
             image/svg+xml:
               schema:
@@ -575,10 +586,15 @@ paths:
         - "cards"
       summary: "Retrieve a stored cards record"
       description: >-
-        Returns the persisted card configuration for a numeric AniList user ID.
-        Read responses preserve already-stored legacy unsupported `cardName`
-        values so older embeds remain visible until the next successful
-        `/api/store-cards` write.
+        Public read route that returns the sparse persisted card configuration
+        record for a numeric AniList user ID without additional
+        authentication. The response may include a compact `cardOrder` signal,
+        cards-record `updatedAt`, optional `version` / `schemaVersion`, and
+        optional `userSnapshot` metadata. Consumers must preserve `cardOrder`
+        on round-trip instead of treating the `cards` array as the full
+        ordering source. Read responses preserve already-stored legacy
+        unsupported `cardName` values so older embeds remain visible until the
+        next successful `/api/store-cards` write.
       parameters:
         - in: query
           name: userId
@@ -598,7 +614,16 @@ paths:
                 storedCards:
                   value:
                     userId: 12345
+                    cardOrder:
+                      - "favoritesGrid"
                     updatedAt: "2026-03-21T10:15:00.000Z"
+                    version: 7
+                    schemaVersion: 2
+                    userSnapshot:
+                      token: "snapshot-12345-12"
+                      revision: 12
+                      updatedAt: "2026-03-21T10:12:00.000Z"
+                      committedAt: "2026-03-21T10:12:02.000Z"
                     globalSettings:
                       colorPreset: "custom"
                       titleColor: "#ffffff"
@@ -609,15 +634,15 @@ paths:
                       borderColor: "#334155"
                       borderRadius: 12
                     cards:
-                      - cardName: "animeStats"
-                        variation: "default"
+                      - cardName: "favoritesGrid"
+                        variation: "mixed"
                         useCustomSettings: true
                         titleColor: "#ffffff"
                         backgroundColor: "#0f172a"
                         textColor: "#e2e8f0"
-                        circleColor: "#22d3ee"
-                      - cardName: "mangaStats"
-                        disabled: true
+                        circleColor: "#38bdf8"
+                        gridCols: 3
+                        gridRows: 2
                       - cardName: "legacyUnsupportedCard"
                         disabled: true
         "400":
@@ -705,7 +730,10 @@ paths:
         Resolves a stored user by numeric `userId` or by normalized `username`.
         When both are provided, `userId` wins. The public response intentionally
         omits internal request metadata such as redacted IP buckets and record
-        timestamps.
+        timestamps. Successful reads also refresh a lighter per-user
+        `stored_user` protected write grant for the same user. That grant is
+        sufficient for `/api/store-cards` but does not carry the stats hash
+        required by `/api/store-users`.
       parameters:
         - in: query
           name: userId
@@ -868,12 +896,20 @@ paths:
         - "store"
       summary: "Store or merge a user's card configuration"
       description: >-
-        Stores card editor state in Redis using partial-update semantics. This
-        is a browser-only mutation route: in production it requires same-origin
-        requests, a verified client IP, the shared request-proof cookie, and a
-        short-lived per-user protected write grant minted by a trusted AniCards
-        read/proxy response for the same user. The current repository does not
-        expose a public self-serve deletion or export endpoint for this stored
+        Stores card editor state in Redis using partial-update semantics. The
+        persisted record stays sparse: the route merges incoming per-card /
+        global patches into the existing record, preserves omitted settings,
+        stores only explicit card configs plus the minimal authored `cardOrder`
+        signal, and stamps cards `updatedAt`, optional monotonic `version`,
+        `schemaVersion`, and linked `userSnapshot` metadata on the stored
+        record. This is a browser-only mutation route: in production it
+        requires same-origin requests, a verified client IP, the shared
+        request-proof cookie, and a short-lived per-user protected write grant
+        for the same user. `/api/store-cards` accepts either the stronger
+        stats-bound grant minted by `/api/anilist` `GetUserStats` or the
+        lighter `stored_user` grant refreshed by `/api/get-user` and
+        successful stored writes. The current repository does not expose a
+        public self-serve deletion or export endpoint for this stored
         server-side data. Reads may still return legacy unsupported card IDs,
         but writes only accept current `CardType` values and strip unsupported
         legacy entries from the merged record before persisting. Writes that
@@ -1068,10 +1104,14 @@ paths:
         same write. This is a browser-only mutation route: in
         production it requires same-origin requests, a verified client IP, the
         shared request-proof cookie, and a short-lived per-user protected write
-        grant minted by `/api/anilist` `GetUserStats` or `/api/get-user` for
-        the same user. The server only persists the bound AniList snapshot for
-        that subject, prefers the authoritative AniList stats username over a
-        stale protected-write grant username, and does not treat the
+        grant minted by `/api/anilist` `GetUserStats` for the same user. The
+        lighter `stored_user` grant refreshed by `/api/get-user` or successful
+        stored writes is not sufficient on its own because this route verifies
+        a stats hash against the submitted `stats` payload. On success the
+        response refreshes the lighter `stored_user` grant used by
+        `/api/store-cards`. The server only persists the bound AniList snapshot
+        for that subject, prefers the authoritative AniList stats username over
+        a stale protected-write grant username, and does not treat the
         client-supplied username as authoritative. Public reads later return a
         bounded DTO that excludes request metadata such as redacted IP buckets.
       requestBody:
@@ -1177,7 +1217,7 @@ paths:
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "403":
-          description: "Missing, expired, mismatched, or stale protected write grant"
+          description: "Missing, expired, user-mismatched, or stats-mismatched protected write grant"
           content:
             application/json:
               schema:
@@ -1433,12 +1473,12 @@ paths:
             examples:
               png:
                 value:
-                  svgUrl: "/api/card.svg?userId=12345&cardType=animeStats"
+                  svgUrl: "/api/card?userId=12345&cardType=animeStats"
                   format: "png"
                   responseType: "json"
               webp:
                 value:
-                  svgUrl: "/api/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
+                  svgUrl: "/api/card?userId=12345&cardType=favoritesGrid&variation=mixed"
                   format: "webp"
                   responseType: "json"
               inlineBinary:
@@ -1448,7 +1488,7 @@ paths:
                   responseType: "binary"
               inlineWins:
                 value:
-                  svgUrl: "/api/card.svg?userId=12345&cardType=animeStats"
+                  svgUrl: "/api/card?userId=12345&cardType=animeStats"
                   svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#0f172a" /></svg>'
                   format: "png"
                   responseType: "json"
@@ -3330,9 +3370,12 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        Persisted cards record returned by `/api/get-cards`. Reads preserve
-        already-stored legacy unsupported `cardName` values until the next
-        successful `/api/store-cards` write.
+        Sparse persisted cards record returned by `/api/get-cards`. The
+        `cards` array contains only explicit stored card configs, while
+        `cardOrder` preserves the authored supported-card ordering signal
+        needed to reconstruct untouched defaults at editor/render time. Reads
+        preserve already-stored legacy unsupported `cardName` values until the
+        next successful `/api/store-cards` write.
       properties:
         userId:
           type: integer
@@ -3340,13 +3383,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StoredCardConfig"
+          description: >-
+            Explicit stored card configs only. Untouched default / disabled
+            supported cards may be omitted and reconstructed later from
+            `cardOrder` plus the current supported card catalog.
+        cardOrder:
+          type: array
+          items:
+            type: string
+          description: >-
+            Compact authored order signal for supported card IDs. Consumers
+            should preserve this value on round-trip rather than deriving the
+            full order from `cards`.
         globalSettings:
           $ref: "#/components/schemas/GlobalCardSettings"
+        version:
+          type: integer
+          minimum: 1
+          description: "Monotonic cards-record write counter mirrored in persisted metadata."
+        schemaVersion:
+          type: integer
+          minimum: 1
+          description: "Persisted cards-record schema version."
         userSnapshot:
-          $ref: "#/components/schemas/UserSnapshotRef"
+          $ref: "#/components/schemas/CardsRecordUserSnapshot"
         updatedAt:
           type: string
           format: date-time
+          description: >-
+            Timestamp for the cards record itself. This is distinct from
+            `userSnapshot.updatedAt`, which refers to the linked stored-user
+            snapshot.
       required:
         - userId
         - cards
@@ -3360,13 +3427,15 @@ components:
         card entries and global settings into the existing Redis record,
         preserves omitted card settings, and stores only the minimal authored
         `cardOrder` signal needed to reconstruct the full supported order at
-        read/editor time. Production writes are accepted only when the browser
-        also presents a matching per-user protected write grant. Optional
-        `statsData` is accepted only as a deprecated compatibility field and is
-        ignored by the route. When updating an existing stored cards record,
-        callers must echo the current `ifMatchUpdatedAt` value and may also
-        provide `ifMatchRevision` / `ifMatchSnapshotToken` to align the write
-        with the latest stored user snapshot.
+        read/editor time. The `cards` array is therefore a sparse patch set,
+        not a materialized full ordered list of every supported card.
+        Production writes are accepted only when the browser also presents a
+        matching per-user protected write grant. Optional `statsData` is
+        accepted only as a deprecated compatibility field and is ignored by the
+        route. When updating an existing stored cards record, callers must echo
+        the current `ifMatchUpdatedAt` value and may also provide
+        `ifMatchRevision` / `ifMatchSnapshotToken` to align the write with the
+        latest stored user snapshot.
       properties:
         userId:
           type: integer
@@ -3440,11 +3509,13 @@ components:
         and `stats` must match the normalized AniList-derived snapshot shape
         that the server validates and persists. Production writes are accepted
         only when the browser presents a matching per-user protected write
-        grant from a recent trusted AniCards read/proxy response. When
-        updating an existing record, callers must supply compare metadata;
-        `ifMatchUpdatedAt` is the browser-facing compatibility token and
-        `ifMatchRevision` / `ifMatchSnapshotToken` provide stronger
-        snapshot-bound guards for the same write.
+        grant from a recent `/api/anilist` `GetUserStats` response for the
+        same user. Stored-user reads and writes refresh only the lighter
+        `stored_user` grant used by `/api/store-cards`, so they do not satisfy
+        this route on their own. When updating an existing record, callers
+        must supply compare metadata; `ifMatchUpdatedAt` is the browser-facing
+        compatibility token and `ifMatchRevision` / `ifMatchSnapshotToken`
+        provide stronger snapshot-bound guards for the same write.
       properties:
         userId:
           type: integer
@@ -3526,8 +3597,8 @@ components:
             Absolute or relative URL to an SVG resource on an allow-listed
             AniCards host. Relative URLs resolve against the convert request
             origin/host; the public deployment represented by this spec uses
-            relative AniCards card paths such as `/api/card.svg?...` on the
-            API host above. Ignored when `svgContent` is also supplied.
+            relative AniCards card paths such as `/api/card?...` on the API
+            host above. Ignored when `svgContent` is also supplied.
         svgContent:
           type: string
           description: >-
@@ -4016,6 +4087,26 @@ components:
         - revision
         - updatedAt
         - committedAt
+
+    CardsRecordUserSnapshot:
+      type: object
+      additionalProperties: false
+      description: >-
+        Stored user-snapshot linkage echoed by `/api/get-cards`. Current
+        writes emit the full snapshot metadata, while older records may expose
+        only the fields that were available when the record was written.
+      properties:
+        token:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+        committedAt:
+          type: string
+          format: date-time
 
     PublicUserRecordMetadata:
       type: object

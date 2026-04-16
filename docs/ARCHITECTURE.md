@@ -80,12 +80,18 @@ That split lets card rendering and API handlers load only what they actually nee
 
 ### Card configuration
 
-Saved editor state is stored separately in `cards:{userId}` records:
+Saved editor state is stored separately in `cards:{userId}` records, with a lightweight `cards:{userId}:meta` companion used for renderer cache stamps and hot reads:
 
 - `userId`
-- `cards`
+- sparse explicit `cards`
+- optional compact `cardOrder`
 - optional `globalSettings`
 - `updatedAt`
+- optional `version`
+- optional `schemaVersion`
+- optional `userSnapshot`
+
+`/api/store-cards` merges incoming per-card/global patches into the existing record, keeps omitted settings intact, strips unsupported legacy entries on write, and persists only explicit card configs. Untouched default-disabled supported cards are synthesized later from the stored `cardOrder` signal plus the current supported-card catalog rather than being materialized on every save.
 
 Both user snapshot and card settings writes require compare-and-set tokens on updates. `ifMatchUpdatedAt` remains the browser-facing compatibility token, while split user writes also bind the atomic save to revision/snapshot metadata and card writes can carry the same user snapshot tokens when callers want to pin saves to a specific committed user snapshot.
 
@@ -102,7 +108,7 @@ The public API contract is documented in `openapi.yaml`.
 
 The current route families:
 
-- public reads and compatibility routes: `/api/get-user`, `/api/get-cards`, `/api/card`, `/card.svg`, `/api/card.svg`, `/StatCards/{username}/{key}.svg`
+- public reads and compatibility routes: `/api/get-user`, `/api/get-cards`, `/api/card`, `/card.svg`, `/api/card.svg`, and the migration-only legacy notice `/StatCards/{username}/{key}.svg`
 - browser-facing writes and telemetry ingestion: `/api/store-users`, `/api/store-cards`, `/api/anilist`, `/api/error-reports`
 - operator-only cron routes guarded by `x-cron-secret`
 
