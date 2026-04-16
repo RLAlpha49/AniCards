@@ -168,9 +168,13 @@ That cron flow deletes a stored user after **three consecutive** scheduled 404 r
 
 `/api/cron/analytics-reporting` stores generated analytics reports in a bounded Redis list.
 
-Cap:
+Rules:
 
 - maximum stored reports: **50**
+- maximum retained age per stored report: **14 days**
+- persisted report history keeps aggregate observability envelopes and compact
+  rolling error-count summaries only; detailed retained/evicted triage snapshots
+  are not kept in the long-lived report history
 
 ### Structured error report retention
 
@@ -183,6 +187,8 @@ Rules:
 - maximum retained age: **14 days**
 - recent saturation triage for reports pushed out of the live buffer is kept
   within the same **14-day** window
+- compact rolling error-count summaries used by cron reporting also stay within
+  the same **14-day** server-side window
 
 ### User lifecycle audit trail
 

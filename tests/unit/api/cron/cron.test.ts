@@ -512,7 +512,7 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
     expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
     expect(sharedRedisMockMget.mock.calls[0]).toEqual(["user:123:meta"]);
@@ -699,7 +699,7 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
     expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
       "user:123:activity",
@@ -725,7 +725,7 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
     expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
       "user:123:activity",
@@ -744,11 +744,26 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(text).toContain(
-      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+      "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
     expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
       "failed_updates:123",
       expect.anything(),
+    );
+  });
+
+  it("keeps cron recovery successful when structured telemetry recording fails", async () => {
+    mockUserRecords(["123"]);
+    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
+    sharedRedisMockRpush.mockRejectedValueOnce(
+      new Error("telemetry write failed"),
+    );
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
   });
 

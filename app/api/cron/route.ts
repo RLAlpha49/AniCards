@@ -17,6 +17,13 @@ import { apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
+  buildAnalyticsMetricKey,
+  buildFailedRequestMetricKeys,
+  buildLatencyBucketMetricKeys,
+  scheduleAnalyticsBatch,
+  scheduleLowValueAnalyticsBatch,
+} from "@/lib/api/telemetry";
+import {
   ANILIST_GRAPHQL_CIRCUIT_BREAKER,
   ANILIST_GRAPHQL_URL,
   authorizeCronRequest,
@@ -169,6 +176,7 @@ function summarizeCronRefreshBudget(totalUsers: number): {
 async function reportCronUserRefreshError(options: {
   endpoint: string;
   error: unknown;
+  operationId?: string;
   request?: Request;
   requestId?: string;
   stage: CronUserRefreshStage;
@@ -189,23 +197,41 @@ async function reportCronUserRefreshError(options: {
     options.request,
   );
 
-  await trackUserActionError(
-    "cron_refresh_user",
-    normalizedError,
-    categorizeError(normalizedError.message),
-    {
-      executionEnvironment: "server",
-      route: "/api/cron",
-      source: "api_route",
-      stack: normalizedError.stack,
-      metadata: {
-        endpoint: "cron_job",
+  try {
+    await trackUserActionError(
+      "cron_refresh_user",
+      normalizedError,
+      categorizeError(normalizedError.message),
+      {
+        executionEnvironment: "server",
+        operationId: options.operationId,
+        requestId: options.requestId,
+        route: "/api/cron",
+        source: "api_route",
+        stack: normalizedError.stack,
+        metadata: {
+          endpoint: "cron_job",
+          userId: options.userId,
+          stage: options.stage,
+        },
+      },
+    );
+  } catch (telemetryError) {
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Failed to record cron refresh telemetry without blocking cron recovery",
+      {
         userId: options.userId,
         stage: options.stage,
-        ...(options.requestId ? { requestId: options.requestId } : {}),
+        error:
+          telemetryError instanceof Error
+            ? telemetryError.message
+            : String(telemetryError),
       },
-    },
-  );
+      options.request,
+    );
+  }
 }
 
 /**
@@ -375,6 +401,35 @@ async function clearFailureTracking(
   await redisClient.del(failureKey);
 }
 
+function trackCronRequestOutcome(
+  request: Request,
+  durationMs: number,
+  outcome: "success" | "failure",
+  reasonCode?: string,
+): void {
+  const metrics =
+    outcome === "success"
+      ? [
+          buildAnalyticsMetricKey("cron_job", "successful_requests"),
+          ...buildLatencyBucketMetricKeys("cron_job", durationMs, "success"),
+        ]
+      : [
+          ...buildFailedRequestMetricKeys("cron_job", reasonCode),
+          ...buildLatencyBucketMetricKeys("cron_job", durationMs, "failure"),
+        ];
+
+  const scheduleMetrics =
+    outcome === "success"
+      ? scheduleAnalyticsBatch
+      : scheduleLowValueAnalyticsBatch;
+
+  scheduleMetrics(metrics, {
+    endpoint: "Cron Job",
+    request,
+    taskName: metrics[0],
+  });
+}
+
 /**
  * Executes the cron job that batches AniList stat refreshes for the oldest users.
  * @param request - Incoming request which must include the cron secret header.
@@ -391,7 +446,7 @@ export async function POST(request: Request) {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, endpoint, requestId } = init;
+  const { startTime, endpoint, operationId, requestId } = init;
   const authorizationError = authorizeCronRequest(request, endpoint);
   if (authorizationError) return authorizationError;
 
@@ -528,20 +583,24 @@ export async function POST(request: Request) {
 
             stage = "clear_failure_tracking";
             await clearFailureTracking(redisClient, trackedUserId);
-          } else if (updateResult.is404Error) {
+          } else {
             failedUpdates++;
 
-            stage = "handle_failure_tracking";
-            const wasRemoved = await handleFailureTracking(
-              redisClient,
-              trackedUserId,
-              request,
-            );
-            if (wasRemoved) {
-              removedUsers++;
+            if (updateResult.is404Error) {
+              stage = "handle_failure_tracking";
+              const wasRemoved = await handleFailureTracking(
+                redisClient,
+                trackedUserId,
+                request,
+              );
+              if (wasRemoved) {
+                removedUsers++;
+              }
             }
           }
         } catch (error) {
+          failedUpdates++;
+
           if (stage === "fetch_user_data_parts" && updateResultPromise) {
             const pendingUpdateResultPromise: Promise<UpdateResult> =
               updateResultPromise;
@@ -557,6 +616,7 @@ export async function POST(request: Request) {
           await reportCronUserRefreshError({
             endpoint,
             error,
+            operationId,
             request,
             requestId,
             stage,
@@ -607,6 +667,8 @@ export async function POST(request: Request) {
       refreshBudget.note,
     ].join("\n");
 
+    trackCronRequestOutcome(request, Date.now() - startTime, "success");
+
     return new Response(scheduleMessage, { status: 200, headers });
   } catch (error: unknown) {
     const normalizedError =
@@ -621,6 +683,12 @@ export async function POST(request: Request) {
         ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
       },
       request,
+    );
+    trackCronRequestOutcome(
+      request,
+      Date.now() - startTime,
+      "failure",
+      "cron_failed",
     );
     return apiErrorResponse(request, 500, "Cron job failed");
   }

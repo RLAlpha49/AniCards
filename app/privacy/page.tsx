@@ -55,14 +55,19 @@ const sections = [
           "Stores only minimized error payloads in localStorage when available, otherwise sessionStorage. The queue is capped and entries expire after 7 days, or sooner if they are delivered or evicted.",
       },
       {
-        label: "Analytics",
+        label: "Analytics counters",
         detail:
           "Rotates into monthly buckets with a ~400-day TTL — roughly 13 months of raw retention before counters expire.",
       },
       {
+        label: "Analytics reports",
+        detail:
+          "Generated analytics reports are capped at 50 and each stored report ages out after 14 days. Persisted observability history keeps aggregate envelopes and compact rolling error counts, not detailed retained/evicted error triage snapshots.",
+      },
+      {
         label: "Error reports",
         detail:
-          "Server-side structured error reports age out after 14 days, and the live buffer stays capped at 250 retained entries.",
+          "Server-side structured error reports age out after 14 days, the live buffer stays capped at 250 retained entries, and the cron-facing rolling error aggregate stays inside that same 14-day window.",
       },
       {
         label: "Audit logs",

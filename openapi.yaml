@@ -1271,8 +1271,9 @@ paths:
         cookie, and a dedicated `3 requests / 10 s` limiter. The server
         sanitizes the payload, ignores client-supplied `userId` and
         `username`, preserves valid client incident `id` and `timestamp`
-        values, and drops unsupported nested metadata values before
-        persistence.
+        values, drops unsupported nested metadata values before persistence,
+        and updates compact rolling aggregate counters used by cron
+        observability within the same 14-day server-side telemetry window.
       requestBody:
         required: true
         content:
@@ -1679,7 +1680,10 @@ paths:
         Returns recent stored analytics reports from the bounded
         `analytics:reports` Redis list. Reports are returned newest first. The
         `limit` query is capped by the server-side retention policy. The list
-        currently retains at most 50 generated reports.
+        retains at most 50 generated reports for up to 14 days, and persisted
+        observability history keeps aggregate error-buffer envelopes plus
+        compact rolling-window counts rather than detailed retained/evicted
+        triage snapshots.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
         - in: query
@@ -1758,10 +1762,14 @@ paths:
       summary: "Generate and persist an analytics report"
       description: >-
         Collects all `analytics:*` Redis keys except `analytics:reports`, groups
-        them into a nested summary object, appends the latest report to the
-        bounded `analytics:reports` Redis list, and returns it. Runtime analytics
-        collection in the web app is consent-gated; this endpoint only reads the
-        already-persisted aggregate counters and reports.
+        them into a nested summary object, persists the latest report to the
+        bounded `analytics:reports` Redis list before any webhook side effects,
+        and returns it. Stored report history is capped at 50 entries and 14
+        days, retaining aggregate error-buffer envelopes and compact rolling
+        error counts while omitting detailed retained/evicted triage snapshots
+        from the long-lived history. Runtime analytics collection in the web
+        app is consent-gated; this endpoint only reads the already-persisted
+        aggregate counters and reports.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
