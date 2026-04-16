@@ -26,6 +26,7 @@ import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisIncrCalls,
+  installStatefulRedisEvalHarness,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockEval,
@@ -162,6 +163,7 @@ describe("Store Users API", () => {
       NEXT_PUBLIC_APP_URL: TEST_APP_URL,
       NODE_ENV: "test",
     };
+    installStatefulRedisEvalHarness();
   });
 
   afterEach(async () => {

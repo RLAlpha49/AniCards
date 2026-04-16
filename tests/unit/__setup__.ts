@@ -1,47 +1,23 @@
 /**
- * Shared Bun test bootstrap for unit API routes.
- * Centralizing shared console defaults and Upstash doubles keeps each spec
- * focused on handler behavior instead of repeating the same client scaffolding.
+ * Explicit unit-test fixtures for request parsing helpers and the stateful
+ * Upstash eval emulation used by persistence and throttling suites.
  */
 
-import { inspect } from "node:util";
+import { mock } from "bun:test";
 
-import { afterEach, beforeEach, mock } from "bun:test";
+import {
+  sharedRedisMockDel,
+  sharedRedisMockEval,
+  sharedRedisMockGet,
+  sharedRedisMockSadd,
+  sharedRedisMockSet,
+  sharedRedisMockSmembers,
+  sharedRedisMockSrem,
+  sharedRedisMockZadd,
+  sharedRedisMockZrem,
+} from "./preload";
 
-console.debug = mock(() => {});
-console.log = mock(() => {});
-console.info = mock(() => {});
-process.env.ANICARDS_UNIT_TEST = "true";
-(
-  globalThis as typeof globalThis & {
-    ANICARDS_UNIT_TEST?: boolean;
-    ANICARDS_UNIT_TEST_RUNTIME?: boolean;
-  }
-).ANICARDS_UNIT_TEST = true;
-(
-  globalThis as typeof globalThis & {
-    ANICARDS_UNIT_TEST?: boolean;
-    ANICARDS_UNIT_TEST_RUNTIME?: boolean;
-  }
-).ANICARDS_UNIT_TEST_RUNTIME = true;
-
-const formatConsoleArgs = (args: unknown[]): string =>
-  args
-    .map((arg) => {
-      if (arg instanceof Error) {
-        return [arg.name + ": " + arg.message, arg.stack]
-          .filter(Boolean)
-          .join("\n");
-      }
-
-      return typeof arg === "string"
-        ? arg
-        : inspect(arg, {
-            breakLength: 120,
-            depth: 5,
-          });
-    })
-    .join(" ");
+export * from "./preload";
 
 function getBodyText(
   body: BodyInit | null | undefined,
@@ -100,75 +76,15 @@ export function getStringValue(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-const unexpectedConsoleWarn = mock((...args: unknown[]) => {
-  throw new Error(
-    [
-      "Unexpected console.warn output during a unit test.",
-      "Add a suite-local mock or assertion when the warning is intentional.",
-      formatConsoleArgs(args),
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-  );
-});
-
-const unexpectedConsoleError = mock((...args: unknown[]) => {
-  throw new Error(
-    [
-      "Unexpected console.error output during a unit test.",
-      "Add a suite-local mock or assertion when the error is intentional.",
-      formatConsoleArgs(args),
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-  );
-});
-
-console.warn = unexpectedConsoleWarn as typeof console.warn;
-console.error = unexpectedConsoleError as typeof console.error;
-
-const TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH = [
-  "ALLOW_UNSECURED_CRON_IN_DEV",
-  "ANILIST_TOKEN",
-  "ANILIST_UPSTREAM_CIRCUIT_COOLDOWN_MS",
-  "ANILIST_UPSTREAM_CIRCUIT_FAILURE_THRESHOLD",
-  "ANILIST_UPSTREAM_DEGRADED_MODE",
-  "API_SECRET_TOKEN",
-  "CRON_SECRET",
-  "ERROR_ALERT_WEBHOOK_URL",
-  "TRUSTED_CLIENT_IP_HEADERS",
-  "UPSTASH_REDIS_LATENCY_LOGGING",
-] as const;
-
-beforeEach(() => {
-  unexpectedConsoleWarn.mockClear();
-  unexpectedConsoleError.mockClear();
-  console.warn = unexpectedConsoleWarn as typeof console.warn;
-  console.error = unexpectedConsoleError as typeof console.error;
-  (process.env as Record<string, string | undefined>)["NODE_ENV"] = "test";
-  (
-    globalThis as typeof globalThis & {
-      ANICARDS_UNIT_TEST?: boolean;
-      ANICARDS_UNIT_TEST_RUNTIME?: boolean;
-    }
-  ).ANICARDS_UNIT_TEST = true;
-  (
-    globalThis as typeof globalThis & {
-      ANICARDS_UNIT_TEST?: boolean;
-      ANICARDS_UNIT_TEST_RUNTIME?: boolean;
-    }
-  ).ANICARDS_UNIT_TEST_RUNTIME = true;
-  for (const key of TEST_ENV_KEYS_TO_CLEAR_BEFORE_EACH) {
-    delete process.env[key];
-  }
-  sharedRedisMockEval.mockReset();
+/**
+ * Re-enable the stateful Redis eval emulator for suites that exercise the
+ * split-user or stored-cards persistence contract. Call this from the suite's
+ * own `beforeEach()` after any local mock resets so the lightweight global
+ * preload cannot overwrite the implementation order.
+ */
+export function installStatefulRedisEvalHarness(): void {
   sharedRedisMockEval.mockImplementation(defaultRedisEval);
-});
-
-afterEach(() => {
-  console.warn = unexpectedConsoleWarn as typeof console.warn;
-  console.error = unexpectedConsoleError as typeof console.error;
-});
+}
 
 export function allowConsoleWarningsAndErrors() {
   const consoleWarn = mock(() => {});
@@ -959,7 +875,7 @@ async function emulateAtomicStoreCardsEval(
   ];
 }
 
-async function defaultRedisEval(
+export async function defaultRedisEval(
   _script: unknown,
   keys: unknown,
   args: unknown,
@@ -999,255 +915,3 @@ async function defaultRedisEval(
 
   return [1];
 }
-
-/**
- * Shared Redis mock client that will be used by all test files.
- * Each test file will reset these mocks in their setup functions.
- */
-export const sharedRedisMockScan = mock();
-export const sharedRedisMockGet = mock();
-export const sharedRedisMockSet = mock();
-export const sharedRedisMockEval = mock(defaultRedisEval);
-export const sharedRedisMockDel = mock();
-export const sharedRedisMockIncr = mock(async () => 1);
-export const sharedRedisMockIncrRaw = mock(async () => 1);
-export const sharedRedisMockExpire = mock(async () => 1);
-export const sharedRedisMockRpush = mock();
-export const sharedRedisMockLrange = mock();
-export const sharedRedisMockLtrim = mock();
-export const sharedRedisMockMget = mock(
-  async (...keys: string[]): Promise<(string | null)[]> => keys.map(() => null),
-);
-export const sharedRedisMockSadd = mock(async () => 1);
-export const sharedRedisMockSmembers = mock(async () => [] as string[]);
-export const sharedRedisMockSrem = mock(async () => 1);
-export const sharedRedisMockPipeline = mock();
-export const sharedRedisMockPipelineSet = mock();
-export const sharedRedisMockPipelineDel = mock();
-export const sharedRedisMockPipelineSadd = mock();
-export const sharedRedisMockPipelineZadd = mock();
-export const sharedRedisMockPipelineIncr = mock();
-export const sharedRedisMockPipelineExpire = mock();
-export const sharedRedisMockZadd = mock(async () => 1);
-export const sharedRedisMockZrange = mock(async () => [] as string[]);
-export const sharedRedisMockZcard = mock(async () => 0);
-export const sharedRedisMockZrem = mock(async () => 1);
-export const sharedRedisMockPipelineExec = mock(async () => []);
-
-type SharedRedisCallObserver = (args: unknown[]) => void;
-
-const sharedRedisRpushObservers = new Set<SharedRedisCallObserver>();
-const sharedRedisLtrimObservers = new Set<SharedRedisCallObserver>();
-const sharedRedisIncrObservers = new Set<SharedRedisCallObserver>();
-
-function notifySharedRedisCallObservers(
-  observers: Set<SharedRedisCallObserver>,
-  args: unknown[],
-): void {
-  for (const observer of observers) {
-    observer([...args]);
-  }
-}
-
-function captureSharedRedisCalls(options: {
-  getMockCalls: () => unknown[][];
-  observers: Set<SharedRedisCallObserver>;
-}): {
-  readonly calls: unknown[][];
-  release: () => void;
-} {
-  const calls: unknown[][] = [];
-  const observer: SharedRedisCallObserver = (args) => {
-    calls.push(args);
-  };
-
-  options.observers.add(observer);
-
-  return {
-    get calls() {
-      return calls.map((args) => [...args]);
-    },
-    release: () => {
-      options.observers.delete(observer);
-    },
-  };
-}
-
-export function captureSharedRedisRpushCalls(): {
-  calls: unknown[][];
-  release: () => void;
-} {
-  return captureSharedRedisCalls({
-    getMockCalls: () => sharedRedisMockRpush.mock.calls,
-    observers: sharedRedisRpushObservers,
-  });
-}
-
-export function captureSharedRedisLtrimCalls(): {
-  calls: unknown[][];
-  release: () => void;
-} {
-  return captureSharedRedisCalls({
-    getMockCalls: () => sharedRedisMockLtrim.mock.calls,
-    observers: sharedRedisLtrimObservers,
-  });
-}
-
-export function captureSharedRedisIncrCalls(): {
-  calls: unknown[][];
-  release: () => void;
-} {
-  return captureSharedRedisCalls({
-    getMockCalls: () => sharedRedisMockIncr.mock.calls,
-    observers: sharedRedisIncrObservers,
-  });
-}
-
-function normalizeAnalyticsCounterKeyForAssertions(key: unknown): unknown {
-  if (typeof key !== "string") return key;
-  return key.replace(/:month:\d{4}-\d{2}$/, "");
-}
-
-function detachPromise(result: unknown): void {
-  if (result instanceof Promise) {
-    result.catch(() => undefined);
-  }
-}
-
-const sharedRedisPipelineMock = {
-  set: mock((...args: unknown[]) => {
-    sharedRedisMockPipelineSet(...args);
-    sharedRedisMockSet(...args);
-    return sharedRedisPipelineMock;
-  }),
-  del: mock((...args: unknown[]) => {
-    sharedRedisMockPipelineDel(...args);
-    sharedRedisMockDel(...args);
-    return sharedRedisPipelineMock;
-  }),
-  sadd: mock((...args: unknown[]) => {
-    sharedRedisMockPipelineSadd(...args);
-    const invokeSharedRedisMockSadd = sharedRedisMockSadd as unknown as (
-      ...callArgs: unknown[]
-    ) => unknown;
-    invokeSharedRedisMockSadd(...args);
-    return sharedRedisPipelineMock;
-  }),
-  zadd: mock((...args: unknown[]) => {
-    sharedRedisMockPipelineZadd(...args);
-    const invokeSharedRedisMockZadd = sharedRedisMockZadd as unknown as (
-      ...callArgs: unknown[]
-    ) => unknown;
-    invokeSharedRedisMockZadd(...args);
-    return sharedRedisPipelineMock;
-  }),
-  incr: mock((key: unknown) => {
-    sharedRedisMockPipelineIncr(key);
-    const invokeSharedRedisMockIncrRaw = sharedRedisMockIncrRaw as unknown as (
-      ...callArgs: unknown[]
-    ) => Promise<unknown>;
-    const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
-      ...callArgs: unknown[]
-    ) => Promise<unknown>;
-    const normalizedKey = normalizeAnalyticsCounterKeyForAssertions(key);
-
-    notifySharedRedisCallObservers(sharedRedisIncrObservers, [normalizedKey]);
-
-    detachPromise(invokeSharedRedisMockIncrRaw(key));
-    detachPromise(invokeSharedRedisMockIncr(normalizedKey));
-    return sharedRedisPipelineMock;
-  }),
-  expire: mock((...args: unknown[]) => {
-    sharedRedisMockPipelineExpire(...args);
-    const expireResult = (
-      sharedRedisMockExpire as unknown as (...callArgs: unknown[]) => unknown
-    )(...args);
-    detachPromise(expireResult);
-    return sharedRedisPipelineMock;
-  }),
-  exec: sharedRedisMockPipelineExec,
-};
-
-const sharedRedisFakeClient = {
-  scan: sharedRedisMockScan,
-  get: sharedRedisMockGet,
-  set: sharedRedisMockSet,
-  eval: sharedRedisMockEval,
-  del: sharedRedisMockDel,
-  incr: mock(async (key: unknown) => {
-    const invokeSharedRedisMockIncrRaw = sharedRedisMockIncrRaw as unknown as (
-      ...callArgs: unknown[]
-    ) => Promise<unknown>;
-    const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
-      ...callArgs: unknown[]
-    ) => Promise<unknown>;
-    const normalizedKey = normalizeAnalyticsCounterKeyForAssertions(key);
-
-    notifySharedRedisCallObservers(sharedRedisIncrObservers, [normalizedKey]);
-
-    await invokeSharedRedisMockIncrRaw(key);
-    return invokeSharedRedisMockIncr(normalizedKey);
-  }),
-  expire: sharedRedisMockExpire,
-  rpush: (...args: unknown[]) => {
-    notifySharedRedisCallObservers(sharedRedisRpushObservers, args);
-
-    const result = (
-      sharedRedisMockRpush as unknown as (...callArgs: unknown[]) => unknown
-    )(...args);
-
-    return result === undefined ? 1 : result;
-  },
-  lrange: sharedRedisMockLrange,
-  ltrim: (...args: unknown[]) => {
-    notifySharedRedisCallObservers(sharedRedisLtrimObservers, args);
-
-    const result = (
-      sharedRedisMockLtrim as unknown as (...callArgs: unknown[]) => unknown
-    )(...args);
-
-    return result === undefined ? "OK" : result;
-  },
-  mget: sharedRedisMockMget,
-  sadd: sharedRedisMockSadd,
-  smembers: sharedRedisMockSmembers,
-  srem: sharedRedisMockSrem,
-  zadd: sharedRedisMockZadd,
-  zrange: sharedRedisMockZrange,
-  zcard: sharedRedisMockZcard,
-  zrem: sharedRedisMockZrem,
-  pipeline: mock(() => {
-    sharedRedisMockPipeline();
-    return sharedRedisPipelineMock;
-  }),
-};
-
-export const sharedRedisFromEnvMock = mock(() => sharedRedisFakeClient);
-
-mock.module("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: sharedRedisFromEnvMock,
-  },
-}));
-
-/**
- * Shared Ratelimit mock that will be used by all test files.
- */
-export const sharedRatelimitMockLimit = mock().mockResolvedValue({
-  success: true,
-  limit: 10,
-  remaining: 9,
-  reset: Date.now() + 10_000,
-  pending: Promise.resolve(),
-});
-export const sharedRatelimitMockSlidingWindow = mock(() => "fake-limiter");
-
-const RatelimitMockClass = mock().mockImplementation(() => ({
-  limit: sharedRatelimitMockLimit,
-}));
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(RatelimitMockClass as any).slidingWindow = sharedRatelimitMockSlidingWindow;
-
-mock.module("@upstash/ratelimit", () => ({
-  Ratelimit: RatelimitMockClass,
-}));

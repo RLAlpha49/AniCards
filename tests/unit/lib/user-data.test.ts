@@ -4,6 +4,7 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,
+  installStatefulRedisEvalHarness,
   sharedRedisMockDel,
   sharedRedisMockEval,
   sharedRedisMockGet,
@@ -242,6 +243,7 @@ function createCommitPointer(options: {
 describe("user-data persistence", () => {
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    installStatefulRedisEvalHarness();
     sharedRedisMockDel.mockReset();
     sharedRedisMockGet.mockReset();
     sharedRedisMockLrange.mockReset();

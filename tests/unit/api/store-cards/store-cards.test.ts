@@ -23,6 +23,7 @@ import {
 import { displayNames } from "@/lib/card-data/validation";
 import {
   allowConsoleWarningsAndErrors,
+  installStatefulRedisEvalHarness,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
   sharedRedisMockEval,
@@ -154,6 +155,7 @@ describe("Store Cards API POST Endpoint", () => {
     sharedRedisMockIncr.mockReset();
     sharedRatelimitMockLimit.mockReset();
     sharedRatelimitMockSlidingWindow.mockClear();
+    installStatefulRedisEvalHarness();
 
     sharedRedisMockGet.mockImplementation((key: string) => {
       const commitMatch = /^user:(\d+):commit$/.exec(key);
