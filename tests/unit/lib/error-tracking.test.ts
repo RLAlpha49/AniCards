@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   flushClientErrorReportBacklog,
   getErrorReportBufferSnapshot,
+  resetClientErrorReportClientStateForTests,
   trackUserActionError,
 } from "@/lib/error-tracking";
 import {
@@ -19,6 +20,22 @@ import {
 } from "@/tests/unit/__setup__";
 
 const CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY = "anicards:error-report-queue:v1";
+
+function createRollingWindowCounterValues(options?: {
+  captured?: number;
+  dropped?: number;
+}) {
+  const values = Array.from({ length: 48 }, () => null as string | null);
+
+  if (typeof options?.captured === "number") {
+    values[0] = String(options.captured);
+  }
+  if (typeof options?.dropped === "number") {
+    values[1] = String(options.dropped);
+  }
+
+  return values;
+}
 
 function createStorageMock(storageState: Map<string, string>): Storage {
   return {
@@ -45,6 +62,7 @@ function createStorageMock(storageState: Map<string, string>): Storage {
 
 function readStoredClientQueueState(storageState: Map<string, string>): {
   reports: Array<{
+    attempts?: number;
     body: string;
     nextAttemptAt?: number;
   }>;
@@ -73,11 +91,25 @@ function readStoredClientQueueState(storageState: Map<string, string>): {
       userAction?: string;
     }>;
   };
+  pendingBreadcrumbs: {
+    deliveryOutcomeFlushFailureCount: number;
+    queueBreakerImmediateSuppressedCount: number;
+    queueBreakerOpenCount: number;
+    queueStorageQuotaExceededCount: number;
+    queueStorageUnavailableCount: number;
+    queueStorageWriteFailedCount: number;
+    recentBreadcrumbs: Array<{
+      reason: string;
+      statusCode?: number;
+      storage?: string;
+    }>;
+  };
 } {
   const rawQueueState = storageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY);
   expect(rawQueueState).toBeTruthy();
   return JSON.parse(String(rawQueueState)) as {
     reports: Array<{
+      attempts?: number;
       body: string;
       nextAttemptAt?: number;
     }>;
@@ -106,6 +138,19 @@ function readStoredClientQueueState(storageState: Map<string, string>): {
         userAction?: string;
       }>;
     };
+    pendingBreadcrumbs: {
+      deliveryOutcomeFlushFailureCount: number;
+      queueBreakerImmediateSuppressedCount: number;
+      queueBreakerOpenCount: number;
+      queueStorageQuotaExceededCount: number;
+      queueStorageUnavailableCount: number;
+      queueStorageWriteFailedCount: number;
+      recentBreadcrumbs: Array<{
+        reason: string;
+        statusCode?: number;
+        storage?: string;
+      }>;
+    };
   };
 }
 
@@ -118,6 +163,7 @@ describe("error tracking", () => {
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    resetClientErrorReportClientStateForTests();
     sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
     sharedRedisMockLrange.mockReset();
@@ -146,6 +192,7 @@ describe("error tracking", () => {
   });
 
   afterEach(() => {
+    resetClientErrorReportClientStateForTests();
     Object.defineProperty(globalThis, "window", {
       value: originalWindow,
       configurable: true,
@@ -235,6 +282,69 @@ describe("error tracking", () => {
     };
 
     expect(payload.requestId).toBe("req-track-12345");
+  });
+
+  it("promotes operation IDs into top-level structured reports and client payloads", async () => {
+    const report = await trackUserActionError(
+      "user_page_load",
+      new Error("Failed to fetch user Alex profile"),
+      "network_error",
+      {
+        operationId: "op-track-12345",
+        source: "client_hook",
+      },
+    );
+
+    expect(report?.operationId).toBe("op-track-12345");
+
+    const serializedServerReport = sharedRedisMockRpush.mock.calls.at(
+      -1,
+    )?.[1] as string | undefined;
+    const serverPayload = JSON.parse(String(serializedServerReport)) as {
+      operationId?: string;
+    };
+
+    expect(serverPayload.operationId).toBe("op-track-12345");
+
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+
+    Object.defineProperty(globalThis, "window", {
+      value: {} as Window,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await trackUserActionError(
+      "render_component_tree",
+      new Error("Failed to fetch user Alex profile"),
+      "network_error",
+      {
+        operationId: "op-client-12345",
+        source: "react_error_boundary",
+      },
+    );
+
+    const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+    expect(firstFetchCall).toBeTruthy();
+
+    const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
+    const clientPayload = parseRequestInitJson<{ operationId?: string }>(
+      requestInit,
+    );
+
+    expect(clientPayload.operationId).toBe("op-client-12345");
   });
 
   it("preserves explicit retryability and recovery suggestions when callers provide them", async () => {
@@ -483,7 +593,9 @@ describe("error tracking", () => {
   it("ages out expired server-side reports before building the live buffer snapshot", async () => {
     const now = Date.now();
 
-    sharedRedisMockMget.mockResolvedValueOnce(["2", "0"]);
+    sharedRedisMockMget
+      .mockResolvedValueOnce(["2", "0"])
+      .mockResolvedValueOnce(createRollingWindowCounterValues());
     sharedRedisMockLrange
       .mockResolvedValueOnce([
         JSON.stringify({
@@ -515,6 +627,13 @@ describe("error tracking", () => {
     const snapshot = await getErrorReportBufferSnapshot();
 
     expect(snapshot.retained).toBe(1);
+    expect(snapshot.rollingWindow).toMatchObject({
+      bucketCount: 24,
+      bucketSizeMs: 3_600_000,
+      totalCaptured: 0,
+      totalDropped: 0,
+      saturationRate: 0,
+    });
     expect(snapshot.retainedTriage.totalReports).toBe(1);
     expect(snapshot.retainedTriage.recentReports[0]).toMatchObject({
       id: "rep-fresh-1",
@@ -525,7 +644,11 @@ describe("error tracking", () => {
     );
   });
   it("reads the current ring-buffer saturation snapshot", async () => {
-    sharedRedisMockMget.mockResolvedValueOnce(["18", "4"]);
+    sharedRedisMockMget
+      .mockResolvedValueOnce(["18", "4"])
+      .mockResolvedValueOnce(
+        createRollingWindowCounterValues({ captured: 6, dropped: 1 }),
+      );
     sharedRedisMockLrange.mockResolvedValueOnce([
       JSON.stringify({
         id: "rep-retained-1",
@@ -642,6 +765,13 @@ describe("error tracking", () => {
       totalCaptured: 18,
       totalDropped: 4,
       cumulativeSaturationRate: 0.2222,
+      rollingWindow: {
+        bucketCount: 24,
+        bucketSizeMs: 3_600_000,
+        totalCaptured: 6,
+        totalDropped: 1,
+        saturationRate: 0.1667,
+      },
       retainedTriage: {
         totalReports: 2,
       },
@@ -667,6 +797,29 @@ describe("error tracking", () => {
       "telemetry:error-reports:v1:total",
       "telemetry:error-reports:v1:dropped",
     );
+  });
+
+  it("tracks rolling hourly error counters for cron observability", async () => {
+    await trackUserActionError(
+      "render_component_tree",
+      new Error("Rolling window capture"),
+      "server_error",
+      { source: "api_route" },
+    );
+
+    const incrCalls = sharedRedisMockIncr.mock.calls as unknown[][];
+
+    expect(
+      incrCalls.some((call) => {
+        const key = call[0];
+
+        return (
+          typeof key === "string" &&
+          key.startsWith("telemetry:error-reports:v1:rolling:hour:") &&
+          key.endsWith(":captured")
+        );
+      }),
+    ).toBe(true);
   });
 
   it("uses the client ingestion route when running in the browser", async () => {
@@ -839,9 +992,147 @@ describe("error tracking", () => {
 
   it("flushes queued client error reports through the backlog helper while preserving client incident identity", async () => {
     const localStorageState = new Map<string, string>();
+    const originalDateNow = Date.now;
+    let mockedNow = originalDateNow();
+    Date.now = () => mockedNow;
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 503 })),
     );
+
+    try {
+      Object.defineProperty(globalThis, "window", {
+        value: {
+          localStorage: createStorageMock(localStorageState),
+        } satisfies Pick<Window, "localStorage">,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "location", {
+        value: new URL("https://anicards.test/user/Alex?tab=cards"),
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "fetch", {
+        value: fetchMock,
+        configurable: true,
+        writable: true,
+      });
+
+      const report = await trackUserActionError(
+        "render_component_tree",
+        new Error("Failed to fetch user Alex profile"),
+        "network_error",
+        { source: "react_error_boundary" },
+      );
+
+      expect(report).not.toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(
+        localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
+      ).toBeTruthy();
+
+      const queuedState = readStoredClientQueueState(localStorageState);
+      expect(queuedState.reports).toHaveLength(1);
+      expect(queuedState.stats).toMatchObject({
+        storage: "local_storage",
+        totalQueued: 1,
+        totalDelivered: 0,
+      });
+
+      const queuedPayload = JSON.parse(
+        String(queuedState.reports[0]?.body),
+      ) as {
+        id?: string;
+        timestamp?: number;
+      };
+
+      expect(queuedPayload.id).toBe(report?.id);
+      expect(queuedPayload.timestamp).toBe(report?.timestamp);
+
+      mockedNow += 1_000;
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(new Response(null, { status: 202 })),
+      );
+
+      await flushClientErrorReportBacklog();
+
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+
+      const flushedCalls = fetchMock.mock.calls as unknown as Array<
+        [RequestInfo | URL, RequestInit | undefined]
+      >;
+      const flushedRequestInit = flushedCalls.at(-1)?.[1];
+      const flushedPayload = parseRequestInitJson<{
+        id?: string;
+        timestamp?: number;
+      }>(flushedRequestInit);
+
+      expect(flushedPayload.id).toBe(report?.id);
+      expect(flushedPayload.timestamp).toBe(report?.timestamp);
+      expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+        reports: [],
+        stats: {
+          storage: "local_storage",
+          totalQueued: 1,
+          totalDelivered: 1,
+        },
+      });
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
+
+  it("opens a shared circuit breaker during backlog replay and suppresses fresh immediate sends until cooldown expires", async () => {
+    const localStorageState = new Map<string, string>();
+
+    localStorageState.set(
+      CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY,
+      JSON.stringify([
+        {
+          attempts: 0,
+          body: JSON.stringify({
+            source: "react_error_boundary",
+            userAction: "queued_report_one",
+            message: "Queued report one",
+            category: "network_error",
+            errorName: "Error",
+          }),
+          queuedAt: Date.now() - 1_000,
+          requestId: "req-queued-1",
+        },
+        {
+          attempts: 0,
+          body: JSON.stringify({
+            source: "react_error_boundary",
+            userAction: "queued_report_two",
+            message: "Queued report two",
+            category: "network_error",
+            errorName: "Error",
+          }),
+          queuedAt: Date.now() - 1_000,
+          requestId: "req-queued-2",
+        },
+      ]),
+    );
+
+    let requestCount = 0;
+    const fetchMock = mock(() => {
+      requestCount += 1;
+
+      if (requestCount === 1) {
+        return Promise.resolve(
+          new Response(null, {
+            headers: {
+              "Retry-After": "60",
+            },
+            status: 429,
+            statusText: "Too Many Requests",
+          }),
+        );
+      }
+
+      return Promise.resolve(new Response(null, { status: 202 }));
+    });
 
     Object.defineProperty(globalThis, "window", {
       value: {
@@ -861,62 +1152,53 @@ describe("error tracking", () => {
       writable: true,
     });
 
-    const report = await trackUserActionError(
-      "render_component_tree",
-      new Error("Failed to fetch user Alex profile"),
+    await flushClientErrorReportBacklog();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    let queuedState = readStoredClientQueueState(localStorageState);
+    expect(queuedState.reports).toHaveLength(2);
+    expect(queuedState.reports[0]?.attempts).toBe(1);
+    expect(queuedState.reports[0]?.nextAttemptAt).toBeGreaterThan(Date.now());
+    expect(queuedState.reports[1]?.attempts).toBe(0);
+    expect(queuedState.reports[1]?.nextAttemptAt).toBeUndefined();
+    expect(queuedState.stats.totalRateLimited).toBe(1);
+    expect(queuedState.pendingBreadcrumbs).toMatchObject({
+      queueBreakerOpenCount: 1,
+    });
+
+    await trackUserActionError(
+      "fresh_immediate_report",
+      new Error("Shared transport outage"),
       "network_error",
       { source: "react_error_boundary" },
     );
 
-    expect(report).not.toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(
-      localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
-    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    const queuedState = readStoredClientQueueState(localStorageState);
-    expect(queuedState.reports).toHaveLength(1);
-    expect(queuedState.stats).toMatchObject({
-      storage: "local_storage",
-      totalQueued: 1,
-      totalDelivered: 0,
+    queuedState = readStoredClientQueueState(localStorageState);
+    expect(queuedState.reports).toHaveLength(3);
+    expect(queuedState.stats.totalQueued).toBe(3);
+    expect(queuedState.pendingBreadcrumbs).toMatchObject({
+      queueBreakerOpenCount: 1,
+      queueBreakerImmediateSuppressedCount: 1,
     });
-
-    const queuedPayload = JSON.parse(String(queuedState.reports[0]?.body)) as {
-      id?: string;
-      timestamp?: number;
-    };
-
-    expect(queuedPayload.id).toBe(report?.id);
-    expect(queuedPayload.timestamp).toBe(report?.timestamp);
-
-    fetchMock.mockImplementation(() =>
-      Promise.resolve(new Response(null, { status: 202 })),
+    expect(queuedState.pendingBreadcrumbs.recentBreadcrumbs[0]?.reason).toBe(
+      "queue_breaker_immediate_suppressed",
     );
 
-    await flushClientErrorReportBacklog();
+    const freshQueuedReport = queuedState.reports
+      .map((storedReport) => ({
+        nextAttemptAt: storedReport.nextAttemptAt,
+        payload: JSON.parse(storedReport.body) as {
+          userAction?: string;
+        },
+      }))
+      .find((storedReport) => {
+        return storedReport.payload.userAction === "fresh_immediate_report";
+      });
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-
-    const flushedCalls = fetchMock.mock.calls as unknown as Array<
-      [RequestInfo | URL, RequestInit | undefined]
-    >;
-    const flushedRequestInit = flushedCalls.at(-1)?.[1];
-    const flushedPayload = parseRequestInitJson<{
-      id?: string;
-      timestamp?: number;
-    }>(flushedRequestInit);
-
-    expect(flushedPayload.id).toBe(report?.id);
-    expect(flushedPayload.timestamp).toBe(report?.timestamp);
-    expect(readStoredClientQueueState(localStorageState)).toMatchObject({
-      reports: [],
-      stats: {
-        storage: "local_storage",
-        totalQueued: 1,
-        totalDelivered: 1,
-      },
-    });
+    expect(freshQueuedReport?.nextAttemptAt).toBeGreaterThan(Date.now());
   });
 
   it("tracks queue evictions when durable client storage reaches capacity", async () => {
@@ -1078,6 +1360,224 @@ describe("error tracking", () => {
         recentOutcomes: [],
       },
     });
+  });
+
+  it("merges storage-unavailable breadcrumbs into the next successful client report", async () => {
+    const originalDateNow = Date.now;
+    let mockedNow = originalDateNow();
+    Date.now = () => mockedNow;
+
+    let requestCount = 0;
+    const fetchMock = mock(() => {
+      requestCount += 1;
+
+      if (requestCount <= 3) {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
+
+      return Promise.resolve(new Response(null, { status: 202 }));
+    });
+
+    const blockedWindow = {} as Window;
+    Object.defineProperty(blockedWindow, "localStorage", {
+      get() {
+        throw new Error("localStorage blocked");
+      },
+    });
+    Object.defineProperty(blockedWindow, "sessionStorage", {
+      get() {
+        throw new Error("sessionStorage blocked");
+      },
+    });
+
+    try {
+      Object.defineProperty(globalThis, "window", {
+        value: blockedWindow,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "location", {
+        value: new URL("https://anicards.test/user/Alex?tab=cards"),
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "fetch", {
+        value: fetchMock,
+        configurable: true,
+        writable: true,
+      });
+
+      await trackUserActionError(
+        "storage_queue_failure",
+        new Error("Shared delivery outage"),
+        "network_error",
+        { source: "react_error_boundary" },
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      mockedNow += 1_000;
+
+      await trackUserActionError(
+        "storage_queue_recovered",
+        new Error("Recovered delivery"),
+        "network_error",
+        { source: "react_error_boundary" },
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+
+      const successfulCall = fetchMock.mock.calls.at(-1) as
+        | unknown[]
+        | undefined;
+      const successfulRequestInit = successfulCall?.[1] as
+        | RequestInit
+        | undefined;
+      const successfulPayload = parseRequestInitJson<Record<string, unknown>>(
+        successfulRequestInit,
+      );
+
+      expect(successfulPayload).toMatchObject({
+        userAction: "storage_queue_recovered",
+        metadata: expect.objectContaining({
+          clientDeliveryBreadcrumbQueueBreakerOpenCount: 1,
+          clientDeliveryBreadcrumbQueueStorageUnavailableCount: 1,
+          clientDeliveryBreadcrumbRecentCount: 2,
+        }),
+      });
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
+
+  it("merges delivery outcome flush failures into the next successful client report", async () => {
+    const localStorageState = new Map<string, string>();
+    const originalDateNow = Date.now;
+    let mockedNow = originalDateNow();
+    Date.now = () => mockedNow;
+
+    let requestCount = 0;
+    const fetchMock = mock(() => {
+      requestCount += 1;
+
+      if (requestCount === 1) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              category: "invalid_data",
+              error: "Invalid error report payload",
+              retryable: false,
+              status: 400,
+            }),
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
+              status: 400,
+              statusText: "Bad Request",
+            },
+          ),
+        );
+      }
+
+      if (requestCount === 2) {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
+
+      return Promise.resolve(new Response(null, { status: 202 }));
+    });
+
+    try {
+      Object.defineProperty(globalThis, "window", {
+        value: {
+          localStorage: createStorageMock(localStorageState),
+        } satisfies Pick<Window, "localStorage">,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "location", {
+        value: new URL("https://anicards.test/user/Alex?tab=cards"),
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "fetch", {
+        value: fetchMock,
+        configurable: true,
+        writable: true,
+      });
+
+      await trackUserActionError(
+        "non_retryable_client_delivery",
+        new Error("Payload rejected by structured error ingestion"),
+        "network_error",
+        { source: "react_error_boundary" },
+      );
+
+      expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+        pendingDurableOutcomes: {
+          nonRetryableDeliveryCount: 1,
+        },
+      });
+
+      await flushClientErrorReportBacklog();
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+        pendingBreadcrumbs: {
+          deliveryOutcomeFlushFailureCount: 1,
+          queueBreakerOpenCount: 1,
+        },
+      });
+
+      mockedNow += 1_000;
+
+      await trackUserActionError(
+        "outcome_flush_recovered",
+        new Error("Recovered delivery"),
+        "network_error",
+        { source: "react_error_boundary" },
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      const successfulCall = fetchMock.mock.calls.at(-1) as
+        | unknown[]
+        | undefined;
+      const successfulRequestInit = successfulCall?.[1] as
+        | RequestInit
+        | undefined;
+      const successfulPayload = parseRequestInitJson<Record<string, unknown>>(
+        successfulRequestInit,
+      );
+
+      expect(successfulPayload).toMatchObject({
+        userAction: "outcome_flush_recovered",
+        metadata: expect.objectContaining({
+          clientDeliveryOutcomeNonRetryableCount: 1,
+          clientDeliveryBreadcrumbDeliveryOutcomeFlushFailedCount: 1,
+        }),
+      });
+      expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+        pendingDurableOutcomes: {
+          nonRetryableDeliveryCount: 0,
+          queueEvictedCount: 0,
+          queueExpiredCount: 0,
+          queueMaxAttemptsCount: 0,
+          recentOutcomes: [],
+        },
+        pendingBreadcrumbs: {
+          deliveryOutcomeFlushFailureCount: 0,
+          queueBreakerImmediateSuppressedCount: 0,
+          queueBreakerOpenCount: 0,
+          queueStorageQuotaExceededCount: 0,
+          queueStorageUnavailableCount: 0,
+          queueStorageWriteFailedCount: 0,
+          recentBreadcrumbs: [],
+        },
+      });
+    } finally {
+      Date.now = originalDateNow;
+    }
   });
 
   it("defers queued client error report replay until Retry-After elapses", async () => {
