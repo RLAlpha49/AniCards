@@ -26,6 +26,23 @@ describe("run-playwright", () => {
     });
   });
 
+  it("enables the full matrix for the Firefox route-suite lane", () => {
+    const firefoxRouteSuiteArgs = [
+      "tests/e2e/search",
+      "tests/e2e/user",
+      "--project=firefox",
+    ];
+
+    expect(shouldEnableFullMatrix(firefoxRouteSuiteArgs)).toBe(true);
+    expect(
+      resolvePlaywrightRunConfiguration("test-e2e", firefoxRouteSuiteArgs),
+    ).toEqual({
+      envOverrides: {
+        PLAYWRIGHT_FULL_MATRIX: "1",
+      },
+    });
+  });
+
   it("does not enable the matrix for chromium-only filters", () => {
     expect(shouldEnableFullMatrix(["--project", "chromium"])).toBe(false);
   });

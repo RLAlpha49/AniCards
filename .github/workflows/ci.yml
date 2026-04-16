@@ -325,6 +325,63 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  e2e-firefox:
+    name: E2E Firefox Routes
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: next-build
+          path: .next
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Run Playwright route suite (Firefox)
+        id: playwright_firefox
+        run: bun run test:e2e -- tests/e2e/search tests/e2e/user --project=firefox
+
+      - name: Upload Playwright artifacts (Firefox)
+        if: ${{ always() && steps.playwright_firefox.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-firefox
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
   e2e-firefox-smoke:
     name: E2E Firefox Smoke
     timeout-minutes: 20
