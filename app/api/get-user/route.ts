@@ -39,6 +39,11 @@ const ratelimit = createRateLimiter({
   window: "10 s",
   hotPath: true,
 });
+const anonymousRatelimit = createRateLimiter({
+  limit: 12,
+  window: "10 s",
+  hotPath: true,
+});
 const USER_API_ENDPOINT = "User API";
 const USER_API_ENDPOINT_KEY = "user_api";
 const USER_API_FAILED_METRIC = buildAnalyticsMetricKey(
@@ -273,7 +278,13 @@ export async function GET(request: Request) {
     "User API",
     "user_api",
     ratelimit,
-    { skipSameOrigin: true },
+    {
+      skipSameOrigin: true,
+      unverifiedRateLimitFallback: {
+        bucketKey: "anonymous:user_api",
+        limiter: anonymousRatelimit,
+      },
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

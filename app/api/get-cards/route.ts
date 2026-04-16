@@ -16,6 +16,11 @@ import {
 } from "@/lib/card-data/fetching";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
+const anonymousRatelimit = createRateLimiter({
+  limit: 12,
+  window: "10 s",
+  hotPath: true,
+});
 const CARDS_API_ENDPOINT = "Cards API";
 const CARDS_API_FAILED_METRIC = "analytics:cards_api:failed_requests";
 const CARDS_API_SUCCESS_METRIC = "analytics:cards_api:successful_requests";
@@ -50,7 +55,13 @@ export async function GET(request: Request) {
     CARDS_API_ENDPOINT,
     "cards_api",
     ratelimit,
-    { skipSameOrigin: true },
+    {
+      skipSameOrigin: true,
+      unverifiedRateLimitFallback: {
+        bucketKey: "anonymous:cards_api",
+        limiter: anonymousRatelimit,
+      },
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

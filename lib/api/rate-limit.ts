@@ -349,14 +349,18 @@ export async function checkRateLimit(
   endpointKey: string,
   limiter?: Ratelimit,
   options?: {
+    allowUnverifiedFallback?: boolean;
     requireVerifiedIp?: boolean;
+    unverifiedFallbackKey?: string;
+    unverifiedFallbackLimiter?: Ratelimit;
   },
 ): Promise<NextResponse<ApiError> | null> {
-  const effectiveLimiter = limiter ?? ratelimit;
-  const ip = identity.ip;
+  let effectiveLimiter = limiter ?? ratelimit;
+  let ip = identity.ip;
   const shouldRejectUnverifiedIp =
     identity.verified === false &&
-    (options?.requireVerifiedIp === true || isProduction());
+    (options?.requireVerifiedIp === true ||
+      (isProduction() && options?.allowUnverifiedFallback !== true));
 
   if (shouldRejectUnverifiedIp) {
     logPrivacySafe(
@@ -384,6 +388,23 @@ export async function checkRateLimit(
       category: "server_error",
       retryable: true,
     });
+  }
+
+  if (identity.verified === false && options?.allowUnverifiedFallback) {
+    ip = options.unverifiedFallbackKey ?? `anonymous:${endpointKey}`;
+    effectiveLimiter = options.unverifiedFallbackLimiter ?? effectiveLimiter;
+
+    logPrivacySafe(
+      isProduction() ? "warn" : "log",
+      endpointName,
+      "Using an anonymous public-read rate-limit bucket because the client IP could not be verified.",
+      {
+        bucketKey: ip,
+        reason: identity.reason,
+        source: identity.source ?? "unverified",
+      },
+      request,
+    );
   }
 
   const limiterRuntimeState = getRateLimiterRuntimeState(effectiveLimiter);

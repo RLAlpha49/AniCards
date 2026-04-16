@@ -119,9 +119,7 @@ async function validateRequestProof(
   return apiErrorResponse(
     request,
     isServerMisconfigured ? 503 : 401,
-    isServerMisconfigured
-      ? "API_SECRET_TOKEN is not configured"
-      : "Unauthorized",
+    isServerMisconfigured ? "Server misconfigured" : "Unauthorized",
     {
       category: isServerMisconfigured ? "server_error" : "authentication",
       retryable: isServerMisconfigured,
@@ -349,6 +347,10 @@ export async function initializeApiRequest(
     skipRateLimit?: boolean;
     skipSameOrigin?: boolean;
     requestId?: string;
+    unverifiedRateLimitFallback?: {
+      bucketKey?: string;
+      limiter?: Ratelimit;
+    };
   },
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
@@ -391,7 +393,15 @@ export async function initializeApiRequest(
       endpoint,
       endpointKey,
       limiter,
-      { requireVerifiedIp: requireVerifiedClientIp },
+      {
+        allowUnverifiedFallback:
+          !requireVerifiedClientIp &&
+          Boolean(options?.unverifiedRateLimitFallback),
+        requireVerifiedIp: requireVerifiedClientIp,
+        unverifiedFallbackKey: options?.unverifiedRateLimitFallback?.bucketKey,
+        unverifiedFallbackLimiter:
+          options?.unverifiedRateLimitFallback?.limiter,
+      },
     );
     if (rateLimitResponse) {
       return {

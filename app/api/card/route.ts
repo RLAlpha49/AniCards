@@ -84,6 +84,11 @@ const ratelimit = createRateLimiter({
   window: "10 s",
   hotPath: true,
 });
+const anonymousRatelimit = createRateLimiter({
+  limit: 30,
+  window: "10 s",
+  hotPath: true,
+});
 
 /** Whitelist of supported card types the API will render. @source */
 const ALLOWED_CARD_TYPES = new Set([
@@ -1100,6 +1105,11 @@ export async function GET(request: Request) {
     "Card SVG",
     "card_svg",
     ratelimit,
+    {
+      allowUnverifiedFallback: true,
+      unverifiedFallbackKey: "anonymous:card_svg",
+      unverifiedFallbackLimiter: anonymousRatelimit,
+    },
   );
   if (rateLimitResponse) {
     const forwardedRateLimitHeaders = Object.fromEntries(

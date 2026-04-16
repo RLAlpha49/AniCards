@@ -1084,7 +1084,10 @@ export function authorizeCronRequest(
       undefined,
       request,
     );
-    return apiErrorResponse(request, 503, "CRON_SECRET is not configured");
+    return apiErrorResponse(request, 503, "Server misconfigured", {
+      category: "server_error",
+      retryable: true,
+    });
   }
 
   if (
