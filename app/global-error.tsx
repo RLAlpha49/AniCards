@@ -12,7 +12,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  useAppRouterErrorBoundaryReporting({
+  const { incidentReference } = useAppRouterErrorBoundaryReporting({
     error,
     boundary: "app_global_error",
     defaultErrorName: "AppGlobalError",
@@ -29,7 +29,7 @@ export default function GlobalError({
           onRetry={reset}
           retryLabel="Try Again"
           digest={error.digest}
-          incidentReference={error.digest}
+          incidentReference={incidentReference}
           homeHref="/"
         />
       </body>

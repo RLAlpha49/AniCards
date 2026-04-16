@@ -122,7 +122,7 @@ function AppRouterBoundaryHarness(
     error: Error & { digest?: string };
   }>,
 ) {
-  useAppRouterErrorBoundaryReporting({
+  const { incidentReference } = useAppRouterErrorBoundaryReporting({
     error: props.error,
     boundary: "app_root_error",
     defaultErrorName: "AppRouteError",
@@ -130,7 +130,11 @@ function AppRouterBoundaryHarness(
     userAction: "route_segment_render",
   });
 
-  return null;
+  return createElement(
+    "output",
+    { "data-testid": "incident-reference" },
+    incidentReference ?? "",
+  );
 }
 
 function ThrowingComponent(props: Readonly<{ error: Error }>): null {
@@ -161,6 +165,42 @@ describe("ErrorBoundary fallback model", () => {
         (suggestion) => suggestion.title === "Check your connection",
       ),
     ).toBe(true);
+  });
+
+  it("uses structured status, category, and recovery metadata when available", () => {
+    const customSuggestions = [
+      {
+        title: "Reload the latest data",
+        description: "Refresh the page before trying again.",
+      },
+    ];
+    const forbiddenModel = buildErrorFallbackModel(
+      Object.assign(new Error("Protected request rejected"), {
+        statusCode: 403,
+      }),
+    );
+    const validationModel = buildErrorFallbackModel(
+      Object.assign(new Error("Validation failed"), {
+        status: 422,
+      }),
+    );
+    const conflictModel = buildErrorFallbackModel(
+      Object.assign(new Error("Unexpected save failure"), {
+        category: "conflict" as const,
+        retryable: false,
+        recoverySuggestions: customSuggestions,
+      }),
+    );
+
+    expect(forbiddenModel.message).toBe("This request is blocked");
+    expect(forbiddenModel.retryable).toBe(false);
+    expect(validationModel.message).toBe(
+      "Some information needs to be corrected",
+    );
+    expect(validationModel.retryable).toBe(false);
+    expect(conflictModel.message).toBe("This page is out of date");
+    expect(conflictModel.retryable).toBe(false);
+    expect(conflictModel.suggestions).toEqual(customSuggestions);
   });
 
   it("renders a privacy-safe incident reference when provided", () => {
@@ -213,6 +253,96 @@ describe("ErrorBoundary fallback model", () => {
         expect(payload.id).toBeTruthy();
         expect(document.body.textContent).toContain("Incident reference");
         expect(document.body.textContent).toContain(String(payload.id));
+      });
+    } finally {
+      Object.defineProperty(globalThis, "fetch", {
+        value: originalFetch,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  it("hides retry by default for non-retryable fallbacks", () => {
+    const { queryByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: Object.assign(
+          new Error(
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          ),
+          {
+            statusCode: 409,
+          },
+        ),
+        onRetry: () => undefined,
+      }),
+    );
+
+    expect(queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+
+  it("allows retry to be explicitly opted in for non-retryable fallbacks", () => {
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: Object.assign(
+          new Error(
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          ),
+          {
+            statusCode: 409,
+          },
+        ),
+        onRetry: () => undefined,
+        allowRetryWhenNonRetryable: true,
+      }),
+    );
+
+    expect(getByRole("button", { name: /try again/i })).toBeTruthy();
+  });
+
+  it("surfaces the resolved structured incident ID for App Router boundaries", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const error = Object.assign(
+        new Error("Failed to fetch user Alex profile"),
+        {
+          digest: "digest-route-12345",
+        },
+      );
+      const { getByTestId } = render(
+        createElement(AppRouterBoundaryHarness, { error }),
+      );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+      expect(firstFetchCall).toBeTruthy();
+
+      const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
+      const payload = JSON.parse(String(requestInit?.body)) as {
+        id?: string;
+      };
+
+      await waitFor(() => {
+        expect(payload.id).toBeTruthy();
+        expect(getByTestId("incident-reference").textContent).toBe(
+          String(payload.id),
+        );
+        expect(getByTestId("incident-reference").textContent).not.toBe(
+          error.digest,
+        );
       });
     } finally {
       Object.defineProperty(globalThis, "fetch", {

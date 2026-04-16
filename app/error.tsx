@@ -10,7 +10,7 @@ export default function AppErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  useAppRouterErrorBoundaryReporting({
+  const { incidentReference } = useAppRouterErrorBoundaryReporting({
     error,
     boundary: "app_root_error",
     defaultErrorName: "AppRouteError",
@@ -24,7 +24,7 @@ export default function AppErrorBoundary({
       onRetry={reset}
       retryLabel="Try Again"
       digest={error.digest}
-      incidentReference={error.digest}
+      incidentReference={incidentReference}
     />
   );
 }

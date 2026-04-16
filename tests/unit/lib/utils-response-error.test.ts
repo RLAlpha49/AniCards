@@ -12,7 +12,7 @@ describe("structured response error parsing", () => {
     const payload = {
       error:
         "Conflict: data was updated elsewhere. Please reload and try again.",
-      category: "invalid_data",
+      category: "conflict",
       retryable: false,
       status: 409,
       recoverySuggestions: [
@@ -38,7 +38,7 @@ describe("structured response error parsing", () => {
     expect(error).toEqual({
       message: payload.error,
       status: 409,
-      category: "invalid_data",
+      category: "conflict",
       retryable: false,
       recoverySuggestions: payload.recoverySuggestions,
       requestId: "req-structured-12345",
@@ -71,5 +71,27 @@ describe("structured response error parsing", () => {
     expect(error.requestId).toBe("req-fallback-67890");
     expect(error.recoverySuggestions.length).toBeGreaterThan(0);
     expect(error.additionalFields).toBeUndefined();
+  });
+
+  it("derives explicit forbidden and validation categories from status codes", () => {
+    const forbidden = getStructuredResponseError(
+      new Response("Protected request required", {
+        status: 403,
+        statusText: "Forbidden",
+      }),
+      "Protected request required",
+    );
+    const validation = getStructuredResponseError(
+      new Response("Validation failed", {
+        status: 422,
+        statusText: "Unprocessable Entity",
+      }),
+      "Validation failed",
+    );
+
+    expect(forbidden.category).toBe("forbidden");
+    expect(forbidden.retryable).toBe(false);
+    expect(validation.category).toBe("validation_error");
+    expect(validation.retryable).toBe(false);
   });
 });

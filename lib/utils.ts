@@ -10,6 +10,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import {
+  ERROR_CATEGORIES,
   type ErrorCategory,
   getErrorDetails,
   isRetryableErrorCategory,
@@ -871,16 +872,9 @@ const STRUCTURED_RESPONSE_ERROR_FIELDS = new Set<string>([
   "retryable",
   "status",
 ]);
-const STRUCTURED_RESPONSE_ERROR_CATEGORIES = new Set<ErrorCategory>([
-  "user_not_found",
-  "rate_limited",
-  "network_error",
-  "invalid_data",
-  "server_error",
-  "timeout",
-  "authentication",
-  "unknown",
-]);
+const STRUCTURED_RESPONSE_ERROR_CATEGORIES = new Set<ErrorCategory>(
+  ERROR_CATEGORIES,
+);
 
 export interface StructuredResponseError {
   message: string;

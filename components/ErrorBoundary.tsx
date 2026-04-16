@@ -7,7 +7,11 @@ import { Component, useEffect, useId, useRef } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { logPrivacySafe } from "@/lib/api/logging";
-import { getErrorDetails, type RecoverySuggestion } from "@/lib/error-messages";
+import {
+  extractStructuredErrorContext,
+  getErrorDetails,
+  type RecoverySuggestion,
+} from "@/lib/error-messages";
 import { reportStructuredError } from "@/lib/error-tracking";
 import { cn } from "@/lib/utils";
 import { safeTrack, trackError } from "@/lib/utils/google-analytics";
@@ -69,8 +73,18 @@ function haveResetKeysChanged(prev?: ResetKey[], next?: ResetKey[]): boolean {
 export function buildErrorFallbackModel(
   error: Error | null,
 ): ErrorFallbackModel {
+  const errorContext = extractStructuredErrorContext(
+    error,
+    "We couldn't render this part of the experience.",
+  );
   const details = getErrorDetails(
-    error?.message ?? "We couldn't render this part of the experience.",
+    errorContext.message,
+    errorContext.statusCode,
+    {
+      category: errorContext.category,
+      retryable: errorContext.retryable,
+      recoverySuggestions: errorContext.recoverySuggestions,
+    },
   );
 
   return {
@@ -123,6 +137,7 @@ export function ErrorFallbackPanel(
     error?: Error | null;
     onRetry?: () => void;
     retryLabel?: string;
+    allowRetryWhenNonRetryable?: boolean;
     homeHref?: string;
     digest?: string;
     incidentReference?: string;
@@ -130,6 +145,9 @@ export function ErrorFallbackPanel(
 ) {
   const model = buildErrorFallbackModel(props.error ?? null);
   const incidentReference = props.incidentReference?.trim();
+  const shouldShowRetry =
+    typeof props.onRetry === "function" &&
+    (model.retryable || props.allowRetryWhenNonRetryable === true);
   const fallbackPanelId = useId();
   const messageId = useId();
   const panelRef = useRef<HTMLElement>(null);
@@ -258,7 +276,7 @@ export function ErrorFallbackPanel(
         </div>
 
         <div className="space-y-3 sm:flex sm:items-center sm:justify-between sm:space-y-0">
-          {props.onRetry ? (
+          {shouldShowRetry ? (
             <Button
               variant="default"
               size="lg"
@@ -266,7 +284,7 @@ export function ErrorFallbackPanel(
               onClick={props.onRetry}
             >
               <RefreshCw className="size-4" />
-              {props.retryLabel ?? (model.retryable ? "Try Again" : "Retry")}
+              {props.retryLabel ?? "Try Again"}
             </Button>
           ) : null}
           <Button
@@ -334,6 +352,10 @@ export class ErrorBoundary extends Component<
       globalThis.location === undefined
         ? undefined
         : `${globalThis.location.pathname}${globalThis.location.search}`;
+    const errorContext = extractStructuredErrorContext(
+      error,
+      "We couldn't render this part of the experience.",
+    );
 
     this.pendingIncidentError = error;
 
@@ -359,6 +381,10 @@ export class ErrorBoundary extends Component<
       source: "react_error_boundary",
       userAction: "render_component_tree",
       error,
+      category: errorContext.category,
+      retryable: errorContext.retryable,
+      recoverySuggestions: errorContext.recoverySuggestions,
+      statusCode: errorContext.statusCode,
       componentStack: errorInfo.componentStack ?? undefined,
       route: currentRoute,
       metadata: {
