@@ -87,6 +87,10 @@ Next.js (App Router, Turbopack) · TypeScript · Tailwind CSS · Radix UI · Ups
 
 Pull requests are welcome. Fork the repo, cut a feature branch, run the relevant validation commands from `docs/DEVELOPMENT.md`, and open a PR. If your change touches a public route, update [`openapi.yaml`](openapi.yaml) in the same PR.
 
+Before broad repo changes, read `docs/DEVELOPMENT.md` for the Bun-first workflow and `AGENTS.md` for repo-specific execution rules. The main implementation guardrails live in `.github/instructions/nextjs.instructions.md`, `.github/instructions/reactjs.instructions.md`, `.github/instructions/security-and-owasp.instructions.md`, and `.github/instructions/performance-optimization.instructions.md`.
+
+If you're scaffolding or refactoring shared UI, treat `components.json` as the source of truth for `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`). For public-contract changes, use `docs/README.md#stable-contract-index` as the jump table so the API, architecture, security, and privacy docs stay in sync.
+
 For new card ideas — a layout concept, a stat breakdown you'd personally use, a color scheme — open an [issue](https://github.com/RLAlpha49/AniCards/issues/new) with a description or sketch. Whatever communicates the idea.
 
 Found a bug? Check [existing issues](https://github.com/RLAlpha49/AniCards/issues) first, then open a new one if nothing matches.

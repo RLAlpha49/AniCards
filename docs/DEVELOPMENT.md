@@ -23,6 +23,14 @@ bun install
 
 `bun install` automatically runs the `prepare` script, which wires up the Husky git hooks. Nothing extra needed.
 
+## Contributor guardrails
+
+Use this guide plus `../AGENTS.md` as the onboarding baseline for repo work.
+
+- `AGENTS.md` covers the repo-specific execution rules and links to roadmap guardrails.
+- The main instruction anchors live in `../.github/instructions/nextjs.instructions.md`, `../.github/instructions/reactjs.instructions.md`, `../.github/instructions/security-and-owasp.instructions.md`, and `../.github/instructions/performance-optimization.instructions.md`.
+- `../components.json` is the UI scaffolding source of truth for shared `shadcn/ui` work: aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`).
+
 ## Copy the env template
 
 Before starting the dev server, create a local env file:
@@ -80,7 +88,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## Validation commands
 
-The full command surface lives in [`package.json`](../package.json). Here's what each one actually does:
+The full command surface lives in [`package.json`](../package.json). Use those Bun-first entrypoints verbatim in docs, PR notes, and examples rather than translating them to npm, yarn, or pnpm variants. Here's what each one actually does:
 
 | Command                      | What it does                                    | When to use it                                                                         |
 | ---------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- |

@@ -6,6 +6,13 @@ At any point, use the `vscode_askQuestions` tool to clarify ambiguous requiremen
 
 Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/roadmap-guardrails.instructions.md`.
 
+## Contributor onboarding anchors
+
+- Use `docs/DEVELOPMENT.md` as the Bun-first source of truth for install, env setup, validation, and contributor workflow. Prefer the repo's exact `bun run ...` entrypoints from that doc and `package.json`; do not translate examples to npm, yarn, or pnpm.
+- Read the applicable `.github/instructions/*.instructions.md` files before editing. In practice, `nextjs.instructions.md`, `reactjs.instructions.md`, `security-and-owasp.instructions.md`, and `performance-optimization.instructions.md` cover most app and docs work in this repository.
+- Treat `components.json` as the UI scaffolding source of truth for shared `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`).
+- Use `docs/README.md#stable-contract-index` as the jump table for durable API, architecture, security, and privacy contract sections when public behavior or docs change.
+
 ---
 
 ## Completion Gate - No Premature Stops

@@ -15,6 +15,7 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - Functional components with hooks as default
 - Follow React's official style guide and best practices
 - This repository runs React inside Next.js 16 App Router on Bun; do not recommend Vite, Create React App, or custom Webpack setup unless the user explicitly asks to change tooling
+- Use `docs/DEVELOPMENT.md` and `package.json` as the source of truth for Bun-first install, validation, and test command names; do not translate examples to npm, yarn, or pnpm by default
 - Implement proper component composition and reusability patterns
 - In this repository, shared UI lives in `components/`, route code lives in `app/`, reusable hooks live in `hooks/`, and browser E2E coverage lives in `tests/e2e/` with Playwright
 
@@ -68,6 +69,7 @@ Instructions for building high-quality ReactJS applications with modern patterns
 ### Styling
 
 - Use Tailwind CSS utilities and the existing shared primitives/components as the default styling approach
+- Treat `components.json` as the shared `shadcn/ui` scaffolding source of truth for aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`)
 - Implement responsive design with mobile-first approach
 - Keep global tokens and resets in `app/globals.css`; avoid introducing CSS-in-JS or alternate styling stacks unless the user explicitly asks
 - Use CSS custom properties (variables) for theming
@@ -124,7 +126,7 @@ Instructions for building high-quality ReactJS applications with modern patterns
 ### Testing
 
 - Write unit tests for components using React Testing Library
-- Run unit tests with `bun test` / `bun run test:unit`
+- Run unit tests with `bun run test:unit`
 - Test component behavior, not implementation details
 - Use Playwright under `tests/e2e/` when route or browser behavior changes need end-to-end coverage
 - Implement integration tests for complex component interactions

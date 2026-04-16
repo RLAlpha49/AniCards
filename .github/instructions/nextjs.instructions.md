@@ -15,8 +15,10 @@ Do not create example/demo files (like ModalExample.tsx) in the main codebase un
 ## Start from the repository's actual stack
 
 - AniCards runs on Bun + Next.js 16 App Router + React 19. Prefer `bun install` and `bun run ...` commands over npm, yarn, or pnpm examples unless the user explicitly asks otherwise.
+- `docs/DEVELOPMENT.md` is the contributor-workflow source of truth for install, env setup, validation, and PR-ready command examples.
 - Local development and builds use Turbopack through `bun run dev` and `bun run build`.
 - Unit tests run through Bun (`bun run test:unit`), while browser coverage uses Playwright (`bun run test:e2e` or `bun run test`).
+- For shared `shadcn/ui` scaffolding or alias assumptions, read `components.json` first. It defines the repo's aliases, `rsc` mode, and Tailwind stylesheet entrypoint (`app/globals.css`).
 - Use current Next.js documentation when guidance is unclear, but keep recommendations compatible with this repository's actual scripts, directory layout, and runtime split.
 
 ---

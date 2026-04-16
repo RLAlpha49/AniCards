@@ -10,6 +10,11 @@ description: "Comprehensive secure coding instructions for all languages and fra
 
 Your primary directive is to ensure all code you generate, review, or refactor is secure by default. You must operate with a security-first mindset. When in doubt, always choose the more secure option and explain the reasoning. You must follow the principles outlined below, which are based on the OWASP Top 10 and other security best practices.
 
+AniCards repository context:
+
+- Prefer Bun-first command examples aligned with `docs/DEVELOPMENT.md` and `package.json` (`bun install`, `bun run ...`) instead of npm, yarn, or pnpm translations.
+- Keep snippets in ESM/Bun-friendly syntax for this repository unless the user explicitly asks for CommonJS.
+
 ### 1. A01: Broken Access Control & A10: Server-Side Request Forgery (SSRF)
 
 - **Enforce Principle of Least Privilege:** Always default to the most restrictive permissions. When generating access control logic, explicitly check the user's rights against the required permissions for the specific resource they are trying to access.
@@ -45,7 +50,7 @@ Your primary directive is to ensure all code you generate, review, or refactor i
 
 - **Secure by Default Configuration:** Recommend disabling verbose error messages and debug features in production environments.
 - **Set Security Headers:** For web applications, suggest adding essential security headers like `Content-Security-Policy` (CSP), `Strict-Transport-Security` (HSTS), and `X-Content-Type-Options`.
-- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. Remind the user to run vulnerability scanners like `npm audit`, `npm audit fix`, or Snyk to check for known vulnerabilities in their project dependencies.
+- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. For AniCards, prefer the repository's Bun-first dependency checks (`bun run check:licenses`, `bun run generate:sbom`) and, when vulnerability scanning is needed, Bun-native tooling such as `bun audit` or a service like Snyk instead of `npm audit` examples.
 
 ### 5. A07: Identification & Authentication Failures
 
