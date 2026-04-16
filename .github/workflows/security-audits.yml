@@ -38,8 +38,22 @@ jobs:
         with:
           languages: ${{ matrix.language }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Run Bun typecheck and build for CodeQL
+        env:
+          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+          UPSTASH_REDIS_REST_URL: https://example.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
+          CRON_SECRET: ci-placeholder-cron-secret
+          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
+        run: |
+          bun run validate:typecheck
+          bun run validate:production-env
+          bun run validate:build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

@@ -357,6 +357,11 @@ jobs:
         if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
         env:
           HAS_MANIFEST_UPDATES: ${{ steps.check-updates.outputs.has_manifest_updates }}
+          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+          UPSTASH_REDIS_REST_URL: https://example.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
+          CRON_SECRET: ci-placeholder-cron-secret
+          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
           set -euo pipefail
 
@@ -401,11 +406,7 @@ jobs:
 
           printf '%s\n' "$change_summary" >> "$GITHUB_STEP_SUMMARY"
 
-          bun run lint:check
-          bun run typecheck
-          bun run test:unit
-          bun run build
-          bun run check:licenses
+          bun run validate:ci
 
           git add package.json bun.lock
           if git diff --cached --quiet; then
