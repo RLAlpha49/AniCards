@@ -1,11 +1,25 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join, relative } from "node:path";
 
+const require = createRequire(import.meta.url);
 const rootDir = process.cwd();
 const policyPath = join(rootDir, "dependency-license-policy.json");
 const reportDir = join(rootDir, ".artifacts", "licenses");
 const reportPath = join(reportDir, "license-policy-report.json");
+const licenseCheckerPackageJsonPath = join(
+  rootDir,
+  "node_modules",
+  "license-checker-rseidelsohn",
+  "package.json",
+);
 const scannerBinaryCandidates = [
   join(rootDir, "node_modules", ".bin", "license-checker-rseidelsohn"),
   join(rootDir, "node_modules", ".bin", "license-checker-rseidelsohn.exe"),
@@ -15,9 +29,58 @@ const scannerBinaryCandidates = [
 const scannerBinaryPath =
   scannerBinaryCandidates.find((candidatePath) => existsSync(candidatePath)) ??
   scannerBinaryCandidates[0];
+const parseSpdxExpression = loadSpdxExpressionParser();
 
 function readJsonFile(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
+}
+
+function loadSpdxExpressionParser() {
+  for (const candidateRequire of [require]) {
+    try {
+      const importedModule = candidateRequire("spdx-expression-parse");
+      if (typeof importedModule === "function") {
+        return importedModule;
+      }
+
+      if (typeof importedModule?.default === "function") {
+        return importedModule.default;
+      }
+    } catch {
+      // Ignore missing candidates and continue to the next resolver.
+    }
+  }
+
+  if (existsSync(licenseCheckerPackageJsonPath)) {
+    try {
+      const resolutionBaseDir = dirname(
+        realpathSync(licenseCheckerPackageJsonPath),
+      );
+      const resolvedModulePath = require.resolve("spdx-expression-parse", {
+        paths: [resolutionBaseDir],
+      });
+      const importedModule = require(resolvedModulePath);
+      if (typeof importedModule === "function") {
+        return importedModule;
+      }
+
+      if (typeof importedModule?.default === "function") {
+        return importedModule.default;
+      }
+    } catch {
+      // Ignore lookup failures and fall back to the validation error below.
+    }
+  }
+
+  return null;
+}
+
+function normalizeStringArray(value) {
+  return Array.isArray(value)
+    ? value
+        .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+        .map((entry) => entry.trim())
+    : [];
 }
 
 function normalizeLicenseExpression(value) {
@@ -60,6 +123,145 @@ function splitPackageSpec(packageSpec) {
   };
 }
 
+function normalizeScanScopes(value) {
+  if (!value || typeof value !== "object") {
+    return {
+      production: true,
+      development: false,
+    };
+  }
+
+  return {
+    production: value.production !== false,
+    development: value.development === true,
+  };
+}
+
+function tryParseSpdxExpression(expression) {
+  if (
+    typeof expression !== "string" ||
+    expression.trim().length === 0 ||
+    typeof parseSpdxExpression !== "function"
+  ) {
+    return null;
+  }
+
+  try {
+    return parseSpdxExpression(expression);
+  } catch {
+    return null;
+  }
+}
+
+function collectSpdxLicenseIds(node, licenseIds = new Set()) {
+  if (!node || typeof node !== "object") {
+    return licenseIds;
+  }
+
+  if (typeof node.license === "string" && node.license.trim().length > 0) {
+    licenseIds.add(node.license.trim());
+  }
+
+  if (node.left) {
+    collectSpdxLicenseIds(node.left, licenseIds);
+  }
+
+  if (node.right) {
+    collectSpdxLicenseIds(node.right, licenseIds);
+  }
+
+  return licenseIds;
+}
+
+function analyzeSelectedLicense(selectedLicense, denyPolicy) {
+  const normalizedSelectedLicense =
+    typeof selectedLicense === "string" ? selectedLicense.trim() : "";
+  const uppercaseSelectedLicense = normalizedSelectedLicense.toUpperCase();
+  const matchedDeniedSpdxRules = [];
+
+  if (denyPolicy.deniedSpdxLicenseIds.has(uppercaseSelectedLicense)) {
+    matchedDeniedSpdxRules.push(normalizedSelectedLicense);
+  }
+
+  for (const prefix of denyPolicy.deniedSpdxLicensePrefixes) {
+    if (uppercaseSelectedLicense.startsWith(prefix)) {
+      matchedDeniedSpdxRules.push(prefix);
+    }
+  }
+
+  const matchedDeniedSubstrings = denyPolicy.deniedLicenseSubstrings.filter(
+    (token) => uppercaseSelectedLicense.includes(token),
+  );
+
+  return {
+    normalizedSelectedLicense,
+    matchedDeniedSpdxRules,
+    matchedDeniedSubstrings,
+    isDenied:
+      matchedDeniedSpdxRules.length > 0 || matchedDeniedSubstrings.length > 0,
+  };
+}
+
+function analyzeLicenseExpression(expression, denyPolicy) {
+  const normalizedExpression =
+    typeof expression === "string" ? expression.trim() : "";
+  const parsedExpression = tryParseSpdxExpression(normalizedExpression);
+  const spdxLicenseIds = parsedExpression
+    ? [...collectSpdxLicenseIds(parsedExpression)]
+    : [];
+  const matchedDeniedSpdxLicenses = spdxLicenseIds.filter((licenseId) => {
+    const uppercaseLicenseId = licenseId.toUpperCase();
+    return (
+      denyPolicy.deniedSpdxLicenseIds.has(uppercaseLicenseId) ||
+      denyPolicy.deniedSpdxLicensePrefixes.some((prefix) =>
+        uppercaseLicenseId.startsWith(prefix),
+      )
+    );
+  });
+  const uppercaseExpression = normalizedExpression.toUpperCase();
+  const matchedDeniedSubstrings = denyPolicy.deniedLicenseSubstrings.filter(
+    (token) => uppercaseExpression.includes(token),
+  );
+
+  return {
+    parseStatus:
+      typeof parseSpdxExpression !== "function"
+        ? "unavailable"
+        : parsedExpression
+          ? "parsed"
+          : normalizedExpression.length > 0
+            ? "unparsed"
+            : "empty",
+    spdxLicenseIds,
+    matchedDeniedSpdxLicenses,
+    matchedDeniedSubstrings,
+    isDenied:
+      matchedDeniedSpdxLicenses.length > 0 ||
+      matchedDeniedSubstrings.length > 0,
+  };
+}
+
+function licenseExpressionIncludesLicense(expression, selectedLicense) {
+  if (
+    typeof selectedLicense !== "string" ||
+    selectedLicense.trim().length === 0
+  ) {
+    return false;
+  }
+
+  const normalizedSelectedLicense = selectedLicense.trim();
+  const parsedExpression = tryParseSpdxExpression(expression);
+  if (parsedExpression) {
+    return collectSpdxLicenseIds(parsedExpression).has(
+      normalizedSelectedLicense,
+    );
+  }
+
+  return expression
+    .toUpperCase()
+    .includes(normalizedSelectedLicense.toUpperCase());
+}
+
 if (!existsSync(policyPath)) {
   console.error(
     `Missing dependency license policy file: ${relative(rootDir, policyPath)}`,
@@ -78,26 +280,60 @@ if (!existsSync(scannerBinaryPath)) {
 }
 
 const policy = readJsonFile(policyPath);
-const deniedLicenseSubstrings = Array.isArray(policy.denyLicenseSubstrings)
-  ? policy.denyLicenseSubstrings
-      .filter((token) => typeof token === "string" && token.trim().length > 0)
-      .map((token) => token.trim().toUpperCase())
-  : [];
+const scanScopes = normalizeScanScopes(policy.scanScopes);
+const deniedLicenseSubstrings = normalizeStringArray(
+  policy.denyLicenseSubstrings,
+).map((token) => token.toUpperCase());
+const deniedSpdxLicenseIds = new Set(
+  normalizeStringArray(policy.denySpdxLicenseIds).map((licenseId) =>
+    licenseId.toUpperCase(),
+  ),
+);
+const deniedSpdxLicensePrefixes = normalizeStringArray(
+  policy.denySpdxLicensePrefixes,
+).map((prefix) => prefix.toUpperCase());
 const packageLicenseSelections =
   policy.packageLicenseSelections &&
   typeof policy.packageLicenseSelections === "object"
     ? policy.packageLicenseSelections
     : {};
+const scanAllInstalledDependencies = scanScopes.development === true;
+const scannerArgs = [
+  ...(scanAllInstalledDependencies ? [] : ["--production"]),
+  "--excludePrivatePackages",
+  "--json",
+];
+const deniedLicensePolicy = {
+  deniedLicenseSubstrings,
+  deniedSpdxLicenseIds,
+  deniedSpdxLicensePrefixes,
+};
 
-const scanResult = spawnSync(
-  scannerBinaryPath,
-  ["--production", "--excludePrivatePackages", "--json"],
-  {
-    cwd: rootDir,
-    encoding: "utf8",
-    env: process.env,
-  },
-);
+if (!scanScopes.production) {
+  console.error(
+    "Dependency license policy must keep production dependency scanning enabled.",
+  );
+  process.exit(1);
+}
+
+if (
+  typeof parseSpdxExpression !== "function" &&
+  (deniedSpdxLicenseIds.size > 0 || deniedSpdxLicensePrefixes.length > 0)
+) {
+  console.error(
+    [
+      "Missing SPDX expression parser for enriched dependency license evaluation.",
+      "Run `bun install` before running `bun run check:licenses`.",
+    ].join(" "),
+  );
+  process.exit(1);
+}
+
+const scanResult = spawnSync(scannerBinaryPath, scannerArgs, {
+  cwd: rootDir,
+  encoding: "utf8",
+  env: process.env,
+});
 
 if (scanResult.status !== 0) {
   console.error(
@@ -114,11 +350,17 @@ const packageEntries = Object.entries(scanOutput).map(
     const licenseExpression = normalizeLicenseExpression(
       metadata?.licenses ?? metadata?.license,
     );
-    const uppercaseExpression = licenseExpression.toUpperCase();
-    const hasDeniedLicenseSubstring = deniedLicenseSubstrings.some((token) =>
-      uppercaseExpression.includes(token),
+    const licenseAnalysis = analyzeLicenseExpression(
+      licenseExpression,
+      deniedLicensePolicy,
     );
     const violations = [];
+    const selectedLicenseAnalysis = packageSelection
+      ? analyzeSelectedLicense(
+          packageSelection.selectedLicense,
+          deniedLicensePolicy,
+        )
+      : null;
 
     if (packageSelection) {
       if (
@@ -136,8 +378,9 @@ const packageEntries = Object.entries(scanOutput).map(
       ) {
         violations.push("Selected license must be a non-empty string.");
       } else if (
-        !uppercaseExpression.includes(
-          packageSelection.selectedLicense.trim().toUpperCase(),
+        !licenseExpressionIncludesLicense(
+          licenseExpression,
+          packageSelection.selectedLicense,
         )
       ) {
         violations.push(
@@ -146,9 +389,9 @@ const packageEntries = Object.entries(scanOutput).map(
       }
     }
 
-    if (hasDeniedLicenseSubstring && !packageSelection) {
+    if (licenseAnalysis.isDenied && !packageSelection) {
       violations.push(
-        `Denied license substring requires an explicit policy selection: ${licenseExpression || "<empty>"}.`,
+        `Denied SPDX or substring policy requires an explicit package review selection: ${licenseExpression || "<empty>"}.`,
       );
     }
 
@@ -168,6 +411,16 @@ const packageEntries = Object.entries(scanOutput).map(
           ? metadata.path
           : undefined,
       policySelection: packageSelection ?? null,
+      spdxAnalysis: {
+        parseStatus: licenseAnalysis.parseStatus,
+        licenseIds: licenseAnalysis.spdxLicenseIds,
+        deniedMatches: {
+          spdxLicenses: licenseAnalysis.matchedDeniedSpdxLicenses,
+          substrings: licenseAnalysis.matchedDeniedSubstrings,
+        },
+      },
+      usesDeniedLicenseException:
+        Boolean(packageSelection) && Boolean(selectedLicenseAnalysis?.isDenied),
       status:
         violations.length > 0
           ? "violation"
@@ -186,18 +439,22 @@ const report = {
   policyVersion: policy.version ?? 1,
   scanner: {
     name: "license-checker-rseidelsohn",
-    command: [
-      relative(rootDir, scannerBinaryPath),
-      "--production",
-      "--excludePrivatePackages",
-      "--json",
-    ],
+    scope: scanAllInstalledDependencies
+      ? "production-and-development"
+      : "production-only",
+    command: [relative(rootDir, scannerBinaryPath), ...scannerArgs],
   },
   summary: {
     totalPackages: packageEntries.length,
+    scanScopes,
+    deniedSpdxLicenseIds: [...deniedSpdxLicenseIds],
+    deniedSpdxLicensePrefixes,
     deniedLicenseSubstrings,
     explicitSelections: packageEntries.filter(
       (entry) => entry.status === "allowed-by-policy",
+    ).length,
+    reviewedDeniedLicenseExceptions: packageEntries.filter(
+      (entry) => entry.usesDeniedLicenseException,
     ).length,
     violations: packageEntries.reduce(
       (total, entry) => total + entry.violations.length,
@@ -225,7 +482,7 @@ if (violatingEntries.length > 0) {
 
 console.log(
   [
-    `Checked ${packageEntries.length} production dependency licenses.`,
+    `Checked ${packageEntries.length} ${scanAllInstalledDependencies ? "production and development" : "production"} dependency licenses.`,
     `${report.summary.explicitSelections} explicit policy selection(s) verified.`,
     `Report written to ${relative(rootDir, reportPath)}.`,
   ].join(" "),

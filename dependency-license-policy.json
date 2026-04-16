@@ -1,5 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
+  "scanScopes": {
+    "production": true,
+    "development": true
+  },
+  "denySpdxLicensePrefixes": ["GPL-", "AGPL-", "LGPL-", "NGPL"],
   "denyLicenseSubstrings": ["GPL", "AGPL", "LGPL", "NGPL"],
   "packageLicenseSelections": {
     "jszip@3.10.1": {
