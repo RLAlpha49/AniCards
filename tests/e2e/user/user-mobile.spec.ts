@@ -489,7 +489,11 @@ test.describe("Mobile progressive enhancement", () => {
 
       const html = page.locator("html");
       await expect
-        .poll(() => html.getAttribute("data-mobile-menu-hydrated"))
+        .poll(() =>
+          html.evaluate(
+            (node) => (node as HTMLElement).dataset.mobileMenuHydrated ?? null,
+          ),
+        )
         .toBeNull();
 
       const menuToggle = page.locator('[data-mobile-menu-toggle="true"]');

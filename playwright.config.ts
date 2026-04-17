@@ -33,7 +33,7 @@ function readOptionalEnvValue(
   key: string,
 ): string | undefined {
   const value = env[key]?.trim();
-  return value ? value : undefined;
+  return value || undefined;
 }
 
 function isEnabledFlag(value: string | undefined): boolean {

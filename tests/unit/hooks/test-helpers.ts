@@ -13,13 +13,11 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
+type ResizeObserverConstructor = abstract new (...args: unknown[]) => unknown;
+
 export type InstallHappyDomOptions = {
   additionalGlobals?: Record<string, unknown>;
-  includeResizeObserver?:
-    | boolean
-    | {
-        new (...args: unknown[]): unknown;
-      };
+  includeResizeObserver?: boolean | ResizeObserverConstructor;
   url?: string;
 };
 
@@ -27,11 +25,7 @@ type HappyDomOptionsInput = InstallHappyDomOptions | string | undefined;
 
 type NormalizedInstallHappyDomOptions = {
   additionalGlobals: Record<string, unknown>;
-  includeResizeObserver:
-    | boolean
-    | {
-        new (...args: unknown[]): unknown;
-      };
+  includeResizeObserver: boolean | ResizeObserverConstructor;
   url: string;
 };
 

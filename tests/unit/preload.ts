@@ -360,10 +360,9 @@ const sharedRedisFakeClient = {
   },
 };
 
-export const sharedRedisFromEnvMock = mock((options?: unknown) => {
-  void options;
-  return sharedRedisFakeClient;
-});
+export const sharedRedisFromEnvMock = mock(
+  (_options?: unknown) => sharedRedisFakeClient,
+);
 
 const delegatingRatelimitLimit = (...args: unknown[]) =>
   (sharedRatelimitMockLimit as unknown as (...callArgs: unknown[]) => unknown)(
