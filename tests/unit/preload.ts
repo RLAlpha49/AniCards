@@ -361,6 +361,7 @@ const sharedRedisFakeClient = {
 };
 
 export const sharedRedisFromEnvMock = mock(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (_options?: unknown) => sharedRedisFakeClient,
 );
 

@@ -31,6 +31,7 @@ describe("lib/api/validation", () => {
 
   beforeEach(() => {
     console.warn = mock(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       (..._args: unknown[]) => undefined,
     ) as typeof console.warn;
   });
@@ -69,6 +70,7 @@ describe("lib/api/validation", () => {
   });
 
   it("rejects unsupported top-level user payload fields", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const consoleWarn = mock((..._args: unknown[]) => undefined);
     console.warn = consoleWarn as typeof console.warn;
 

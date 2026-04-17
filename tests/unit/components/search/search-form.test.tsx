@@ -21,6 +21,7 @@ import {
 const routerPush = mock((href: string) => Promise.resolve(href));
 const routerReplace = mock((href: string) => Promise.resolve(href));
 const historyReplaceState = mock(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (_state: unknown, _title: string, _url?: string | URL | null) => undefined,
 );
 const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";

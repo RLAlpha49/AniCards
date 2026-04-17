@@ -133,6 +133,7 @@ function blockLocalStorageWrites() {
 
   Object.defineProperty(storage, "setItem", {
     configurable: true,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     value: ((..._args: Parameters<typeof storage.setItem>) => {
       throw new Error("localStorage write blocked");
     }) as typeof storage.setItem,
