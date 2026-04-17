@@ -2,201 +2,265 @@
 
 import { motion } from "framer-motion";
 import {
+  Activity,
   BarChart2,
   BookOpen,
-  PieChart,
-  LucideIcon,
-  Users,
+  Building2,
   Calendar,
+  Clock,
+  Heart,
+  LayoutGrid,
+  type LucideIcon,
+  Mic,
+  PieChart,
   TrendingUp,
+  Users,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import type { PreviewColorPreset } from "@/lib/preview-theme";
+
 import { ExampleCard } from "./ExampleCard";
-
-interface CardVariant {
-  name: string;
-  url: string;
-  description?: string;
-}
-
-interface CardType {
-  title: string;
-  description: string;
-  variants: CardVariant[];
-  category:
-    | "Core Stats"
-    | "Anime Deep Dive"
-    | "Manga Deep Dive"
-    | "Activity & Engagement"
-    | "Library & Progress"
-    | "Advanced Analytics";
-  icon: LucideIcon;
-  color: string;
-  gradient: string;
-}
+import type { ExampleCardType, ExampleIconKey } from "./types";
 
 interface CategorySectionProps {
   category: string;
-  cardTypes: CardType[];
-  onOpenGenerator: () => void;
+  cardTypes: ExampleCardType[];
   isFirstCategory: boolean;
+  previewColorPreset: PreviewColorPreset | null;
 }
 
-const getCategoryIcon = (category: string): LucideIcon => {
-  switch (category) {
-    case "Core Stats":
-      return BarChart2;
-    case "Anime Deep Dive":
-      return PieChart;
-    case "Manga Deep Dive":
-      return BookOpen;
-    case "Activity & Engagement":
-      return Calendar;
-    case "Library & Progress":
-      return Users;
-    case "Advanced Analytics":
-      return TrendingUp;
-    default:
-      return BarChart2;
+const CARD_TYPE_CHUNK_THRESHOLD = 6;
+const INITIAL_CARD_TYPE_CHUNK_SIZE = 4;
+const CARD_TYPE_CHUNK_SIZE = 4;
+
+function getInitialVisibleCardTypeCount(totalCardTypes: number): number {
+  if (totalCardTypes <= CARD_TYPE_CHUNK_THRESHOLD) {
+    return totalCardTypes;
   }
+
+  return Math.min(totalCardTypes, INITIAL_CARD_TYPE_CHUNK_SIZE);
+}
+
+function buildCardTypeSignature(cardTypes: readonly ExampleCardType[]): string {
+  return cardTypes.map((cardType) => cardType.title).join("|");
+}
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "Core Stats": BarChart2,
+  "Anime Deep Dive": PieChart,
+  "Manga Deep Dive": BookOpen,
+  "Activity & Engagement": Calendar,
+  "Library & Progress": Users,
+  "Advanced Analytics": TrendingUp,
 };
 
-const getCategoryStyles = (category: string) => {
-  switch (category) {
-    case "Anime Deep Dive":
-      return {
-        bg: "bg-purple-100 dark:bg-purple-900/30",
-        text: "text-purple-600 dark:text-purple-400",
-        border: "border-purple-200/50 dark:border-purple-800/50",
-        gradient: "from-purple-500 to-violet-500",
-      };
-    case "Manga Deep Dive":
-      return {
-        bg: "bg-pink-100 dark:bg-pink-900/30",
-        text: "text-pink-600 dark:text-pink-400",
-        border: "border-pink-200/50 dark:border-pink-800/50",
-        gradient: "from-pink-500 to-rose-500",
-      };
-    case "Library & Progress":
-      return {
-        bg: "bg-emerald-100 dark:bg-emerald-900/30",
-        text: "text-emerald-600 dark:text-emerald-400",
-        border: "border-emerald-200/50 dark:border-emerald-800/50",
-        gradient: "from-emerald-500 to-green-500",
-      };
-    case "Activity & Engagement":
-      return {
-        bg: "bg-amber-100 dark:bg-amber-900/30",
-        text: "text-amber-600 dark:text-amber-400",
-        border: "border-amber-200/50 dark:border-amber-800/50",
-        gradient: "from-amber-500 to-orange-500",
-      };
-    case "Advanced Analytics":
-      return {
-        bg: "bg-indigo-100 dark:bg-indigo-900/30",
-        text: "text-indigo-600 dark:text-indigo-400",
-        border: "border-indigo-200/50 dark:border-indigo-800/50",
-        gradient: "from-indigo-500 to-blue-500",
-      };
-    case "Core Stats":
-    default:
-      return {
-        bg: "bg-blue-100 dark:bg-blue-900/30",
-        text: "text-blue-600 dark:text-blue-400",
-        border: "border-blue-200/50 dark:border-blue-800/50",
-        gradient: "from-blue-500 to-cyan-500",
-      };
-  }
+const CARD_TYPE_ICONS: Record<ExampleIconKey, LucideIcon> = {
+  activity: Activity,
+  barChart2: BarChart2,
+  bookOpen: BookOpen,
+  building2: Building2,
+  calendar: Calendar,
+  clock: Clock,
+  heart: Heart,
+  layoutGrid: LayoutGrid,
+  mic: Mic,
+  pieChart: PieChart,
+  trendingUp: TrendingUp,
+  users: Users,
 };
+
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  "Core Stats":
+    "The essentials — a bird's-eye view of your anime and manga footprint",
+  "Anime Deep Dive":
+    "Granular breakdowns covering your anime genres, studios, and viewing habits",
+  "Manga Deep Dive":
+    "A closer look at what you read, how you read, and which titles define your taste",
+  "Activity & Engagement":
+    "Tracking the rhythm of your daily engagement — streaks, milestones, and peak days",
+  "Library & Progress":
+    "Your favourites, your backlog, and the milestones that matter — all in one place",
+  "Advanced Analytics":
+    "Side-by-side anime-vs-manga comparisons and the deeper patterns most people miss",
+};
+
+const CATEGORY_NUMBERS: Record<string, string> = {
+  "Core Stats": "01",
+  "Anime Deep Dive": "02",
+  "Manga Deep Dive": "03",
+  "Activity & Engagement": "04",
+  "Library & Progress": "05",
+  "Advanced Analytics": "06",
+};
+
+function CardTypeIconDisplay({
+  iconKey,
+}: Readonly<{ iconKey: ExampleIconKey }>) {
+  const CardTypeIcon = CARD_TYPE_ICONS[iconKey] ?? BarChart2;
+
+  return <CardTypeIcon className="size-3.5 shrink-0 text-gold/40" />;
+}
 
 export function CategorySection({
   category,
   cardTypes,
-  onOpenGenerator,
   isFirstCategory,
+  previewColorPreset,
 }: Readonly<CategorySectionProps>) {
-  if (cardTypes.length === 0) return null;
+  const CategoryIcon = CATEGORY_ICONS[category] || BarChart2;
+  const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
+  const cardTypeSignature = useMemo(
+    () => buildCardTypeSignature(cardTypes),
+    [cardTypes],
+  );
+  const [visibleCardTypeCount, setVisibleCardTypeCount] = useState(() =>
+    getInitialVisibleCardTypeCount(cardTypes.length),
+  );
+  const totalVariants = cardTypes.reduce(
+    (sum, ct) => sum + ct.variants.length,
+    0,
+  );
+  const sectionNumber = CATEGORY_NUMBERS[category] || "00";
+  const visibleCardTypes = useMemo(
+    () => cardTypes.slice(0, visibleCardTypeCount),
+    [cardTypes, visibleCardTypeCount],
+  );
+  const remainingCardTypeCount = Math.max(
+    0,
+    cardTypes.length - visibleCardTypeCount,
+  );
 
-  const CategoryIcon = getCategoryIcon(category);
-  const styles = getCategoryStyles(category);
+  useEffect(() => {
+    setVisibleCardTypeCount(getInitialVisibleCardTypeCount(cardTypes.length));
+  }, [cardTypeSignature, cardTypes.length]);
+
+  const handleLoadMoreCardTypes = useCallback(() => {
+    setVisibleCardTypeCount((currentVisibleCount) =>
+      Math.min(currentVisibleCount + CARD_TYPE_CHUNK_SIZE, cardTypes.length),
+    );
+  }, [cardTypes.length]);
+
+  if (cardTypes.length === 0) {
+    return null;
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
+    <motion.section
+      id={categoryId}
+      initial={{ opacity: 0, y: 40 }}
       animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      viewport={isFirstCategory ? undefined : { once: true, margin: "-50px" }}
-      className="space-y-10"
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      viewport={isFirstCategory ? undefined : { once: true, margin: "-80px" }}
+      className="scroll-mt-32"
     >
-      {/* Category Header */}
-      <div className="flex items-center gap-4">
-        <div className={`rounded-2xl p-4 ${styles.bg}`}>
-          <CategoryIcon className={`h-8 w-8 ${styles.text}`} />
+      {/* Category header — editorial numbered layout */}
+      <div className="mb-14">
+        <div className="flex items-start gap-5">
+          {/* Large section number */}
+          <span className="
+            hidden font-display text-6xl leading-none font-black text-gold/10 select-none
+            sm:block
+            md:text-7xl
+          ">
+            {sectionNumber}
+          </span>
+
+          <div className="flex-1">
+            <div className="mb-2 flex items-center gap-3">
+              <div className="
+                flex size-8 shrink-0 items-center justify-center border border-gold/15 bg-gold/4
+              ">
+                <CategoryIcon className="size-3.5 text-gold" />
+              </div>
+              <h2 className="
+                font-display text-sm tracking-[0.25em] text-foreground uppercase
+                sm:text-base
+              ">
+                {category}
+              </h2>
+            </div>
+
+            <p className="ml-11 max-w-md font-body-serif text-sm/relaxed text-foreground/35">
+              {CATEGORY_DESCRIPTIONS[category]}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
-            {category}
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400">
-            {cardTypes.length} card type{cardTypes.length === 1 ? "" : "s"} •{" "}
-            {cardTypes.reduce((sum, ct) => sum + ct.variants.length, 0)}{" "}
-            variants
-          </p>
+
+        <div className="mt-2 flex w-full justify-center">
+          <span className="text-xs whitespace-nowrap text-foreground/20 tabular-nums">
+            {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
+            {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+          </span>
         </div>
       </div>
 
-      {/* Card Types */}
-      <div className="space-y-16">
-        {cardTypes.map((cardType) => (
-          <motion.div
-            key={cardType.title}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="space-y-6"
-          >
-            {/* Card Type Header */}
-            <div
-              className={`flex items-center gap-3 rounded-2xl border ${styles.border} bg-white/50 p-4 backdrop-blur-sm dark:bg-slate-800/50`}
-            >
-              <div className={`rounded-xl p-2 ${styles.bg}`}>
-                <cardType.icon className={`h-5 w-5 ${styles.text}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+      {/* Card type groups */}
+      <div className="space-y-20">
+        {visibleCardTypes.map((cardType, typeIndex) => (
+          <div key={cardType.title}>
+            {/* Card type header with line */}
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex items-center gap-2.5">
+                <CardTypeIconDisplay iconKey={cardType.iconKey} />
+                <h3 className="text-sm font-semibold tracking-wide text-foreground/80">
                   {cardType.title}
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {cardType.description}
-                </p>
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-medium ${styles.bg} ${styles.text}`}
-              >
-                {cardType.variants.length} variant
-                {cardType.variants.length === 1 ? "" : "s"}
+              <div className="gold-line flex-1" />
+              <span className="
+                font-display text-[0.6rem] tracking-widest text-foreground/15 tabular-nums
+              ">
+                {String(typeIndex + 1).padStart(2, "0")}
               </span>
             </div>
 
-            {/* Variants Grid */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {/* Description */}
+            <p className="mb-6 ml-6 max-w-lg text-xs/relaxed text-foreground/30">
+              {cardType.description}
+            </p>
+
+            {/* Variant grid */}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}
                   variant={variant}
                   cardTypeTitle={cardType.title}
-                  gradient={cardType.gradient}
-                  onOpenGenerator={onOpenGenerator}
+                  previewColorPreset={previewColorPreset}
                   index={variantIndex}
                 />
               ))}
             </div>
-          </motion.div>
+          </div>
         ))}
+
+        {remainingCardTypeCount > 0 && (
+          <div className="border border-gold/10 bg-gold/3 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs/relaxed text-foreground/35">
+                Showing {visibleCardTypes.length} of {cardTypes.length} card
+                types in this collection.
+              </p>
+              <button
+                type="button"
+                onClick={handleLoadMoreCardTypes}
+                className="
+                  shrink-0 border border-gold/20 px-4 py-2 text-[0.65rem] font-semibold
+                  tracking-[0.18em] text-gold uppercase transition-colors
+                  hover:border-gold/35 hover:bg-gold/6
+                  focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                  focus-visible:ring-offset-background focus-visible:outline-none
+                "
+                aria-controls={categoryId}
+              >
+                Load more card types
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
-
-export type { CardType, CardVariant };

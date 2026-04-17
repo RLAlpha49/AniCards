@@ -1,0 +1,694 @@
+import { redisClient } from "@/lib/api/clients";
+import { logPrivacySafe } from "@/lib/api/logging";
+import { trimOuterRepeatedCharacter } from "@/lib/utils";
+
+type AnalyticsRedisPipeline = {
+  incr: (key: string) => AnalyticsRedisPipeline;
+  expire: (key: string, seconds: number) => AnalyticsRedisPipeline;
+  sadd: (key: string, ...members: string[]) => AnalyticsRedisPipeline;
+  exec: () => Promise<unknown>;
+};
+
+type RequestContextWaitUntil = (promise: Promise<unknown>) => void;
+
+type NextRequestContextValue = {
+  waitUntil?: RequestContextWaitUntil;
+};
+
+type NextRequestContext = {
+  get?: () => NextRequestContextValue | undefined;
+};
+
+const TELEMETRY_TEST_ENV_FLAG = "ANICARDS_UNIT_TEST";
+const pendingTelemetryTasks = new Set<Promise<void>>();
+
+type UnitTestTelemetryGlobals = typeof globalThis & {
+  ANICARDS_UNIT_TEST?: boolean;
+  ANICARDS_UNIT_TEST_RUNTIME?: boolean;
+};
+
+const IS_TELEMETRY_TEST_PROCESS = (() => {
+  const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
+
+  return (
+    unitTestGlobals.ANICARDS_UNIT_TEST === true ||
+    unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === true ||
+    process.env[TELEMETRY_TEST_ENV_FLAG] === "true" ||
+    process.env.NODE_ENV === "test"
+  );
+})();
+
+type TelemetryTaskSchedulingOptions = {
+  endpoint?: string;
+  forceRequestContext?: boolean;
+  request?: Request;
+  taskName?: string;
+};
+
+type AnalyticsIncrementOptions = {
+  endpoint?: string;
+  logContext?: Record<string, unknown>;
+  now?: Date;
+  request?: Request;
+};
+
+type AnalyticsSchedulingOptions = AnalyticsIncrementOptions &
+  Omit<TelemetryTaskSchedulingOptions, "taskName"> & {
+    taskName?: string;
+  };
+
+type AnalyticsMetricCount = {
+  count: number;
+  metric: string;
+};
+
+export type AnalyticsLatencyOutcome = "success" | "failure";
+
+const ANALYTICS_REASON_CODE_FALLBACK = "unknown";
+const ANALYTICS_REASON_CODE_MAX_LENGTH = 48;
+const ANALYTICS_LATENCY_BUCKETS = [
+  { label: "lt_050ms", maxMs: 49 },
+  { label: "050_099ms", maxMs: 99 },
+  { label: "100_249ms", maxMs: 249 },
+  { label: "250_499ms", maxMs: 499 },
+  { label: "500_999ms", maxMs: 999 },
+  { label: "1000_2499ms", maxMs: 2499 },
+  { label: "2500_4999ms", maxMs: 4999 },
+  { label: "gte_5000ms", maxMs: Number.POSITIVE_INFINITY },
+] as const;
+
+type PendingLowValueAnalyticsBatch = {
+  endpoint: string;
+  logContext?: Record<string, unknown>;
+  metrics: Map<string, number>;
+  now?: Date;
+  request?: Request;
+  scheduled: boolean;
+};
+
+export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
+export const ANALYTICS_REPORTING_INDEX_KEY = "analytics:reporting:index";
+const pendingLowValueAnalyticsBatches = new Map<
+  string,
+  PendingLowValueAnalyticsBatch
+>();
+
+export function isUnitTestRuntime(): boolean {
+  const unitTestGlobals = globalThis as UnitTestTelemetryGlobals;
+  if (typeof unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME === "boolean") {
+    return unitTestGlobals.ANICARDS_UNIT_TEST_RUNTIME;
+  }
+
+  if (typeof unitTestGlobals.ANICARDS_UNIT_TEST === "boolean") {
+    return unitTestGlobals.ANICARDS_UNIT_TEST;
+  }
+
+  return (
+    process.env[TELEMETRY_TEST_ENV_FLAG] === "true" ||
+    process.env.NODE_ENV === "test"
+  );
+}
+
+function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
+  pendingTelemetryTasks.add(task);
+  task.finally(() => {
+    pendingTelemetryTasks.delete(task);
+  });
+}
+
+function trackTelemetryTaskIfNeeded(
+  task: Promise<void>,
+  shouldTrackPendingTaskForTests: boolean,
+): void {
+  if (shouldTrackPendingTaskForTests) {
+    trackPendingTelemetryTaskForTests(task);
+  }
+}
+
+function getRequestContextWaitUntil(): RequestContextWaitUntil | undefined {
+  const requestContext = (
+    globalThis as typeof globalThis & {
+      [key: symbol]: NextRequestContext | undefined;
+    }
+  )[Symbol.for("@next/request-context")];
+
+  const waitUntil = requestContext?.get?.()?.waitUntil;
+  return typeof waitUntil === "function" ? waitUntil : undefined;
+}
+
+function createDeferredTelemetryTask(task: () => Promise<void>): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  }).then(task);
+}
+
+function runTelemetryTask(
+  task: () => Promise<void>,
+  shouldTrackPendingTaskForTests: boolean,
+): void {
+  const pendingTask = task();
+  trackTelemetryTaskIfNeeded(pendingTask, shouldTrackPendingTaskForTests);
+}
+
+function scheduleTelemetryTaskWithWaitUntil(
+  waitUntil: RequestContextWaitUntil,
+  task: () => Promise<void>,
+  options: {
+    endpoint: string;
+    request?: Request;
+    shouldTrackPendingTaskForTests: boolean;
+    taskName: string;
+  },
+): void {
+  let shouldRunDeferredTask = true;
+  const pendingTask = createDeferredTelemetryTask(async () => {
+    if (shouldRunDeferredTask) {
+      await task();
+    }
+  });
+
+  trackTelemetryTaskIfNeeded(
+    pendingTask,
+    options.shouldTrackPendingTaskForTests,
+  );
+
+  try {
+    waitUntil(pendingTask);
+  } catch (error) {
+    shouldRunDeferredTask = false;
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Falling back to immediate telemetry scheduling",
+      {
+        taskName: options.taskName,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options.request,
+    );
+
+    runTelemetryTask(task, options.shouldTrackPendingTaskForTests);
+  }
+}
+
+function buildAnalyticsLogContext(
+  context: Record<string, unknown>,
+  options?: AnalyticsIncrementOptions,
+): Record<string, unknown> {
+  return options?.logContext ? { ...options.logContext, ...context } : context;
+}
+
+export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
+  while (pendingTelemetryTasks.size > 0) {
+    await Promise.allSettled(pendingTelemetryTasks);
+  }
+
+  pendingLowValueAnalyticsBatches.clear();
+}
+
+export function scheduleTelemetryTask(
+  task: () => Promise<unknown> | void,
+  options?: TelemetryTaskSchedulingOptions,
+): void {
+  const taskName = options?.taskName ?? "scheduled telemetry task";
+  const endpoint = options?.endpoint ?? "Telemetry";
+  const forceRequestContext = options?.forceRequestContext ?? false;
+  const isTrackedUnitTestRuntime = isUnitTestRuntime();
+  const shouldTrackPendingTaskForTests = IS_TELEMETRY_TEST_PROCESS;
+
+  const runTask = async () => {
+    try {
+      await task();
+    } catch (error) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Scheduled telemetry task failed",
+        {
+          taskName,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options?.request,
+      );
+    }
+  };
+
+  if (!forceRequestContext && isTrackedUnitTestRuntime) {
+    runTelemetryTask(runTask, shouldTrackPendingTaskForTests);
+    return;
+  }
+
+  const waitUntil = getRequestContextWaitUntil();
+  if (waitUntil) {
+    scheduleTelemetryTaskWithWaitUntil(waitUntil, runTask, {
+      endpoint,
+      request: options?.request,
+      shouldTrackPendingTaskForTests,
+      taskName,
+    });
+    return;
+  }
+
+  runTelemetryTask(runTask, shouldTrackPendingTaskForTests);
+}
+
+/**
+ * Build a canonical analytics Redis key using a stable endpoint key.
+ */
+export function buildAnalyticsMetricKey(
+  endpointKey: string,
+  metric: string,
+  extraSuffix?: string,
+): string {
+  const normalized = String(endpointKey).toLowerCase().replaceAll(/\s+/g, "_");
+  const base = `analytics:${normalized}:${metric}`;
+  return extraSuffix ? `${base}:${extraSuffix}` : base;
+}
+
+export function normalizeAnalyticsReasonCode(reasonCode: string): string {
+  const normalized = trimOuterRepeatedCharacter(
+    trimOuterRepeatedCharacter(
+      reasonCode
+        .trim()
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, "_"),
+      "_",
+    ).slice(0, ANALYTICS_REASON_CODE_MAX_LENGTH),
+    "_",
+  );
+
+  return normalized.length > 0 ? normalized : ANALYTICS_REASON_CODE_FALLBACK;
+}
+
+export function buildReasonCodedMetricKey(
+  endpointKey: string,
+  metric: string,
+  reasonCode: string,
+): string {
+  return buildAnalyticsMetricKey(
+    endpointKey,
+    metric,
+    `reason:${normalizeAnalyticsReasonCode(reasonCode)}`,
+  );
+}
+
+export function buildFailedRequestMetricKeys(
+  endpointKey: string,
+  reasonCode?: string,
+): string[] {
+  const failedMetric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+
+  return reasonCode
+    ? [
+        failedMetric,
+        buildReasonCodedMetricKey(endpointKey, "failed_requests", reasonCode),
+      ]
+    : [failedMetric];
+}
+
+export function getAnalyticsLatencyBucket(durationMs: number): string {
+  const normalizedDurationMs = Number.isFinite(durationMs)
+    ? Math.max(0, Math.trunc(durationMs))
+    : 0;
+
+  for (const bucket of ANALYTICS_LATENCY_BUCKETS) {
+    if (normalizedDurationMs <= bucket.maxMs) {
+      return bucket.label;
+    }
+  }
+
+  return ANALYTICS_LATENCY_BUCKETS.at(-1)?.label ?? "gte_5000ms";
+}
+
+export function buildLatencyBucketMetricKeys(
+  endpointKey: string,
+  durationMs: number,
+  outcome?: AnalyticsLatencyOutcome,
+): string[] {
+  const bucket = getAnalyticsLatencyBucket(durationMs);
+  const metrics = [
+    buildAnalyticsMetricKey(endpointKey, "latency_buckets", bucket),
+  ];
+
+  if (outcome) {
+    metrics.push(
+      buildAnalyticsMetricKey(
+        endpointKey,
+        "latency_buckets",
+        `${outcome}:${bucket}`,
+      ),
+    );
+  }
+
+  return metrics;
+}
+
+export function buildAnalyticsStorageKey(
+  metric: string,
+  now: Date = new Date(),
+): string {
+  if (/^analytics:.+:month:\d{4}-\d{2}$/.test(metric)) {
+    return metric;
+  }
+
+  return `${metric}:month:${now.toISOString().slice(0, 7)}`;
+}
+
+export async function incrementAnalytics(
+  metric: string,
+  options?: AnalyticsIncrementOptions,
+): Promise<void> {
+  const storageKey = buildAnalyticsStorageKey(metric, options?.now);
+
+  try {
+    await redisClient.incr(storageKey);
+    await redisClient.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
+    await redisClient.sadd(ANALYTICS_REPORTING_INDEX_KEY, storageKey);
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options?.endpoint ?? "Analytics",
+      "Failed to increment analytics",
+      buildAnalyticsLogContext(
+        {
+          metric,
+          storageKey,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
+      options?.request,
+    );
+  }
+}
+
+export async function incrementAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: AnalyticsIncrementOptions,
+): Promise<void> {
+  const metricList = Array.from(metrics);
+  const storageKeys = metricList.map((metric) =>
+    buildAnalyticsStorageKey(metric, options?.now),
+  );
+  const uniqueStorageKeys = [...new Set(storageKeys)];
+
+  if (storageKeys.length === 0) {
+    return;
+  }
+
+  try {
+    const pipeline =
+      redisClient.pipeline() as unknown as AnalyticsRedisPipeline;
+
+    for (const storageKey of storageKeys) {
+      pipeline.incr(storageKey);
+      pipeline.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
+    }
+
+    pipeline.sadd(ANALYTICS_REPORTING_INDEX_KEY, ...uniqueStorageKeys);
+
+    await pipeline.exec();
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options?.endpoint ?? "Analytics",
+      "Failed to increment analytics batch",
+      buildAnalyticsLogContext(
+        {
+          metricCount: metricList.length,
+          metricPreview: metricList.slice(0, 3).join(","),
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
+      options?.request,
+    );
+  }
+}
+
+export async function incrementAnalyticsBatchCounts(
+  metrics: Iterable<AnalyticsMetricCount>,
+  options?: AnalyticsIncrementOptions,
+): Promise<void> {
+  const metricCounts = Array.from(metrics)
+    .map(({ count, metric }) => ({
+      count: Math.max(0, Math.trunc(count)),
+      metric,
+    }))
+    .filter(({ count, metric }) => count > 0 && metric.length > 0);
+
+  if (metricCounts.length === 0) {
+    return;
+  }
+
+  const storageEntries = metricCounts.map(({ count, metric }) => ({
+    count,
+    metric,
+    storageKey: buildAnalyticsStorageKey(metric, options?.now),
+  }));
+  const uniqueStorageKeys = [
+    ...new Set(storageEntries.map(({ storageKey }) => storageKey)),
+  ];
+
+  try {
+    const pipeline =
+      redisClient.pipeline() as unknown as AnalyticsRedisPipeline;
+
+    for (const { count, storageKey } of storageEntries) {
+      for (let index = 0; index < count; index += 1) {
+        pipeline.incr(storageKey);
+      }
+
+      pipeline.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
+    }
+
+    pipeline.sadd(ANALYTICS_REPORTING_INDEX_KEY, ...uniqueStorageKeys);
+
+    await pipeline.exec();
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options?.endpoint ?? "Analytics",
+      "Failed to increment analytics batch counts",
+      buildAnalyticsLogContext(
+        {
+          metricCount: metricCounts.reduce(
+            (total, entry) => total + entry.count,
+            0,
+          ),
+          metricPreview: metricCounts
+            .slice(0, 3)
+            .map(({ count, metric }) =>
+              count > 1 ? `${metric}×${String(count)}` : metric,
+            )
+            .join(","),
+          uniqueMetricCount: metricCounts.length,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
+      options?.request,
+    );
+  }
+}
+
+export function scheduleAnalyticsIncrement(
+  metric: string,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  scheduleTelemetryTask(
+    () =>
+      incrementAnalytics(metric, {
+        endpoint: options?.endpoint,
+        logContext: options?.logContext,
+        now: options?.now,
+        request: options?.request,
+      }),
+    {
+      endpoint: options?.endpoint,
+      forceRequestContext: options?.forceRequestContext,
+      request: options?.request,
+      taskName: options?.taskName ?? metric,
+    },
+  );
+}
+
+export function scheduleAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  const metricList = Array.from(metrics).filter((metric) => metric.length > 0);
+
+  if (metricList.length === 0) {
+    return;
+  }
+
+  scheduleTelemetryTask(
+    () =>
+      incrementAnalyticsBatch(metricList, {
+        endpoint: options?.endpoint,
+        logContext: options?.logContext,
+        now: options?.now,
+        request: options?.request,
+      }),
+    {
+      endpoint: options?.endpoint,
+      forceRequestContext: options?.forceRequestContext,
+      request: options?.request,
+      taskName: options?.taskName ?? "analytics batch",
+    },
+  );
+}
+
+export function scheduleDeferredAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  const metricList = Array.from(metrics).filter((metric) => metric.length > 0);
+
+  if (metricList.length === 0) {
+    return;
+  }
+
+  if (isUnitTestRuntime()) {
+    scheduleAnalyticsBatch(metricList, options);
+    return;
+  }
+
+  const pendingIncrement = createDeferredTelemetryTask(() =>
+    incrementAnalyticsBatch(metricList, {
+      endpoint: options?.endpoint,
+      logContext: options?.logContext,
+      now: options?.now,
+      request: options?.request,
+    }),
+  );
+
+  scheduleTelemetryTask(() => pendingIncrement, {
+    endpoint: options?.endpoint,
+    forceRequestContext: options?.forceRequestContext,
+    request: options?.request,
+    taskName: options?.taskName ?? "deferred analytics batch",
+  });
+}
+
+function syncPendingLowValueAnalyticsBatchContext(
+  batch: PendingLowValueAnalyticsBatch,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  if (!batch.request && options?.request) {
+    batch.request = options.request;
+  }
+
+  if (!batch.logContext && options?.logContext) {
+    batch.logContext = options.logContext;
+  }
+
+  if (!batch.now && options?.now) {
+    batch.now = options.now;
+  }
+}
+
+function createPendingLowValueAnalyticsBatch(
+  options?: AnalyticsSchedulingOptions,
+): PendingLowValueAnalyticsBatch {
+  return {
+    endpoint: options?.endpoint ?? "Analytics",
+    logContext: options?.logContext,
+    metrics: new Map<string, number>(),
+    now: options?.now,
+    request: options?.request,
+    scheduled: false,
+  };
+}
+
+function getPendingLowValueAnalyticsBatch(
+  options?: AnalyticsSchedulingOptions,
+): PendingLowValueAnalyticsBatch {
+  const batchKey = options?.endpoint ?? "Analytics";
+  const existingBatch = pendingLowValueAnalyticsBatches.get(batchKey);
+
+  if (existingBatch) {
+    syncPendingLowValueAnalyticsBatchContext(existingBatch, options);
+    return existingBatch;
+  }
+
+  const pendingBatch = createPendingLowValueAnalyticsBatch(options);
+  pendingLowValueAnalyticsBatches.set(batchKey, pendingBatch);
+  return pendingBatch;
+}
+
+function schedulePendingLowValueAnalyticsFlush(
+  batch: PendingLowValueAnalyticsBatch,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  if (batch.scheduled) {
+    return;
+  }
+
+  batch.scheduled = true;
+
+  const flushBatch = async () => {
+    const metricCounts = Array.from(batch.metrics.entries()).map(
+      ([metric, count]) => ({ count, metric }),
+    );
+
+    batch.metrics.clear();
+    batch.scheduled = false;
+
+    if (metricCounts.length === 0) {
+      return;
+    }
+
+    await incrementAnalyticsBatchCounts(metricCounts, {
+      endpoint: batch.endpoint,
+      logContext: batch.logContext,
+      now: batch.now,
+      request: batch.request,
+    });
+  };
+
+  if (isUnitTestRuntime()) {
+    scheduleTelemetryTask(flushBatch, {
+      endpoint: batch.endpoint,
+      forceRequestContext: options?.forceRequestContext,
+      request: batch.request,
+      taskName: options?.taskName ?? "low-value analytics batch",
+    });
+    return;
+  }
+
+  const pendingFlush = createDeferredTelemetryTask(flushBatch);
+  scheduleTelemetryTask(() => pendingFlush, {
+    endpoint: batch.endpoint,
+    forceRequestContext: options?.forceRequestContext,
+    request: batch.request,
+    taskName: options?.taskName ?? "low-value analytics batch",
+  });
+}
+
+export function scheduleLowValueAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  const metricList = Array.from(metrics).filter((metric) => metric.length > 0);
+
+  if (metricList.length === 0) {
+    return;
+  }
+
+  const batch = getPendingLowValueAnalyticsBatch(options);
+
+  for (const metric of metricList) {
+    batch.metrics.set(metric, (batch.metrics.get(metric) ?? 0) + 1);
+  }
+
+  schedulePendingLowValueAnalyticsFlush(batch, options);
+}
+
+export function scheduleLowValueAnalyticsIncrement(
+  metric: string,
+  options?: AnalyticsSchedulingOptions,
+): void {
+  scheduleLowValueAnalyticsBatch([metric], options);
+}

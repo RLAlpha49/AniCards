@@ -1,22 +1,51 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
-import type React from "react";
+import { type ReactNode, useEffect } from "react";
+
+import { Toaster } from "@/components/ui/Toaster";
+import { TooltipProvider } from "@/components/ui/Tooltip";
+import { flushClientErrorReportBacklog } from "@/lib/error-tracking";
 
 /**
- * Provides the next-themes provider to ensure consistent client-side theming.
- * @param children - Elements rendered inside the theme context.
+ * Provides common app-level providers used throughout the app.
+ *
+ * - `ThemeProvider` for managing color scheme
+ * - `TooltipProvider` so a single provider instance is shared across the app
+ *   (avoid creating many provider instances inside repeated components like cards)
+ *
+ * @param children - Elements rendered inside the provider tree.
  * @source
  */
 export function Providers({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  nonce,
+}: Readonly<{ children: ReactNode; nonce?: string }>) {
+  useEffect(() => {
+    void flushClientErrorReportBacklog();
+
+    const handleOnline = () => {
+      void flushClientErrorReportBacklog();
+    };
+
+    globalThis.window.addEventListener("online", handleOnline);
+
+    return () => {
+      globalThis.window.removeEventListener("online", handleOnline);
+    };
+  }, []);
+
   return (
     <ThemeProvider
-      attribute="class" // Use CSS class-based theming (dark/light classes)
-      defaultTheme="system" // Default to OS preference
+      attribute="class"
+      defaultTheme="system"
+      enableColorScheme
+      nonce={nonce}
     >
-      {children}
+      <TooltipProvider delayDuration={200}>
+        {children}
+        <Toaster />
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

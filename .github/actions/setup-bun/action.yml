@@ -1,0 +1,41 @@
+name: Setup Bun
+description: Restore the shared Bun cache, install Bun, and install workspace dependencies.
+
+inputs:
+  bun-version:
+    description: Bun version to install.
+    required: false
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Resolve Bun runtime metadata
+      id: bun-runtime
+      run: |
+        echo "version=$(bun --version)" >> "$GITHUB_OUTPUT"
+        echo "cache_dir=$(bun pm cache)" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Cache Bun global package cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.bun-runtime.outputs.cache_dir }}
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-global-${{ steps.bun-runtime.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-bun-global-${{ steps.bun-runtime.outputs.version }}-
+
+    - name: Cache workspace node_modules
+      uses: actions/cache@v5
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-modules-${{ steps.bun-runtime.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+      shell: bash

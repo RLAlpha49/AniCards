@@ -1,32 +1,259 @@
 "use client";
 
-import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
-import { User, Hash, ArrowRight, Search, Info, Loader2 } from "lucide-react";
+import {
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+  scaleIn,
+  VIEWPORT_ONCE,
+} from "@/lib/animations";
+import type { SearchLookupMode } from "@/lib/seo";
+import {
+  getBlankSearchLookupError,
+  getSearchLookupValidationError,
+  getSearchPagePath,
+  normalizeSearchLookupInput,
+} from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import {
+  safeTrack,
   trackFormSubmission,
   trackNavigation,
-  safeTrack,
 } from "@/lib/utils/google-analytics";
 
-/** Supported lookup modes for the search form. @source */
-type SearchMethod = "username" | "userid";
+function scheduleAfterPaint(callback: () => void) {
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(callback);
+    });
+    return;
+  }
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+  // Fallback for environments without requestAnimationFrame (e.g., some tests).
+  setTimeout(callback, 0);
+}
+
+function replaceCurrentSearchPageUrl(nextPath: string) {
+  if (globalThis.window === undefined) {
+    return;
+  }
+
+  const nextUrl = `${nextPath}${globalThis.window.location.hash}`;
+  const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  globalThis.window.history.replaceState(null, "", nextUrl);
+}
+
+function getSearchModeAnnouncement(nextMethod: SearchLookupMode): string {
+  if (nextMethod === "username") {
+    return "Search mode changed to AniList username.";
+  }
+
+  return "Search mode changed to AniList user ID.";
+}
+
+function getSearchInputMeta(searchMethod: SearchLookupMode): {
+  inputLabel: string;
+  inputPlaceholder: string;
+  inputHint: string;
+  inputType: "text" | "search";
+  inputMode: "numeric" | "search";
+  Icon: typeof Search;
+} {
+  if (searchMethod === "userId") {
+    return {
+      inputLabel: "AniList User ID",
+      inputPlaceholder: "e.g., 542244 or /user/542244",
+      inputHint:
+        "Paste a numeric AniList ID. AniList /user/... links also work when they resolve to an ID.",
+      inputType: "text",
+      inputMode: "numeric",
+      Icon: Hash,
+    };
+  }
+
+  return {
+    inputLabel: "AniList Username",
+    inputPlaceholder: "e.g., Alpha49, @Alpha49, or /user/Alpha49",
+    inputHint:
+      "Paste a username, @handle, AniList profile URL, copied /user/... slug, or a bare numeric ID.",
+    inputType: "search",
+    inputMode: "search",
+    Icon: Search,
+  };
+}
+
+function getSearchMethodOptionClass(isSelected: boolean): string {
+  return cn(
+    `
+      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold
+      transition-colors duration-200
+      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
+      peer-focus-visible:outline-gold
+    `,
+    isSelected ? "text-gold" : "text-foreground/40 hover:text-foreground/60",
+  );
+}
+
+function SearchStatusAlert(
+  props: Readonly<{
+    alertMessage: string;
+    hasFieldError: boolean;
+    prefersReducedMotion: boolean;
+  }>,
+) {
+  if (!props.alertMessage) {
+    return null;
+  }
+
+  return (
+    <motion.div
+      initial={
+        props.prefersReducedMotion
+          ? false
+          : { opacity: 0, scale: 0.95, height: 0 }
+      }
+      animate={{ opacity: 1, scale: 1, height: "auto" }}
+      transition={
+        props.prefersReducedMotion ? NO_MOTION_TRANSITION : { duration: 0.3 }
+      }
+    >
+      <Alert
+        variant="destructive"
+        className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
+      >
+        <Info className="size-4" />
+        <AlertTitle className="text-red-800 dark:text-red-200">
+          {props.hasFieldError ? "Check the search field" : "Navigation hiccup"}
+        </AlertTitle>
+        <AlertDescription className="text-red-700 dark:text-red-300">
+          {props.alertMessage}
+        </AlertDescription>
+      </Alert>
+    </motion.div>
+  );
+}
+
+function SearchMethodToggle(
+  props: Readonly<{
+    prefersReducedMotion: boolean;
+    searchMethod: SearchLookupMode;
+    searchMethodHintId: string;
+    searchMethodName: string;
+    updateSearchMethod: (nextMethod: SearchLookupMode) => void;
+    userIdRadioId: string;
+    usernameRadioId: string;
+  }>,
+) {
+  return (
+    <fieldset className="space-y-3" aria-describedby={props.searchMethodHintId}>
+      <legend className="
+        block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
+      ">
+        Look Up By
+      </legend>
+      <p id={props.searchMethodHintId} className="sr-only">
+        Choose whether to search by AniList username or numeric AniList user ID.
+      </p>
+      <div className="relative flex border border-gold/15 bg-gold/3">
+        <motion.div
+          className="absolute inset-y-0 left-0 w-1/2 border border-gold/25 bg-gold/10"
+          initial={false}
+          animate={{
+            x: props.searchMethod === "username" ? "0%" : "100%",
+          }}
+          transition={
+            props.prefersReducedMotion
+              ? NO_MOTION_TRANSITION
+              : { type: "spring", stiffness: 400, damping: 30 }
+          }
+        />
+        <label className="flex flex-1">
+          <input
+            id={props.usernameRadioId}
+            type="radio"
+            name={props.searchMethodName}
+            value="username"
+            checked={props.searchMethod === "username"}
+            onChange={() => props.updateSearchMethod("username")}
+            className="peer sr-only"
+          />
+          <span
+            className={getSearchMethodOptionClass(
+              props.searchMethod === "username",
+            )}
+          >
+            <User aria-hidden="true" className="size-4" />
+            Username
+          </span>
+        </label>
+        <label className="flex flex-1">
+          <input
+            id={props.userIdRadioId}
+            type="radio"
+            name={props.searchMethodName}
+            value="userId"
+            checked={props.searchMethod === "userId"}
+            onChange={() => props.updateSearchMethod("userId")}
+            className="peer sr-only"
+          />
+          <span
+            className={getSearchMethodOptionClass(
+              props.searchMethod === "userId",
+            )}
+          >
+            <Hash aria-hidden="true" className="size-4" />
+            User ID
+          </span>
+        </label>
+      </div>
+    </fieldset>
+  );
+}
+
+function SearchModeInput(props: { searchMethod: SearchLookupMode }) {
+  return props.searchMethod === "userId" ? (
+    <input type="hidden" name="mode" value="userId" />
+  ) : null;
+}
+
+function SearchSubmitButtonContent(props: { loading: boolean }) {
+  return props.loading ? (
+    <>
+      <Loader2 className="mr-2 size-5 animate-spin" />
+      Checking profile...
+    </>
+  ) : (
+    <>
+      <Search className="mr-2 size-5" />
+      Find Profile
+      <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" />
+    </>
+  );
+}
 
 /**
  * Props for the SearchForm component.
  * @source
  */
 interface SearchFormProps {
+  /** Initial lookup mode derived from the current search page URL. */
+  initialSearchMode?: SearchLookupMode;
+  /** Initial search value derived from the current search page URL. */
+  initialSearchValue?: string;
+  /** Initial field error derived from the current search page URL. */
+  initialFieldError?: string;
   /** Callback when loading state changes. */
   onLoadingChange?: (loading: boolean) => void;
 }
@@ -37,193 +264,386 @@ interface SearchFormProps {
  * @returns The search form element.
  * @source
  */
-export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
+export function SearchForm({
+  initialSearchMode = "username",
+  initialSearchValue = "",
+  initialFieldError = "",
+  onLoadingChange,
+}: Readonly<SearchFormProps>) {
   const router = useRouter();
-  const [searchMethod, setSearchMethod] = useState<SearchMethod>("username");
-  const [searchValue, setSearchValue] = useState("");
-  const [error, setError] = useState("");
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const baseId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const previousRouteStateRef = useRef({
+    initialFieldError,
+    initialSearchMode,
+    initialSearchValue,
+  });
+  const [searchMethod, setSearchMethod] =
+    useState<SearchLookupMode>(initialSearchMode);
+  const [searchValue, setSearchValue] = useState(initialSearchValue);
+  const [fieldError, setFieldError] = useState(initialFieldError);
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modeAnnouncement, setModeAnnouncement] = useState("");
+  const [hasMounted, setHasMounted] = useState(false);
+
+  const alertMessage = fieldError || formError;
+  const hasFieldError = fieldError.length > 0;
+  const inputId = `${baseId}-search-value`;
+  const inputHintId = `${baseId}-search-hint`;
+  const errorId = `${baseId}-search-error`;
+  const searchMethodName = `${baseId}-search-method`;
+  const usernameRadioId = `${baseId}-search-method-username`;
+  const userIdRadioId = `${baseId}-search-method-userid`;
+  const searchMethodHintId = `${baseId}-search-method-hint`;
+  const {
+    inputLabel,
+    inputPlaceholder,
+    inputHint,
+    inputType,
+    inputMode,
+    Icon: SearchInputIcon,
+  } = getSearchInputMeta(searchMethod);
+  const inputDescribedBy = hasFieldError
+    ? `${inputHintId} ${errorId}`
+    : inputHintId;
+
+  useEffect(() => {
+    setSearchMethod(initialSearchMode);
+  }, [initialSearchMode]);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setSearchValue(initialSearchValue);
+  }, [initialSearchValue]);
+
+  useEffect(() => {
+    setFieldError(initialFieldError);
+    setFormError("");
+  }, [initialFieldError, onLoadingChange]);
+
+  useEffect(() => {
+    const previousRouteState = previousRouteStateRef.current;
+    const routeStateChanged =
+      previousRouteState.initialFieldError !== initialFieldError ||
+      previousRouteState.initialSearchMode !== initialSearchMode ||
+      previousRouteState.initialSearchValue !== initialSearchValue;
+
+    previousRouteStateRef.current = {
+      initialFieldError,
+      initialSearchMode,
+      initialSearchValue,
+    };
+
+    if (!routeStateChanged || !loading) {
+      return;
+    }
+
+    setLoading(false);
+    onLoadingChange?.(false);
+  }, [
+    initialFieldError,
+    initialSearchMode,
+    initialSearchValue,
+    loading,
+    onLoadingChange,
+  ]);
+
+  const focusSearchField = useCallback((selectContents = false) => {
+    scheduleAfterPaint(() => {
+      const input = inputRef.current;
+      if (!input) {
+        return;
+      }
+
+      input.focus();
+
+      if (selectContents && input.value.length > 0) {
+        input.select();
+      }
+    });
+  }, []);
+
+  const clearErrors = useCallback(() => {
+    setFieldError("");
+    setFormError("");
+  }, []);
+
+  const handleNavigationError = useCallback(() => {
+    setLoading(false);
+    onLoadingChange?.(false);
+    setFieldError("");
+    setFormError("Something went wrong with navigation. Try again?");
+  }, [onLoadingChange]);
+
+  const showValidationError = useCallback(
+    (message: string, options?: { selectContents?: boolean }) => {
+      setFieldError(message);
+      setFormError("");
+      focusSearchField(options?.selectContents ?? false);
+      safeTrack(() => trackFormSubmission("user_search", false));
+    },
+    [focusSearchField],
+  );
+
+  const updateSearchMethod = useCallback(
+    (nextMethod: SearchLookupMode) => {
+      if (nextMethod !== searchMethod) {
+        setModeAnnouncement(getSearchModeAnnouncement(nextMethod));
+
+        const nextSearchPagePath = getSearchPagePath({
+          mode: nextMethod,
+          query: searchValue,
+          includeDefaultMode:
+            nextMethod !== "username" || Boolean(searchValue.trim()),
+        });
+
+        replaceCurrentSearchPageUrl(nextSearchPagePath);
+      }
+
+      setSearchMethod(nextMethod);
+      clearErrors();
+    },
+    [clearErrors, searchMethod, searchValue],
+  );
+
+  /**
+   * Validates input, tracks analytics, and routes to the user page.
+   * The user page is responsible for handling "not found" and setup flows.
+   * @param value - The entered username or AniList user ID.
+   * @source
+   */
+  const performSearch = useCallback(
+    (value: string) => {
+      const normalizedLookup = normalizeSearchLookupInput(value, searchMethod);
+
+      if (!normalizedLookup) {
+        showValidationError(getBlankSearchLookupError(searchMethod));
+        return;
+      }
+
+      if (!normalizedLookup.ok) {
+        showValidationError(
+          getSearchLookupValidationError(searchMethod, normalizedLookup.reason),
+          {
+            selectContents: true,
+          },
+        );
+        return;
+      }
+
+      const nextSearchMode = normalizedLookup.mode;
+      const nextSearchValue = normalizedLookup.query;
+
+      clearErrors();
+      setSearchValue(nextSearchValue);
+      setLoading(true);
+      onLoadingChange?.(true);
+
+      safeTrack(() => trackFormSubmission("user_search", true));
+      safeTrack(() => trackNavigation("search", "search_form"));
+
+      const nextUrl = getSearchPagePath({
+        mode: nextSearchMode,
+        query: nextSearchValue,
+      });
+
+      scheduleAfterPaint(() => {
+        try {
+          Promise.resolve(router.push(nextUrl)).catch(handleNavigationError);
+        } catch {
+          handleNavigationError();
+        }
+      });
+    },
+    [
+      clearErrors,
+      handleNavigationError,
+      onLoadingChange,
+      router,
+      searchMethod,
+      showValidationError,
+    ],
+  );
 
   /**
    * Handles form submission.
    * @param e - The form submission event.
    * @source
    */
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     performSearch(searchValue);
   };
 
-  /**
-   * Validates input, tracks analytics, and routes to the targeted user page.
-   * @param value - The entered username or AniList user ID.
-   * @source
-   */
-  const performSearch = (value: string) => {
-    if (!value.trim()) {
-      setError(
-        `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
-      );
-      safeTrack(() => trackFormSubmission("user_search", false));
-      return;
-    }
-
-    setLoading(true);
-    onLoadingChange?.(true);
-    safeTrack(() => trackFormSubmission("user_search", true));
-
-    const params = new URLSearchParams();
-
-    if (searchMethod === "username") {
-      params.set("username", value.trim());
-    } else {
-      params.set("userId", value.trim());
-    }
-
-    safeTrack(() => trackNavigation("user_page", "search_form"));
-    router.push(`/user?${params.toString()}`);
-  };
-
   return (
-    <motion.div
-      variants={itemVariants}
-      initial="hidden"
-      animate="visible"
-      transition={{ delay: 0.3 }}
-      className="w-full max-w-2xl"
-    >
-      <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50 sm:p-10">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Error Alert */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                animate={{ opacity: 1, scale: 1, height: "auto" }}
-                exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Alert
-                  variant="destructive"
-                  className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
-                >
-                  <Info className="h-4 w-4" />
-                  <AlertTitle className="text-red-800 dark:text-red-200">
-                    Search Error
-                  </AlertTitle>
-                  <AlertDescription className="text-red-700 dark:text-red-300">
-                    {error}
-                  </AlertDescription>
-                </Alert>
-              </motion.div>
-            )}
-          </AnimatePresence>
+    <div className="relative mx-auto w-full max-w-xl">
+      {/* Ambient glow behind form */}
+      <div className="
+        pointer-events-none absolute -inset-8
+        bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.10),transparent_70%)] blur-2xl
+      " />
 
-          {/* Search Method Toggle */}
-          <div className="space-y-3">
-            <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Search By
-            </span>
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 dark:bg-slate-700/50">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchMethod("username");
-                  setError("");
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all duration-200",
-                  searchMethod === "username"
-                    ? "bg-white text-blue-600 shadow-md dark:bg-slate-600 dark:text-blue-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
-                )}
-              >
-                <User className="h-4 w-4" />
-                Username
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchMethod("userid");
-                  setError("");
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all duration-200",
-                  searchMethod === "userid"
-                    ? "bg-white text-blue-600 shadow-md dark:bg-slate-600 dark:text-blue-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
-                )}
-              >
-                <Hash className="h-4 w-4" />
-                User ID
-              </button>
-            </div>
-          </div>
+      <motion.div
+        variants={scaleIn}
+        initial={false}
+        whileInView={prefersReducedMotion ? undefined : "visible"}
+        viewport={VIEWPORT_ONCE}
+        className="relative border-2 border-gold/20 bg-background/80 p-8 backdrop-blur-sm sm:p-10"
+      >
+        {/* Enlarged corner brackets */}
+        <div className="absolute -top-px -left-px size-5 border-t-2 border-l-2 border-gold" />
+        <div className="absolute -top-px -right-px size-5 border-t-2 border-r-2 border-gold" />
+        <div className="absolute -bottom-px -left-px size-5 border-b-2 border-l-2 border-gold" />
+        <div className="absolute -right-px -bottom-px size-5 border-r-2 border-b-2 border-gold" />
 
-          {/* Search Input */}
+        <form
+          data-testid="search-form"
+          data-ui-ready={hasMounted ? "true" : "false"}
+          method="get"
+          action="/search"
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+          <SearchModeInput searchMethod={searchMethod} />
+
+          <p
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            {modeAnnouncement}
+          </p>
+
+          <SearchStatusAlert
+            alertMessage={alertMessage}
+            hasFieldError={hasFieldError}
+            prefersReducedMotion={prefersReducedMotion}
+          />
+
+          {/* Method Toggle with sliding indicator */}
+          <SearchMethodToggle
+            prefersReducedMotion={prefersReducedMotion}
+            searchMethod={searchMethod}
+            searchMethodHintId={searchMethodHintId}
+            searchMethodName={searchMethodName}
+            updateSearchMethod={updateSearchMethod}
+            userIdRadioId={userIdRadioId}
+            usernameRadioId={usernameRadioId}
+          />
+
+          {/* Input field */}
           <div className="space-y-3">
             <label
-              htmlFor="searchValue"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+              htmlFor={inputId}
+              className="
+                block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
+              "
             >
-              {searchMethod === "username"
-                ? "AniList Username"
-                : "AniList User ID"}
+              {inputLabel}
             </label>
-            <div className="relative">
-              <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
-                {searchMethod === "username" ? (
-                  <Search className="h-5 w-5" />
-                ) : (
-                  <Hash className="h-5 w-5" />
-                )}
+            <div className="group relative">
+              <div
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-foreground/30
+                  transition-colors duration-300
+                  group-focus-within:text-gold/70
+                "
+              >
+                <SearchInputIcon className="size-5" />
               </div>
               <Input
-                id="searchValue"
+                ref={inputRef}
+                id={inputId}
+                name="query"
+                type={inputType}
                 value={searchValue}
                 onChange={(e) => {
                   setSearchValue(e.target.value);
-                  setError("");
+                  clearErrors();
                 }}
-                placeholder={
-                  searchMethod === "username"
-                    ? "Enter username (e.g., Alpha49)"
-                    : "Enter user ID (e.g., 542244)"
-                }
-                className="h-14 rounded-2xl border-slate-200 bg-white pl-12 text-lg transition-all placeholder:text-slate-400 hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-700 dark:placeholder:text-slate-500 dark:hover:border-blue-500 dark:focus:border-blue-400"
+                placeholder={inputPlaceholder}
+                inputMode={inputMode}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="search"
+                spellCheck={false}
+                aria-invalid={hasFieldError ? true : undefined}
+                aria-describedby={inputDescribedBy}
+                aria-errormessage={hasFieldError ? errorId : undefined}
+                className="
+                  h-14 border-gold/15 bg-transparent pl-12 text-base transition-all
+                  placeholder:text-foreground/25
+                  hover:border-gold/30
+                  focus:border-gold focus:ring-2 focus:ring-gold/20
+                  dark:border-gold/15 dark:bg-background/50
+                  dark:placeholder:text-foreground/25
+                  dark:hover:border-gold/30
+                  dark:focus:border-gold
+                "
                 disabled={loading}
               />
             </div>
+            <div className="space-y-1.5">
+              <p
+                id={inputHintId}
+                className="text-sm/relaxed text-foreground/45"
+              >
+                {inputHint}
+              </p>
+              {hasFieldError ? (
+                <p
+                  id={errorId}
+                  className="text-sm font-medium text-red-700 dark:text-red-300"
+                >
+                  {fieldError}
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            size="lg"
-            className="group h-14 w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/25 disabled:opacity-70 disabled:hover:scale-100"
-            disabled={loading}
+          {/* Submit button */}
+          <motion.div
+            whileHover={
+              prefersReducedMotion || loading
+                ? undefined
+                : {
+                    scale: 1.03,
+                    transition: { duration: 0.25, ease: EASE_OUT_EXPO },
+                  }
+            }
+            whileTap={
+              prefersReducedMotion || loading ? undefined : { scale: 0.97 }
+            }
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Searching...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-5 w-5" />
-                Search User
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </>
-            )}
-          </Button>
+            <Button
+              type="submit"
+              size="lg"
+              className="
+                group imperial-btn h-14 w-full imperial-btn-fill text-base
+                disabled:opacity-70
+                disabled:hover:scale-100
+              "
+              disabled={loading}
+            >
+              <SearchSubmitButtonContent loading={loading} />
+            </Button>
+          </motion.div>
         </form>
 
-        {/* Helper text */}
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          Search AniList profiles that already have generated cards (your own or
-          a friend's) to view their statistics.
+        <p className="mt-6 text-center font-body-serif text-xs/relaxed text-foreground/30">
+          Works with any public AniList profile — usernames, @handles, copied
+          AniList profile links, /user/... slugs, and bare numeric IDs all pass
+          through the same lookup flow before the editor opens.
         </p>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

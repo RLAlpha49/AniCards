@@ -1,29 +1,56 @@
+// next.config.ts
+//
+// Central Next.js runtime configuration for AniCards. Static security headers live here,
+// while CSP nonces stay in `app/middleware.ts` because they must be generated per request.
+//
+// Host-based rewrites preserve the public `api.*` domains and the legacy `/card.svg`
+// entry points without forcing the app code to duplicate API route implementations.
+
 import type { NextConfig } from "next";
 
+export function getRequiredNextPublicApiUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const apiUrl = env.NEXT_PUBLIC_API_URL?.trim();
+
+  if (!apiUrl) {
+    throw new Error(
+      "Missing required NEXT_PUBLIC_API_URL. AniCards no longer falls back to the production API host; set NEXT_PUBLIC_API_URL explicitly in .env.local or your deployment environment.",
+    );
+  }
+
+  let parsedApiUrl: URL;
+
+  try {
+    parsedApiUrl = new URL(apiUrl);
+  } catch {
+    throw new Error("NEXT_PUBLIC_API_URL must be an absolute http(s) URL.");
+  }
+
+  if (parsedApiUrl.protocol !== "http:" && parsedApiUrl.protocol !== "https:") {
+    throw new Error("NEXT_PUBLIC_API_URL must be an absolute http(s) URL.");
+  }
+
+  return apiUrl;
+}
+
+const requiredNextPublicApiUrl = getRequiredNextPublicApiUrl();
+
 /**
- * Next.js Configuration
- *
- * This configuration includes:
- * - Environment variables for API authentication and analytics
- * - Image optimization settings for local and production domains
- * - Security headers for defense-in-depth protection
- *
  * Note: The main CSP header with nonces is injected via middleware (app/middleware.ts)
  * to enable per-request nonce generation. Static security headers are configured here.
  *
  * @see app/middleware.ts for CSP header generation
  * @see lib/csp-config.ts for CSP directive configuration
- * @see docs/SECURITY.md for comprehensive security documentation
- * @source
+ * @see docs/SECURITY.md for the durable CSP, headers, and route-protection notes
  */
 const nextConfig: NextConfig = {
   env: {
-    API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
-    NEXT_PUBLIC_API_URL:
-      process.env.NEXT_PUBLIC_API_URL ?? "https://api.anicards.alpha49.com",
+    NEXT_PUBLIC_API_URL: requiredNextPublicApiUrl,
   },
+  serverExternalPackages: ["@napi-rs/canvas"],
   images: {
     remotePatterns: [
       {
@@ -49,57 +76,69 @@ const nextConfig: NextConfig = {
         protocol: "http",
         port: "3000",
       },
+      {
+        hostname: "anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "cdn.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s1.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s2.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s3.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s4.anilist.co",
+        protocol: "https",
+      },
     ],
     qualities: [100, 75],
   },
 
   /**
-   * Security Headers Configuration
-   *
-   * These headers provide defense-in-depth security measures.
-   * The CSP directives themselves are defined in `lib/csp-config.ts` and injected per request
+   * CSP directives are defined in `lib/csp-config.ts` and injected per request
    * in `app/middleware.ts` so that nonces can be generated via `crypto.getRandomValues`.
    * `next.config.ts` only hosts the static headers below and purposely avoids duplicating
    * CSP logic.
-   *
-   * Headers applied:
-   * - X-DNS-Prefetch-Control: Enable DNS prefetching for performance
-   * - X-Frame-Options: Prevent clickjacking (defense-in-depth with CSP frame-ancestors)
-   * - X-Content-Type-Options: Prevent MIME type sniffing attacks
-   * - Referrer-Policy: Control referrer information sent to other origins
-   * - Permissions-Policy: Disable unnecessary browser features
    */
   async headers() {
     return [
       {
-        // Apply security headers to all routes
         source: "/:path*",
         headers: [
           {
-            // Enable DNS prefetching for improved performance
             key: "X-DNS-Prefetch-Control",
             value: "on",
           },
           {
-            // Prevent clickjacking by disallowing embedding in frames
             // This is redundant with CSP frame-ancestors but provides defense-in-depth
             key: "X-Frame-Options",
             value: "DENY",
           },
           {
-            // Prevent browsers from MIME-sniffing a response away from the declared content-type
             // This prevents attacks based on MIME type confusion
             key: "X-Content-Type-Options",
             value: "nosniff",
           },
           {
-            // Control how much referrer information is included with requests
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains; preload",
+          },
+          {
             // strict-origin-when-cross-origin: Full URL for same-origin, only origin for cross-origin
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
           },
           {
-            // Disable unnecessary browser features to reduce attack surface
             // This prevents malicious scripts from accessing sensitive APIs
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
@@ -131,6 +170,8 @@ const nextConfig: NextConfig = {
       "api.anicards.lvh.me",
     ];
 
+    // Duplicate the development hosts with and without an explicit port because
+    // local proxies and browsers do not agree on whether `Host` preserves `:PORT`.
     const devRules = devHosts.flatMap((h) => [
       {
         source: "/:path((?!api/).*)",
@@ -157,6 +198,10 @@ const nextConfig: NextConfig = {
     return [
       ...primaryRules,
       ...devRules,
+      // Keep old embeddable card URLs working while `/api/card` remains the
+      // canonical handler. Cache semantics live in the route response because
+      // canonical embeds, preview variants, and aliases now need different
+      // policies without fighting static pre-rewrite headers.
       {
         source: "/card.svg",
         destination: "/api/card",

@@ -1,72 +1,58 @@
 import { NextResponse } from "next/server";
 
-/**
- * Base URL for sitemap entries, defaulting to the hosted site when the environment variable is missing.
- * @source
- */
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
+import {
+  getStaticSitemapEntries,
+  getUserProfilePath,
+  type SitemapEntry,
+  USER_PROFILE_SITEMAP_ENTRY,
+} from "@/lib/seo";
+import { listPublicUserProfileSitemapEntries } from "@/lib/server/user-data";
+import { resolveSiteUrl } from "@/lib/site-config";
+
+export const dynamic = "force-dynamic";
+
+const SITEMAP_CACHE_CONTROL =
+  "public, s-maxage=3600, stale-while-revalidate=600";
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function renderSitemapEntry(entry: SitemapEntry): string {
+  const lastmod = entry.lastmod
+    ? `
+      <lastmod>${escapeXml(entry.lastmod)}</lastmod>`
+    : "";
+
+  return `
+    <url>
+      <loc>${escapeXml(resolveSiteUrl(entry.path))}</loc>${lastmod}
+      <changefreq>${entry.changefreq}</changefreq>
+      <priority>${entry.priority}</priority>
+    </url>`;
+}
 
 /**
- * Static route metadata that drives sitemap priorities and update frequencies.
- * @source
- */
-const pages = [
-  {
-    path: "/",
-    priority: 1,
-    changefreq: "daily" as const,
-  },
-  {
-    path: "/search",
-    priority: 0.9,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/user",
-    priority: 0.8,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/settings",
-    priority: 0.7,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/projects",
-    priority: 0.6,
-    changefreq: "monthly" as const,
-  },
-  {
-    path: "/contact",
-    priority: 0.6,
-    changefreq: "yearly" as const,
-  },
-  {
-    path: "/license",
-    priority: 0.4,
-    changefreq: "yearly" as const,
-  },
-];
-
-/**
- * Builds the sitemap XML string covering curated routes and returns it as an XML response.
+ * Builds the sitemap XML string covering curated routes and returns it as a cacheable XML response.
  * @returns {Promise<NextResponse>} Sitemap response consumed by crawlers.
  * @source
  */
 export async function GET() {
-  const lastmod = new Date().toISOString();
-
-  const urls = pages
-    .map((page) => {
-      return `
-    <url>
-      <loc>${BASE_URL}${page.path}</loc>
-      <lastmod>${lastmod}</lastmod>
-      <changefreq>${page.changefreq}</changefreq>
-      <priority>${page.priority}</priority>
-    </url>`;
-    })
+  const profileEntries = await listPublicUserProfileSitemapEntries();
+  const urls = [
+    ...getStaticSitemapEntries(),
+    ...profileEntries.map((entry) => ({
+      ...USER_PROFILE_SITEMAP_ENTRY,
+      path: getUserProfilePath(entry.username),
+      ...(entry.lastmod ? { lastmod: entry.lastmod } : {}),
+    })),
+  ]
+    .map(renderSitemapEntry)
     .join("");
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +62,7 @@ export async function GET() {
 
   return new NextResponse(sitemap, {
     headers: {
+      "Cache-Control": SITEMAP_CACHE_CONTROL,
       "Content-Type": "application/xml",
     },
   });

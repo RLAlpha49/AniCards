@@ -1,5 +1,14 @@
-export { ExamplesHeroSection } from "./ExamplesHeroSection";
+export { CategoryNavigation } from "./CategoryNavigation";
 export { CategorySection } from "./CategorySection";
-export { ExampleCard } from "./ExampleCard";
 export { CTASection } from "./CTASection";
-export type { CardType, CardVariant } from "./CategorySection";
+export { ExampleCard } from "./ExampleCard";
+export { ExamplesHeroSection } from "./ExamplesHeroSection";
+export { SearchFilterBar } from "./SearchFilterBar";
+export type {
+  CategoryInfo,
+  ExampleCardType,
+  ExampleCardVariant,
+  ExampleCategory,
+  ExampleIconKey,
+  ExamplesCatalogPayload,
+} from "./types";

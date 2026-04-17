@@ -1,0 +1,247 @@
+<mxfile host='Electron' modified='2026-03-31T21:00:00.000Z' agent='GitHub Copilot' version='26.0.0'>
+    <diagram id="data-ingestion" name="Data Ingestion and Storage">
+        <mxGraphModel dx="870" dy="535" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1050" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Data Lifecycle: Ingestion and Storage" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="note" value="Privacy-relevant data path from AniList through normalization to Redis split storage. Raw IPs are never persisted." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="580" y="20" width="510" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-sources" value="Data Sources" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="1080" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-browser" value="Browser bootstrap&#xa;useNewUserSetup()&#xa;fetches via /api/anilist" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-sources" vertex="1">
+                    <mxGeometry x="30" y="40" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-cron" value="Cron refresh&#xa;/api/cron&#xa;fetches AniList directly" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-sources" vertex="1">
+                    <mxGeometry x="310" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-editor" value="Editor saves&#xa;/api/store-cards&#xa;card configs + global settings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-sources" vertex="1">
+                    <mxGeometry x="570" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-anilist" value="AniList GraphQL&#xa;upstream data source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-sources" vertex="1">
+                    <mxGeometry x="830" y="40" width="210" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-validation" value="Validation and Pruning (lib/card-data/validation.ts)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="230" width="1080" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="val-normalize" value="validateAndNormalizeUserRecord()&#xa;mode: &quot;write&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-validation" vertex="1">
+                    <mxGeometry x="30" y="50" width="230" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="val-prune" value="Collection pruning&#xa;genres/tags/staff: max 25&#xa;reviews: max 50&#xa;recommendations: max 25&#xa;current: max 6&#xa;completed: top 5 score + 5 length&#xa;dropped: max 30&#xa;activityHistory: ~1 year" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-validation" vertex="1">
+                    <mxGeometry x="300" y="40" width="250" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="val-agg" value="Write-time aggregates&#xa;animeSourceMaterialDistribution&#xa;animeSeasonalPreference&#xa;animeGenreSynergy&#xa;studioCollaboration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-validation" vertex="1">
+                    <mxGeometry x="590" y="40" width="250" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="val-ip" value="IP minimization&#xa;requestMetadata.lastSeenIpBucket&#xa;coarse bucket only (203.0.x.x)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-validation" vertex="1">
+                    <mxGeometry x="880" y="50" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-redis" value="Redis Split Storage (lib/server/user-data.ts)" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="460" width="1080" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis-commit" value="user:{id}:commit&#xa;storageFormat, revision,&#xa;username, updatedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-redis" vertex="1">
+                    <mxGeometry x="30" y="50" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis-parts" value="user:{id}:{part}&#xa;meta, activity, favourites,&#xa;statistics, pages, planning,&#xa;current, rewatched, completed,&#xa;aggregates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-redis" vertex="1">
+                    <mxGeometry x="290" y="40" width="230" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis-cards" value="cards:{userId}&#xa;cards[], globalSettings,&#xa;updatedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-redis" vertex="1">
+                    <mxGeometry x="560" y="50" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis-index" value="Indexes&#xa;username:{normalized}&#xa;user:{id}:username-aliases&#xa;users:known-ids&#xa;users:stale-by-updated-at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-redis" vertex="1">
+                    <mxGeometry x="800" y="40" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-browser" value="Browser Storage" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="670" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="browser-consent" value="localStorage&#xa;anicards:analytics-consent:v1&#xa;granted | denied | unset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-browser" vertex="1">
+                    <mxGeometry x="30" y="40" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="browser-draft" value="localStorage&#xa;anicards:user-page-editor:draft:v1:{id}&#xa;local editor draft backup" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-browser" vertex="1">
+                    <mxGeometry x="310" y="40" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="browser-misc" value="localStorage&#xa;tour state, templates,&#xa;command palette history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-browser" vertex="1">
+                    <mxGeometry x="610" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="browser-errors" value="sessionStorage&#xa;anicards:error-report-queue:v1&#xa;queued client error reports" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-browser" vertex="1">
+                    <mxGeometry x="870" y="40" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-audit" value="Lifecycle Audit" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="830" width="1080" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="audit-list" value="telemetry:user-lifecycle-audit:v1&#xa;bounded list (max 250 entries)&#xa;actions: save, access, delete&#xa;best-effort writes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-audit" vertex="1">
+                    <mxGeometry x="30" y="40" width="320" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="audit-sources" value="Trigger sources&#xa;user_data_save, user_data_fetch,&#xa;user_data_delete, cron_refresh,&#xa;cron_cleanup_404, legacy_migration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-audit" vertex="1">
+                    <mxGeometry x="400" y="40" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-browser-val" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="src-browser" target="val-normalize" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-cron-val" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="src-cron" target="val-normalize" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="460" y="210"/>
+                            <mxPoint x="270" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-val-prune" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="val-normalize" target="val-prune" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-prune-agg" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="val-prune" target="val-agg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-prune-ip" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="val-prune" target="val-ip" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="465" y="410"/>
+                            <mxPoint x="900" y="410"/>
+                            <mxPoint x="900" y="320"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-agg-commit" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="val-agg" target="redis-commit" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="715" y="440"/>
+                            <mxPoint x="140" y="440"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-agg-parts" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="val-agg" target="redis-parts" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="755" y="450"/>
+                            <mxPoint x="445" y="450"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-editor-cards" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="src-editor" target="redis-cards" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="600" y="150"/>
+                            <mxPoint x="600" y="430"/>
+                            <mxPoint x="830" y="430"/>
+                            <mxPoint x="830" y="545"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-commit-audit" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="redis-commit" target="audit-list" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="140" y="660"/>
+                            <mxPoint x="30" y="660"/>
+                            <mxPoint x="30" y="910"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="data-deletion" name="Data Deletion and Cleanup">
+        <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="830" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Data Lifecycle: Deletion and Cleanup" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="20" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="note" value="Server-side deletion removes all Redis keys and writes an audit entry. Browser-local artifacts remain until manually cleared." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+                    <mxGeometry x="570" y="20" width="530" height="40" as="geometry"/>
+                </mxCell>
+                <!-- Trigger -->
+                <mxCell id="start" value="Cron detects 3 consecutive&#xa;AniList 404s for a user" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+                    <mxGeometry x="420" y="80" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="counter" value="failed_updates:{userId}&#xa;incremented on each 404&#xa;14-day TTL auto-expires" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+                    <mxGeometry x="440" y="170" width="280" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="threshold" value="Count &gt;= 3?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+                    <mxGeometry x="490" y="270" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="no-delete" value="Keep user&#xa;counter expires after 14d" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+                    <mxGeometry x="780" y="280" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="delete-fn" value="deleteUserRecord()&#xa;triggerSource: cron_cleanup_404" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+                    <mxGeometry x="440" y="390" width="280" height="60" as="geometry"/>
+                </mxCell>
+                <!-- Deleted keys -->
+                <mxCell id="lane-deleted" value="Keys Removed by deleteUserRecord()" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="490" width="1080" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="del-parts" value="All split parts&#xa;user:{id}:{part}&#xa;user:{id}:commit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-deleted">
+                    <mxGeometry x="20" y="40" width="190" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="del-aliases" value="user:{id}:username-aliases&#xa;+ all username:{name} refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-deleted">
+                    <mxGeometry x="240" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="del-cards" value="cards:{userId}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-deleted">
+                    <mxGeometry x="490" y="40" width="160" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="del-indexes" value="users:known-ids (SREM)&#xa;users:stale-by-updated-at (ZREM)&#xa;failed_updates:{userId} (DEL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane-deleted">
+                    <mxGeometry x="680" y="40" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="del-legacy" value="Legacy user:{id} blob&#xa;(if still present)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="lane-deleted">
+                    <mxGeometry x="970" y="40" width="90" height="70" as="geometry"/>
+                </mxCell>
+                <!-- Audit record -->
+                <mxCell id="audit-write" value="Lifecycle audit entry&#xa;action: &quot;delete&quot;&#xa;triggerSource: cron_cleanup_404" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+                    <mxGeometry x="440" y="670" width="280" height="60" as="geometry"/>
+                </mxCell>
+                <!-- Browser note -->
+                <mxCell id="browser-note" value="Browser-local artifacts&#xa;(drafts, consent, tour state)&#xa;are NOT cleared server-side." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+                    <mxGeometry x="820" y="670" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="end" value="User fully removed from Redis" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+                    <mxGeometry x="440" y="770" width="280" height="50" as="geometry"/>
+                </mxCell>
+                <!-- Edges -->
+                <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="start" target="counter" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="counter" target="threshold" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="No" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" source="threshold" target="no-delete" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="Yes" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=10;" edge="1" source="threshold" target="delete-fn" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="delete-fn" target="del-parts" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="580" y="470"/>
+                            <mxPoint x="115" y="470"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="delete-fn" target="del-aliases" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="delete-fn" target="del-cards" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="delete-fn" target="del-indexes" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="del-parts" target="audit-write" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="115" y="650"/>
+                            <mxPoint x="580" y="650"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="audit-write" target="end" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

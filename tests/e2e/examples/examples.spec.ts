@@ -1,5 +1,11 @@
-import { test, expect } from "@playwright/test";
-import { GeneratorPage } from "../fixtures/test-utils";
+import { expect, test } from "@playwright/test";
+
+import {
+  clickAnchorAndExpectUrl,
+  dismissAnalyticsPromptIfVisible,
+  gotoReady,
+  waitForAppReady,
+} from "../fixtures/browser-utils";
 
 test.describe("Examples gallery", () => {
   test.beforeEach(async ({ page }) => {
@@ -13,40 +19,209 @@ test.describe("Examples gallery", () => {
       }
       return route.continue();
     });
-
-    await page.goto("/examples");
   });
 
   test("filters card variants via search", async ({ page }) => {
-    const variants = page.getByRole("heading", { level: 4 });
-    await expect(variants.first()).toBeVisible({ timeout: 15000 });
+    await gotoReady(page, "/examples?search=Voice%20Actors");
 
-    const initialCount = await variants.count();
-    expect(initialCount).toBeGreaterThan(0);
-
-    await test.step("Filter by Voice Actors", async () => {
-      await page.getByPlaceholder(/search cards/i).fill("Voice Actors");
+    const variants = page.getByRole("heading", { level: 3 });
+    const searchInput = page.getByLabel(/search gallery cards/i);
+    const animeStatistics = page.getByRole("heading", {
+      level: 3,
+      name: /anime statistics/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 3,
+      name: /voice actors/i,
     });
 
+    await expect(variants.first()).toBeVisible({ timeout: 15000 });
+    await expect(searchInput).toHaveAttribute("type", "search");
+    await expect(searchInput).toHaveAttribute("autocomplete", "off");
+    await expect(searchInput).toHaveValue("Voice Actors");
     await expect
-      .poll(async () => await variants.count())
-      .toBeLessThan(initialCount);
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Voice Actors");
+
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
+    await expect(animeStatistics.first()).not.toBeVisible();
 
     const filteredCount = await variants.count();
     expect(filteredCount).toBeGreaterThan(0);
   });
 
-  test("opens generator from examples CTA", async ({ page }) => {
-    const generator = new GeneratorPage(page);
+  test("matches variant names and category intent in gallery search", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples?search=Radar%20Chart");
 
-    await test.step("Open generator from CTA", async () => {
-      await page.getByRole("button", { name: /create your cards/i }).click();
-      await generator.waitForGeneratorOpen();
+    const searchInput = page.getByLabel(/search gallery cards/i);
+    const animeGenres = page.getByRole("heading", {
+      level: 3,
+      name: /anime genres/i,
+    });
+    const animeStatistics = page.getByRole("heading", {
+      level: 3,
+      name: /anime statistics/i,
+    });
+    const favouritesSummary = page.getByRole("heading", {
+      level: 3,
+      name: /favourites summary/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 3,
+      name: /voice actors/i,
     });
 
-    await test.step("Dismiss generator", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+    await expect(searchInput).toHaveValue("Radar Chart");
+    await expect(animeGenres.first()).toBeVisible({ timeout: 15000 });
+    await expect(animeStatistics.first()).not.toBeVisible();
+
+    await searchInput.fill("Library Progress");
+
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Library Progress");
+    await expect(favouritesSummary.first()).toBeVisible({ timeout: 15000 });
+    await expect(voiceActors.first()).not.toBeVisible();
+  });
+
+  test("chunks large collections and reveals more card types on demand", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples?category=Anime%20Deep%20Dive");
+
+    const section = page.locator("#category-anime-deep-dive");
+    const cardTypeHeadings = section.getByRole("heading", { level: 3 });
+    const loadMoreButton = section.getByRole("button", {
+      name: /load more card types/i,
+    });
+
+    await expect(section).toBeVisible({ timeout: 15000 });
+    await expect(cardTypeHeadings).toHaveCount(4);
+    await expect(loadMoreButton).toBeVisible({ timeout: 15000 });
+
+    await loadMoreButton.click();
+
+    await expect(cardTypeHeadings).toHaveCount(8);
+  });
+
+  test("keeps filters in the URL across reload and back navigation", async ({
+    page,
+  }) => {
+    await gotoReady(
+      page,
+      "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+    );
+
+    const searchInput = page.getByLabel(/search gallery cards/i);
+    const animeDeepDiveButton = page.getByRole("button", {
+      name: /anime deep dive/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 3,
+      name: /voice actors/i,
+    });
+
+    await expect(searchInput).toHaveValue("Voice Actors");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Voice Actors");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("category"))
+      .toBe("Anime Deep Dive");
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await dismissAnalyticsPromptIfVisible(page);
+    await waitForAppReady(page);
+
+    await expect(searchInput).toHaveValue("Voice Actors");
+    await expect(animeDeepDiveButton).toHaveAttribute("aria-pressed", "true");
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
+
+    await dismissAnalyticsPromptIfVisible(page);
+    await page.goto("/privacy", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/privacy(?:\?|$)/, { timeout: 15000 });
+    await waitForAppReady(page);
+
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/, { timeout: 15000 });
+
+    await dismissAnalyticsPromptIfVisible(page);
+    await expect(searchInput).toHaveValue("Voice Actors");
+    await expect(animeDeepDiveButton).toHaveAttribute("aria-pressed", "true");
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
+  });
+
+  test("drops invalid category params from the URL", async ({ page }) => {
+    await gotoReady(
+      page,
+      "/examples?search=Voice%20Actors&category=Not%20A%20Real%20Category",
+    );
+
+    const searchInput = page.getByLabel(/search gallery cards/i);
+    const allCategoriesButton = page.getByRole("button", {
+      name: /^all\s+\d+$/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 3,
+      name: /voice actors/i,
+    });
+
+    await expect(searchInput).toHaveValue("Voice Actors");
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
+    await expect(allCategoriesButton).toHaveAttribute("aria-pressed", "true");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Voice Actors");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("category"), {
+        timeout: 30000,
+      })
+      .toBe(null);
+  });
+
+  test("preserves the gallery hash and history when browsing from the hero CTA", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/examples");
+
+    const browseGalleryLink = page.getByRole("link", {
+      name: /browse the gallery/i,
+    });
+    const gallery = page.locator("#card-gallery");
+
+    await expect(browseGalleryLink).toHaveAttribute("href", "#card-gallery");
+
+    await browseGalleryLink.click();
+
+    await expect(page).toHaveURL(/\/examples#card-gallery$/, {
+      timeout: 15000,
+    });
+    await expect(gallery).toBeVisible({ timeout: 15000 });
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/, {
+      timeout: 15000,
+    });
+  });
+
+  test("navigates to search from examples CTA", async ({ page }) => {
+    await gotoReady(page, "/examples");
+
+    await test.step("Navigate to search from CTA", async () => {
+      const createYoursLink = page.getByRole("link", {
+        name: /^create yours$/i,
+      });
+
+      await expect(createYoursLink).toHaveAttribute("href", "/search");
+
+      await clickAnchorAndExpectUrl(page, createYoursLink, /\/search(?:\?|$)/);
+
+      await expect(page).toHaveURL(/\/search(?:\?|$)/);
+      await expect(
+        page.getByRole("heading", { name: /unlock any profile/i }),
+      ).toBeVisible({ timeout: 15000 });
     });
   });
 });

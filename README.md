@@ -1,212 +1,104 @@
-# AniCards - AniList Statistics Cards
+<!-- markdownlint-disable MD033 -->
+# AniCards
 
-AniCards is a dynamic and customizable tool designed to generate beautiful statistic cards from your AniList profile data. Effortlessly display your anime and manga stats with vibrant, animated SVGs that you can share on any platform!
+<p align="center">
+  <img src="./public/icon.svg" alt="AniCards icon" width="256" height="256" />
+</p>
 
-## 🚀 Live Demo
+Turn your AniList history into embeddable SVG cards and PNG previews. Paste an image link anywhere and your anime and manga stats show up.
 
-Experience AniCards live at [anicards.alpha49.com](https://anicards.alpha49.com)
+## Why AniCards exists
 
-## 🎨 Card Style Requests
+AniList tracks everything: how many episodes you've watched, which genres dominate your list, your activity streaks, score distributions, seasonal patterns. None of that is easy to share outside AniList itself. AniCards pulls that data from the AniList GraphQL API and renders it as SVG cards you can embed with a single URL — no hosting required on your end.
 
-**I especially encourage design submissions!** If you have an idea for:
+## What you can do with it
 
-- New color schemes or themes 🎨
-- Creative layout concepts 🖼️
-- Animated elements to enhance the card's appeal ✨
-- New card types for additional statistics or different variants 📊
+Go to [anicards.alpha49.com](https://anicards.alpha49.com), enter your AniList username, choose a card type, adjust the look, and copy the embed URL. AniCards refreshes stored AniList data on a best-effort, capacity-bound schedule, so embeds stay current without promising an exact daily cutoff.
 
-Submit your design concepts (sketches, Figma files, or detailed descriptions) and I'll work on implementing them!
-
-## 📊 Available Card Types
-
-Each card has a `cardType` ID and supports one or more `variation` values.
-
-### Core Stats
-
-- **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
-- **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
-- **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
-- **Profile Overview** (`profileOverview`) — Variations: Default, Compact, Minimal
-- **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
-
-### Anime Deep Dive
-
-- **Anime Genres** (`animeGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Anime Tags** (`animeTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Voice Actors** (`animeVoiceActors`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `showFavorites`
-- **Animation Studios** (`animeStudios`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `showFavorites`
-- **Anime Staff** (`animeStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `showFavorites`
-- **Anime Status Distribution** (`animeStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `statusColors`
-- **Anime Format Distribution** (`animeFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Anime Source Material Distribution** (`animeSourceMaterialDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Anime Seasonal Preference** (`animeSeasonalPreference`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Episode Length Preferences** (`animeEpisodeLengthPreferences`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Anime Country Distribution** (`animeCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Anime Score Distribution** (`animeScoreDistribution`) — Variations: Default, Horizontal, Cumulative
-- **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
-- **Anime Genre Synergy** (`animeGenreSynergy`) — Variations: Default
-
-### Manga Deep Dive
-
-- **Manga Genres** (`mangaGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Manga Tags** (`mangaTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Manga Staff** (`mangaStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `showFavorites`
-- **Manga Status Distribution** (`mangaStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-  - Optional flag: `statusColors`
-- **Manga Format Distribution** (`mangaFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Manga Country Distribution** (`mangaCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Manga Score Distribution** (`mangaScoreDistribution`) — Variations: Default, Horizontal, Cumulative
-- **Manga Year Distribution** (`mangaYearDistribution`) — Variations: Default, Horizontal
-
-### Activity & Engagement
-
-- **Activity Heatmap** (`activityHeatmap`) — Variations: Default, GitHub, Fire
-- **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
-- **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
-- **Activity Streaks** (`activityStreaks`) — Variations: Default
-- **Top Activity Days** (`topActivityDays`) — Variations: Default
-- **Social Milestones** (`socialMilestones`) — Variations: Default
-- **Review Statistics** (`reviewStats`) — Variations: Default
-- **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
-
-### Library & Progress
-
-- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
-- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
-  - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
-- **Status Completion Overview** (`statusCompletionOverview`) — Variations: Combined, Split
-- **Consumption Milestones** (`milestones`) — Variations: Default
-- **Personal Records** (`personalRecords`) — Variations: Default
-- **Planning Backlog** (`planningBacklog`) — Variations: Default
-- **Most Rewatched/Reread** (`mostRewatched`) — Variations: Default, Anime, Manga
-- **Currently Watching / Reading** (`currentlyWatchingReading`) — Variations: Default, Anime, Manga
-- **Dropped Media** (`droppedMedia`) — Variations: Default
-
-### Advanced Analytics
-
-- **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
-- **Country Diversity** (`countryDiversity`) — Variations: Default
-- **Genre Diversity** (`genreDiversity`) — Variations: Default
-- **Format Preference Overview** (`formatPreferenceOverview`) — Variations: Default
-- **Release Era Preference** (`releaseEraPreference`) — Variations: Default
-- **Start-Year Momentum** (`startYearMomentum`) — Variations: Default
-- **Length Preference** (`lengthPreference`) — Variations: Default
-- **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
-- **Tag Diversity** (`tagDiversity`) — Variations: Default
-- **Studio Collaboration** (`studioCollaboration`) — Variations: Default
-
-## 🛠️ Customization
-
-You can easily generate your cards using the [Live Generator](https://anicards.alpha49.com).
-
-Alternatively, construct the URL manually:
+If you prefer to build the URL by hand:
 
 ```text
-https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&variation={VARIATION}&colorPreset={PRESET_NAME}
+https://api.anicards.alpha49.com/card.svg?cardType=animeStats&username=Alpha49&variation=compact&colorPreset=sunset
 ```
 
-### Parameters
+Prefer `/card.svg` for embeddable SVGs. The same query surface is also available at `/card.png` when you need a raster preview image.
 
-- `cardType` (required): The ID of the card (e.g., `animeStats`, `mangaGenres`). See the "Available Card Types" above for all supported values.
-- `userId` or `userName` (required): Pass either the numeric AniList user ID via `userId`, or a username via `userName`. If both are provided the numeric `userId` is used.
-- `variation` (optional): Visual variation to use for the card. Valid values depend on the `cardType`, but commonly supported values include: `default`, `vertical`, `compact`, `minimal`, `pie`, `bar`, `horizontal`. The generator will fall back to the appropriate `default` value for unsupported/invalid variants.
-- `colorPreset` (optional): Named color preset to use (e.g., `anilistDark`, `sunset`, `default`). Use `colorPreset=custom` to tell the server to use colors stored in stored on the server (this will ignore per-color URL overrides).
-- `titleColor`, `backgroundColor`, `textColor`, `circleColor` (optional): Individual color overrides to apply to the card (hex values like `#ff0000` or valid CSS color strings). Note: `#` must be URL encoded (e.g., `titleColor=%23ff0000`).
-- `borderColor` (optional): Stroke color for the card border (like `#ff00ff`).
-- `borderRadius` (optional): Numeric value (pixels) to override the card corner radius.
-- `showFavorites` (optional): `true` or `false` — applicable only to certain category cards (voice actors, studios, staff) to visualize favorites.
-- `statusColors` (optional): `true` or `false` — tells status distribution cards to use fixed status colors.
-- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie`/`donut` variants).
-- `_t` (optional): Any value used to bust caches (commonly a timestamp).
+Every supported card type, variation, preset, and parameter is documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md).
 
-### Notes
+## What's in the card catalog
 
-- When `colorPreset=custom`, the server will load color data from the card stored in the database and ignore any `titleColor` / `backgroundColor` / `textColor` / `circleColor` URL overrides.
-- Certain flags (like `showFavorites`, `statusColors`, and `piePercentages`) are only relevant to specific card types. If omitted, the API will use the stored card configuration if present, otherwise fall back to sensible defaults.
+The catalog covers five areas, each with multiple card types and layout variations:
 
-Example (URL-encoded colors):
+- **Core stats** — anime and manga totals, social stats, profile overview, anime vs manga comparison
+- **Deep dives** — genre, tag, studio, voice actor, staff, score, year, country, and format distributions; charts include pie, donut, bar, and radar layouts
+- **Activity and engagement** — recent activity, streaks, top activity days, seasonal viewing patterns, social milestones, review stats
+- **Library and progress** — favourites, currently watching/reading, planning backlog, dropped media, completion overview, personal records, consumption milestones
+- **Advanced analytics** — score comparisons, country and genre diversity, release era preferences, tag diversity, length preferences, start-year momentum
 
-```text
-https://api.anicards.alpha49.com/card.svg?cardType=animeGenres&userId=542244&variation=pie&colorPreset=anilistDark&titleColor=%23ff0000&backgroundColor=%230b1622&piePercentages=true
+Cards accept the full runtime preset inventory documented in [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md), plus per-color URL parameters for fine-tuning individual colors. Layout variations include `default`, `compact`, `minimal`, `vertical`, and card-specific chart or grid options.
+
+## Getting started
+
+AniCards runs on [Bun](https://bun.sh) and [Next.js](https://nextjs.org).
+
+```bash
+git clone https://github.com/RLAlpha49/AniCards.git
+cd AniCards
+bun install
 ```
 
-> Here it uses the color preset `anilistDark` as a base, but overrides the title and background colors.
+Copy the env template before starting the server:
 
-Example using username:
+```bash
+# macOS / Linux
+cp .env.example .env.local
 
-```text
-https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&variation=compact&colorPreset=sunset&titleColor=%23ff77aa
+# Windows PowerShell
+Copy-Item .env.example .env.local
 ```
 
-**For a full list of supported card types, color presets, and variations, visit the [Live Generator](https://anicards.alpha49.com).**
+Then start the dev server:
 
-## 🏗️ Getting Started
+```bash
+bun run dev
+```
 
-To run the project locally:
+Open [http://localhost:3000](http://localhost:3000).
 
-1. **Clone the repository**
+**UI-only mode** (no credentials needed) covers all frontend work, marketing pages, and visual changes. **Full API mode** — routes that call AniList or read/write Redis — requires an `ANILIST_TOKEN` and Upstash Redis credentials. The env template in `.env.example` is grouped by concern; fill in only what your work actually needs. Full details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-   ```bash
-   git clone https://github.com/RLAlpha49/AniCards.git
-   cd AniCards
-   ```
+If you need protected proxy/write routes such as `/api/anilist`, `/api/store-users`, `/api/store-cards`, or `/api/convert`, keep two extra envs in mind: `API_SECRET_TOKEN` is required in production and worth setting locally when you want request-proof behavior to match production, while `TRUSTED_CLIENT_IP_HEADERS` is only for non-default proxy/CDN setups that forward the client IP in something other than the built-in Vercel/Cloudflare headers.
 
-2. **Install dependencies**
+## Built with
 
-   ```bash
-   bun install
-   ```
+Next.js (App Router, Turbopack) · TypeScript · Tailwind CSS · Radix UI · Upstash Redis · AniList GraphQL · Deployed on Vercel
 
-3. **Run the development server**
+## Documentation
 
-   ```bash
-   bun run dev
-   ```
+- [`docs/README.md`](docs/README.md) — documentation index, including the linked draw.io diagrams for runtime, API surface, security, editor flow, and Redis persistence
+- [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md) — full card catalog, variations, and URL parameter reference
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — local setup, env variables, validation commands, contributor workflow
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow, storage model, external services
+- [`docs/API.md`](docs/API.md) — public route ownership and OpenAPI contract
+- [`docs/SECURITY.md`](docs/SECURITY.md) — CSP nonce flow, headers, route protections
+- [`docs/PRIVACY.md`](docs/PRIVACY.md) — data categories, telemetry consent, retention, and deletion
 
-4. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
+## Contributing
 
-## 🤝 Contributing
+Pull requests are welcome. Fork the repo, cut a feature branch, run the relevant validation commands from `docs/DEVELOPMENT.md`, and open a PR. If your change touches a public route, update [`openapi.yaml`](openapi.yaml) in the same PR.
 
-Contributions are very welcome! Here's how you can contribute:
+Before broad repo changes, read `docs/DEVELOPMENT.md` for the Bun-first workflow and `AGENTS.md` for repo-specific execution rules. The main implementation guardrails live in `.github/instructions/nextjs.instructions.md`, `.github/instructions/reactjs.instructions.md`, `.github/instructions/security-and-owasp.instructions.md`, and `.github/instructions/performance-optimization.instructions.md`.
 
-1. Fork the repository.
-2. Create your feature branch:
+If you're scaffolding or refactoring shared UI, treat `components.json` as the source of truth for `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`). For public-contract changes, use `docs/README.md#stable-contract-index` as the jump table so the API, architecture, security, and privacy docs stay in sync.
 
-    ```bash
-    git checkout -b feature/your-feature-name
-    ```
+For new card ideas — a layout concept, a stat breakdown you'd personally use, a color scheme — open an [issue](https://github.com/RLAlpha49/AniCards/issues/new) with a description or sketch. Whatever communicates the idea.
 
-3. Commit your changes:
+Found a bug? Check [existing issues](https://github.com/RLAlpha49/AniCards/issues) first, then open a new one if nothing matches.
 
-    ```bash
-    git commit -m 'Add some amazing feature'
-    ```
+## License
 
-4. Push your branch:
-
-    ```bash
-    git push origin feature/your-feature-name
-    ```
-
-5. Open a Pull Request and describe your changes in detail.
-
-## 🐛 Issues & Feature Requests
-
-Found a bug or have an idea for improvement? Let me know!
-
-1. Check the existing [issues](https://github.com/RLAlpha49/AniCards/issues).
-2. If your issue or idea isn't listed, [open a new issue](https://github.com/RLAlpha49/AniCards/issues/new).
-
-## 📄 License
-
-Distributed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+MIT. See [LICENSE](LICENSE).
 
 ---
 
-**Disclaimer**: AniCards is not affiliated with AniList.co. Use of AniList's API is subject to their terms of service.
+**Disclaimer**: AniCards is an independent project with no affiliation to AniList.co. API usage is governed by their terms of service.

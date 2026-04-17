@@ -1,46 +1,149 @@
-"use client";
+import type { Metadata } from "next";
 
-import { useState } from "react";
-import PageShell from "@/components/PageShell";
-import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
-import { LoadingOverlay } from "@/components/LoadingSpinner";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePageSEO } from "@/hooks/usePageSEO";
-import { SearchHeroSection } from "@/components/search/SearchHeroSection";
-import { SearchForm } from "@/components/search/SearchForm";
+import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
+import { SectionReveal } from "@/components/marketing/SectionReveal";
+import { SearchCapabilities } from "@/components/search/SearchCapabilities";
+import { SearchCTA } from "@/components/search/SearchCTA";
+import { SearchJourney } from "@/components/search/SearchJourney";
+import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
+import {
+  buildUserLookupPath,
+  generateMetadata as createMetadata,
+  getBlankSearchLookupError,
+  getSearchLookupMode,
+  getSearchLookupValidationError,
+  getSearchPagePrefillQuery,
+  getSearchPageSEOConfig,
+  normalizeSearchLookupInput,
+} from "@/lib/seo";
 
-/**
- * Renders the AniList user search page with modern styling matching
- * the home and examples pages.
- * @returns The markup for the search page.
- * @source
- */
-export default function UserSearchPage() {
-  usePageSEO("search");
+import LoadingPreview from "./loading";
+import SearchHeroShell from "./SearchHeroShell";
 
-  const [loading, setLoading] = useState(false);
+type SearchLookupAttempt = {
+  fallbackHref: string;
+  mode: "username" | "userId";
+  query: string;
+};
+
+function buildInitialSearchLookupState(params: {
+  mode?: string;
+  query?: string;
+}): {
+  initialFieldError?: string;
+  initialLookupAttempt?: SearchLookupAttempt;
+} {
+  if (params.query === undefined) {
+    return {};
+  }
+
+  const requestedMode = getSearchLookupMode(params.mode);
+  const normalizedLookup = normalizeSearchLookupInput(
+    params.query,
+    requestedMode,
+  );
+
+  if (!normalizedLookup) {
+    return {
+      initialFieldError: getBlankSearchLookupError(requestedMode),
+    };
+  }
+
+  if (!normalizedLookup.ok) {
+    return {
+      initialFieldError: getSearchLookupValidationError(
+        requestedMode,
+        normalizedLookup.reason,
+      ),
+    };
+  }
+
+  return {
+    initialLookupAttempt: {
+      fallbackHref:
+        normalizedLookup.mode === "userId"
+          ? buildUserLookupPath({ userId: normalizedLookup.query })
+          : buildUserLookupPath({ username: normalizedLookup.query }),
+      mode: normalizedLookup.mode,
+      query: normalizedLookup.query,
+    },
+  };
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    mode?: string;
+    query?: string;
+  }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+
+  return createMetadata(
+    getSearchPageSEOConfig({
+      mode: params.mode,
+      query: params.query,
+    }),
+  );
+}
+
+export default async function UserSearchPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{
+    mode?: string;
+    query?: string;
+  }>;
+}>) {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
+  const resolvedSearchParams = await searchParams;
+  const initialSearchMode = getSearchLookupMode(resolvedSearchParams.mode);
+  const initialSearchValue = getSearchPagePrefillQuery(
+    resolvedSearchParams.query,
+    initialSearchMode,
+  );
+  const { initialFieldError, initialLookupAttempt } =
+    buildInitialSearchLookupState(resolvedSearchParams);
 
   return (
-    <ErrorBoundary
-      resetKeys={[loading ? "loading" : "idle"]}
-      onReset={() => setLoading(false)}
-    >
-      <div className="relative h-full w-full overflow-hidden">
-        {loading && <LoadingOverlay text="Searching for user..." />}
+    <>
+      <StructuredDataScript page="search" />
+      <div className="relative min-h-screen">
+        <MarketingBackdrop />
+        <SearchHeroShell
+          initialFieldError={initialFieldError}
+          initialLookupAttempt={initialLookupAttempt}
+          initialSearchMode={initialSearchMode}
+          initialSearchValue={initialSearchValue}
+        />
 
-        <PageShell mainClassName="h-full" variant="none">
-          <section className="relative h-full w-full overflow-hidden">
-            <FloatingCardsLayer layout="search" />
+        <SectionReveal
+          variant="lineExpand"
+          className="gold-line-thick mx-auto max-w-[60%] origin-center"
+        />
 
-            <div className="container relative z-10 mx-auto flex h-full flex-col items-center justify-center px-4 py-20">
-              <SearchHeroSection />
-              <div className="mt-12 flex w-full justify-center">
-                <SearchForm onLoadingChange={setLoading} />
-              </div>
-            </div>
-          </section>
-        </PageShell>
+        <SectionReveal>
+          <SearchCapabilities />
+        </SectionReveal>
+
+        <SectionReveal
+          variant="lineExpand"
+          className="gold-line mx-auto max-w-[40%] origin-center"
+        />
+
+        <SectionReveal>
+          <SearchJourney />
+        </SectionReveal>
+
+        <SectionReveal>
+          <SearchCTA />
+        </SectionReveal>
       </div>
-    </ErrorBoundary>
+    </>
   );
 }

@@ -6,7 +6,7 @@ applyTo: "components/**, app/**, hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
 
 # ReactJS Development Instructions
 
-Instructions for building high-quality ReactJS applications with modern patterns, hooks, and best practices following the official React documentation at https://react.dev.
+Instructions for building high-quality ReactJS applications with modern patterns, hooks, and best practices following the official React documentation at <https://react.dev>.
 
 ## Project Context
 
@@ -14,8 +14,10 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - TypeScript for type safety (when applicable)
 - Functional components with hooks as default
 - Follow React's official style guide and best practices
-- Use modern build tools (Vite, Create React App, or custom Webpack setup)
+- This repository runs React inside Next.js 16 App Router on Bun; do not recommend Vite, Create React App, or custom Webpack setup unless the user explicitly asks to change tooling
+- Use `docs/DEVELOPMENT.md` and `package.json` as the source of truth for Bun-first install, validation, and test command names; do not translate examples to npm, yarn, or pnpm by default
 - Implement proper component composition and reusability patterns
+- In this repository, shared UI lives in `components/`, route code lives in `app/`, reusable hooks live in `hooks/`, and browser E2E coverage lives in `tests/e2e/` with Playwright
 
 ## Development Standards
 
@@ -51,9 +53,9 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - Use `useState` for local component state
 - Implement `useReducer` for complex state logic
 - Leverage `useContext` for sharing state across component trees
-- Consider external state management (Redux Toolkit, Zustand) for complex applications
-- Implement proper state normalization and data structures
-- Use React Query or SWR for server state management
+- Prefer Server Components, route handlers, and shared `lib/` utilities for server-backed data instead of adding client-state libraries by default
+- Avoid introducing Redux Toolkit, React Query, SWR, Apollo Client, or similar libraries unless the user explicitly asks or the repository already uses them in the area you're changing
+- Implement proper state normalization and data structures when client state genuinely needs it
 
 ### Hooks and Effects
 
@@ -66,9 +68,10 @@ Instructions for building high-quality ReactJS applications with modern patterns
 
 ### Styling
 
-- Use CSS Modules, Styled Components, or modern CSS-in-JS solutions
+- Use Tailwind CSS utilities and the existing shared primitives/components as the default styling approach
+- Treat `components.json` as the shared `shadcn/ui` scaffolding source of truth for aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`)
 - Implement responsive design with mobile-first approach
-- Follow BEM methodology or similar naming conventions for CSS classes
+- Keep global tokens and resets in `app/globals.css`; avoid introducing CSS-in-JS or alternate styling stacks unless the user explicitly asks
 - Use CSS custom properties (variables) for theming
 - Implement consistent spacing, typography, and color systems
 - Ensure accessibility with proper ARIA attributes and semantic HTML
@@ -84,7 +87,8 @@ Instructions for building high-quality ReactJS applications with modern patterns
 
 ### Data Fetching
 
-- Use modern data fetching libraries (React Query, SWR, Apollo Client)
+- Prefer Next.js App Router data flows: async Server Components, route handlers, and shared `lib/` server utilities
+- When client-side fetching is required, follow existing repository fetch patterns instead of adding React Query, SWR, Apollo Client, or similar libraries by default
 - Implement proper loading, error, and success states
 - Handle race conditions and request cancellation
 - Use optimistic updates for better user experience
@@ -122,8 +126,9 @@ Instructions for building high-quality ReactJS applications with modern patterns
 ### Testing
 
 - Write unit tests for components using React Testing Library
+- Run unit tests with `bun run test:unit`
 - Test component behavior, not implementation details
-- Use Jest for test runner and assertion library
+- Use Playwright under `tests/e2e/` when route or browser behavior changes need end-to-end coverage
 - Implement integration tests for complex component interactions
 - Mock external dependencies and API calls appropriately
 - Test accessibility features and keyboard navigation

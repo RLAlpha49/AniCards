@@ -1,0 +1,3766 @@
+"use client";
+
+// Composes the user-page editor shell: data loading, autosave/draft recovery,
+// keyboard shortcuts, filtering, and bulk actions all meet here so individual
+// card tiles can stay focused on per-card rendering and controls.
+
+import { motion } from "framer-motion";
+import {
+  Activity,
+  AlertCircle,
+  ArrowUp,
+  BarChart3,
+  BookOpen,
+  CheckSquare,
+  ChevronsDown,
+  ChevronsUp,
+  ChevronsUpDown,
+  Clapperboard,
+  Download,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Info,
+  Layers,
+  LayoutGrid,
+  Library,
+  MoreHorizontal,
+  Redo2,
+  RotateCcw,
+  Save,
+  Search,
+  SlidersHorizontal,
+  Square,
+  Sun,
+  Trash2,
+  Undo2,
+  UserPlus,
+} from "lucide-react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTheme } from "next-themes";
+import {
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
+import { shallow as shallowEqual } from "zustand/shallow";
+
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/AlertDialog";
+import { Button } from "@/components/ui/Button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/Tooltip";
+import { useCardAutoSave } from "@/hooks/useCardAutoSave";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
+import {
+  flushUserPageDraftBackup,
+  useUserPageDraftBackup,
+} from "@/hooks/useUserPageDraftBackup";
+import {
+  getMotionSafeScrollBehavior,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
+import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
+import { statCardTypes } from "@/lib/card-types";
+import {
+  buildLocalEditsPatch,
+  isCardCustomized,
+  useUserPageEditor,
+} from "@/lib/stores/user-page-editor";
+import type { LoadingPhase } from "@/lib/types/loading";
+import {
+  clearUserPageDraft,
+  clearUserPageExitSaveFallback,
+  readUserPageDraft,
+  readUserPageExitSaveFallback,
+} from "@/lib/user-page-editor-draft";
+import {
+  makeWorkspaceBackup,
+  stringifyWorkspaceBackup,
+} from "@/lib/user-page-settings-io";
+import {
+  consumePendingSettingsTemplateApply,
+  readSettingsTemplatesFromStorage,
+  rememberLastSuccessfulUserPageRoute,
+} from "@/lib/user-page-settings-templates";
+import {
+  EDITOR_STARTER_STYLES,
+  type EditorStarterStyle,
+} from "@/lib/user-page-starters";
+import { cn, trimOuterRepeatedCharacter } from "@/lib/utils";
+
+import {
+  BulkConfirmDialog,
+  type BulkConfirmPreviewItem,
+} from "./bulk/BulkConfirmDialog";
+import {
+  CardCategorySection,
+  type CardTileDragHandleProps,
+} from "./CardCategorySection";
+import { CardTile } from "./CardTile";
+import { CommandPalette, type CommandPaletteCommand } from "./CommandPalette";
+import { BulkActionLiveRegion } from "./editor/BulkActionLiveRegion";
+import { EditorNotices } from "./editor/EditorNotices";
+import { useEditorTour } from "./editor/EditorTour";
+import { ReorderModeHint } from "./editor/ReorderModeHint";
+import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
+import {
+  appendCardSearchToken,
+  CARD_SEARCH_SYNTAX_HINTS,
+  CustomFilter,
+  parseCustomFilterParam,
+  prefetchCardFilteringFuzzySearch,
+  useCardFiltering,
+} from "./hooks/useCardFiltering";
+import { useNewUserSetup } from "./hooks/useNewUserSetup";
+import { useUserDataLoader } from "./hooks/useUserDataLoader";
+import { UserPageHeader } from "./UserPageHeader";
+
+const loadBulkActionsToolbar = () => import("./BulkActionsToolbar");
+const LazyBulkActionsToolbar = dynamic(
+  () => loadBulkActionsToolbar().then((mod) => mod.BulkActionsToolbar),
+  { loading: () => null },
+);
+
+const loadUserHelpDialog = () => import("./UserHelpDialog");
+const LazyUserHelpDialog = dynamic(
+  () => loadUserHelpDialog().then((mod) => mod.UserHelpDialog),
+  { loading: () => null },
+);
+
+type TooltipTriggerMode = "enabled" | "disabled";
+
+function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
+  return mode === "disabled" ? (
+    <span className="inline-flex">{child}</span>
+  ) : (
+    child
+  );
+}
+
+function ShortcutHint({ children }: Readonly<{ children: string }>) {
+  return (
+    <kbd className="
+      ml-2 inline-flex items-center border border-primary-foreground/25 bg-primary-foreground/10
+      px-1.5 py-0.5 font-mono text-[10px] text-primary-foreground
+    ">
+      {children}
+    </kbd>
+  );
+}
+
+function InfoDisclosureButton({
+  ariaLabel,
+  content,
+  prefersTapDisclosure,
+  className,
+  dataTestId,
+}: Readonly<{
+  ariaLabel: string;
+  content: ReactNode;
+  prefersTapDisclosure: boolean;
+  className?: string;
+  dataTestId?: string;
+}>) {
+  const trigger = (
+    <button
+      type="button"
+      data-testid={dataTestId}
+      className={cn(
+        "flex items-center justify-center text-muted-foreground transition-colors",
+        "hover:bg-gold/5 hover:text-foreground",
+        `
+          focus:outline-none
+          focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+        `,
+        className,
+      )}
+      aria-label={ariaLabel}
+    >
+      <Info className="size-4" aria-hidden="true" />
+    </button>
+  );
+
+  if (prefersTapDisclosure) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent side="top" className="max-w-xs text-xs/relaxed">
+          {content}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-xs text-xs/relaxed"
+        >
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+type EditorCardRenderContext = {
+  dragHandleProps?: CardTileDragHandleProps;
+  isDragging?: boolean;
+  reorderControls?: {
+    canMoveEarlier: boolean;
+    canMoveLater: boolean;
+    onMoveEarlier: () => void;
+    onMoveLater: () => void;
+    position: number;
+    total: number;
+  };
+};
+
+type EditorModChordHandlers = Record<string, (event: KeyboardEvent) => void>;
+
+type ReorderCardsInScope = (opts: {
+  activeId: string;
+  overId: string;
+  scopeIds?: readonly string[];
+}) => void;
+
+const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
+  idle: "Preparing...",
+  checking: "Checking your profile...",
+  setting_up: "Setting up your profile...",
+  fetching_anilist: "Fetching your stats from AniList...",
+  saving: "Saving your profile...",
+  loading_cards: "Loading your cards...",
+  complete: "Ready!",
+  error: "Something went wrong",
+};
+
+function UserPageEditorLoadingScreen(
+  props: Readonly<{
+    loadingPhase: LoadingPhase;
+    expectedCardCount?: number;
+    prefersSimplifiedMotion: boolean;
+  }>,
+) {
+  const loadingMessage = useMemo(() => {
+    if (props.loadingPhase === "loading_cards" && props.expectedCardCount) {
+      return `Loading ${props.expectedCardCount} cards...`;
+    }
+    return LOADING_PHASE_MESSAGES[props.loadingPhase] || "Loading...";
+  }, [props.expectedCardCount, props.loadingPhase]);
+  const isSettingUp =
+    props.loadingPhase === "setting_up" ||
+    props.loadingPhase === "fetching_anilist" ||
+    props.loadingPhase === "saving";
+
+  return (
+    <div className="
+      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+    ">
+      <motion.div
+        initial={
+          props.prefersSimplifiedMotion ? false : { opacity: 0, scale: 0.95 }
+        }
+        animate={{ opacity: 1, scale: 1 }}
+        transition={
+          props.prefersSimplifiedMotion ? NO_MOTION_TRANSITION : undefined
+        }
+        className="flex flex-col items-center gap-6"
+      >
+        {isSettingUp ? (
+          <>
+            <div className="relative">
+              <div className="
+                flex size-20 items-center justify-center rounded-full bg-linear-to-br from-gold/15
+                to-amber-100
+                dark:from-gold/10 dark:to-amber-900/20
+              ">
+                <UserPlus className="size-10 text-gold dark:text-gold" />
+              </div>
+              <motion.div
+                className="absolute -inset-1 rounded-full border-2 border-gold/50"
+                animate={
+                  props.prefersSimplifiedMotion
+                    ? undefined
+                    : { scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }
+                }
+                transition={
+                  props.prefersSimplifiedMotion
+                    ? undefined
+                    : { duration: 1.5, repeat: Infinity }
+                }
+              />
+            </div>
+            <div className="text-center">
+              <h2 className="font-display text-xl text-foreground">
+                Welcome to AniCards!
+              </h2>
+              <p className="mt-2 font-body-serif text-muted-foreground">
+                {loadingMessage}
+              </p>
+            </div>
+            <LoadingSpinner size="md" />
+          </>
+        ) : (
+          <LoadingSpinner size="lg" text={loadingMessage} />
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+function UserPageEditorErrorScreen(
+  props: Readonly<{
+    loadError: string;
+    canRetry?: boolean;
+    onRetry?: () => void;
+    prefersSimplifiedMotion: boolean;
+  }>,
+) {
+  return (
+    <div className="
+      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+    ">
+      <motion.div
+        initial={
+          props.prefersSimplifiedMotion ? false : { opacity: 0, scale: 0.95 }
+        }
+        animate={{ opacity: 1, scale: 1 }}
+        transition={
+          props.prefersSimplifiedMotion ? NO_MOTION_TRANSITION : undefined
+        }
+        className="w-full max-w-md"
+      >
+        <div className="
+          relative border-2 border-gold/20 bg-background/80 p-8 text-center shadow-2xl
+          backdrop-blur-xl
+          dark:border-gold/15
+        ">
+          <div className="
+            pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+          " />
+          <div className="
+            pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2 border-gold
+          " />
+          <div className="
+            mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-red-100
+            dark:bg-red-900/30
+          ">
+            <AlertCircle className="size-10 text-red-500" />
+          </div>
+          <h1 className="mb-3 font-display text-2xl text-foreground">
+            Something Went Wrong
+          </h1>
+          <p className="mb-6 font-body-serif text-muted-foreground">
+            {props.loadError}
+          </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            {props.canRetry && props.onRetry ? (
+              <Button
+                type="button"
+                onClick={() => props.onRetry?.()}
+                className="
+                  bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground
+                  shadow-lg shadow-gold/20
+                "
+              >
+                Try again
+              </Button>
+            ) : null}
+
+            <Button
+              asChild
+              variant={props.canRetry ? "outline" : undefined}
+              className={cn(
+                props.canRetry
+                  ? `border-gold/30 text-foreground hover:bg-gold/5 dark:border-gold/20`
+                  : `
+                    bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground
+                    shadow-lg shadow-gold/20
+                  `,
+              )}
+            >
+              <Link href="/search">Search for User</Link>
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+const STATUS_COLOR_CARDS = new Set([
+  "animeStatusDistribution",
+  "mangaStatusDistribution",
+]);
+
+const PIE_PERCENTAGE_CARDS = new Set([
+  "animeGenres",
+  "animeTags",
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "animeStatusDistribution",
+  "animeFormatDistribution",
+  "animeSourceMaterialDistribution",
+  "animeSeasonalPreference",
+  "animeCountry",
+  "mangaGenres",
+  "mangaTags",
+  "mangaStaff",
+  "mangaStatusDistribution",
+  "mangaFormatDistribution",
+  "mangaCountry",
+]);
+
+const FAVORITES_CARDS = new Set([
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+]);
+
+const GROUP_ICONS: Record<string, React.ReactNode> = {
+  "Core Stats": <Layers className="size-5" />,
+  "Anime Deep Dive": <Clapperboard className="size-5" />,
+  "Manga Deep Dive": <BookOpen className="size-5" />,
+  "Activity & Engagement": <Activity className="size-5" />,
+  "Library & Progress": <Library className="size-5" />,
+  "Advanced Analytics": <BarChart3 className="size-5" />,
+};
+const DEFAULT_GROUP_ICON = <LayoutGrid className="size-5" />;
+
+const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
+
+type VisibilityFilter = "all" | "enabled" | "disabled";
+
+function parseVisibilityParam(v: string | null): VisibilityFilter {
+  return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
+}
+
+export type SearchParamsLike = { get: (key: string) => string | null };
+
+export function syncFiltersFromSearchParams(opts: {
+  searchParams: SearchParamsLike;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  customFilter: CustomFilter;
+  setQuery: (v: string) => void;
+  setVisibility: (v: VisibilityFilter) => void;
+  setSelectedGroup: (v: string) => void;
+  setCustomFilter: (v: CustomFilter) => void;
+}) {
+  const q = opts.searchParams.get("q") ?? "";
+  const v = parseVisibilityParam(opts.searchParams.get("visibility"));
+  const g = opts.searchParams.get("group") ?? "All";
+  const c = parseCustomFilterParam(opts.searchParams.get("customFilter"));
+
+  if (q !== opts.query) opts.setQuery(q);
+  if (v !== opts.visibility) opts.setVisibility(v);
+  if (g !== opts.selectedGroup) opts.setSelectedGroup(g);
+  if (c !== opts.customFilter) opts.setCustomFilter(c);
+}
+
+export function buildEditorUrl(opts: {
+  pathname: string;
+  currentSearch: string;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  customFilter: CustomFilter;
+}) {
+  const params = new URLSearchParams(opts.currentSearch);
+
+  if (opts.query) params.set("q", opts.query);
+  else params.delete("q");
+
+  if (opts.visibility && opts.visibility !== "all") {
+    params.set("visibility", opts.visibility);
+  } else {
+    params.delete("visibility");
+  }
+
+  if (opts.selectedGroup && opts.selectedGroup !== "All") {
+    params.set("group", opts.selectedGroup);
+  } else {
+    params.delete("group");
+  }
+
+  if (opts.customFilter && opts.customFilter !== "all") {
+    params.set("customFilter", opts.customFilter);
+  } else {
+    params.delete("customFilter");
+  }
+
+  const search = params.toString();
+  return search ? `${opts.pathname}?${search}` : opts.pathname;
+}
+
+export function useDebouncedEditorUrlSync(opts: {
+  pathname: string;
+  currentSearch: string;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  customFilter: CustomFilter;
+  replace: (url: string) => void;
+  debounceMs?: number;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const url = buildEditorUrl({
+        pathname: opts.pathname,
+        currentSearch: opts.currentSearch,
+        query: opts.query,
+        visibility: opts.visibility,
+        selectedGroup: opts.selectedGroup,
+        customFilter: opts.customFilter,
+      });
+      opts.replace(url);
+    }, opts.debounceMs ?? 300);
+
+    return () => clearTimeout(timer);
+  }, [
+    opts.currentSearch,
+    opts.customFilter,
+    opts.debounceMs,
+    opts.pathname,
+    opts.query,
+    opts.replace,
+    opts.selectedGroup,
+    opts.visibility,
+  ]);
+}
+
+function useUserPageEditorCommandPalette(opts: {
+  userId: string | null;
+  scrollBehavior: ScrollBehavior;
+  visibility: VisibilityFilter;
+  setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  selectAllEnabled: () => void;
+  deselectAll: () => void;
+  toggleTheme: () => void;
+  expandAll: () => void;
+  collapseAll: () => void;
+  exportSettings: () => void;
+  canSaveNow: boolean;
+  canDiscardNow: boolean;
+  saveNow: () => void | Promise<void>;
+  startTour: () => void;
+  openGlobalSettings: () => void;
+  openDiscardDialog: () => void;
+  openHelpDialog: () => void;
+}): {
+  recentActionsStorageKey: string;
+  commandPaletteCommands: CommandPaletteCommand[];
+} {
+  const {
+    userId,
+    scrollBehavior,
+    visibility,
+    setVisibility,
+    searchRef,
+    selectAllEnabled,
+    deselectAll,
+    toggleTheme,
+    expandAll,
+    collapseAll,
+    exportSettings,
+    canSaveNow,
+    canDiscardNow,
+    saveNow,
+    startTour,
+    openGlobalSettings,
+    openDiscardDialog,
+    openHelpDialog,
+  } = opts;
+
+  const recentActionsStorageKey = useMemo(
+    () =>
+      `anicards:user-page-editor:command-palette-recent:v1:${userId ?? "anon"}`,
+    [userId],
+  );
+
+  const toggleVisibilityFilter = useCallback(() => {
+    setVisibility((prev) => {
+      if (prev === "all") return "enabled";
+      if (prev === "enabled") return "disabled";
+      return "all";
+    });
+  }, [setVisibility]);
+
+  const openBulkActions = useCallback(() => {
+    const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+
+    if (!hasSelection) {
+      selectAllEnabled();
+      toast("Selected all enabled cards", {
+        id: "bulk-actions-opened",
+        description:
+          "Use the bulk toolbar at the bottom of the screen to copy/download/edit.",
+      });
+      return;
+    }
+
+    toast("Bulk actions are ready", {
+      id: "bulk-actions-ready",
+      description:
+        "Use the bulk toolbar at the bottom of the screen to copy/download/edit.",
+    });
+  }, [selectAllEnabled]);
+
+  const commandPaletteCommands = useMemo<CommandPaletteCommand[]>(
+    () => [
+      {
+        id: "search-cards",
+        label: "Search cards",
+        description: "Focus the card search box",
+        keywords: ["find", "filter", "query"],
+        group: "editor",
+        shortcutHint: "Ctrl/Cmd+F",
+        icon: <Search className="size-4" aria-hidden="true" />,
+        run: () => {
+          searchRef.current?.focus();
+        },
+      },
+      {
+        id: "toggle-visibility",
+        label: "Toggle visibility filter",
+        description: `Currently: ${visibility}`,
+        keywords: ["enabled", "disabled", "all", "show"],
+        group: "editor",
+        icon:
+          visibility === "disabled" ? (
+            <EyeOff className="size-4" aria-hidden="true" />
+          ) : (
+            <Eye className="size-4" aria-hidden="true" />
+          ),
+        run: toggleVisibilityFilter,
+      },
+      {
+        id: "open-settings",
+        label: "Open global settings",
+        description: "Edit default colors, borders, and advanced options",
+        keywords: ["preferences", "theme", "defaults"],
+        group: "editor",
+        icon: <SlidersHorizontal className="size-4" aria-hidden="true" />,
+        run: openGlobalSettings,
+      },
+      {
+        id: "save",
+        label: "Save changes",
+        description: canSaveNow
+          ? "Save your current edits"
+          : "No changes to save",
+        keywords: ["commit", "store", "persist"],
+        group: "editor",
+        shortcutHint: "Ctrl/Cmd+S",
+        icon: <Save className="size-4" aria-hidden="true" />,
+        disabled: !canSaveNow,
+        run: saveNow,
+      },
+      {
+        id: "discard",
+        label: "Discard changes",
+        description: canDiscardNow
+          ? "Revert to last loaded/saved state"
+          : "Nothing to discard",
+        keywords: ["revert", "reset", "undo all"],
+        group: "editor",
+        icon: <Trash2 className="size-4" aria-hidden="true" />,
+        disabled: !canDiscardNow,
+        run: openDiscardDialog,
+      },
+      {
+        id: "bulk-actions",
+        label: "Bulk actions",
+        description: "Open the bulk actions toolbar",
+        keywords: ["multi", "select", "download", "copy", "bulk edit"],
+        group: "bulk",
+        icon: <Layers className="size-4" aria-hidden="true" />,
+        run: openBulkActions,
+      },
+      {
+        id: "help",
+        label: "Help",
+        description: "View shortcuts and tips",
+        keywords: ["shortcuts", "faq", "guide"],
+        group: "help",
+        shortcutHint: "Ctrl/Cmd+H",
+        icon: <Info className="size-4" aria-hidden="true" />,
+        run: openHelpDialog,
+      },
+      {
+        id: "start-tour",
+        label: "Start tour",
+        description: "Guided walkthrough of the editor",
+        keywords: ["tutorial", "onboarding", "walkthrough"],
+        group: "help",
+        run: startTour,
+      },
+      {
+        id: "select-all",
+        label: "Select all enabled cards",
+        description: "Select all enabled cards for bulk operations",
+        keywords: ["check", "mark", "all"],
+        group: "bulk",
+        shortcutHint: "Ctrl/Cmd+A",
+        icon: <CheckSquare className="size-4" aria-hidden="true" />,
+        run: selectAllEnabled,
+      },
+      {
+        id: "deselect-all",
+        label: "Deselect all cards",
+        description: "Clear the current selection",
+        keywords: ["uncheck", "clear", "none"],
+        group: "bulk",
+        icon: <Square className="size-4" aria-hidden="true" />,
+        run: deselectAll,
+      },
+      {
+        id: "toggle-theme",
+        label: "Toggle dark/light mode",
+        description: "Switch between dark and light appearance",
+        keywords: ["dark", "light", "theme", "mode", "appearance"],
+        group: "editor",
+        icon: <Sun className="size-4" aria-hidden="true" />,
+        run: toggleTheme,
+      },
+      {
+        id: "expand-all",
+        label: "Expand all card categories",
+        description: "Open every category section",
+        keywords: ["open", "unfold", "show all"],
+        group: "editor",
+        icon: <ChevronsDown className="size-4" aria-hidden="true" />,
+        run: expandAll,
+      },
+      {
+        id: "collapse-all",
+        label: "Collapse all card categories",
+        description: "Close every category section",
+        keywords: ["close", "fold", "hide all"],
+        group: "editor",
+        icon: <ChevronsUp className="size-4" aria-hidden="true" />,
+        run: collapseAll,
+      },
+      {
+        id: "export-settings",
+        label: "Download workspace backup",
+        description:
+          "Export cards, ordering, templates, and recovery state as JSON",
+        keywords: ["backup", "download", "json", "export", "restore"],
+        group: "editor",
+        icon: <Download className="size-4" aria-hidden="true" />,
+        run: exportSettings,
+      },
+      {
+        id: "scroll-to-top",
+        label: "Scroll to top",
+        description: "Scroll the page to the top",
+        keywords: ["top", "beginning"],
+        group: "editor",
+        icon: <ArrowUp className="size-4" aria-hidden="true" />,
+        run: () => {
+          window.scrollTo({ top: 0, behavior: scrollBehavior });
+        },
+      },
+    ],
+    [
+      openBulkActions,
+      canDiscardNow,
+      canSaveNow,
+      openDiscardDialog,
+      openGlobalSettings,
+      openHelpDialog,
+      saveNow,
+      searchRef,
+      startTour,
+      visibility,
+      toggleVisibilityFilter,
+      selectAllEnabled,
+      deselectAll,
+      scrollBehavior,
+      toggleTheme,
+      expandAll,
+      collapseAll,
+      exportSettings,
+    ],
+  );
+
+  return { recentActionsStorageKey, commandPaletteCommands };
+}
+
+function isTypingInEditorField(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target as HTMLElement).isContentEditable
+  );
+}
+
+function hasOpenEditorDialog() {
+  return Boolean(
+    globalThis.document?.querySelector(
+      '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
+    ),
+  );
+}
+
+function focusEditorFilterTarget(params: {
+  groupFilterTriggerId: string;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  shiftKey: boolean;
+}) {
+  if (params.shiftKey) {
+    const groupFilterTrigger = globalThis.document?.getElementById(
+      params.groupFilterTriggerId,
+    ) as HTMLButtonElement | null;
+    groupFilterTrigger?.focus();
+    return;
+  }
+
+  params.searchRef.current?.focus();
+}
+
+function shouldBlockBrowserShortcutDefault(key: string, shiftKey: boolean) {
+  return !shiftKey && (key === "d" || key === "h" || key === "s");
+}
+
+function handleEditorEscapeShortcut(params: {
+  clearSelection: () => void;
+  event: KeyboardEvent;
+  isReorderMode: boolean;
+  key: string;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+}): boolean {
+  if (params.key !== "escape") {
+    return false;
+  }
+
+  if (isTypingInEditorField(params.event.target) || hasOpenEditorDialog()) {
+    return true;
+  }
+
+  const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+  if (!hasSelection && !params.isReorderMode) {
+    return true;
+  }
+
+  params.event.preventDefault();
+  if (hasSelection) {
+    params.clearSelection();
+    return true;
+  }
+
+  params.setIsReorderMode(false);
+  return true;
+}
+
+function handleEditorModChord(params: {
+  event: KeyboardEvent;
+  groupFilterTriggerId: string;
+  key: string;
+  modChordHandlers: EditorModChordHandlers;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}): boolean {
+  const isMod = params.event.ctrlKey || params.event.metaKey;
+  if (!isMod || params.event.altKey) {
+    return false;
+  }
+
+  if (!params.event.shiftKey && params.key === "k") {
+    params.event.preventDefault();
+    if (!hasOpenEditorDialog()) {
+      params.setIsCommandPaletteOpen(true);
+    }
+    return true;
+  }
+
+  const shouldPreventDefault = shouldBlockBrowserShortcutDefault(
+    params.key,
+    params.event.shiftKey,
+  );
+
+  if (hasOpenEditorDialog()) {
+    if (shouldPreventDefault) {
+      params.event.preventDefault();
+    }
+    return true;
+  }
+
+  if (isTypingInEditorField(params.event.target)) {
+    if (shouldPreventDefault) {
+      params.event.preventDefault();
+    }
+    return true;
+  }
+
+  if (params.key === "f") {
+    params.event.preventDefault();
+    focusEditorFilterTarget({
+      groupFilterTriggerId: params.groupFilterTriggerId,
+      searchRef: params.searchRef,
+      shiftKey: params.event.shiftKey,
+    });
+    return true;
+  }
+
+  if (params.event.shiftKey) {
+    return false;
+  }
+
+  const action = params.modChordHandlers[params.key];
+  if (!action) {
+    return false;
+  }
+
+  action(params.event);
+  return true;
+}
+
+function useUserPageEditorKeyboardShortcuts(opts: {
+  canEnterReorderMode: boolean;
+  isReorderMode: boolean;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+  clearSelection: () => void;
+  selectAllEnabled: () => void;
+  setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
+  saveNow: () => void | Promise<void>;
+  openHelpDialog: () => void;
+  setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  groupFilterTriggerId: string;
+}): void {
+  useEffect(() => {
+    const handleHelpShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.openHelpDialog();
+    };
+
+    const handleReorderShortcut = (e: KeyboardEvent) => {
+      // Allow exiting even if filters have been applied.
+      // If reordering isn't available, block the browser bookmark shortcut
+      // and provide a gentle hint.
+      if (!opts.isReorderMode && !opts.canEnterReorderMode) {
+        e.preventDefault();
+        toast("Reorder mode is disabled while filters are active.", {
+          id: "reorder-mode-unavailable",
+          description:
+            "Clear the search box and set visibility to All to reorder.",
+        });
+        return;
+      }
+
+      e.preventDefault();
+      const next = opts.isReorderMode ? false : opts.canEnterReorderMode;
+      opts.setIsReorderMode(next);
+    };
+
+    const handleSelectAllShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.selectAllEnabled();
+    };
+
+    const handleEnabledOnlyShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.setVisibility((current) =>
+        current === "enabled" ? "all" : "enabled",
+      );
+    };
+
+    const handleSaveShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.saveNow();
+    };
+
+    const modChordHandlers: EditorModChordHandlers = {
+      h: handleHelpShortcut,
+      d: handleReorderShortcut,
+      a: handleSelectAllShortcut,
+      e: handleEnabledOnlyShortcut,
+      s: handleSaveShortcut,
+    };
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat) return;
+
+      const key = e.key.toLowerCase();
+      if (
+        handleEditorEscapeShortcut({
+          clearSelection: opts.clearSelection,
+          event: e,
+          isReorderMode: opts.isReorderMode,
+          key,
+          setIsReorderMode: opts.setIsReorderMode,
+        })
+      ) {
+        return;
+      }
+
+      handleEditorModChord({
+        event: e,
+        groupFilterTriggerId: opts.groupFilterTriggerId,
+        key,
+        modChordHandlers,
+        searchRef: opts.searchRef,
+        setIsCommandPaletteOpen: opts.setIsCommandPaletteOpen,
+      });
+    };
+
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
+  }, [
+    opts.canEnterReorderMode,
+    opts.clearSelection,
+    opts.groupFilterTriggerId,
+    opts.isReorderMode,
+    opts.openHelpDialog,
+    opts.saveNow,
+    opts.searchRef,
+    opts.selectAllEnabled,
+    opts.setIsCommandPaletteOpen,
+    opts.setIsReorderMode,
+    opts.setVisibility,
+  ]);
+}
+
+type ReorderModeToggleProps = {
+  isReorderMode: boolean;
+  canEnterReorderMode: boolean;
+  onToggle: () => void;
+  dataTour?: string;
+};
+
+function ReorderModeToolbarToggle({
+  isReorderMode,
+  canEnterReorderMode,
+  onToggle,
+  dataTour,
+}: Readonly<ReorderModeToggleProps>) {
+  const isDisabled = !canEnterReorderMode && !isReorderMode;
+
+  const button = (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      aria-pressed={isReorderMode}
+      aria-keyshortcuts="Control+D Meta+D"
+      disabled={isDisabled}
+      onClick={onToggle}
+      data-tour={dataTour}
+      className={cn(
+        "h-9 px-3 text-xs font-medium",
+        isReorderMode
+          ? `
+            border-gold/30 bg-gold/10 text-gold-dim
+            hover:bg-gold/15
+            dark:border-gold/25 dark:bg-gold/10 dark:text-gold
+            dark:hover:bg-gold/15
+          `
+          : `
+            border-gold/15 bg-background text-muted-foreground
+            hover:bg-gold/5 hover:text-foreground
+            dark:border-gold/10
+          `,
+      )}
+      title={
+        canEnterReorderMode
+          ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
+          : "Clear search and set visibility to All to reorder"
+      }
+    >
+      <GripVertical className="mr-1.5 size-3.5" />
+      {isReorderMode ? "Done" : "Reorder"}
+    </Button>
+  );
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? <span className="inline-flex">{button}</span> : button}
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-xs text-xs/relaxed"
+        >
+          {canEnterReorderMode ? (
+            <div className="space-y-2">
+              <p>
+                Drag cards by the handle to reorder within each category.
+                Changes save automatically.
+                <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
+                <ShortcutHint>Esc</ShortcutHint>
+              </p>
+              <p>
+                Prefer step-by-step moves? Each card also exposes reorder
+                options so touch devices can move cards earlier or later without
+                dragging.
+              </p>
+            </div>
+          ) : (
+            <p>
+              Clear the search box and set visibility to <strong>All</strong> to
+              reorder cards.
+              <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
+            </p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function ReorderModeMenuToggle({
+  isReorderMode,
+  canEnterReorderMode,
+  onToggle,
+  dataTour,
+}: Readonly<ReorderModeToggleProps>) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="justify-start"
+      aria-pressed={isReorderMode}
+      aria-keyshortcuts="Control+D Meta+D"
+      disabled={!canEnterReorderMode && !isReorderMode}
+      onClick={onToggle}
+      data-tour={dataTour}
+      title={
+        canEnterReorderMode
+          ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
+          : "Clear search and set visibility to All to reorder"
+      }
+    >
+      <GripVertical className="mr-2 size-4" />
+      {isReorderMode ? "Done reordering" : "Reorder"}
+    </Button>
+  );
+}
+
+function useStableCardEnabledById(): Record<string, boolean> {
+  // Memoize the derived enabled map and preserve the same object reference
+  // when no enabled values changed. This keeps filtering fast and prevents
+  // unrelated per-card updates (variant/colors) from re-rendering the whole
+  // editor by ensuring referential equality for the selector result.
+  const enabledMapRef = useRef<Record<string, boolean> | null>(null);
+
+  return useUserPageEditor(
+    useShallow((s) => {
+      const next: Record<string, boolean> = {};
+      for (const [cardId, cfg] of Object.entries(s.cardConfigs)) {
+        next[cardId] = Boolean(cfg.enabled);
+      }
+
+      const prev = enabledMapRef.current;
+      if (prev && shallowEqual(prev, next)) {
+        return prev;
+      }
+
+      enabledMapRef.current = next;
+      return next;
+    }),
+  );
+}
+
+function useStableCardCustomizedById(): Record<string, boolean> {
+  // Memoize the derived customized map and preserve the same object reference
+  // when no customized values changed. This keeps filtering snappy and prevents
+  // unrelated card updates from re-rendering the full editor.
+  const customizedMapRef = useRef<Record<string, boolean> | null>(null);
+
+  return useUserPageEditor(
+    useShallow((s) => {
+      const next: Record<string, boolean> = {};
+      for (const [cardId, cfg] of Object.entries(s.cardConfigs)) {
+        next[cardId] = isCardCustomized(cfg);
+      }
+
+      const prev = customizedMapRef.current;
+      if (prev && shallowEqual(prev, next)) {
+        return prev;
+      }
+
+      customizedMapRef.current = next;
+      return next;
+    }),
+  );
+}
+
+function recoverUserPageDraft(params: {
+  userId: string;
+  isLoading: boolean;
+  isDirty: boolean;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+  setDraftRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageDraft>>
+  >;
+  setExitSaveFallbackRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageExitSaveFallback>>
+  >;
+  setIsDraftNoticeDismissed: React.Dispatch<React.SetStateAction<boolean>>;
+  autoRecoveredDraftKeyRef: { current: string | null };
+}): void {
+  if (!params.userId || params.isLoading) {
+    return;
+  }
+
+  const next = readUserPageDraft(params.userId);
+  const exitSaveFallbackRecord = readUserPageExitSaveFallback(params.userId);
+  if (!next) {
+    if (exitSaveFallbackRecord) {
+      clearUserPageExitSaveFallback(params.userId);
+    }
+
+    params.setDraftRecord(null);
+    params.setExitSaveFallbackRecord(null);
+    params.setIsDraftNoticeDismissed(false);
+    params.autoRecoveredDraftKeyRef.current = null;
+    return;
+  }
+
+  params.setDraftRecord(next);
+  params.setExitSaveFallbackRecord(exitSaveFallbackRecord);
+
+  if (params.isDirty) {
+    return;
+  }
+
+  if (exitSaveFallbackRecord) {
+    params.setIsDraftNoticeDismissed(false);
+    params.autoRecoveredDraftKeyRef.current = null;
+    return;
+  }
+
+  const draftKey = `${next.userId}:${next.savedAt}`;
+  if (params.autoRecoveredDraftKeyRef.current === draftKey) {
+    return;
+  }
+
+  params.autoRecoveredDraftKeyRef.current = draftKey;
+  params.applyLocalEditsPatch(next.patch);
+
+  if (!useUserPageEditor.getState().isDirty) {
+    clearUserPageDraft(params.userId);
+    clearUserPageExitSaveFallback(params.userId);
+    params.setDraftRecord(null);
+    params.setExitSaveFallbackRecord(null);
+    params.autoRecoveredDraftKeyRef.current = null;
+    return;
+  }
+
+  params.setIsDraftNoticeDismissed(true);
+  toast.success("Recovered unsaved draft", {
+    description:
+      "Your latest local edits were restored automatically so you can continue where you left off.",
+  });
+}
+
+function useContinuityFirstDraftRecovery(params: {
+  userId: string | null;
+  isLoading: boolean;
+  isDirty: boolean;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+}) {
+  const [draftRecord, setDraftRecord] =
+    useState<ReturnType<typeof readUserPageDraft>>(null);
+  const [exitSaveFallbackRecord, setExitSaveFallbackRecord] =
+    useState<ReturnType<typeof readUserPageExitSaveFallback>>(null);
+  const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
+  const autoRecoveredDraftKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!params.userId) {
+      setDraftRecord(null);
+      setExitSaveFallbackRecord(null);
+      setIsDraftNoticeDismissed(false);
+      autoRecoveredDraftKeyRef.current = null;
+      return;
+    }
+
+    recoverUserPageDraft({
+      userId: params.userId,
+      isLoading: params.isLoading,
+      isDirty: params.isDirty,
+      applyLocalEditsPatch: params.applyLocalEditsPatch,
+      setDraftRecord,
+      setExitSaveFallbackRecord,
+      setIsDraftNoticeDismissed,
+      autoRecoveredDraftKeyRef,
+    });
+  }, [
+    params.applyLocalEditsPatch,
+    params.isDirty,
+    params.isLoading,
+    params.userId,
+  ]);
+
+  const handleRestoreDraft = useCallback(() => {
+    if (!draftRecord) return;
+    params.applyLocalEditsPatch(draftRecord.patch);
+    if (params.userId) {
+      clearUserPageExitSaveFallback(params.userId);
+    }
+    setExitSaveFallbackRecord(null);
+    setDraftRecord(null);
+    toast.success(
+      exitSaveFallbackRecord ? "Recovery draft restored" : "Draft restored",
+    );
+  }, [
+    draftRecord,
+    exitSaveFallbackRecord,
+    params.applyLocalEditsPatch,
+    params.userId,
+  ]);
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!params.userId) return;
+    clearUserPageDraft(params.userId);
+    clearUserPageExitSaveFallback(params.userId);
+    setExitSaveFallbackRecord(null);
+    setDraftRecord(null);
+    toast.success(
+      exitSaveFallbackRecord ? "Recovery draft discarded" : "Draft discarded",
+    );
+  }, [exitSaveFallbackRecord, params.userId]);
+
+  return {
+    draftRecord,
+    exitSaveFallbackRecord,
+    setDraftRecord,
+    isDraftNoticeDismissed,
+    setIsDraftNoticeDismissed,
+    handleRestoreDraft,
+    handleDiscardDraft,
+  };
+}
+
+function useEditorPersistenceActions(params: {
+  userId: string | null;
+  reload: () => Promise<void>;
+  saveNow: () => Promise<void>;
+  applyLocalEditsPatch: (
+    patch: NonNullable<ReturnType<typeof readUserPageDraft>>["patch"],
+  ) => void;
+  clearSaveConflict: () => void;
+  discardChanges: () => void;
+  setDraftRecord: React.Dispatch<
+    React.SetStateAction<ReturnType<typeof readUserPageDraft>>
+  >;
+  setIsDiscardDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const handleResolveConflictKeepEdits = useCallback(async () => {
+    if (!params.userId) return;
+
+    const patch = buildLocalEditsPatch(useUserPageEditor.getState());
+
+    try {
+      await params.reload();
+      params.clearSaveConflict();
+
+      if (patch) {
+        params.applyLocalEditsPatch(patch);
+        await params.saveNow();
+      }
+    } catch (err) {
+      console.error("Failed to resolve conflict:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [params]);
+
+  const handleResolveConflictDiscardEdits = useCallback(async () => {
+    try {
+      await params.reload();
+      params.clearSaveConflict();
+    } catch (err) {
+      console.error("Failed to reload latest changes:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [params]);
+
+  const handleDiscardChanges = useCallback(() => {
+    try {
+      params.discardChanges();
+      params.clearSaveConflict();
+      if (params.userId) clearUserPageDraft(params.userId);
+      params.setDraftRecord(null);
+      params.setIsDiscardDialogOpen(false);
+      toast.success("Changes discarded");
+    } catch (err) {
+      console.error("Failed to discard changes:", err);
+      toast.error("Failed to discard changes");
+    }
+  }, [params]);
+
+  return {
+    handleResolveConflictKeepEdits,
+    handleResolveConflictDiscardEdits,
+    handleDiscardChanges,
+  };
+}
+
+function useReorderModeAvailability(opts: {
+  canEnterReorderMode: boolean;
+  isReorderMode: boolean;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  useEffect(() => {
+    if (opts.isReorderMode && !opts.canEnterReorderMode) {
+      opts.setIsReorderMode(false);
+    }
+  }, [opts.canEnterReorderMode, opts.isReorderMode, opts.setIsReorderMode]);
+}
+
+function usePendingSettingsTemplateApplication(params: {
+  isLoading: boolean;
+  userId: string | null;
+}) {
+  useEffect(() => {
+    if (params.isLoading || !params.userId) return;
+
+    const pendingTemplateApply = consumePendingSettingsTemplateApply();
+    if (!pendingTemplateApply) return;
+
+    const store = useUserPageEditor.getState();
+    let template = store.settingsTemplates.find(
+      (entry) => entry.id === pendingTemplateApply.templateId,
+    );
+
+    if (!template) {
+      const persistedTemplate = readSettingsTemplatesFromStorage().find(
+        (entry) => entry.id === pendingTemplateApply.templateId,
+      );
+
+      if (persistedTemplate) {
+        store.importSettingsTemplates([persistedTemplate]);
+        template = useUserPageEditor
+          .getState()
+          .settingsTemplates.find(
+            (entry) => entry.id === pendingTemplateApply.templateId,
+          );
+      }
+    }
+
+    if (!template) {
+      toast.error("Couldn't apply the queued example style", {
+        description: "Try selecting the example again from the gallery.",
+      });
+      return;
+    }
+
+    store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
+    toast.success(
+      `${pendingTemplateApply.templateName ?? template.name} applied`,
+      {
+        description:
+          "This style is now active in Global Settings and saved in your template library.",
+      },
+    );
+  }, [params.isLoading, params.userId]);
+}
+
+const LEAVE_EDITOR_CONFIRMATION_MESSAGE =
+  "You have unsaved editor changes or a save in progress. If you leave now, AniCards may need to restore a local draft when you return. Leave this page?";
+const NON_PAGE_NAVIGATION_PROTOCOLS = new Set(["mailto:", "sms:", "tel:"]);
+
+export function shouldWarnBeforeLeavingEditor(params: {
+  isDirty: boolean;
+  isSaving: boolean;
+  hasConflict: boolean;
+}) {
+  return params.isDirty || params.isSaving || params.hasConflict;
+}
+
+export function shouldPromptForEditorNavigation(params: {
+  currentUrl: string;
+  nextHref: string | null | undefined;
+  target?: string | null;
+  download?: boolean;
+}) {
+  if (!params.nextHref || params.download) return false;
+  if (params.target && params.target !== "_self") return false;
+
+  const current = new URL(params.currentUrl, globalThis.location.origin);
+
+  let next: URL;
+  try {
+    next = new URL(params.nextHref, current);
+  } catch {
+    return false;
+  }
+
+  if (NON_PAGE_NAVIGATION_PROTOCOLS.has(next.protocol)) {
+    return false;
+  }
+
+  if (next.protocol !== "http:" && next.protocol !== "https:") {
+    return false;
+  }
+
+  if (next.origin !== current.origin) {
+    return true;
+  }
+
+  return next.pathname !== current.pathname;
+}
+
+function getClosestNavigatingAnchor(
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  if (!(target instanceof Element)) return null;
+
+  const anchor = target.closest("a[href]");
+  return anchor instanceof HTMLAnchorElement ? anchor : null;
+}
+
+function useUserPageEditorLeaveProtection(params: {
+  currentUrl: string;
+  isActive: boolean;
+  navigate: (href: string) => void;
+  userId: string | null;
+}) {
+  const currentUrlRef = useRef(params.currentUrl);
+
+  useEffect(() => {
+    currentUrlRef.current = params.currentUrl;
+  }, [params.currentUrl]);
+
+  useEffect(() => {
+    if (!params.isActive) {
+      return;
+    }
+
+    const confirmLeave = () =>
+      globalThis.window.confirm(LEAVE_EDITOR_CONFIRMATION_MESSAGE);
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      flushUserPageDraftBackup(params.userId);
+      event.preventDefault();
+    };
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      const anchor = getClosestNavigatingAnchor(event.target);
+      if (!anchor) return;
+
+      if (
+        !shouldPromptForEditorNavigation({
+          currentUrl: currentUrlRef.current,
+          nextHref: anchor.getAttribute("href"),
+          target: anchor.getAttribute("target"),
+          download: anchor.hasAttribute("download"),
+        })
+      ) {
+        return;
+      }
+
+      if (!confirmLeave()) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      flushUserPageDraftBackup(params.userId);
+    };
+
+    const handlePopState = () => {
+      const nextHref = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+
+      if (
+        !shouldPromptForEditorNavigation({
+          currentUrl: currentUrlRef.current,
+          nextHref,
+        })
+      ) {
+        return;
+      }
+
+      if (confirmLeave()) {
+        flushUserPageDraftBackup(params.userId);
+        return;
+      }
+
+      params.navigate(currentUrlRef.current);
+    };
+
+    globalThis.window.addEventListener("beforeunload", handleBeforeUnload);
+    globalThis.document.addEventListener("click", handleDocumentClick, true);
+    globalThis.window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      globalThis.window.removeEventListener("beforeunload", handleBeforeUnload);
+      globalThis.document.removeEventListener(
+        "click",
+        handleDocumentClick,
+        true,
+      );
+      globalThis.window.removeEventListener("popstate", handlePopState);
+    };
+  }, [params.isActive, params.navigate, params.userId]);
+}
+
+function buildEditorCardReorderControls(params: {
+  cardId: string;
+  cardIndex: number;
+  isReorderMode: boolean;
+  reorderCardsInScope: ReorderCardsInScope;
+  scopeIds: readonly string[];
+}): EditorCardRenderContext["reorderControls"] {
+  if (!params.isReorderMode) {
+    return undefined;
+  }
+
+  const previousId = params.scopeIds[params.cardIndex - 1];
+  const nextId = params.scopeIds[params.cardIndex + 1];
+
+  return {
+    canMoveEarlier: previousId !== undefined,
+    canMoveLater: nextId !== undefined,
+    onMoveEarlier: () => {
+      if (previousId === undefined) {
+        return;
+      }
+
+      params.reorderCardsInScope({
+        activeId: params.cardId,
+        overId: previousId,
+        scopeIds: params.scopeIds,
+      });
+    },
+    onMoveLater: () => {
+      if (nextId === undefined) {
+        return;
+      }
+
+      params.reorderCardsInScope({
+        activeId: params.cardId,
+        overId: nextId,
+        scopeIds: params.scopeIds,
+      });
+    },
+    position: params.cardIndex + 1,
+    total: params.scopeIds.length,
+  };
+}
+
+type RenderableCardType = (typeof statCardTypes)[number];
+
+const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
+  props: Readonly<{
+    clearAllFilters: () => void;
+    expandedGroups: Record<string, boolean>;
+    filteredGroupTotals: Record<string, { total: number; enabled: number }>;
+    filteredGroups: Record<string, RenderableCardType[]>;
+    groupIcon: (groupName: string) => ReactNode;
+    groupTotals: Record<string, { total: number; enabled: number }>;
+    handleExpandedChange: (groupName: string, next: boolean) => void;
+    hasActiveFilters: boolean;
+    isCardEnabled: (cardId: string) => boolean;
+    isReorderMode: boolean;
+    layoutVersion: number;
+    renderCardTile: (
+      cardType: RenderableCardType,
+      index: number,
+      ctx?: EditorCardRenderContext,
+    ) => ReactNode;
+    reorderCardsInScope: ReorderCardsInScope;
+    prefersSimplifiedMotion: boolean;
+    setQuery: (value: string) => void;
+    setVisibility: (value: VisibilityFilter) => void;
+    visibleGroupNames: readonly string[];
+  }>,
+) {
+  if (props.visibleGroupNames.length === 0) {
+    return (
+      <div className="
+        relative border-2 border-gold/20 bg-gold/3 p-10 text-center shadow-xl backdrop-blur-sm
+        dark:border-gold/15 dark:bg-gold/3
+      ">
+        <div className="
+          pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+        " />
+        <div className="
+          pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2 border-gold
+        " />
+        <p className="font-display text-base tracking-widest text-foreground uppercase">
+          No cards match your filters
+        </p>
+        <p className="mt-2 font-body-serif text-sm text-muted-foreground">
+          Try clearing the search box or switching visibility.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => props.setQuery("")}
+          >
+            Clear search
+          </Button>
+
+          {props.hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={props.clearAllFilters}
+            >
+              Clear all filters
+            </Button>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => props.setVisibility("all")}
+          >
+            Show all
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6" data-tour="card-groups">
+      {Object.entries(props.filteredGroups).map(
+        ([groupName, filteredCards], index) => {
+          const scopeIds = filteredCards.map((cardType) => cardType.id);
+          const stats = props.filteredGroupTotals[groupName] ??
+            props.groupTotals[groupName] ?? {
+              total: filteredCards.length,
+              enabled: filteredCards.filter((cardType) =>
+                props.isCardEnabled(cardType.id),
+              ).length,
+            };
+
+          return (
+            <motion.div
+              key={groupName}
+              initial={
+                props.prefersSimplifiedMotion ? false : { opacity: 0, y: 14 }
+              }
+              animate={{ opacity: 1, y: 0 }}
+              transition={
+                props.prefersSimplifiedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { delay: Math.min(index * 0.04, 0.25) }
+              }
+            >
+              <CardCategorySection
+                title={groupName}
+                icon={props.groupIcon(groupName)}
+                cardCount={stats.total}
+                enabledCount={stats.enabled}
+                expanded={props.expandedGroups[groupName] ?? true}
+                onExpandedChange={(next) =>
+                  props.handleExpandedChange(groupName, next)
+                }
+                defaultExpanded={index === 0}
+                cards={filteredCards}
+                renderCard={(cardType, cardIndex, ctx) => {
+                  const reorderControls = buildEditorCardReorderControls({
+                    cardId: cardType.id,
+                    cardIndex,
+                    isReorderMode: props.isReorderMode,
+                    reorderCardsInScope: props.reorderCardsInScope,
+                    scopeIds,
+                  });
+
+                  return props.renderCardTile(cardType, cardIndex, {
+                    dragHandleProps: ctx?.dragHandleProps,
+                    isDragging: ctx?.isDragging,
+                    reorderControls,
+                  });
+                }}
+                getCardKey={(cardType) => cardType.id}
+                scrollMarginKey={props.layoutVersion}
+                reorderable={props.isReorderMode}
+                onReorder={({ activeId, overId, scopeIds }) => {
+                  props.reorderCardsInScope({ activeId, overId, scopeIds });
+                }}
+              />
+            </motion.div>
+          );
+        },
+      )}
+    </div>
+  );
+});
+
+EditorCardGroupsPanel.displayName = "EditorCardGroupsPanel";
+
+function getBulkActionDescription(count: number, action: string) {
+  if (count === 0) {
+    return undefined;
+  }
+
+  return `${count} cards ${action}`;
+}
+
+function openBulkDialogIfCardsAvailable(
+  cardCount: number,
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>,
+) {
+  if (cardCount === 0) {
+    return;
+  }
+
+  setOpen(true);
+}
+
+function runBulkCardAction(params: {
+  action: () => void;
+  successMessage: string;
+  successDescription?: string;
+  errorMessage: string;
+  logLabel: string;
+  toastId: string;
+  onFinally?: () => void;
+}) {
+  try {
+    params.action();
+    toast.success(params.successMessage, {
+      description: params.successDescription,
+      id: params.toastId,
+    });
+  } catch (err) {
+    console.error(`${params.logLabel}:`, err);
+    toast.error(params.errorMessage, {
+      id: params.toastId,
+    });
+  } finally {
+    params.onFinally?.();
+  }
+}
+
+type EditorBulkActionsProps = {
+  expandAll: () => void;
+  collapseAll: () => void;
+  isReorderMode: boolean;
+  canEnterReorderMode: boolean;
+  onToggleReorderMode: () => void;
+  undoBulk: () => void;
+  redoBulk: () => void;
+  canUndoBulk: boolean;
+  canRedoBulk: boolean;
+  allCardCount: number;
+  enabledCardCount: number;
+  enableAllCards: () => void;
+  disableAllCards: () => void;
+  resetAllCardsToGlobal: () => void;
+  isDisableAllDialogOpen: boolean;
+  setIsDisableAllDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isResetDialogOpen: boolean;
+  setIsResetDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  enabledCardsPreviewItems: BulkConfirmPreviewItem[];
+  allCardsPreviewItems: BulkConfirmPreviewItem[];
+  bulkLastMessage: string | null;
+};
+
+function EditorBulkActions({
+  expandAll,
+  collapseAll,
+  isReorderMode,
+  canEnterReorderMode,
+  onToggleReorderMode,
+  undoBulk,
+  redoBulk,
+  canUndoBulk,
+  canRedoBulk,
+  allCardCount,
+  enabledCardCount,
+  enableAllCards,
+  disableAllCards,
+  resetAllCardsToGlobal,
+  isDisableAllDialogOpen,
+  setIsDisableAllDialogOpen,
+  isResetDialogOpen,
+  setIsResetDialogOpen,
+  enabledCardsPreviewItems,
+  allCardsPreviewItems,
+  bulkLastMessage,
+}: Readonly<EditorBulkActionsProps>) {
+  const handleEnableAllCards = useCallback(() => {
+    if (allCardCount === 0) {
+      return;
+    }
+
+    runBulkCardAction({
+      action: enableAllCards,
+      successMessage: "Enabled all cards",
+      successDescription: getBulkActionDescription(
+        allCardCount,
+        "are now enabled.",
+      ),
+      errorMessage: "Failed to enable all cards",
+      logLabel: "Failed to enable all cards",
+      toastId: "enable-all-cards",
+    });
+  }, [allCardCount, enableAllCards]);
+
+  const handleOpenDisableAllDialog = useCallback(() => {
+    openBulkDialogIfCardsAvailable(enabledCardCount, setIsDisableAllDialogOpen);
+  }, [enabledCardCount, setIsDisableAllDialogOpen]);
+
+  const handleOpenResetDialog = useCallback(() => {
+    setIsResetDialogOpen(true);
+  }, [setIsResetDialogOpen]);
+
+  const handleConfirmDisableAll = useCallback(() => {
+    runBulkCardAction({
+      action: disableAllCards,
+      successMessage: "Disabled all enabled cards",
+      successDescription: getBulkActionDescription(
+        enabledCardCount,
+        "disabled. You can undo this.",
+      ),
+      errorMessage: "Failed to disable all cards",
+      logLabel: "Failed to disable all cards",
+      toastId: "disable-all-cards",
+      onFinally: () => setIsDisableAllDialogOpen(false),
+    });
+  }, [disableAllCards, enabledCardCount, setIsDisableAllDialogOpen]);
+
+  const handleConfirmResetAll = useCallback(() => {
+    runBulkCardAction({
+      action: resetAllCardsToGlobal,
+      successMessage: "Reset all cards to global settings",
+      successDescription: getBulkActionDescription(
+        allCardCount,
+        "reset. You can undo this.",
+      ),
+      errorMessage: "Failed to reset all cards",
+      logLabel: "Failed to reset all cards",
+      toastId: "reset-all-cards",
+      onFinally: () => setIsResetDialogOpen(false),
+    });
+  }, [allCardCount, resetAllCardsToGlobal, setIsResetDialogOpen]);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                onClick={expandAll}
+              >
+                <ChevronsUpDown className="size-4" />
+                <span className="sr-only">Expand all</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Expand all categories
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                onClick={collapseAll}
+              >
+                <ChevronsUpDown className="size-4 rotate-90" />
+                <span className="sr-only">Collapse all</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="text-xs">
+              Collapse all categories
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <div className="h-5 w-px bg-gold/15" />
+
+        <ReorderModeToolbarToggle
+          isReorderMode={isReorderMode}
+          canEnterReorderMode={canEnterReorderMode}
+          onToggle={onToggleReorderMode}
+          dataTour="reorder-toggle"
+        />
+
+        <div className="h-5 w-px bg-gold/15" />
+
+        <div className="hidden items-center gap-1 sm:flex">
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  onClick={undoBulk}
+                  disabled={!canUndoBulk}
+                >
+                  <Undo2 className="size-4" />
+                  <span className="sr-only">Undo</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                {canUndoBulk ? "Undo last bulk action" : "Nothing to undo"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  onClick={redoBulk}
+                  disabled={!canRedoBulk}
+                >
+                  <Redo2 className="size-4" />
+                  <span className="sr-only">Redo</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                {canRedoBulk ? "Redo last bulk action" : "Nothing to redo"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <div className="h-5 w-px bg-gold/15" />
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="
+                    h-8 px-2 text-xs font-medium text-gold-dim
+                    hover:bg-gold/8
+                    dark:text-gold
+                  "
+                  onClick={handleEnableAllCards}
+                >
+                  <Eye className="size-3.5 lg:mr-1" />
+                  <span className="hidden lg:inline">Enable All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Enable all cards
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {getTooltipTriggerChild(
+                  enabledCardCount === 0 ? "disabled" : "enabled",
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="
+                      h-8 px-2 text-xs font-medium text-red-600
+                      hover:bg-red-50/80
+                      dark:text-red-400
+                      dark:hover:bg-red-950/30
+                    "
+                    onClick={handleOpenDisableAllDialog}
+                    disabled={enabledCardCount === 0}
+                  >
+                    <EyeOff className="size-3.5 lg:mr-1" />
+                    <span className="hidden lg:inline">Disable All</span>
+                  </Button>,
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Disable all cards
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="
+                    h-8 px-2 text-xs font-medium text-muted-foreground
+                    hover:bg-gold/5 hover:text-foreground
+                  "
+                  onClick={handleOpenResetDialog}
+                >
+                  <RotateCcw className="size-3.5 lg:mr-1" />
+                  <span className="hidden lg:inline">Reset All</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="text-xs">
+                Reset all cards to global settings
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <div className="ml-auto sm:hidden">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+              >
+                <MoreHorizontal className="size-4" />
+                <span className="sr-only">More actions</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="end">
+              <div className="flex flex-col gap-1">
+                <ReorderModeMenuToggle
+                  isReorderMode={isReorderMode}
+                  canEnterReorderMode={canEnterReorderMode}
+                  onToggle={onToggleReorderMode}
+                  dataTour="reorder-toggle"
+                />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={undoBulk}
+                  disabled={!canUndoBulk}
+                >
+                  <Undo2 className="mr-2 size-4" />
+                  Undo
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={redoBulk}
+                  disabled={!canRedoBulk}
+                >
+                  <Redo2 className="mr-2 size-4" />
+                  Redo
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-gold-dim dark:text-gold"
+                  onClick={handleEnableAllCards}
+                >
+                  <Eye className="mr-2 size-4" />
+                  Enable All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-red-600 dark:text-red-400"
+                  onClick={handleOpenDisableAllDialog}
+                  disabled={enabledCardCount === 0}
+                >
+                  <EyeOff className="mr-2 size-4" />
+                  Disable All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-muted-foreground"
+                  onClick={handleOpenResetDialog}
+                >
+                  <RotateCcw className="mr-2 size-4" />
+                  Reset All
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      <BulkConfirmDialog
+        open={isDisableAllDialogOpen}
+        onOpenChange={setIsDisableAllDialogOpen}
+        title="Disable all cards?"
+        description={
+          <>
+            This will hide all currently enabled cards.
+            <br />
+            <br />
+            You can undo this afterwards.
+          </>
+        }
+        confirmLabel="Disable all"
+        confirmDestructive
+        previewItems={enabledCardsPreviewItems}
+        totalAffected={enabledCardCount}
+        onConfirm={handleConfirmDisableAll}
+      />
+
+      <BulkConfirmDialog
+        open={isResetDialogOpen}
+        onOpenChange={setIsResetDialogOpen}
+        title="Reset all cards to global settings?"
+        description={
+          <>
+            This will reset <strong>all your cards</strong> to use the global
+            color, border, and advanced settings. Any custom per-card colors,
+            borders, and advanced settings will be removed.
+            <br />
+            <br />
+            You can undo this afterwards.
+          </>
+        }
+        confirmLabel="Reset all"
+        confirmDestructive
+        previewItems={allCardsPreviewItems}
+        totalAffected={allCardCount}
+        onConfirm={handleConfirmResetAll}
+      />
+
+      <BulkActionLiveRegion message={bulkLastMessage} />
+      <ReorderModeHint isVisible={isReorderMode} />
+    </>
+  );
+}
+
+function SelectedBulkActionsToolbarGate() {
+  const selectedCount = useUserPageEditor(
+    (state) => state.selectedCardIds.size,
+  );
+  return selectedCount > 0 ? <LazyBulkActionsToolbar /> : null;
+}
+
+function canSaveEditorChanges(params: {
+  userId: string | null;
+  isDirty: boolean;
+  isSaving: boolean;
+  hasConflict: boolean;
+}) {
+  return (
+    Boolean(params.userId) &&
+    params.isDirty &&
+    !params.isSaving &&
+    !params.hasConflict
+  );
+}
+
+type UserPageEditorStoreState = ReturnType<typeof useUserPageEditor.getState>;
+type UserPageAutoSaveState = ReturnType<typeof useCardAutoSave>;
+type UserPageEditorConflictSummary = NonNullable<
+  UserPageAutoSaveState["saveConflictSummary"]
+>;
+type UserPageEditorSaveConflict = NonNullable<
+  UserPageAutoSaveState["saveConflict"]
+>;
+type UserPageEditorWorkspaceBackup = ReturnType<typeof makeWorkspaceBackup>;
+
+function useRememberSuccessfulUserPageRoute(params: {
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  userId: UserPageEditorStoreState["userId"];
+  username: UserPageEditorStoreState["username"];
+}) {
+  useEffect(() => {
+    if (params.isLoading || params.loadError || !params.userId) {
+      return;
+    }
+
+    rememberLastSuccessfulUserPageRoute({
+      userId: params.userId,
+      username: params.username,
+    });
+  }, [params.isLoading, params.loadError, params.userId, params.username]);
+}
+
+function buildUserPageEditorConflictNoticeSummary(options: {
+  cardMetaById: Map<string, { label: string; group: string }>;
+  saveConflict: UserPageEditorSaveConflict;
+  saveConflictSummary: UserPageEditorConflictSummary;
+}) {
+  const changedCards = options.saveConflictSummary.changedCardIds
+    .slice(0, 4)
+    .map((cardId) => {
+      const meta = options.cardMetaById.get(cardId);
+
+      return {
+        cardId,
+        group: meta?.group,
+        label: meta?.label ?? cardId,
+      };
+    });
+
+  return {
+    attemptedAt: options.saveConflictSummary.attemptedAt,
+    changedCardCount: options.saveConflictSummary.changedCardCount,
+    changedCards,
+    changedGlobalSettingCount:
+      options.saveConflictSummary.changedGlobalSettingCount,
+    currentUpdatedAt: options.saveConflict.currentUpdatedAt,
+    lastSavedAt: options.saveConflictSummary.lastSavedAt,
+    remainingChangedCardCount: Math.max(
+      0,
+      options.saveConflictSummary.changedCardCount - changedCards.length,
+    ),
+    reorderedCardCount: options.saveConflictSummary.reorderedCardCount,
+  };
+}
+
+function buildUserPageEditorWorkspaceBackupPayload(
+  state: UserPageEditorStoreState,
+): UserPageEditorWorkspaceBackup {
+  const draftRecord = state.userId ? readUserPageDraft(state.userId) : null;
+  const exitSaveFallbackRecord = state.userId
+    ? readUserPageExitSaveFallback(state.userId)
+    : null;
+
+  return makeWorkspaceBackup({
+    userId: state.userId,
+    username: state.username,
+    workspace: {
+      global: state.getGlobalSettingsSnapshot(),
+      cardConfigs: state.cardConfigs,
+      cardOrder: state.cardOrder,
+    },
+    editorState: {
+      templates: state.settingsTemplates,
+      draft: draftRecord
+        ? {
+            savedAt: draftRecord.savedAt,
+            patch: draftRecord.patch,
+          }
+        : null,
+      exitSaveFallback: exitSaveFallbackRecord
+        ? {
+            savedAt: exitSaveFallbackRecord.savedAt,
+            reason: exitSaveFallbackRecord.reason,
+          }
+        : null,
+    },
+  });
+}
+
+function downloadUserPageEditorWorkspaceBackup(
+  payload: UserPageEditorWorkspaceBackup,
+): void {
+  const json = stringifyWorkspaceBackup(payload);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const identity = trimOuterRepeatedCharacter(
+    (payload.username || payload.userId || "workspace")
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9_-]+/g, "-"),
+    "-",
+  ).slice(0, 40);
+  a.download = `anicards-${identity || "workspace"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast.success("Workspace backup downloaded", {
+    description:
+      "Open Global Settings → Settings Tools to restore it or share your current profile cards.",
+  });
+}
+
+function replaceCurrentUserPageEditorUrl(href: string): void {
+  if (!("window" in globalThis)) {
+    return;
+  }
+
+  const nextUrl = `${href}${globalThis.window.location.hash}`;
+  const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  globalThis.window.history.replaceState(null, "", nextUrl);
+}
+
+function retryUserPageLoad(
+  reload: ReturnType<typeof useUserDataLoader>["reload"],
+  errorMessage: string,
+): void {
+  reload().catch((error) => {
+    console.error(errorMessage, error);
+  });
+}
+
+function useUserPageLoadRetry(params: {
+  canRetryLoadInPlace: boolean;
+  hasAutoRetriedLoadRef: { current: boolean };
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  reload: ReturnType<typeof useUserDataLoader>["reload"];
+}) {
+  useEffect(() => {
+    if (!params.isLoading && !params.loadError) {
+      params.hasAutoRetriedLoadRef.current = false;
+      return;
+    }
+
+    if (!params.canRetryLoadInPlace || params.hasAutoRetriedLoadRef.current) {
+      return;
+    }
+
+    params.hasAutoRetriedLoadRef.current = true;
+    retryUserPageLoad(
+      params.reload,
+      "Failed to auto-retry loading the user page:",
+    );
+  }, [
+    params.canRetryLoadInPlace,
+    params.hasAutoRetriedLoadRef,
+    params.isLoading,
+    params.loadError,
+    params.reload,
+  ]);
+}
+
+function renderRequestedUserHelpDialog(props: {
+  handleHelpDialogOpenChange: (open: boolean) => void;
+  hasRequestedHelpDialog: boolean;
+  isHelpDialogOpen: boolean;
+  startTour: () => void;
+}): ReactNode {
+  if (!props.hasRequestedHelpDialog) {
+    return null;
+  }
+
+  return (
+    <LazyUserHelpDialog
+      open={props.isHelpDialogOpen}
+      onOpenChange={props.handleHelpDialogOpenChange}
+      onStartTour={props.startTour}
+    />
+  );
+}
+
+function renderUserPageEditorBlockingState(options: {
+  canRetryLoadInPlace: boolean;
+  expectedCardCount: number;
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  loadingPhase: LoadingPhase;
+  onRetry: () => void;
+  prefersSimplifiedMotion: boolean;
+}): ReactNode {
+  if (options.isLoading) {
+    return (
+      <UserPageEditorLoadingScreen
+        loadingPhase={options.loadingPhase}
+        expectedCardCount={options.expectedCardCount}
+        prefersSimplifiedMotion={options.prefersSimplifiedMotion}
+      />
+    );
+  }
+
+  if (options.loadError) {
+    return (
+      <UserPageEditorErrorScreen
+        loadError={options.loadError}
+        canRetry={options.canRetryLoadInPlace}
+        prefersSimplifiedMotion={options.prefersSimplifiedMotion}
+        onRetry={options.onRetry}
+      />
+    );
+  }
+
+  return null;
+}
+
+export function UserPageEditor({
+  routeUsername,
+}: Readonly<{
+  routeUsername?: string;
+}>) {
+  const expectedCardCount = statCardTypes.length;
+  const searchParams = useSearchParams();
+  const currentSearch = searchParams.toString();
+  const {
+    prefersCoarsePointer,
+    prefersReducedMotion,
+    prefersReducedData,
+    prefersSimplifiedMotion,
+  } = useMotionPreferences();
+  const scrollBehavior = useMemo(
+    () =>
+      getMotionSafeScrollBehavior(prefersReducedMotion, {
+        reducedData: prefersReducedData,
+      }),
+    [prefersReducedData, prefersReducedMotion],
+  );
+  const {
+    userId,
+    username,
+    avatarUrl,
+    isLoading,
+    loadError,
+    isDirty,
+    isSaving,
+    saveError,
+    lastSavedAt,
+    cardOrder,
+    enableAllCards,
+    disableAllCards,
+    resetAllCardsToGlobal,
+    undoBulk,
+    redoBulk,
+    bulkPastLength,
+    bulkFutureLength,
+    bulkLastMessage,
+    reorderCardsInScope,
+    discardChanges,
+    applyLocalEditsPatch,
+    clearSelection,
+    selectAllEnabled,
+  } = useUserPageEditor(
+    useShallow((s) => ({
+      userId: s.userId,
+      username: s.username,
+      avatarUrl: s.avatarUrl,
+      isLoading: s.isLoading,
+      loadError: s.loadError,
+      isDirty: s.isDirty,
+      isSaving: s.isSaving,
+      saveError: s.saveError,
+      lastSavedAt: s.lastSavedAt,
+      cardOrder: s.cardOrder,
+      enableAllCards: s.enableAllCards,
+      disableAllCards: s.disableAllCards,
+      resetAllCardsToGlobal: s.resetAllCardsToGlobal,
+      undoBulk: s.undoBulk,
+      redoBulk: s.redoBulk,
+      bulkPastLength: s.bulkPast.length,
+      bulkFutureLength: s.bulkFuture.length,
+      bulkLastMessage: s.bulkLastMessage,
+      reorderCardsInScope: s.reorderCardsInScope,
+      discardChanges: s.discardChanges,
+      applyLocalEditsPatch: s.applyLocalEditsPatch,
+      clearSelection: s.clearSelection,
+      selectAllEnabled: s.selectAllEnabled,
+    })),
+  );
+  const canUndoBulk = bulkPastLength > 0;
+  const canRedoBulk = bulkFutureLength > 0;
+
+  const cardEnabledById = useStableCardEnabledById();
+  const cardCustomizedById = useStableCardCustomizedById();
+
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
+  const [hasRequestedHelpDialog, setHasRequestedHelpDialog] = useState(false);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  const initialQuery = searchParams.get("q") ?? "";
+  const initialVisibility = parseVisibilityParam(
+    searchParams.get("visibility"),
+  );
+  const initialGroup = searchParams.get("group") ?? "All";
+  const initialCustomFilter = parseCustomFilterParam(
+    searchParams.get("customFilter"),
+  );
+
+  const [query, setQuery] = useState(initialQuery);
+  const [visibility, setVisibility] =
+    useState<VisibilityFilter>(initialVisibility);
+  const [selectedGroup, setSelectedGroup] = useState<string>(initialGroup);
+  const [customFilter, setCustomFilter] =
+    useState<CustomFilter>(initialCustomFilter);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
+
+  const groupFilterTriggerId = "card-group-filter";
+
+  const canEnterReorderMode = useMemo(
+    () =>
+      query.trim().length === 0 &&
+      visibility === "all" &&
+      customFilter === "all",
+    [query, visibility, customFilter],
+  );
+  useReorderModeAvailability({
+    canEnterReorderMode,
+    isReorderMode,
+    setIsReorderMode,
+  });
+
+  const {
+    isNewUser,
+    setIsNewUser,
+    cardsWarning,
+    setCardsWarning,
+    startSetup,
+    hasPendingSetup,
+  } = useNewUserSetup();
+
+  const prefetchHelpDialog = useCallback(() => {
+    void loadUserHelpDialog();
+  }, []);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  const openHelpDialog = useCallback(() => {
+    prefetchHelpDialog();
+    setHasRequestedHelpDialog(true);
+    setIsHelpDialogOpen(true);
+  }, [prefetchHelpDialog]);
+
+  const closeHelpDialog = useCallback(() => {
+    setIsHelpDialogOpen(false);
+  }, []);
+
+  const handleHelpDialogOpenChange = useCallback((open: boolean) => {
+    setHasRequestedHelpDialog((prev) => prev || open);
+    setIsHelpDialogOpen(open);
+  }, []);
+
+  const { startTour } = useEditorTour({
+    userId,
+    isNewUser,
+    setIsNewUser,
+    closeHelpDialog,
+  });
+
+  const {
+    filteredGroups,
+    cardGroups,
+    groupTotals,
+    filteredGroupTotals,
+    visibleGroupNames,
+    filteredCardCount,
+    scopeCardCount,
+    hasActiveFilters,
+    isCardEnabled,
+    expandAll,
+    collapseAll,
+    expandedGroups,
+    setGroupExpanded,
+    layoutVersion,
+  } = useCardFiltering({
+    cardEnabledById,
+    cardCustomizedById,
+    cardOrder,
+    query,
+    visibility,
+    selectedGroup,
+    customFilter,
+  });
+
+  const { loadingPhase, reload, canRetryLoadInPlace } = useUserDataLoader({
+    routeUsername,
+    startSetup,
+    shouldResumeSetup: hasPendingSetup,
+  });
+  const hasAutoRetriedLoadRef = useRef(false);
+
+  const {
+    saveNow,
+    saveConflict,
+    saveConflictSummary,
+    clearSaveConflict,
+    isAutoSaveQueued,
+    autoSaveDueAt,
+  } = useCardAutoSave({
+    debounceMs: 1500,
+  });
+
+  useUserPageDraftBackup();
+
+  const allCardIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const cards of Object.values(cardGroups)) {
+      for (const c of cards) ids.push(c.id);
+    }
+    return ids;
+  }, [cardGroups]);
+
+  const cardMetaById = useMemo(() => {
+    const map = new Map<string, { label: string; group: string }>();
+    for (const [groupName, cards] of Object.entries(cardGroups)) {
+      for (const c of cards) {
+        map.set(c.id, { label: c.label, group: groupName });
+      }
+    }
+    return map;
+  }, [cardGroups]);
+
+  const enabledCardIds = useMemo(
+    () => allCardIds.filter((id) => Boolean(cardEnabledById[id])),
+    [allCardIds, cardEnabledById],
+  );
+
+  const allCardsPreviewItems = useMemo(
+    () =>
+      allCardIds.map((id) => {
+        const meta = cardMetaById.get(id);
+        return {
+          cardId: id,
+          label: meta?.label ?? id,
+          group: meta?.group,
+          enabled: Boolean(cardEnabledById[id]),
+        };
+      }),
+    [allCardIds, cardEnabledById, cardMetaById],
+  );
+
+  const enabledCardsPreviewItems = useMemo(
+    () =>
+      enabledCardIds.map((id) => {
+        const meta = cardMetaById.get(id);
+        return {
+          cardId: id,
+          label: meta?.label ?? id,
+          group: meta?.group,
+          enabled: true,
+        };
+      }),
+    [cardMetaById, enabledCardIds],
+  );
+
+  useEffect(() => {
+    setIsHelpDialogOpen(false);
+  }, [currentSearch]);
+
+  useEffect(() => {
+    syncFiltersFromSearchParams({
+      searchParams,
+      query,
+      visibility,
+      selectedGroup,
+      customFilter,
+      setQuery,
+      setVisibility,
+      setSelectedGroup,
+      setCustomFilter,
+    });
+  }, [customFilter, query, searchParams, selectedGroup, visibility]);
+
+  useUserPageEditorKeyboardShortcuts({
+    canEnterReorderMode,
+    isReorderMode,
+    setIsReorderMode,
+    clearSelection,
+    selectAllEnabled,
+    setVisibility,
+    saveNow,
+    openHelpDialog,
+    setIsCommandPaletteOpen,
+    searchRef,
+    groupFilterTriggerId,
+  });
+
+  const {
+    draftRecord,
+    exitSaveFallbackRecord,
+    setDraftRecord,
+    isDraftNoticeDismissed,
+    setIsDraftNoticeDismissed,
+    handleRestoreDraft,
+    handleDiscardDraft,
+  } = useContinuityFirstDraftRecovery({
+    userId,
+    isLoading,
+    isDirty,
+    applyLocalEditsPatch,
+  });
+
+  usePendingSettingsTemplateApplication({
+    isLoading,
+    userId,
+  });
+
+  useRememberSuccessfulUserPageRoute({
+    isLoading,
+    loadError,
+    userId,
+    username,
+  });
+
+  const showDraftNotice =
+    !isDraftNoticeDismissed && draftRecord != null && !isDirty;
+  const draftNoticeMode = exitSaveFallbackRecord
+    ? "exit-save-fallback"
+    : "draft";
+  const showConflictNotice = saveConflict != null;
+  const conflictNoticeSummary = useMemo(
+    () =>
+      saveConflict && saveConflictSummary
+        ? buildUserPageEditorConflictNoticeSummary({
+            cardMetaById,
+            saveConflict,
+            saveConflictSummary,
+          })
+        : null,
+    [cardMetaById, saveConflict, saveConflictSummary],
+  );
+  const shouldProtectUnsavedWork = useMemo(
+    () =>
+      shouldWarnBeforeLeavingEditor({
+        isDirty,
+        isSaving,
+        hasConflict: showConflictNotice,
+      }),
+    [isDirty, isSaving, showConflictNotice],
+  );
+
+  const canSaveNow = canSaveEditorChanges({
+    userId,
+    isDirty,
+    isSaving,
+    hasConflict: showConflictNotice,
+  });
+  const canDiscardNow = isDirty && !isSaving;
+
+  const handleApplyStarterStyle = useCallback(
+    (starterStyle: EditorStarterStyle) => {
+      useUserPageEditor
+        .getState()
+        .applySettingsSnapshotToGlobal(starterStyle.snapshot);
+      toast.success(`${starterStyle.name} starter applied`, {
+        description: starterStyle.description,
+      });
+    },
+    [],
+  );
+
+  const { setTheme, resolvedTheme } = useTheme();
+  const handleToggleTheme = useCallback(() => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  }, [resolvedTheme, setTheme]);
+
+  const handleExportSettings = useCallback(() => {
+    downloadUserPageEditorWorkspaceBackup(
+      buildUserPageEditorWorkspaceBackupPayload(useUserPageEditor.getState()),
+    );
+  }, []);
+
+  const { recentActionsStorageKey, commandPaletteCommands } =
+    useUserPageEditorCommandPalette({
+      userId,
+      scrollBehavior,
+      visibility,
+      setVisibility,
+      searchRef,
+      selectAllEnabled,
+      deselectAll: clearSelection,
+      toggleTheme: handleToggleTheme,
+      expandAll,
+      collapseAll,
+      exportSettings: handleExportSettings,
+      canSaveNow,
+      canDiscardNow,
+      saveNow,
+      startTour,
+      openGlobalSettings: () => setIsGlobalSettingsOpen(true),
+      openDiscardDialog: () => setIsDiscardDialogOpen(true),
+      openHelpDialog,
+    });
+
+  const {
+    handleResolveConflictKeepEdits,
+    handleResolveConflictDiscardEdits,
+    handleDiscardChanges,
+  } = useEditorPersistenceActions({
+    userId,
+    reload,
+    saveNow,
+    applyLocalEditsPatch,
+    clearSaveConflict,
+    discardChanges,
+    setDraftRecord,
+    setIsDiscardDialogOpen,
+  });
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentEditorUrl = useMemo(
+    () => (currentSearch ? `${pathname}?${currentSearch}` : pathname),
+    [currentSearch, pathname],
+  );
+  const navigate = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
+
+  useUserPageEditorLeaveProtection({
+    currentUrl: currentEditorUrl,
+    isActive: shouldProtectUnsavedWork,
+    navigate,
+    userId,
+  });
+
+  useDebouncedEditorUrlSync({
+    pathname,
+    currentSearch,
+    query,
+    visibility,
+    selectedGroup,
+    customFilter,
+    replace: replaceCurrentUserPageEditorUrl,
+  });
+
+  const handleRetryLoad = useCallback(() => {
+    retryUserPageLoad(reload, "Failed to retry loading the user page:");
+  }, [reload]);
+
+  useUserPageLoadRetry({
+    canRetryLoadInPlace,
+    hasAutoRetriedLoadRef,
+    isLoading,
+    loadError,
+    reload,
+  });
+
+  const helpDialog = renderRequestedUserHelpDialog({
+    hasRequestedHelpDialog,
+    isHelpDialogOpen,
+    handleHelpDialogOpenChange,
+    startTour,
+  });
+
+  const clearAllFilters = useCallback(() => {
+    setQuery("");
+    setVisibility("all");
+    setSelectedGroup("All");
+    setCustomFilter("all");
+  }, []);
+
+  const handleToggleReorderMode = useCallback(() => {
+    setIsReorderMode((prev) => !prev);
+  }, []);
+
+  const groupIcon = useCallback(
+    (groupName: string) => GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON,
+    [],
+  );
+
+  const groupNames = useMemo(() => Object.keys(cardGroups), [cardGroups]);
+
+  const handleExpandedChange = useCallback(
+    (groupName: string, next: boolean) => {
+      setGroupExpanded(groupName, next);
+    },
+    [setGroupExpanded],
+  );
+
+  const handleAppendSearchToken = useCallback((token: string) => {
+    prefetchCardFilteringFuzzySearch();
+    setQuery((prev) => appendCardSearchToken(prev, token));
+    searchRef.current?.focus();
+  }, []);
+
+  const renderCardTile = useCallback(
+    (
+      cardType: RenderableCardType,
+      _index: number,
+      ctx?: EditorCardRenderContext,
+    ) => (
+      <CardTile
+        cardId={cardType.id}
+        label={cardType.label}
+        variations={cardType.variations}
+        supportsStatusColors={STATUS_COLOR_CARDS.has(cardType.id)}
+        supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
+        supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
+        isFavoritesGrid={cardType.id === "favoritesGrid"}
+        dragHandleProps={isReorderMode ? ctx?.dragHandleProps : undefined}
+        reorderControls={isReorderMode ? ctx?.reorderControls : undefined}
+        isDragging={isReorderMode ? ctx?.isDragging : false}
+        preferTapInfoDisclosure={prefersCoarsePointer}
+      />
+    ),
+    [isReorderMode, prefersCoarsePointer],
+  );
+
+  const saveState = useMemo(
+    () => ({
+      isSaving,
+      isDirty,
+      saveError,
+      lastSavedAt,
+      isAutoSaveQueued,
+      autoSaveDueAt,
+      hasConflict: saveConflict != null,
+    }),
+    [
+      autoSaveDueAt,
+      isAutoSaveQueued,
+      isDirty,
+      isSaving,
+      lastSavedAt,
+      saveConflict,
+      saveError,
+    ],
+  );
+
+  const blockingState = renderUserPageEditorBlockingState({
+    isLoading,
+    loadingPhase,
+    expectedCardCount,
+    prefersSimplifiedMotion,
+    loadError,
+    canRetryLoadInPlace,
+    onRetry: handleRetryLoad,
+  });
+
+  if (blockingState) {
+    return blockingState;
+  }
+
+  return (
+    <div className="relative w-full overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative z-10 container mx-auto max-w-5xl px-4 pt-10 pb-16 lg:pt-14">
+        <UserPageHeader
+          userId={userId}
+          username={username}
+          avatarUrl={avatarUrl ?? undefined}
+          saveState={saveState}
+        />
+
+        {helpDialog}
+
+        <CommandPalette
+          open={isCommandPaletteOpen}
+          onOpenChange={setIsCommandPaletteOpen}
+          commands={commandPaletteCommands}
+          recentStorageKey={recentActionsStorageKey}
+        />
+
+        <EditorNotices
+          showConflictNotice={showConflictNotice}
+          conflictNoticeSummary={conflictNoticeSummary}
+          onResolveConflictKeepEdits={handleResolveConflictKeepEdits}
+          onResolveConflictDiscardEdits={handleResolveConflictDiscardEdits}
+          showDraftNotice={showDraftNotice}
+          draftNoticeMode={draftNoticeMode}
+          draftSavedAt={
+            exitSaveFallbackRecord?.savedAt ?? draftRecord?.savedAt ?? null
+          }
+          onRestoreDraft={handleRestoreDraft}
+          onDiscardDraft={handleDiscardDraft}
+          onDismissDraftNotice={() => setIsDraftNoticeDismissed(true)}
+          isNewUser={isNewUser}
+          onDismissNewUser={() => setIsNewUser(false)}
+          starterStyles={EDITOR_STARTER_STYLES}
+          onApplyStarterStyle={handleApplyStarterStyle}
+          onOpenHelp={openHelpDialog}
+          onStartTour={startTour}
+          cardsWarning={cardsWarning}
+          onDismissCardsWarning={() => setCardsWarning(null)}
+        />
+
+        <div className="mt-6 space-y-8">
+          <main
+            data-testid="user-page-editor-main"
+            data-ui-ready={hasMounted ? "true" : "false"}
+            className="mx-auto w-full max-w-full space-y-6 lg:max-w-[80vw]"
+          >
+            <motion.div
+              initial={prefersSimplifiedMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={
+                prefersSimplifiedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { duration: 0.4, ease: "easeOut" }
+              }
+              className="space-y-3"
+            >
+              <div className="mb-4 gold-ornament text-xs tracking-[0.3em] text-gold/50 uppercase">
+                ✦
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="
+                  flex size-12 items-center justify-center bg-linear-to-br from-gold via-amber-500
+                  to-gold-dim shadow-lg shadow-gold/20
+                ">
+                  <LayoutGrid className="size-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h2 className="
+                    font-display text-lg tracking-[0.15em] text-foreground uppercase
+                    sm:text-xl
+                  ">
+                    Your Cards
+                  </h2>
+                  <p className="font-body-serif text-sm text-muted-foreground">
+                    Toggle, customize, and preview your stat cards
+                  </p>
+                </div>
+              </div>
+
+              <div className="
+                flex items-center justify-between border border-gold/20 bg-background/80 px-2.5
+                py-1.5 backdrop-blur-sm
+                dark:border-gold/15 dark:bg-background/60
+              ">
+                <div className="flex items-center gap-1.5">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {getTooltipTriggerChild(
+                          (["disabled", "enabled"] as const)[
+                            Number(canSaveNow)
+                          ],
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-8 px-2 text-xs font-medium sm:px-3",
+                              canSaveNow
+                                ? "text-foreground hover:bg-gold/8"
+                                : "text-muted-foreground",
+                            )}
+                            onClick={() => saveNow()}
+                            disabled={!canSaveNow}
+                            aria-label="Save changes"
+                            aria-keyshortcuts="Control+S Meta+S"
+                            data-tour="save-button"
+                          >
+                            <Save
+                              className="size-4 sm:mr-1.5"
+                              aria-hidden="true"
+                            />
+                            <span className="hidden sm:inline">Save</span>
+                          </Button>,
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        sideOffset={8}
+                        className="max-w-xs text-xs/relaxed"
+                      >
+                        <p>
+                          Save your changes now. Autosave runs automatically,
+                          but manual Save is always available.
+                          <ShortcutHint>Ctrl/Cmd+S</ShortcutHint>
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {getTooltipTriggerChild(
+                          (["disabled", "enabled"] as const)[
+                            Number(canDiscardNow)
+                          ],
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-8 px-2 text-xs font-medium sm:px-3",
+                              canDiscardNow
+                                ? `
+                                  text-red-600
+                                  hover:bg-red-50
+                                  dark:text-red-400
+                                  dark:hover:bg-red-950/30
+                                `
+                                : "text-muted-foreground",
+                            )}
+                            onClick={() => setIsDiscardDialogOpen(true)}
+                            disabled={!canDiscardNow}
+                            aria-label="Discard unsaved changes"
+                          >
+                            <Trash2
+                              className="size-4 sm:mr-1.5"
+                              aria-hidden="true"
+                            />
+                            <span className="hidden sm:inline">Discard</span>
+                          </Button>,
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        sideOffset={8}
+                        className="max-w-xs text-xs/relaxed"
+                      >
+                        <p>
+                          Discard unsaved changes and revert to your last loaded
+                          state.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="
+                            h-8 px-2 text-xs font-medium text-muted-foreground
+                            hover:bg-gold/5 hover:text-foreground
+                            sm:px-3
+                          "
+                          onClick={openHelpDialog}
+                          onPointerEnter={prefetchHelpDialog}
+                          onFocus={prefetchHelpDialog}
+                          aria-haspopup="dialog"
+                          aria-label="Help"
+                          aria-keyshortcuts="Control+H Meta+H"
+                          data-tour="help-button"
+                        >
+                          <Info
+                            className="size-4 sm:mr-1.5"
+                            aria-hidden="true"
+                          />
+                          <span className="hidden sm:inline">Help</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        sideOffset={8}
+                        className="max-w-xs text-xs/relaxed"
+                      >
+                        <p>
+                          Open help and view all shortcuts.
+                          <ShortcutHint>Ctrl/Cmd+H</ShortcutHint>
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <div className="h-5 w-px bg-gold/20 dark:bg-gold/15" />
+                  <Dialog
+                    open={isGlobalSettingsOpen}
+                    onOpenChange={setIsGlobalSettingsOpen}
+                  >
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DialogTrigger asChild>
+                            <Button
+                              type="button"
+                              size="sm"
+                              aria-label="Global settings"
+                              className="
+                                h-8 bg-linear-to-r from-gold via-amber-500 to-gold-dim px-2 text-xs
+                                font-semibold text-primary-foreground shadow-sm shadow-gold/20
+                                transition-all
+                                hover:shadow-md hover:shadow-gold/30
+                                sm:px-3
+                              "
+                              data-tour="global-settings"
+                            >
+                              <SlidersHorizontal className="size-4 sm:mr-1.5" />
+                              <span className="hidden sm:inline">Settings</span>
+                            </Button>
+                          </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="bottom"
+                          sideOffset={8}
+                          className="max-w-xs text-xs/relaxed"
+                        >
+                          <p>
+                            Set your default look (colors, borders, and more).
+                            Individual cards can still be customized.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+                      <GlobalSettingsPanel onSave={saveNow} />
+                    </DialogContent>
+                  </Dialog>
+                  <AlertDialog
+                    open={isDiscardDialogOpen}
+                    onOpenChange={setIsDiscardDialogOpen}
+                  >
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Discard unsaved changes?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will revert your editor to the last loaded/saved
+                          state. This can't be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="
+                            bg-red-600 text-white
+                            hover:bg-red-700
+                            dark:bg-red-600
+                            dark:hover:bg-red-700
+                          "
+                          onClick={handleDiscardChanges}
+                        >
+                          Discard changes
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+
+              <div
+                className="
+                  relative flex flex-col gap-3 border-2 border-gold/15 bg-gold/3 p-3
+                  backdrop-blur-sm
+                  dark:border-gold/10 dark:bg-gold/3
+                "
+                role="toolbar"
+                aria-label="Card filters"
+              >
+                <div className="
+                  pointer-events-none absolute top-0 left-0 size-3 border-t-2 border-l-2
+                  border-gold/40
+                " />
+                <div className="
+                  pointer-events-none absolute right-0 bottom-0 size-3 border-r-2 border-b-2
+                  border-gold/40
+                " />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative flex-1">
+                    <Search
+                      className="
+                        pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2
+                        text-muted-foreground
+                      "
+                      aria-hidden="true"
+                    />
+                    <Input
+                      ref={searchRef}
+                      id="card-search"
+                      data-tour="card-search"
+                      value={query}
+                      onFocus={prefetchCardFilteringFuzzySearch}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search cards… (Ctrl/Cmd+F)"
+                      aria-keyshortcuts="Control+F Meta+F"
+                      className="h-9 border-gold/20 bg-background px-9 text-sm dark:border-gold/15"
+                      title='Try: group:"Core Stats" custom:yes enabled:true'
+                    />
+
+                    <InfoDisclosureButton
+                      ariaLabel="Help: searching cards"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        "absolute top-1/2 right-2 -translate-y-1/2",
+                        "size-11 sm:size-7",
+                        `dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground`,
+                      )}
+                      content={
+                        <div className="space-y-2">
+                          <p>
+                            Search cards by name, or tap a syntax hint below to
+                            drop a structured filter into the query box.
+                          </p>
+                          <div className="space-y-1">
+                            {CARD_SEARCH_SYNTAX_HINTS.map((hint) => (
+                              <p key={hint.id}>
+                                <span className="font-mono text-[11px] text-gold-dim dark:text-gold">
+                                  {hint.token}
+                                </span>{" "}
+                                — {hint.description}
+                              </p>
+                            ))}
+                          </div>
+                          <p>
+                            Use Ctrl/Cmd+F to focus the search box from
+                            anywhere.
+                          </p>
+                        </div>
+                      }
+                    />
+                  </div>
+                  <Select
+                    value={selectedGroup}
+                    onValueChange={setSelectedGroup}
+                  >
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SelectTrigger
+                            id={groupFilterTriggerId}
+                            aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
+                            className="
+                              h-9 w-full border-gold/20 bg-background text-sm
+                              sm:w-44
+                              dark:border-gold/15
+                            "
+                          >
+                            <SelectValue placeholder="All categories" />
+                          </SelectTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={8}
+                          className="max-w-xs text-xs/relaxed"
+                        >
+                          <p>
+                            Focus the category filter to limit results to a card
+                            group.
+                            <ShortcutHint>Ctrl/Cmd+Shift+F</ShortcutHint>
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <SelectContent>
+                      <SelectItem value="All">All categories</SelectItem>
+                      {groupNames.map((groupName) => (
+                        <SelectItem key={groupName} value={groupName}>
+                          {groupName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div
+                  className="flex flex-wrap items-center gap-2 px-1"
+                  aria-label="Quick search syntax hints"
+                >
+                  <span className="
+                    text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase
+                  ">
+                    Quick filters
+                  </span>
+                  {CARD_SEARCH_SYNTAX_HINTS.map((hint) => (
+                    <Button
+                      key={hint.id}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAppendSearchToken(hint.token)}
+                      className="
+                        h-8 border border-gold/20 bg-background/70 px-2.5 text-[11px] font-medium
+                        text-muted-foreground
+                        hover:border-gold/35 hover:bg-gold/8 hover:text-foreground
+                        dark:border-gold/15
+                      "
+                      title={hint.description}
+                    >
+                      <span className="font-mono">{hint.label}</span>
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 px-1">
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-medium"
+                    aria-live="polite"
+                  >
+                    <span className="text-gold dark:text-gold">
+                      {filteredCardCount}
+                    </span>
+                    <span className="text-muted-foreground">of</span>
+                    <span className="text-gold dark:text-gold">
+                      {scopeCardCount}
+                    </span>
+                    <span className="text-muted-foreground">cards in view</span>
+                  </span>
+                  {hasActiveFilters && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="
+                        ml-auto h-6 px-2 text-[11px] font-medium text-muted-foreground
+                        hover:bg-gold/5 hover:text-foreground
+                      "
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+
+                <div className="gold-line" />
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div
+                    className="
+                      flex items-center gap-0.5 border border-gold/15 bg-gold/3 p-0.5
+                      dark:border-gold/10
+                    "
+                    data-tour="visibility-toggle"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={visibility === "all"}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        visibility === "all"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setVisibility("all")}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={visibility === "enabled"}
+                      aria-keyshortcuts="Control+E Meta+E"
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        visibility === "enabled"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setVisibility("enabled")}
+                      title="Toggle enabled-only view (Ctrl/Cmd+E)"
+                    >
+                      <Eye className="mr-1.5 size-3.5" />
+                      Enabled
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={visibility === "disabled"}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        visibility === "disabled"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setVisibility("disabled")}
+                    >
+                      <EyeOff className="mr-1.5 size-3.5" />
+                      Disabled
+                    </Button>
+
+                    <InfoDisclosureButton
+                      ariaLabel="Info about disabled cards"
+                      dataTestId="disabled-cards-info"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        `
+                          ml-0.5 size-11
+                          sm:size-8
+                          dark:text-muted-foreground
+                          dark:hover:bg-gold/5 dark:hover:text-foreground
+                        `,
+                      )}
+                      content={<p>{DISABLED_CARD_INFO}</p>}
+                    />
+                  </div>
+
+                  <div className="hidden h-6 w-px bg-gold/20 sm:block dark:bg-gold/15" />
+
+                  <div
+                    className="
+                      flex items-center gap-0.5 border border-gold/15 bg-gold/3 p-0.5
+                      dark:border-gold/10
+                    "
+                    data-tour="customization-toggle"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "all"}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        customFilter === "all"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setCustomFilter("all")}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "customized"}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        customFilter === "customized"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setCustomFilter("customized")}
+                    >
+                      Customized
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "uncustomized"}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium transition-all",
+                        customFilter === "uncustomized"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setCustomFilter("uncustomized")}
+                    >
+                      Uncustomized
+                    </Button>
+
+                    <InfoDisclosureButton
+                      ariaLabel="Info about customizations filter"
+                      prefersTapDisclosure={prefersCoarsePointer}
+                      className={cn(
+                        "ml-0.5 size-8",
+                        `dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground`,
+                      )}
+                      content={
+                        <p>
+                          Filter cards by whether they have custom per-card
+                          settings such as colors, borders, or advanced chart
+                          options.
+                        </p>
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="gold-line" />
+
+                <EditorBulkActions
+                  expandAll={expandAll}
+                  collapseAll={collapseAll}
+                  isReorderMode={isReorderMode}
+                  canEnterReorderMode={canEnterReorderMode}
+                  onToggleReorderMode={handleToggleReorderMode}
+                  undoBulk={undoBulk}
+                  redoBulk={redoBulk}
+                  canUndoBulk={canUndoBulk}
+                  canRedoBulk={canRedoBulk}
+                  allCardCount={allCardIds.length}
+                  enabledCardCount={enabledCardIds.length}
+                  enableAllCards={enableAllCards}
+                  disableAllCards={disableAllCards}
+                  resetAllCardsToGlobal={resetAllCardsToGlobal}
+                  isDisableAllDialogOpen={isDisableAllDialogOpen}
+                  setIsDisableAllDialogOpen={setIsDisableAllDialogOpen}
+                  isResetDialogOpen={isResetDialogOpen}
+                  setIsResetDialogOpen={setIsResetDialogOpen}
+                  enabledCardsPreviewItems={enabledCardsPreviewItems}
+                  allCardsPreviewItems={allCardsPreviewItems}
+                  bulkLastMessage={bulkLastMessage}
+                />
+              </div>
+            </motion.div>
+
+            <EditorCardGroupsPanel
+              clearAllFilters={clearAllFilters}
+              expandedGroups={expandedGroups}
+              filteredGroupTotals={filteredGroupTotals}
+              filteredGroups={filteredGroups}
+              groupIcon={groupIcon}
+              groupTotals={groupTotals}
+              handleExpandedChange={handleExpandedChange}
+              hasActiveFilters={hasActiveFilters}
+              isCardEnabled={isCardEnabled}
+              isReorderMode={isReorderMode}
+              layoutVersion={layoutVersion}
+              prefersSimplifiedMotion={prefersSimplifiedMotion}
+              renderCardTile={renderCardTile}
+              reorderCardsInScope={reorderCardsInScope}
+              setQuery={setQuery}
+              setVisibility={setVisibility}
+              visibleGroupNames={visibleGroupNames}
+            />
+          </main>
+        </div>
+      </div>
+
+      <SelectedBulkActionsToolbarGate />
+    </div>
+  );
+}

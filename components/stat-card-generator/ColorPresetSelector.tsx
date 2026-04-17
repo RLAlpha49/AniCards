@@ -1,22 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
-import {
-  trackColorPresetSelection,
-  safeTrack,
-} from "@/lib/utils/google-analytics";
-import { cn, isGradient, colorValueToString } from "@/lib/utils";
 import {
   Check,
-  Moon,
-  Sun,
-  Palette,
-  Layers,
-  Filter,
   ChevronDown,
+  ChevronUp,
+  Filter,
+  Layers,
+  Moon,
+  Palette,
   Sparkles,
+  Sun,
 } from "lucide-react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/Button";
+import { Label } from "@/components/ui/Label";
+import { AnimatePresence, motion } from "@/components/ui/Motion";
 import {
   Tooltip,
   TooltipContent,
@@ -24,6 +21,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
 import type { ColorValue } from "@/lib/types/card";
+import { cn, colorValueToString, isGradient } from "@/lib/utils";
+import {
+  safeTrack,
+  trackColorPresetSelection,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Props for the ColorPresetSelector component.
@@ -32,7 +34,7 @@ import type { ColorValue } from "@/lib/types/card";
  * @property onPresetChange - Callback invoked when a preset is selected.
  * @source
  */
-export interface ColorPresetSelectorProps {
+interface ColorPresetSelectorProps {
   selectedPreset: string;
   presets: {
     [key: string]: { colors: ColorValue[]; mode: string };
@@ -52,7 +54,7 @@ type PresetEntry = [string, { colors: ColorValue[]; mode: string }];
 
 /** Check if a preset contains any gradient colors. */
 function hasGradient(colors: ColorValue[]): boolean {
-  return colors.some(isGradient);
+  return colors.some((color) => typeof color !== "string");
 }
 
 /** Convert a ColorValue to a CSS background style string. */
@@ -67,6 +69,45 @@ function colorToCssBackground(color: ColorValue): string {
     return `linear-gradient(${color.angle ?? 0}deg, ${stops})`;
   }
   return color;
+}
+
+/** Convert an internal preset key into a user-friendly display label. */
+function formatPresetName(presetKey: string): string {
+  if (presetKey === "custom") {
+    return "Custom";
+  }
+
+  return presetKey
+    .replaceAll(/([A-Z])/g, " $1")
+    .trim()
+    .split(/\s+/)
+    .map((segment) => {
+      const normalizedSegment = segment.toLowerCase();
+
+      if (normalizedSegment === "anicards") {
+        return "AniCards";
+      }
+
+      if (normalizedSegment === "anilist") {
+        return "AniList";
+      }
+
+      return `${segment.charAt(0).toUpperCase()}${segment.slice(1)}`;
+    })
+    .join(" ");
+}
+
+/** Build an explicit accessible name for a preset swatch button. */
+function getPresetAriaLabel(
+  presetKey: string,
+  mode: string,
+  containsGradient: boolean,
+): string {
+  if (presetKey === "custom") {
+    return "Custom preset, uses your edited colors";
+  }
+
+  return `${formatPresetName(presetKey)} preset, ${mode} theme, ${containsGradient ? "gradient colors" : "solid colors"}`;
 }
 
 /**
@@ -84,6 +125,10 @@ function ColorPresetSelectorComponent({
   presets,
   onPresetChange,
 }: Readonly<ColorPresetSelectorProps>) {
+  const presetHeadingId = useId();
+  const presetGridId = useId();
+  const colorTypeFilterLabelId = useId();
+  const themeFilterLabelId = useId();
   const [isExpanded, setIsExpanded] = useState(false);
   const [colorTypeFilter, setColorTypeFilter] = useState<
     "all" | "solid" | "gradient"
@@ -91,24 +136,23 @@ function ColorPresetSelectorComponent({
   const [themeFilter, setThemeFilter] = useState<"all" | "light" | "dark">(
     "all",
   );
-  const gridRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLFieldSetElement | null>(null);
   const [columnCount, setColumnCount] = useState(1);
 
-  // Wrapper that tracks selection for analytics then notifies caller.
   const handlePresetChange = (preset: string) => {
     onPresetChange(preset);
     safeTrack(() => trackColorPresetSelection(preset));
   };
 
-  // Sort presets with a specific ordering:
-  //  - keep known keys (default, anilistLight, anilistDark) in a fixed order
-  //  - push 'custom' to the end
-  //  - otherwise sort by mode (light before dark)
   const sortedPresets: PresetEntry[] = useMemo(
     () =>
       Object.entries(presets).sort(([aKey, aVal], [bKey, bVal]) => {
         const fixedOrder = [
           "default",
+          "anicardsLight",
+          "anicardsDark",
+          "anicardsLightGradient",
+          "anicardsDarkGradient",
           "anilistLight",
           "anilistDark",
           "anilistLightGradient",
@@ -130,18 +174,14 @@ function ColorPresetSelectorComponent({
     [presets],
   );
 
-  // Apply filters to presets
   const filteredPresets = useMemo(() => {
     return sortedPresets.filter(([key, { colors, mode }]) => {
-      // Always show custom preset
       if (key === "custom") return true;
 
-      // Filter by color type
       const containsGradient = hasGradient(colors);
       if (colorTypeFilter === "solid" && containsGradient) return false;
       if (colorTypeFilter === "gradient" && !containsGradient) return false;
 
-      // Filter by theme
       if (themeFilter === "light" && mode !== "light") return false;
       if (themeFilter === "dark" && mode !== "dark") return false;
 
@@ -164,7 +204,6 @@ function ColorPresetSelectorComponent({
   );
   const customPresetEntry = filteredPresets.find(([key]) => key === "custom");
 
-  // Ensure 'custom' preset, if present, appears in the visible list
   const ensureCustomVisible = (list: PresetEntry[]): PresetEntry[] => {
     if (!customPresetEntry) return list;
     if (list.some(([key]) => key === "custom")) return list;
@@ -186,7 +225,6 @@ function ColorPresetSelectorComponent({
 
   const visiblePresets = ensureCustomVisible(baseVisiblePresets);
 
-  // Count presets by type for filter badges
   const presetCounts = useMemo(() => {
     const counts = { solid: 0, gradient: 0, light: 0, dark: 0 };
     for (const [key, { colors, mode }] of sortedPresets) {
@@ -236,22 +274,39 @@ function ColorPresetSelectorComponent({
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <Label className="text-base font-bold text-slate-900 dark:text-white">
+        <Label
+          id={presetHeadingId}
+          className="font-display text-base font-bold text-foreground"
+        >
           Choose a Preset
         </Label>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+        <span
+          aria-atomic="true"
+          aria-label={`${filteredPresets.length} of ${sortedPresets.length} presets shown`}
+          aria-live="polite"
+          className="
+            bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold-dim
+            dark:bg-gold/10 dark:text-gold
+          "
+        >
           {filteredPresets.length} of {sortedPresets.length}
         </span>
       </div>
 
-      {/* Filter Tabs */}
       <div className="space-y-3">
-        {/* Color Type Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-slate-400" />
-          <div className="flex gap-1.5">
+        <fieldset
+          aria-labelledby={colorTypeFilterLabelId}
+          className="m-0 flex min-w-0 items-center gap-2 border-0 p-0"
+        >
+          <Filter
+            aria-hidden="true"
+            className="size-4 text-gold-dim/60 dark:text-gold/60"
+          />
+          <legend id={colorTypeFilterLabelId} className="sr-only">
+            Filter presets by color type
+          </legend>
+          <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Types" },
               {
@@ -274,17 +329,28 @@ function ColorPresetSelectorComponent({
                   colorTypeFilter === option.value ? "default" : "outline"
                 }
                 size="sm"
+                aria-pressed={colorTypeFilter === option.value}
                 onClick={() =>
                   setColorTypeFilter(option.value as typeof colorTypeFilter)
                 }
                 className={cn(
-                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   colorTypeFilter === option.value
-                    ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
-                    : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+                    ? `
+                      bg-linear-to-r from-gold via-amber-500 to-gold-dim text-white shadow-md
+                      shadow-gold/20
+                    `
+                    : `
+                      border-gold/20 bg-background text-muted-foreground
+                      hover:border-gold/40 hover:bg-gold/5
+                      dark:border-gold/15
+                      dark:hover:border-gold/30
+                    `,
                 )}
               >
-                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.icon && (
+                  <option.icon aria-hidden="true" className="size-3" />
+                )}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -294,12 +360,17 @@ function ColorPresetSelectorComponent({
               </Button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
-        {/* Theme Filter */}
-        <div className="flex items-center gap-2">
-          <span className="h-4 w-4" />
-          <div className="flex gap-1.5">
+        <fieldset
+          aria-labelledby={themeFilterLabelId}
+          className="m-0 flex min-w-0 items-center gap-2 border-0 p-0"
+        >
+          <span aria-hidden="true" className="size-4" />
+          <legend id={themeFilterLabelId} className="sr-only">
+            Filter presets by theme
+          </legend>
+          <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Themes" },
               {
@@ -320,17 +391,28 @@ function ColorPresetSelectorComponent({
                 type="button"
                 variant={themeFilter === option.value ? "default" : "outline"}
                 size="sm"
+                aria-pressed={themeFilter === option.value}
                 onClick={() =>
                   setThemeFilter(option.value as typeof themeFilter)
                 }
                 className={cn(
-                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   themeFilter === option.value
-                    ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
-                    : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+                    ? `
+                      bg-linear-to-r from-gold via-amber-500 to-gold-dim text-white shadow-md
+                      shadow-gold/20
+                    `
+                    : `
+                      border-gold/20 bg-background text-muted-foreground
+                      hover:border-gold/40 hover:bg-gold/5
+                      dark:border-gold/15
+                      dark:hover:border-gold/30
+                    `,
                 )}
               >
-                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.icon && (
+                  <option.icon aria-hidden="true" className="size-3" />
+                )}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -340,49 +422,80 @@ function ColorPresetSelectorComponent({
               </Button>
             ))}
           </div>
-        </div>
+        </fieldset>
       </div>
 
-      {/* Presets Grid */}
-      <div
+      <fieldset
+        id={presetGridId}
+        aria-labelledby={presetHeadingId}
         ref={gridRef}
-        className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5"
+        className="
+          m-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5 border-0 p-0
+        "
       >
+        <legend className="sr-only">Color preset options</legend>
         <TooltipProvider delayDuration={0}>
-          <AnimatePresence mode="popLayout">
-            {visiblePresets.map(([key, { colors, mode }], index) => {
+          <AnimatePresence>
+            {visiblePresets.map(([key, { colors, mode }]) => {
               const isSelected = selectedPreset === key;
               const isCustom = key === "custom";
               const containsGradient = hasGradient(colors);
+              const formattedPresetName = formatPresetName(key);
 
               return (
                 <Tooltip key={key}>
                   <TooltipTrigger asChild>
                     <motion.button
-                      layout
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                      transition={{ duration: 0.2 }}
                       type="button"
+                      aria-label={getPresetAriaLabel(
+                        key,
+                        mode,
+                        containsGradient,
+                      )}
+                      aria-pressed={isSelected}
                       onClick={() => handlePresetChange(key)}
                       className={cn(
-                        "group relative flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-xl border-2 transition-all duration-200",
+                        `
+                          group relative flex aspect-3/2 w-full items-center justify-center
+                          overflow-hidden border-2 transition-all duration-200
+                        `,
                         isSelected
-                          ? "border-blue-500 ring-4 ring-blue-500/20 dark:border-blue-400 dark:ring-blue-400/20"
-                          : "border-transparent hover:border-slate-300 hover:shadow-lg dark:hover:border-slate-600",
+                          ? "border-gold ring-4 ring-gold/20 dark:border-gold dark:ring-gold/20"
+                          : `
+                            border-transparent
+                            hover:border-gold/40 hover:shadow-lg
+                            dark:hover:border-gold/30
+                          `,
                         "bg-white shadow-sm dark:bg-slate-800",
                       )}
                     >
                       {isCustom ? (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
-                          <Sparkles className="h-5 w-5 text-slate-400 transition-colors group-hover:text-purple-500 dark:text-slate-500" />
-                          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                        <div className="
+                          flex size-full flex-col items-center justify-center gap-1 bg-linear-to-br
+                          from-slate-50 to-slate-100
+                          dark:from-slate-800 dark:to-slate-900
+                        ">
+                          <Sparkles
+                            aria-hidden="true"
+                            className="
+                              size-5 text-slate-400 transition-colors
+                              group-hover:text-purple-500
+                              dark:text-slate-500
+                            "
+                          />
+                          <span className="
+                            text-[10px] font-medium text-slate-400
+                            dark:text-slate-500
+                          ">
                             Custom
                           </span>
                         </div>
                       ) : (
-                        <div className="flex h-full w-full">
+                        <div className="flex size-full">
                           {colors.map((color, i) => (
                             <div
                               key={`${colorValueToString(color)}-${i}`}
@@ -395,32 +508,42 @@ function ColorPresetSelectorComponent({
                         </div>
                       )}
 
-                      {/* Selection Indicator */}
                       {isSelected && (
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+                          className="
+                            absolute inset-0 flex items-center justify-center bg-black/30
+                            backdrop-blur-[2px]
+                          "
                         >
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg dark:bg-slate-900">
-                            <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <div className="
+                            flex size-7 items-center justify-center rounded-full bg-white shadow-lg
+                            dark:bg-slate-900
+                          ">
+                            <Check
+                              aria-hidden="true"
+                              className="size-4 text-gold dark:text-gold"
+                            />
                           </div>
                         </motion.div>
                       )}
 
-                      {/* Badges */}
                       {!isCustom && (
-                        <div className="absolute left-1.5 top-1.5 flex gap-1">
+                        <div className="absolute top-1.5 left-1.5 flex gap-1">
                           {containsGradient && (
                             <div className="rounded-full bg-purple-500/90 p-1 shadow-sm">
-                              <Layers className="h-2.5 w-2.5 text-white" />
+                              <Layers
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             </div>
                           )}
                         </div>
                       )}
 
                       {!isCustom && (
-                        <div className="absolute bottom-1.5 right-1.5">
+                        <div className="absolute right-1.5 bottom-1.5">
                           <div
                             className={cn(
                               "rounded-full p-1 shadow-sm",
@@ -430,9 +553,15 @@ function ColorPresetSelectorComponent({
                             )}
                           >
                             {mode === "light" ? (
-                              <Sun className="h-2.5 w-2.5 text-white" />
+                              <Sun
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             ) : (
-                              <Moon className="h-2.5 w-2.5 text-white" />
+                              <Moon
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             )}
                           </div>
                         </div>
@@ -441,16 +570,23 @@ function ColorPresetSelectorComponent({
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
-                    className="flex items-center gap-2 rounded-lg border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
+                    className="
+                      flex items-center gap-2 border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg
+                      backdrop-blur-sm
+                      dark:border-slate-700/50 dark:bg-slate-900/95
+                    "
                   >
-                    <span className="font-semibold capitalize text-slate-900 dark:text-white">
-                      {key.replaceAll(/([A-Z])/g, " $1").trim()}
+                    <span className="font-semibold text-slate-900 capitalize dark:text-white">
+                      {formattedPresetName}
                     </span>
                     <span className="text-xs text-slate-500">
                       {mode === "light" ? "Light" : "Dark"}
                     </span>
                     {containsGradient && (
-                      <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                      <span className="
+                        bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600
+                        dark:bg-purple-900/50 dark:text-purple-400
+                      ">
                         Gradient
                       </span>
                     )}
@@ -460,10 +596,9 @@ function ColorPresetSelectorComponent({
             })}
           </AnimatePresence>
         </TooltipProvider>
-      </div>
+      </fieldset>
 
-      {/* Expand Button */}
-      {visiblePresets.length < filteredPresets.length && (
+      {hasMorePresets && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -473,11 +608,28 @@ function ColorPresetSelectorComponent({
             variant="outline"
             size="sm"
             type="button"
-            onClick={() => setIsExpanded(true)}
-            className="gap-2 rounded-full border-slate-200/50 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+            aria-controls={presetGridId}
+            aria-expanded={isExpanded}
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="
+              gap-2 border-gold/20 bg-background px-4 text-sm font-medium text-muted-foreground
+              shadow-sm
+              hover:border-gold/40 hover:bg-gold/5 hover:shadow-md
+              dark:border-gold/15
+              dark:hover:border-gold/30
+            "
           >
-            <ChevronDown className="h-4 w-4" />
-            Show all {totalPresets} presets
+            {isExpanded ? (
+              <>
+                <ChevronUp className="size-4" />
+                Show less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-4" />
+                Show all {totalPresets} presets
+              </>
+            )}
           </Button>
         </motion.div>
       )}

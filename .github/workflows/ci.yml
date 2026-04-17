@@ -6,114 +6,267 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build
+  workflow-lint:
+    name: Workflow Lint
+    timeout-minutes: 10
     runs-on: ubuntu-latest
 
     steps:
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Lint GitHub Actions workflows
+        uses: reviewdog/action-actionlint@v1
+
+  dependency-policy:
+    name: Dependency Policy
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      - name: Enforce dependency license policy
+        run: bun run check:licenses
+
+  lint:
+    name: Lint
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
 
       - name: Run lint
-        run: bun lint
+        run: bun run lint
+
+  typecheck:
+    name: Type Check
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
 
       - name: Run type check
         run: bun run typecheck
 
-      - name: Build project
-        run: bun run build
+  unused:
+    name: Unused Code Check
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Run unused code check
+        run: bun run check:unused
+
+  build:
+    name: Build
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Cache Next.js build cache
+        uses: actions/cache@v5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-cache-${{ hashFiles('**/bun.lock') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'public/**', 'package.json', 'tsconfig.json', 'next.config.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-cache-${{ hashFiles('**/bun.lock') }}-
+
+      - name: Validate production env contract and build project
+        env:
+          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+          UPSTASH_REDIS_REST_URL: https://example.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
+          CRON_SECRET: ci-placeholder-cron-secret
+          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
+        run: |
+          bun run validate:production-env
+          bun run build
 
       - name: Upload Next build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: next-build
           path: .next
+          include-hidden-files: true
+          retention-days: 7
 
   unit-tests:
     name: Unit Tests
+    timeout-minutes: 20
     runs-on: ubuntu-latest
 
     steps:
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      - name: Run unit tests with coverage
+        run: bun run test:unit:coverage
 
-      - name: Run unit tests
-        run: bun test
+      - name: Enforce unit test line coverage threshold
+        env:
+          COVERAGE_LINES_THRESHOLD: "73"
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const reportPath = ".artifacts/coverage/lcov.info";
+          const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "73");
+          const normalizeCoveragePath = (filePath) => filePath.replace(/\\/g, "/");
+          const shouldSkipCoverageRecord = (filePath) =>
+            /\.(test|spec)\.[cm]?[jt]sx?$/i.test(normalizeCoveragePath(filePath));
+
+          if (!Number.isFinite(threshold)) {
+            console.error(`Invalid COVERAGE_LINES_THRESHOLD: ${process.env.COVERAGE_LINES_THRESHOLD ?? ""}`);
+            process.exit(1);
+          }
+
+          if (!fs.existsSync(reportPath)) {
+            console.error(`Coverage report not found at ${reportPath}`);
+            process.exit(1);
+          }
+
+          let linesFound = 0;
+          let linesHit = 0;
+          let currentFile = null;
+
+          for (const line of fs.readFileSync(reportPath, "utf8").split(/\r?\n/)) {
+            if (line.startsWith("SF:")) {
+              currentFile = line.slice(3);
+            } else if (line.startsWith("LF:")) {
+              if (currentFile && shouldSkipCoverageRecord(currentFile)) {
+                continue;
+              }
+              linesFound += Number(line.slice(3));
+            } else if (line.startsWith("LH:")) {
+              if (currentFile && shouldSkipCoverageRecord(currentFile)) {
+                continue;
+              }
+              linesHit += Number(line.slice(3));
+            } else if (line === "end_of_record") {
+              currentFile = null;
+            }
+          }
+
+          if (linesFound === 0) {
+            console.error("LCOV report did not include any executable lines.");
+            process.exit(1);
+          }
+
+          const lineCoverage = (linesHit / linesFound) * 100;
+          console.log(
+            `Line coverage (excluding *.test/spec files): ${lineCoverage.toFixed(2)}% (${linesHit}/${linesFound}); threshold: ${threshold.toFixed(2)}%`
+          );
+
+          if (lineCoverage < threshold) {
+            console.error(
+              `Coverage threshold not met: ${lineCoverage.toFixed(2)}% < ${threshold.toFixed(2)}%`
+            );
+            process.exit(1);
+          }
+          NODE
+
+      - name: Upload unit test coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-coverage
+          path: .artifacts/coverage
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   e2e-chromium:
     name: E2E Chromium
+    timeout-minutes: 25
     runs-on: ubuntu-latest
-    needs: [build, unit-tests]
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-playwright-
-
-      - name: Cache Next build cache
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-next-
-
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: next-build
+          path: .next
 
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
@@ -124,52 +277,57 @@ jobs:
 
       - name: Upload Playwright artifacts (Chromium)
         if: ${{ always() && steps.playwright_chromium.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-chromium
           path: |
-            tests/e2e/playwright-report
-            tests/e2e/test-results
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   e2e-mobile:
     name: E2E Mobile Chrome
+    timeout-minutes: 25
     runs-on: ubuntu-latest
-    needs: [build, unit-tests]
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
 
     steps:
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-playwright-
-
-      - name: Cache Next build cache
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: ${{ runner.os }}-next-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-next-
-
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: next-build
+          path: .next
 
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
@@ -180,9 +338,134 @@ jobs:
 
       - name: Upload Playwright artifacts (Mobile Chrome)
         if: ${{ always() && steps.playwright_mobile.outcome == 'failure' }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-mobile-chrome
           path: |
-            tests/e2e/playwright-report
-            tests/e2e/test-results
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-firefox:
+    name: E2E Firefox Routes
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: next-build
+          path: .next
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Run Playwright route suite (Firefox)
+        id: playwright_firefox
+        run: bun run test:e2e -- tests/e2e/search tests/e2e/user --project=firefox
+
+      - name: Upload Playwright artifacts (Firefox)
+        if: ${{ always() && steps.playwright_firefox.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-firefox
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-firefox-smoke:
+    name: E2E Firefox Smoke
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
+      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Download Next build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: next-build
+          path: .next
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Run Playwright local smoke tests (Firefox)
+        id: playwright_firefox_smoke
+        run: bun run test:e2e -- tests/e2e/smoke/unmocked-app-shell.spec.ts --project=firefox
+
+      - name: Upload Playwright artifacts (Firefox Smoke)
+        if: ${{ always() && steps.playwright_firefox_smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-firefox-smoke
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

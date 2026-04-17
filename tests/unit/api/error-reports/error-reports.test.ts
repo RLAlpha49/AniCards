@@ -1,0 +1,637 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
+import { OPTIONS, POST } from "@/app/api/error-reports/route";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
+import { ERROR_REPORT_REQUEST_MAX_BYTES } from "@/lib/error-tracking";
+import {
+  allowConsoleWarningsAndErrors,
+  captureSharedRedisIncrCalls,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
+  sharedRedisMockLrange,
+  sharedRedisMockLtrim,
+  sharedRedisMockRpush,
+} from "@/tests/unit/__setup__";
+
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
+
+const BASE_URL = "http://localhost/api/error-reports";
+
+function createRequest(
+  body?: Record<string, unknown>,
+  headers?: Record<string, string>,
+) {
+  return createRawRequest(
+    JSON.stringify(
+      body ?? {
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message: "Failed to fetch user Alex profile",
+        route: "/user/Alex?tab=cards",
+      },
+    ),
+    headers,
+  );
+}
+
+function createRawRequest(body: string, headers?: Record<string, string>) {
+  return new Request(BASE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      origin: "http://localhost",
+      ...headers,
+    },
+    body,
+  });
+}
+
+describe("error reports API route", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
+    sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockLrange.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLtrim.mockReset();
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+    sharedRedisMockLrange.mockResolvedValue([]);
+    sharedRedisMockRpush.mockResolvedValue(1);
+    sharedRedisMockLtrim.mockResolvedValue("OK");
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    mock.clearAllMocks();
+  });
+
+  it("uses a dedicated 3 requests / 10 seconds limiter", () => {
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(3, "10 s");
+  });
+
+  it("ignores spoofed client identifiers and persists the sanitized report", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message: "Failed to fetch user Alex profile",
+        route: "/user/Alex?tab=cards",
+        userId: "999999",
+        username: "SpoofedUser",
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({ recorded: true });
+
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+
+    const serializedReport = sharedRedisMockRpush.mock.calls[0]?.[1] as string;
+    const report = JSON.parse(serializedReport) as {
+      route?: string;
+      source: string;
+      category: string;
+    };
+
+    expect(report.route).toBe("/user/[username]");
+    expect(report.source).toBe("react_error_boundary");
+    expect(report.category).toBe("network_error");
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("username");
+  });
+
+  it("persists the middleware-resolved request ID in the structured report", async () => {
+    const response = await POST(
+      createRequest(undefined, {
+        [INTERNAL_REQUEST_ID_HEADER]: "req-error-route-12345",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-error-route-12345");
+  });
+
+  it("prefers payload request IDs when the client cannot rely on headers alone", async () => {
+    const response = await POST(
+      createRequest(
+        {
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          message: "Failed to fetch user Alex profile",
+          requestId: "req-payload-12345",
+          route: "/user/Alex?tab=cards",
+        },
+        {
+          [INTERNAL_REQUEST_ID_HEADER]: "req-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-payload-12345");
+  });
+
+  it("persists payload operation IDs and falls back to ingestion operation IDs", async () => {
+    const payloadResponse = await POST(
+      createRequest(
+        {
+          source: "client_hook",
+          userAction: "render_component_tree",
+          message: "Failed to fetch user Alex profile",
+          operationId: "op-payload-12345",
+        },
+        {
+          "x-operation-id": "op-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(payloadResponse.status).toBe(200);
+
+    const payloadReport = JSON.parse(
+      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    ) as { operationId?: string };
+    expect(payloadReport.operationId).toBe("op-payload-12345");
+
+    const ingestionResponse = await POST(
+      createRequest(undefined, {
+        "x-operation-id": "op-ingestion-only-12345",
+      }),
+    );
+
+    expect(ingestionResponse.status).toBe(200);
+
+    const ingestionReport = JSON.parse(
+      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    ) as { operationId?: string };
+    expect(ingestionReport.operationId).toBe("op-ingestion-only-12345");
+  });
+
+  it("persists structured API error facts supplied by the client payload", async () => {
+    const response = await POST(
+      createRequest(
+        {
+          source: "client_hook",
+          userAction: "user_page_load",
+          message:
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          category: "conflict",
+          retryable: false,
+          requestId: "req-structured-client-12345",
+          route: "/user/Alex?tab=cards",
+          statusCode: 409,
+          recoverySuggestions: [
+            {
+              title: "Reload the page",
+              description: "Refresh the page to load the latest saved data.",
+              actionLabel: "Reload",
+            },
+          ],
+          metadata: {
+            currentUpdatedAt: "2026-04-02T12:34:56.000Z",
+          },
+        },
+        {
+          [INTERNAL_REQUEST_ID_HEADER]: "req-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      category: string;
+      retryable: boolean;
+      requestId?: string;
+      route?: string;
+      statusCode?: number;
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+      }>;
+      metadata?: Record<string, string>;
+    };
+
+    expect(report.category).toBe("conflict");
+    expect(report.retryable).toBe(false);
+    expect(report.requestId).toBe("req-structured-client-12345");
+    expect(report.route).toBe("/user/[username]");
+    expect(report.statusCode).toBe(409);
+    expect(report.suggestions).toEqual([
+      {
+        title: "Reload the page",
+        description: "Refresh the page to load the latest saved data.",
+        actionLabel: "Reload",
+      },
+    ]);
+    expect(report.metadata?.currentUpdatedAt).toBe("2026-04-02T12:34:56.000Z");
+  });
+
+  it("preserves only safe recovery action URLs from client payloads", async () => {
+    const response = await POST(
+      createRequest({
+        source: "client_hook",
+        userAction: "user_page_load",
+        message: "Recovery suggestions should preserve safe links only",
+        category: "server_error",
+        recoverySuggestions: [
+          {
+            title: "Go home",
+            description: "Return to the AniCards homepage and try again.",
+            actionLabel: "Go home",
+            actionUrl: "/?from=error",
+          },
+          {
+            title: "Visit AniList",
+            description: "Open AniList directly to confirm upstream status.",
+            actionLabel: "Visit AniList",
+            actionUrl: "https://anilist.co",
+          },
+          {
+            title: "Reject HTTP link",
+            description: "HTTP recovery links should be dropped.",
+            actionLabel: "Unsafe",
+            actionUrl: "http://example.com/recovery",
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+        actionUrl?: string;
+      }>;
+    };
+
+    expect(report.suggestions).toEqual([
+      {
+        title: "Go home",
+        description: "Return to the AniCards homepage and try again.",
+        actionLabel: "Go home",
+        actionUrl: "/?from=error",
+      },
+      {
+        title: "Visit AniList",
+        description: "Open AniList directly to confirm upstream status.",
+        actionLabel: "Visit AniList",
+        actionUrl: "https://anilist.co/",
+      },
+      {
+        title: "Reject HTTP link",
+        description: "HTTP recovery links should be dropped.",
+        actionLabel: "Unsafe",
+      },
+    ]);
+  });
+
+  it("accepts analytics instrumentation reports and preserves client incident identity", async () => {
+    const incidentId = "rep-analytics-incident-12345";
+    const occurredAt = 1_776_057_602_500;
+
+    const response = await POST(
+      createRequest({
+        id: incidentId,
+        timestamp: occurredAt,
+        source: "analytics_instrumentation",
+        userAction: "analytics_pageview_dispatch",
+        message: "Failed to fetch analytics beacon",
+        category: "network_error",
+        retryable: true,
+        requestId: "req-analytics-route-12345",
+        errorName: "TypeError",
+        metadata: {
+          analyticsFailureBucket: "network",
+          analyticsFailureCount: 3,
+          analyticsSuppressedDuplicates: 1,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      id?: string;
+      timestamp?: number;
+      source: string;
+      category: string;
+      retryable: boolean;
+    };
+
+    expect(report.id).toBe(incidentId);
+    expect(report.timestamp).toBe(occurredAt);
+    expect(report.source).toBe("analytics_instrumentation");
+    expect(report.category).toBe("network_error");
+    expect(report.retryable).toBe(true);
+  });
+
+  it("records accepted error-report telemetry with bounded source and category metrics", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+
+    try {
+      const response = await POST(createRequest());
+
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(response.status).toBe(200);
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining([
+          "analytics:error_reports:accepted_reports",
+          "analytics:error_reports:accepted_reports:source:react_error_boundary",
+          "analytics:error_reports:accepted_reports:category:network_error",
+        ]),
+      );
+    } finally {
+      observedIncrements.release();
+    }
+  });
+
+  it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
+    sharedRatelimitMockLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 3,
+      remaining: 0,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toBe("Too many requests");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing request proof when API_SECRET_TOKEN is configured", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("Unauthorized");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("accepts authenticated error reports when a valid request proof cookie is present", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const token = await createRequestProofToken({ ip: "127.0.0.1" });
+    if (!token) {
+      throw new Error("Expected request proof token to be generated");
+    }
+
+    const response = await POST(
+      createRequest(undefined, {
+        cookie: `${REQUEST_PROOF_COOKIE_NAME}=${token}`,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects oversized JSON payloads before validation or persistence", async () => {
+    const response = await POST(
+      createRawRequest(
+        JSON.stringify({
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          message: "x".repeat(ERROR_REPORT_REQUEST_MAX_BYTES),
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(413);
+    expect((await response.json()).error).toBe("Request body too large");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("waits for durable error persistence before returning success", async () => {
+    let resolveRpush: ((value: number) => void) | undefined;
+    let persistenceStarted = false;
+    let notifyPersistenceStarted: (() => void) | undefined;
+    const persistenceStartedPromise = new Promise<void>((resolve) => {
+      notifyPersistenceStarted = resolve;
+    });
+
+    sharedRedisMockRpush.mockImplementationOnce(() => {
+      persistenceStarted = true;
+      notifyPersistenceStarted?.();
+
+      return new Promise<number>((resolve) => {
+        resolveRpush = resolve;
+      });
+    });
+
+    let responseSettled = false;
+    const responsePromise = POST(createRequest()).then((response) => {
+      responseSettled = true;
+      return response;
+    });
+
+    await persistenceStartedPromise;
+
+    expect(persistenceStarted).toBe(true);
+    expect(responseSettled).toBe(false);
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
+
+    resolveRpush?.(1);
+
+    const response = await responsePromise;
+
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      -250,
+      -1,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ recorded: true });
+  });
+
+  it("returns 503 when durable error persistence is temporarily unavailable", async () => {
+    sharedRedisMockRpush.mockRejectedValueOnce(
+      new Error("Upstash Redis connection failed"),
+    );
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: "Structured error reporting is temporarily unavailable",
+      category: "server_error",
+      retryable: true,
+      status: 503,
+    });
+  });
+
+  it("rejects missing required fields", async () => {
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
+    const observedIncrements = captureSharedRedisIncrCalls();
+
+    try {
+      const response = await POST(
+        createRequest(
+          {
+            source: "client_hook",
+            userAction: "submit_error_feedback",
+          },
+          {
+            [INTERNAL_REQUEST_ID_HEADER]: "req-error-reject-12345",
+          },
+        ),
+      );
+
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toBe(
+        "Invalid error report payload",
+      );
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toEqual(
+        expect.arrayContaining(["analytics:error_reports:rejected_reports"]),
+      );
+
+      const logCall = consoleWarn.mock.calls.at(-1) as [string] | undefined;
+      expect(logCall).toBeDefined();
+
+      const logEntry = JSON.parse(String(logCall?.[0])) as {
+        context?: {
+          issueCount?: number;
+          issueFields?: string;
+          source?: string;
+          userAction?: string;
+        };
+        endpoint?: string;
+        message?: string;
+        method?: string;
+        path?: string;
+        requestId?: string;
+      };
+
+      expect(logEntry).toMatchObject({
+        endpoint: "Error Reports API",
+        message: "Rejected invalid error report payload",
+        method: "POST",
+        path: "/api/error-reports",
+        requestId: "req-error-reject-12345",
+        context: expect.objectContaining({
+          issueCount: 1,
+          issueFields: "message",
+          source: "client_hook",
+          userAction: "submit_error_feedback",
+        }),
+      });
+    } finally {
+      observedIncrements.release();
+    }
+  });
+
+  it("persists redacted error text and minimized metadata", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message:
+          "Failed request for alex@example.com with token=super-secret-token-value-1234567890",
+        route: "/user/Alex?token=secret",
+        metadata: {
+          authToken: "super-secret-token-value-1234567890",
+          boundary: "client_error_boundary",
+          email: "alex@example.com",
+          note: "retry email=alex@example.com token=super-secret-token-value-1234567890",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      metadata?: Record<string, string>;
+      route?: string;
+      technicalMessage: string;
+    };
+
+    expect(report.route).toBe("/user/[username]");
+    expect(report.metadata?.boundary).toBe("client_error_boundary");
+    expect(report.metadata).not.toHaveProperty("authToken");
+    expect(report.metadata).not.toHaveProperty("email");
+    expect(report.technicalMessage).not.toContain("alex@example.com");
+    expect(report.technicalMessage).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
+    expect(JSON.stringify(report)).not.toContain("token=secret");
+  });
+
+  it("returns the expected CORS headers on OPTIONS", () => {
+    const response = OPTIONS(
+      new Request(BASE_URL, {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe(
+      "Content-Type",
+    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+  });
+});

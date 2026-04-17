@@ -1,20 +1,102 @@
+import { PROJECT_CATALOG } from "@/components/projects/constants";
+import {
+  getSearchPagePath,
+  getUserProfilePath,
+  SEARCH_PAGE_QUERY_PARAM,
+  seoConfigs,
+} from "@/lib/seo";
+import {
+  buildCanonicalUrl,
+  getSiteUrl,
+  resolveSiteUrl,
+  SITE_AUTHOR_GITHUB_URL,
+  SITE_AUTHOR_NAME,
+  SITE_CONTACT_EMAIL,
+  SITE_LOGO_PATH,
+  SITE_NAME,
+  SITE_SAME_AS_LINKS,
+} from "@/lib/site-config";
+
+const JSON_LD_CONTEXT = "https://schema.org";
+const DEFAULT_LANGUAGE = "en-US";
+
+const PROJECT_COLLECTION_ITEMS = PROJECT_CATALOG.map(
+  ({ description, name, url }) => ({
+    description,
+    name,
+    url,
+  }),
+);
+const SEARCH_ACTION_MODES = ["username", "userId"] as const;
+type SearchActionMode = (typeof SEARCH_ACTION_MODES)[number];
+
+type ThingReference = {
+  "@id": string;
+};
+
+interface EntryPoint {
+  "@type": "EntryPoint";
+  urlTemplate: string;
+}
+
+interface SearchAction {
+  "@type": "SearchAction";
+  target: EntryPoint;
+  "query-input": "required name=search_term_string";
+}
+
+type WebPageType = "CollectionPage" | "ContactPage" | "ProfilePage" | "WebPage";
+
+interface Person {
+  "@type": "Person";
+  "@context": string;
+  "@id"?: string;
+  name: string;
+  sameAs?: string[];
+  url?: string;
+}
+
+interface Organization {
+  "@type": "Organization";
+  "@context": string;
+  "@id": string;
+  name: string;
+  url: string;
+  email: string;
+  founder: ThingReference;
+  logo?: string;
+  sameAs?: string[];
+}
+
+interface WebSite {
+  "@type": "WebSite";
+  "@context": string;
+  "@id": string;
+  name: string;
+  url: string;
+  inLanguage: string;
+  publisher: ThingReference;
+  potentialAction: SearchAction | SearchAction[];
+}
+
 /**
  * Schema.org WebPage type used for structured data (JSON-LD) metadata.
  * @source
  */
 interface WebPage {
-  "@type": "WebPage";
+  "@type": WebPageType;
   "@context": string;
+  "@id": string;
   name: string;
   description: string;
   url: string;
   keywords: string;
   inLanguage: string;
-  isPartOf: {
-    "@type": "WebSite";
-    name: string;
-    url: string;
-  };
+  isPartOf: ThingReference;
+  about?: ThingReference | ThingReference[];
+  breadcrumb?: ThingReference;
+  mainEntity?: ThingReference;
+  potentialAction?: SearchAction | SearchAction[];
 }
 
 /**
@@ -24,21 +106,403 @@ interface WebPage {
 interface SoftwareApplication {
   "@type": "SoftwareApplication";
   "@context": string;
+  "@id": string;
   name: string;
   description: string;
   url: string;
   applicationCategory: string;
   operatingSystem: string;
+  isAccessibleForFree: boolean;
   offers: {
     "@type": "Offer";
     price: string;
     priceCurrency: string;
   };
   keywords: string;
-  author: {
-    "@type": "Person";
+  author: ThingReference;
+}
+
+interface ItemList {
+  "@type": "ItemList";
+  "@context": string;
+  "@id": string;
+  name: string;
+  description: string;
+  url: string;
+  numberOfItems: number;
+  itemListOrder: "https://schema.org/ItemListOrderAscending";
+  itemListElement: Array<{
+    "@type": "ListItem";
+    position: number;
+    item: {
+      "@type": "SoftwareApplication";
+      name: string;
+      description: string;
+      url: string;
+    };
+  }>;
+}
+
+interface BreadcrumbList {
+  "@type": "BreadcrumbList";
+  "@context": string;
+  "@id": string;
+  itemListElement: Array<{
+    "@type": "ListItem";
+    position: number;
     name: string;
+    item: string;
+  }>;
+}
+
+export type StructuredDataPageKey = keyof typeof seoConfigs;
+
+export interface StructuredDataOverrides {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  keywords?: string[];
+  profile?: {
+    username: string;
   };
+}
+
+export type StructuredDataEntry =
+  | BreadcrumbList
+  | ItemList
+  | Organization
+  | Person
+  | SoftwareApplication
+  | WebPage
+  | WebSite;
+
+const SEARCH_ACTION_QUERY_INPUT = "required name=search_term_string";
+const SEARCH_ACTION_TARGET_PARAMETER = "search_term_string";
+const BREADCRUMB_SEGMENT_LABELS = {
+  about: "About",
+  contact: "Contact",
+  examples: "Examples",
+  privacy: "Privacy",
+  projects: "Projects",
+  search: "Search",
+  user: "User",
+} as const satisfies Record<string, string>;
+
+function buildReference(id: string): ThingReference {
+  return { "@id": id };
+}
+
+function getEntityIds(siteUrl: string) {
+  return {
+    founder: `${siteUrl}/#founder`,
+    organization: `${siteUrl}/#organization`,
+    softwareApplication: `${siteUrl}/#software-application`,
+    webSite: `${siteUrl}/#website`,
+  };
+}
+
+function getPageSchemaType(
+  pageType: keyof typeof seoConfigs,
+  overrides: StructuredDataOverrides,
+): WebPageType {
+  switch (pageType) {
+    case "contact":
+      return "ContactPage";
+    case "examples":
+    case "projects":
+      return "CollectionPage";
+    case "user":
+      return overrides.profile?.username ? "ProfilePage" : "WebPage";
+    default:
+      return "WebPage";
+  }
+}
+
+function buildFounderEntry(siteUrl: string): Person {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "Person",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.founder,
+    name: SITE_AUTHOR_NAME,
+    url: SITE_AUTHOR_GITHUB_URL,
+  };
+}
+
+function buildOrganizationEntry(siteUrl: string): Organization {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "Organization",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.organization,
+    name: SITE_NAME,
+    url: siteUrl,
+    email: SITE_CONTACT_EMAIL,
+    founder: buildReference(entityIds.founder),
+    logo: resolveSiteUrl(SITE_LOGO_PATH),
+    sameAs: SITE_SAME_AS_LINKS,
+  };
+}
+
+function buildSearchActionUrlTemplate(mode: SearchActionMode) {
+  const searchPath = getSearchPagePath({
+    mode,
+    includeDefaultMode: true,
+  });
+  const separator = searchPath.includes("?") ? "&" : "?";
+
+  return `${resolveSiteUrl(searchPath)}${separator}${SEARCH_PAGE_QUERY_PARAM}={${SEARCH_ACTION_TARGET_PARAMETER}}`;
+}
+
+function buildSearchAction(mode: SearchActionMode): SearchAction {
+  return {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: buildSearchActionUrlTemplate(mode),
+    },
+    "query-input": SEARCH_ACTION_QUERY_INPUT,
+  };
+}
+
+function buildWebSiteSearchAction(): SearchAction[] {
+  return SEARCH_ACTION_MODES.map((mode) => buildSearchAction(mode));
+}
+
+function buildSearchPageActions(): SearchAction[] {
+  return buildWebSiteSearchAction();
+}
+
+function buildWebSiteEntry(siteUrl: string): WebSite {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "WebSite",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.webSite,
+    name: SITE_NAME,
+    url: siteUrl,
+    inLanguage: DEFAULT_LANGUAGE,
+    publisher: buildReference(entityIds.organization),
+    potentialAction: buildWebSiteSearchAction(),
+  };
+}
+
+function buildAniListProfileUrl(username: string) {
+  return `https://anilist.co/user/${encodeURIComponent(username)}`;
+}
+
+function buildUserProfileEntry(canonicalUrl: string, username: string): Person {
+  return {
+    "@type": "Person",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#profile`,
+    name: username,
+    url: canonicalUrl,
+    sameAs: [buildAniListProfileUrl(username)],
+  };
+}
+
+function buildSoftwareApplicationEntry(
+  description: string,
+  keywords: string[],
+  siteUrl: string,
+): SoftwareApplication {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "SoftwareApplication",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.softwareApplication,
+    name: SITE_NAME,
+    description,
+    url: siteUrl,
+    applicationCategory: "EntertainmentApplication",
+    operatingSystem: "Web",
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    keywords: keywords.join(", "),
+    author: buildReference(entityIds.founder),
+  };
+}
+
+function buildProjectsItemListEntry(canonicalUrl: string): ItemList {
+  return {
+    "@type": "ItemList",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#projects-list`,
+    name: "AniCards Project Collection",
+    description:
+      "Open-source anime and manga tools maintained alongside AniCards.",
+    url: canonicalUrl,
+    numberOfItems: PROJECT_COLLECTION_ITEMS.length,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: PROJECT_COLLECTION_ITEMS.map((project, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "SoftwareApplication",
+        name: project.name,
+        description: project.description,
+        url: project.url,
+      },
+    })),
+  };
+}
+
+function getBreadcrumbLabel(segment: string): string {
+  return (
+    BREADCRUMB_SEGMENT_LABELS[
+      segment as keyof typeof BREADCRUMB_SEGMENT_LABELS
+    ] ?? decodeURIComponent(segment)
+  );
+}
+
+function buildBreadcrumbListEntry(
+  canonicalUrl: string,
+): BreadcrumbList | undefined {
+  const { origin, pathname } = new URL(canonicalUrl);
+  const pathSegments = pathname.split("/").filter(Boolean);
+
+  if (pathSegments.length === 0) {
+    return undefined;
+  }
+
+  return {
+    "@type": "BreadcrumbList",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#breadcrumb`,
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: SITE_NAME,
+        item: origin,
+      },
+      ...pathSegments.map((segment, index) => {
+        const breadcrumbPath = `/${pathSegments.slice(0, index + 1).join("/")}`;
+
+        return {
+          "@type": "ListItem" as const,
+          position: index + 2,
+          name: getBreadcrumbLabel(segment),
+          item: buildCanonicalUrl(breadcrumbPath),
+        };
+      }),
+    ],
+  };
+}
+
+function buildPageEntry(
+  pageType: StructuredDataPageKey,
+  config: {
+    canonical?: string;
+    description: string;
+    keywords?: string[];
+    title: string;
+  },
+  canonicalUrl: string,
+  siteUrl: string,
+  overrides: StructuredDataOverrides,
+): WebPage {
+  const entityIds = getEntityIds(siteUrl);
+  const profileEntityId = overrides.profile?.username
+    ? `${canonicalUrl}#profile`
+    : undefined;
+  const fullTitle = config.title.includes(SITE_NAME)
+    ? config.title
+    : `${config.title} | ${SITE_NAME}`;
+  const pageEntry: WebPage = {
+    "@type": getPageSchemaType(pageType, overrides),
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#webpage`,
+    name: fullTitle,
+    description: config.description,
+    url: canonicalUrl,
+    keywords: (config.keywords ?? []).join(", "),
+    inLanguage: DEFAULT_LANGUAGE,
+    isPartOf: buildReference(entityIds.webSite),
+  };
+
+  switch (pageType) {
+    case "about":
+    case "contact":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(entityIds.organization);
+      break;
+    case "examples":
+      pageEntry.about = buildReference(entityIds.softwareApplication);
+      break;
+    case "home":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(entityIds.softwareApplication);
+      break;
+    case "projects":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(`${canonicalUrl}#projects-list`);
+      break;
+    case "search":
+      pageEntry.about = buildReference(entityIds.softwareApplication);
+      pageEntry.potentialAction = buildSearchPageActions();
+      break;
+    case "user":
+      pageEntry.about = profileEntityId
+        ? [
+            buildReference(entityIds.softwareApplication),
+            buildReference(profileEntityId),
+          ]
+        : buildReference(entityIds.softwareApplication);
+      if (profileEntityId) {
+        pageEntry.mainEntity = buildReference(profileEntityId);
+      }
+      break;
+  }
+
+  return pageEntry;
+}
+
+function resolveStructuredDataCanonicalReference(
+  pageType: StructuredDataPageKey,
+  config: {
+    canonical?: string;
+  },
+  overrides: StructuredDataOverrides,
+): string {
+  const explicitCanonical = overrides.canonical?.trim();
+
+  if (explicitCanonical) {
+    return explicitCanonical;
+  }
+
+  if (pageType === "user") {
+    const normalizedUsername = overrides.profile?.username.trim();
+
+    if (normalizedUsername) {
+      return getUserProfilePath(normalizedUsername);
+    }
+
+    throw new Error(
+      "User structured data requires either a canonical override or profile.username.",
+    );
+  }
+
+  return config.canonical ?? "/";
+}
+
+export function generateSiteStructuredData(): StructuredDataEntry[] {
+  const siteUrl = getSiteUrl();
+
+  return [
+    buildFounderEntry(siteUrl),
+    buildOrganizationEntry(siteUrl),
+    buildWebSiteEntry(siteUrl),
+  ];
 }
 
 /**
@@ -50,52 +514,54 @@ interface SoftwareApplication {
  * @source
  */
 export const generateStructuredData = (
-  pageType: "home" | "user" | "search" = "home",
-) => {
-  const baseSchema: WebPage = {
-    "@type": "WebPage",
-    "@context": "https://schema.org",
-    name: "AniCards - AniList Stat Cards Generator",
-    description:
-      "Generate beautiful AniList stat cards from your anime and manga data. Create stunning visualizations of your AniList statistics.",
-    url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
-    keywords:
-      "anilist stat cards, anime statistics, manga statistics, anilist data visualization",
-    inLanguage: "en-US",
-    isPartOf: {
-      "@type": "WebSite",
-      name: "AniCards",
-      url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
-    },
+  pageType: StructuredDataPageKey = "home",
+  overrides: StructuredDataOverrides = {},
+): StructuredDataEntry[] => {
+  const config = {
+    ...seoConfigs[pageType],
+    ...overrides,
   };
+  const siteUrl = getSiteUrl();
+  const canonicalUrl = resolveSiteUrl(
+    resolveStructuredDataCanonicalReference(pageType, config, overrides),
+  );
+  const pageEntry = buildPageEntry(
+    pageType,
+    config,
+    canonicalUrl,
+    siteUrl,
+    overrides,
+  );
+  const entries: StructuredDataEntry[] = [pageEntry];
 
   if (pageType === "home") {
-    const appSchema: SoftwareApplication = {
-      "@type": "SoftwareApplication",
-      "@context": "https://schema.org",
-      name: "AniCards",
-      description:
-        "AniList stat cards generator - Create beautiful, shareable AniList statistics cards from your anime and manga data",
-      url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
-      applicationCategory: "Entertainment",
-      operatingSystem: "Web",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
-      keywords:
-        "anilist stat cards, anime statistics, manga statistics, anilist visualization, anime cards",
-      author: {
-        "@type": "Person",
-        name: "RLAlpha49",
-      },
-    };
-
-    return [baseSchema, appSchema];
+    entries.push(
+      buildSoftwareApplicationEntry(
+        config.description,
+        config.keywords ?? [],
+        siteUrl,
+      ),
+    );
   }
 
-  return [baseSchema];
+  if (pageType === "projects") {
+    entries.push(buildProjectsItemListEntry(canonicalUrl));
+  }
+
+  if (pageType === "user" && overrides.profile?.username) {
+    entries.push(
+      buildUserProfileEntry(canonicalUrl, overrides.profile.username),
+    );
+  }
+
+  const breadcrumbEntry = buildBreadcrumbListEntry(canonicalUrl);
+
+  if (breadcrumbEntry) {
+    pageEntry.breadcrumb = buildReference(breadcrumbEntry["@id"]);
+    entries.push(breadcrumbEntry);
+  }
+
+  return entries;
 };
 
 /**
@@ -105,8 +571,11 @@ export const generateStructuredData = (
  * @returns An object with an `__html` key containing the JSON-LD string.
  * @source
  */
-export const generateJsonLd = (data: (WebPage | SoftwareApplication)[]) => {
+export const generateJsonLd = (data: StructuredDataEntry[]) => {
   return {
-    __html: JSON.stringify(data.length === 1 ? data[0] : data),
+    __html: JSON.stringify(data.length === 1 ? data[0] : data).replaceAll(
+      "<",
+      String.raw`\u003c`,
+    ),
   };
 };

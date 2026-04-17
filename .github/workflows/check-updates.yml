@@ -8,555 +8,418 @@ on:
         type: boolean
         default: true
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: "0 0 * * 1" # Weekly validated refresh that can update the dependency PR.
+    - cron: "0 12 * * 4" # Midweek advisory report-only run for visibility without extra PR churn.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-updates
+  cancel-in-progress: false
 
 jobs:
   check-updates:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      PR_BRANCH: deps/update-packages
+
     steps:
-      - name: Cache Bun deps & node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.bun
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
+      - name: Require PULL_REQUEST_TOKEN for downstream workflow enforcement
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+        run: |
+          if [ -z "$PULL_REQUEST_TOKEN" ]; then
+            echo "::error::PULL_REQUEST_TOKEN is required for dependency update branch and PR automation because GITHUB_TOKEN-originated pushes can suppress downstream CI and security workflows."
+            exit 1
+          fi
+
+          printf '%s\n' "Dependency updater will use PULL_REQUEST_TOKEN so downstream push and pull_request workflows can run normally." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: oven-sh/setup-bun@v2
+          token: ${{ secrets.PULL_REQUEST_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
-      - name: Install dependencies
-        run: bun install
-      - name: Install tools
+
+      - name: Determine update automation mode
+        id: automation-mode
+        env:
+          WEEKLY_APPLY_SCHEDULE: "0 0 * * 1"
         run: |
-          bun install -g npm-check-updates
-          sudo apt-get update
-          sudo apt-get install -y jq
+          should_apply=true
+          run_mode=validated-refresh
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.update-packages }}" != "true" ]; then
+            should_apply=false
+            run_mode=manual-report-only
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" != "$WEEKLY_APPLY_SCHEDULE" ]; then
+            should_apply=false
+            run_mode=scheduled-report-only
+          fi
+
+          printf '%s\n' "should_apply=$should_apply" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "run_mode=$run_mode" >> "$GITHUB_OUTPUT"
 
       - name: Check for package updates
         id: check-updates
+        env:
+          RUN_MODE: ${{ steps.automation-mode.outputs.run_mode }}
         run: |
-          # Capture ncu output for updates
-          NCU_OUTPUT=$(ncu)
+          set -euo pipefail
 
-          # Add to step summary
-          echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
-          echo "The following packages can be updated:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$NCU_OUTPUT" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "To update all packages, run: bun run update" >> $GITHUB_STEP_SUMMARY
+          NCU_OUTPUT=$(bun run update:check || true)
+          UPDATE_INFO=$(bun run update:check:json || true)
 
-          # Capture update info in structured format
-          UPDATE_INFO=$(ncu --jsonUpgraded)
-          echo "update_info<<EOF" >> $GITHUB_OUTPUT
-          echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -z "$UPDATE_INFO" ]; then
+            UPDATE_INFO='{}'
+          fi
 
-          # Check if there are updates
+          {
+            printf '%s\n' "## 📦 Dependency Update Posture"
+            printf '%s\n' ''
+            printf '%s\n' "Mode: \`$RUN_MODE\`."
+            if [ "$RUN_MODE" = "scheduled-report-only" ]; then
+              printf '%s\n' 'This midweek run is advisory only so dependency posture is visible between validated weekly refreshes without creating duplicate PR churn.'
+            elif [ "$RUN_MODE" = "manual-report-only" ]; then
+              printf '%s\n' 'This run is report-only because package application was disabled for this dispatch.'
+            else
+              printf '%s\n' 'This run can refresh the dependency PR with validated dependency updates.'
+            fi
+            printf '%s\n' ''
+            printf '%s\n' '### Dependency update candidates'
+            printf '%s\n' '```'
+            if [ -n "$NCU_OUTPUT" ]; then
+              printf '%s\n' "$NCU_OUTPUT"
+            else
+              printf '%s\n' "No dependency updates found."
+            fi
+            printf '%s\n' '```'
+            printf '%s\n' 'Automatic package.json updates track the latest published versions through the validated refresh path.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            printf '%s\n' "update_info<<EOF"
+            printf '%s\n' "$UPDATE_INFO"
+            printf '%s\n' "EOF"
+          } >> "$GITHUB_OUTPUT"
+
           UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
           if [ "$UPDATE_COUNT" -gt 0 ]; then
             echo "[INFO] Found $UPDATE_COUNT package updates available"
-            echo "has_updates=true" >> $GITHUB_OUTPUT
+            printf '%s\n' "has_manifest_updates=true" >> "$GITHUB_OUTPUT"
           else
             echo "[INFO] No package updates found"
-            echo "has_updates=false" >> $GITHUB_OUTPUT
+            printf '%s\n' "has_manifest_updates=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check for existing PR
-        id: check-pr
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true) || github.event_name != 'workflow_dispatch' }}
+      - name: Report lockfile convergence hotspots
+        id: convergence-report
+        run: |
+          set -euo pipefail
+
+          export LOCKFILE_PATH="$GITHUB_WORKSPACE/bun.lock"
+          export HOTSPOT_SUMMARY_PATH="$RUNNER_TEMP/lockfile-hotspots.md"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const lockfileText = fs.readFileSync(process.env.LOCKFILE_PATH, "utf8");
+          const packageSpecMatches = [
+            ...lockfileText.matchAll(/^\s*"[^"]+": \["([^"]+@[^"]+)"(?:,|\])/gm),
+          ].map((match) => match[1]);
+
+          const splitPackageSpec = (packageSpec) => {
+            const lastAt = packageSpec.lastIndexOf("@");
+            if (lastAt <= 0) {
+              return null;
+            }
+
+            return {
+              name: packageSpec.slice(0, lastAt),
+              version: packageSpec.slice(lastAt + 1),
+            };
+          };
+
+          const versionsByPackage = new Map();
+          for (const packageSpec of packageSpecMatches) {
+            const split = splitPackageSpec(packageSpec);
+            if (!split) {
+              continue;
+            }
+
+            const currentEntry = versionsByPackage.get(split.name) ?? {
+              totalOccurrences: 0,
+              versions: new Map(),
+            };
+            currentEntry.totalOccurrences += 1;
+            currentEntry.versions.set(
+              split.version,
+              (currentEntry.versions.get(split.version) ?? 0) + 1,
+            );
+            versionsByPackage.set(split.name, currentEntry);
+          }
+
+          const hotspots = [...versionsByPackage.entries()]
+            .map(([packageName, versionInfo]) => ({
+              packageName,
+              totalOccurrences: versionInfo.totalOccurrences,
+              versionCount: versionInfo.versions.size,
+              versions: [...versionInfo.versions.entries()]
+                .map(([version, count]) => ({ version, count }))
+                .sort((left, right) => left.version.localeCompare(right.version)),
+            }))
+            .filter((entry) => entry.versionCount > 1)
+            .sort(
+              (left, right) =>
+                right.versionCount - left.versionCount ||
+                right.totalOccurrences - left.totalOccurrences ||
+                left.packageName.localeCompare(right.packageName),
+            )
+            .slice(0, 10);
+
+          const summaryLines =
+            hotspots.length === 0
+              ? ["No duplicate-version hotspots detected in bun.lock."]
+              : [
+                  "| Package | Versions | Entries |",
+                  "| --- | --- | --- |",
+                  ...hotspots.map(
+                    (entry) =>
+                      `| \`${entry.packageName}\` | ${entry.versions
+                        .map(
+                          (versionInfo) =>
+                            `\`${versionInfo.version}\` (${versionInfo.count})`,
+                        )
+                        .join(", ")} | ${entry.totalOccurrences} |`,
+                  ),
+                ];
+
+          fs.writeFileSync(
+            process.env.HOTSPOT_SUMMARY_PATH,
+            `${summaryLines.join("\n")}\n`,
+          );
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `hotspot_count=${hotspots.length}\n`,
+          );
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `hotspot_info<<EOF\n${JSON.stringify(hotspots)}\nEOF\n`,
+          );
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `hotspot_summary<<EOF\n${summaryLines.join("\n")}\nEOF\n`,
+          );
+          NODE
+
+          {
+            printf '%s\n' '### Lockfile convergence hotspots (advisory)'
+            cat "$HOTSPOT_SUMMARY_PATH"
+            printf '%s\n' ''
+            printf '%s\n' 'These hotspots are reported only; the workflow does not attempt automatic dedupe, override, or lockfile rewrites beyond validated dependency refreshes.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare update branch
+        id: prepare-branch
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
-          PR_EXISTS=$(gh pr list --json number,title,headRefName --jq '.[] | select(.title == "chore: update dependencies" and (.headRefName | startswith("deps/update-packages"))) | .number')
-          if [ -n "$PR_EXISTS" ]; then
-            echo "[INFO] Existing dependency update PR found: #$PR_EXISTS"
-            echo "pr_exists=true" >> $GITHUB_OUTPUT
-            echo "pr_number=$PR_EXISTS" >> $GITHUB_OUTPUT
-            PR_BRANCH=$(gh pr view $PR_EXISTS --json headRefName --jq '.headRefName')
-            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          git remote set-url origin "$remote_url"
+          trap 'git remote set-url origin "$public_remote"' EXIT
+
+          git fetch origin main "$PR_BRANCH" || true
+
+          if git ls-remote --exit-code --heads origin "$PR_BRANCH" > /dev/null 2>&1; then
+            echo "[INFO] Reusing existing update branch: $PR_BRANCH"
+            git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
           else
-            echo "[INFO] No existing dependency update PR found - will create new PR"
-            echo "pr_exists=false" >> $GITHUB_OUTPUT
-            echo "pr_branch=deps/update-packages" >> $GITHUB_OUTPUT
+            echo "[INFO] Creating update branch from origin/main: $PR_BRANCH"
+            git checkout -B "$PR_BRANCH" origin/main
           fi
 
-      - name: Set default PR branch
-        id: set-default-branch
-        if: ${{ steps.check-pr.outputs.pr_branch == '' || steps.check-pr.outputs.pr_branch == null || !contains(toJson(steps.check-pr.outputs), 'pr_branch') }}
-        run: |
-          echo "[INFO] Setting default PR branch to deps/update-packages"
-          echo "pr_branch=deps/update-packages" >> $GITHUB_OUTPUT
+          printf '%s\n' "pr_branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout or create update branch
-        id: checkout
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
+      - name: Refresh dependencies and validate before commit
+        id: validate-update
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
+        env:
+          HAS_MANIFEST_UPDATES: ${{ steps.check-updates.outputs.has_manifest_updates }}
+          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
+          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
+          UPSTASH_REDIS_REST_URL: https://example.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
+          CRON_SECRET: ci-placeholder-cron-secret
+          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
-          # Use branch name from previous steps, or fallback to default
-          PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
-          if [ -z "$PR_BRANCH" ]; then
-            PR_BRANCH="${{ steps.set-default-branch.outputs.pr_branch }}"
-            if [ -z "$PR_BRANCH" ]; then
-              # Hardcoded fallback
-              PR_BRANCH="deps/update-packages"
-              echo "[WARNING] Using hardcoded PR branch name: $PR_BRANCH"
-            fi
+          set -euo pipefail
+
+          if [ "$HAS_MANIFEST_UPDATES" = "true" ]; then
+            bun run update
           fi
 
-          echo "[INFO] Using branch: $PR_BRANCH"
+          bun install
 
-          # First fetch all remote refs to ensure we're up to date
-          echo "[INFO] Fetching all remote refs"
-          git fetch --all
+          manifest_changed=false
+          lockfile_changed=false
 
-          # Check if branch exists on remote
-          REMOTE_BRANCH_EXISTS=false
-          if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
-            REMOTE_BRANCH_EXISTS=true
-            echo "[INFO] Branch $PR_BRANCH exists on remote"
+          if ! git diff --quiet -- package.json; then
+            manifest_changed=true
+          fi
+
+          if ! git diff --quiet -- bun.lock; then
+            lockfile_changed=true
+          fi
+
+          if [ "$manifest_changed" = "false" ] && [ "$lockfile_changed" = "false" ]; then
+            echo "[INFO] No package.json or bun.lock changes remain after refresh"
+            {
+              printf '%s\n' "has_changes=false"
+              printf '%s\n' "change_kind=none"
+            } >> "$GITHUB_OUTPUT"
+
+            printf '%s\n' "No direct dependency or lockfile refresh changes were needed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$manifest_changed" = "true" ] && [ "$lockfile_changed" = "true" ]; then
+            change_kind=manifest-and-lockfile
+            change_summary="Direct dependency updates plus a refreshed bun.lock."
+          elif [ "$manifest_changed" = "true" ]; then
+            change_kind=manifest-only
+            change_summary="Direct dependency updates changed package.json."
           else
-            echo "[INFO] Branch $PR_BRANCH does not exist on remote"
+            change_kind=lockfile-only
+            change_summary="No direct package.json bumps were needed; bun.lock was refreshed under existing ranges."
           fi
 
-          # Check if branch exists locally
-          LOCAL_BRANCH_EXISTS=false
-          if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
-            LOCAL_BRANCH_EXISTS=true
-            echo "[INFO] Branch $PR_BRANCH exists locally"
-          else
-            echo "[INFO] Branch $PR_BRANCH does not exist locally"
+          printf '%s\n' "$change_summary" >> "$GITHUB_STEP_SUMMARY"
+
+          bun run validate:ci
+
+          git add package.json bun.lock
+          if git diff --cached --quiet; then
+            echo "[INFO] No package.json or bun.lock changes remain after validation"
+            {
+              printf '%s\n' "has_changes=false"
+              printf '%s\n' "change_kind=none"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          # Handle branch creation/checkout based on existence
-          if [ "$REMOTE_BRANCH_EXISTS" = "true" ]; then
-            # If branch exists locally, delete it to avoid conflicts with remote
-            if [ "$LOCAL_BRANCH_EXISTS" = "true" ]; then
-              echo "[INFO] Deleting local branch to avoid conflicts with remote"
-              git checkout main
-              git branch -D "$PR_BRANCH"
-            fi
-            
-            # Checkout from remote
-            echo "[INFO] Checking out branch from remote"
-            git checkout -b "$PR_BRANCH" "origin/$PR_BRANCH"
-          else
-            # Branch doesn't exist on remote
-            if [ "$LOCAL_BRANCH_EXISTS" = "true" ]; then
-              # Just checkout the local branch
-              echo "[INFO] Checking out existing local branch"
-              git checkout "$PR_BRANCH"
-            else
-              # Create a new branch from current HEAD
-              echo "[INFO] Creating new branch from current HEAD (main)"
-              git checkout -b "$PR_BRANCH"
-            fi
-          fi
+          {
+            printf '%s\n' "has_changes=true"
+            printf '%s\n' "change_kind=$change_kind"
+          } >> "$GITHUB_OUTPUT"
 
-          # Output the branch name for use in later steps
-          echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
-
-      - name: Update packages with npm-check-updates
-        id: update-packages
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true) || (github.event_name != 'workflow_dispatch' && steps.check-updates.outputs.has_updates == 'true') }}
+      - name: Close stale dependency PR when refresh is clean
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' && steps.validate-update.outputs.has_changes == 'false' }}
+        env:
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
-          # Just prepare the update info without actually modifying files yet
-          # Capture ncu output for updates info only
-          cp package.json /tmp/package.json.before
+          set -euo pipefail
 
-          # Capture update info in structured format without modifying files
-          UPDATE_INFO=$(ncu --jsonUpgraded)
-          echo "actual_changes<<EOF" >> $GITHUB_OUTPUT
-
-          # Extract the changes in a format we can use later
-          for pkg in $(echo "$UPDATE_INFO" | jq -r 'keys[]'); do
-            version=$(echo "$UPDATE_INFO" | jq -r --arg pkg "$pkg" '.[$pkg]')
-            echo "\"$pkg\": \"$version\"" >> $GITHUB_OUTPUT
-          done
-
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "has_actual_changes=true" >> $GITHUB_OUTPUT
-
-      - name: Push changes to branch
-        id: push-changes
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
-        run: |
-          # Use branch name from previous steps, or fallback to default
-          PR_BRANCH="${{ steps.checkout.outputs.pr_branch }}"
-          if [ -z "$PR_BRANCH" ]; then
-          PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
-            if [ -z "$PR_BRANCH" ]; then
-              PR_BRANCH="${{ steps.set-default-branch.outputs.pr_branch }}"
-              if [ -z "$PR_BRANCH" ]; then
-                # Hardcoded fallback
-                PR_BRANCH="deps/update-packages"
-                echo "[WARNING] Using hardcoded PR branch name: $PR_BRANCH"
-              fi
-            fi
+          PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "[INFO] No stale dependency PR to close"
+            exit 0
           fi
 
-          echo "[INFO] Using branch: $PR_BRANCH"
-          BRANCH_EXISTS_REMOTELY=false
-          CHANGES_TO_COMMIT=false
-          NEEDS_PUSH=false
+          COMMENT_FILE=$(mktemp)
+          {
+            printf '%s\n' 'Closing this automated dependency PR because the latest validated refresh produced no remaining package.json or bun.lock changes.'
+            printf '%s\n' ''
+            printf '%s\n' 'A future scheduled run will recreate the branch automatically if new validated dependency updates appear.'
+          } > "$COMMENT_FILE"
 
-          # Fetch latest information about remote branches
-          git fetch origin
+          gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
+          gh pr close "$PR_NUMBER" --delete-branch
 
-          # Configure git identity
+          printf '%s\n' "Closed stale dependency PR #$PR_NUMBER because the refreshed branch no longer differs from main." >> "$GITHUB_STEP_SUMMARY"
+
+          rm -f "$COMMENT_FILE"
+
+      - name: Commit and push validated dependency updates
+        id: push-updates
+        if: ${{ steps.validate-update.outputs.has_changes == 'true' }}
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+        run: |
+          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          git remote set-url origin "$remote_url"
+          trap 'git remote set-url origin "$public_remote"' EXIT
+
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Check if branch exists remotely
-          if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
-            BRANCH_EXISTS_REMOTELY=true
-            echo "[INFO] Branch exists remotely"
-            
-            # Check if we have a local branch with the same name
-            if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
-              # Delete the local branch to avoid conflicts with remote
-              echo "[INFO] Deleting local branch to avoid conflicts with remote"
-              git checkout main
-              git branch -D "$PR_BRANCH"
-            fi
-            
-            # Checkout from remote to ensure we're tracking properly
-            echo "[INFO] Checking out branch from remote"
-            git checkout -b "$PR_BRANCH" "origin/$PR_BRANCH"
-          else
-            echo "[INFO] Branch does not exist remotely"
-            # If branch doesn't exist remotely, we need to create it from main
-            
-            # Checkout main first to ensure we start clean
-            git checkout main
-            
-            # Check if the branch exists locally
-            if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
-              echo "[INFO] Branch $PR_BRANCH exists locally, checking it out"
-              git checkout "$PR_BRANCH"
-            else
-              # Create our branch from main
-              echo "[INFO] Creating new branch from main"
-              git checkout -b "$PR_BRANCH"
-            fi
-            
-            # Mark that we need to push regardless of other conditions
-            NEEDS_PUSH=true
-            echo "[INFO] Setting NEEDS_PUSH=true because branch needs to be created remotely"
-          fi
+          git commit -m "chore: update dependencies"
+          git push -u origin "$PR_BRANCH"
 
-          # Now that we're on the correct branch, perform the updates
-          if [ "${{ steps.check-updates.outputs.has_updates }}" = "true" ]; then
-            # Update packages
-            echo "[INFO] Updating packages to latest versions on branch $PR_BRANCH"
-            ncu -u
-            
-            # Install updated packages
-            echo "[INFO] Installing updated packages"
-            bun install
-
-            # Check for changes and commit them
-            git add package.json bun.lock
-            if ! git diff --staged --quiet; then
-              echo "[INFO] Committing package updates"
-              git commit -m "chore: update dependencies"
-              CHANGES_TO_COMMIT=true
-              NEEDS_PUSH=true
-            fi
-          fi
-            
-          # Check for uncommitted changes from other steps
-          git add -A
-          if ! git diff --cached --quiet; then
-            # We have actual changes to commit
-            CHANGES_TO_COMMIT=true
-            echo "[INFO] Found additional uncommitted changes to commit"
-            NEEDS_PUSH=true
-            
-            # Commit these changes
-            git commit -m "chore: update dependencies via workflow"
-          else
-            if [ "$CHANGES_TO_COMMIT" != "true" ]; then
-              echo "[INFO] No uncommitted changes found"
-              
-              if [ "${{ steps.update-packages.outputs.has_actual_changes }}" = "true" ]; then
-                echo "[INFO] Note: Changes were reported by earlier steps but nothing to commit"
-                echo "[INFO] These changes may have already been committed in a previous run"
-              fi
-            fi
-          fi
-
-          # Save changes status for later steps
-          if [ "$CHANGES_TO_COMMIT" = "true" ]; then
-            echo "changes_committed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changes_committed=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Count unpushed changes for later status reporting
-          UNPUSHED_COUNT=0
-          if [ "$BRANCH_EXISTS_REMOTELY" = "true" ]; then
-            UNPUSHED_COUNT=$(git rev-list --count "origin/$PR_BRANCH..HEAD" 2>/dev/null || echo "0")
-            if [ "$UNPUSHED_COUNT" -gt 0 ]; then
-              echo "[INFO] Found $UNPUSHED_COUNT unpushed local commit(s)"
-              NEEDS_PUSH=true
-              echo "unpushed_count=$UNPUSHED_COUNT" >> $GITHUB_OUTPUT
-            else
-              echo "unpushed_count=0" >> $GITHUB_OUTPUT
-            fi
-          else
-            # For new branches, check if we have any commits at all
-            COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
-            if [ "$COMMIT_COUNT" -gt 0 ]; then
-              echo "[INFO] Branch has $COMMIT_COUNT commit(s) that need to be pushed to the new remote branch"
-              NEEDS_PUSH=true
-              echo "unpushed_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-            else
-              echo "unpushed_count=0" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-          # Only push if we have changes that need to be pushed
-          if [ "$NEEDS_PUSH" = "true" ]; then
-            echo "[INFO] Pushing changes to remote"
-            git push -u origin "$PR_BRANCH"
-            # Set flag to indicate we pushed changes
-            echo "changes_pushed=true" >> $GITHUB_OUTPUT
-          else
-            echo "[INFO] Skipping push as no changes need to be pushed"
-            echo "changes_pushed=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Verify branch exists remotely
-          if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
-            echo "[SUCCESS] Branch $PR_BRANCH exists remotely"
-            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
-          else
-            if [ "$CHANGES_TO_COMMIT" = "true" ] || [ "$UNPUSHED_COUNT" -gt 0 ]; then
-              echo "[ERROR] Failed to push branch $PR_BRANCH to remote"
-            exit 1
-            else
-              echo "[WARNING] Branch doesn't exist remotely but there were no changes to push"
-              echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Add comment to existing PR about updates
-        if: ${{ steps.check-pr.outputs.pr_exists == 'true' && (steps.push-changes.outputs.changes_committed == 'true' || steps.push-changes.outputs.changes_pushed == 'true') }}
+      - name: Create or update dependency PR
+        if: ${{ steps.push-updates.outcome == 'success' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.check-pr.outputs.pr_number }}
+          CHANGE_KIND: ${{ steps.validate-update.outputs.change_kind }}
+          GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+          HOTSPOT_SUMMARY: ${{ steps.convergence-report.outputs.hotspot_summary }}
           UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
-          ACTUAL_CHANGES: ${{ steps.update-packages.outputs.actual_changes }}
         run: |
-          PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
-
-          # Store original branch to return to it later
-          ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-          echo "[INFO] Adding PR comment with updates to PR #$PR_NUMBER"
-
-          # Create the PR comment
+          PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
           COMMENT_FILE=$(mktemp)
 
-          # Write the header
-          cat > "$COMMENT_FILE" << EOF
-          ## 📦 New dependency updates added
-
-          This PR has been updated with package updates
-
-          <details>
-          <summary>Latest Package Updates</summary>
-
-          \`\`\`json
-          EOF
-
-          # Flag to track if we successfully added package info
-          PACKAGE_INFO_ADDED=false
-
-          # Try to use UPDATE_INFO directly if it's valid JSON 
-          if [ -n "$UPDATE_INFO" ] && echo "$UPDATE_INFO" | jq empty >/dev/null 2>&1; then
-            echo "$UPDATE_INFO" >> "$COMMENT_FILE"
-            PACKAGE_INFO_ADDED=true
-          # If UPDATE_INFO isn't valid, extract package info from ACTUAL_CHANGES and format as JSON
-          elif [ -n "$ACTUAL_CHANGES" ]; then
-                echo "{" >> "$COMMENT_FILE"
-            FIRST_ENTRY=true
-            
-            echo "$ACTUAL_CHANGES" | while IFS= read -r line; do
-                    if [ -n "$line" ]; then
-                # Extract package name and version
-                if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
-                  PACKAGE="${BASH_REMATCH[1]}"
-                  VERSION="${BASH_REMATCH[2]}"
-                  
-                  # Add comma before all but the first entry
-                  if [ "$FIRST_ENTRY" = "true" ]; then
-                    FIRST_ENTRY=false
-                  else
-                    echo "," >> "$COMMENT_FILE"
-                  fi
-                  
-                  # Write as JSON key-value pair
-                  echo "  \"$PACKAGE\": \"$VERSION\"" >> "$COMMENT_FILE"
-                  PACKAGE_INFO_ADDED=true
-                fi
-              fi
-            done
-            
-            echo "" >> "$COMMENT_FILE"
-            echo "}" >> "$COMMENT_FILE"
-          fi
-
-          # If no valid package info was added, add error message
-          if [ "$PACKAGE_INFO_ADDED" != "true" ]; then
-            cat >> "$COMMENT_FILE" << EOF
           {
-            "error": "Unable to retrieve package update details. Package updates were made, but the specific version information couldn't be extracted. Please check the workflow logs for more details."
-          }
-          EOF
-          fi
+            printf '%s\n' '## 📦 Dependency Updates'
+            printf '%s\n' ''
+            printf '%s\n' 'This branch was regenerated after passing dependency refresh and validation.'
+            printf '%s\n' ''
+            printf '%s\n' "Change kind: \`$CHANGE_KIND\`."
+            printf '%s\n' ''
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>Direct package.json updates</summary>'
+            printf '%s\n' ''
+            if [ "$UPDATE_INFO" = '{}' ]; then
+              printf '%s\n' 'No direct package.json semver bumps were needed for this refresh.'
+            else
+              printf '%s\n' '```json'
+              printf '%s\n' "$UPDATE_INFO"
+              printf '%s\n' '```'
+            fi
+            printf '%s\n' '</details>'
+            printf '%s\n' ''
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>Lockfile convergence hotspots (advisory)</summary>'
+            printf '%s\n' ''
+            printf '%s\n' "$HOTSPOT_SUMMARY"
+            printf '%s\n' ''
+            printf '%s\n' 'No automatic dedupe or override changes were applied.'
+            printf '%s\n' '</details>'
+          } > "$COMMENT_FILE"
 
-          # Close the code block and details
-          cat >> "$COMMENT_FILE" << EOF
-          \`\`\`
-          </details>
-          EOF
-
-          # Post the comment
-          echo "[INFO] Posting update comment to PR #$PR_NUMBER"
-          gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
-          echo "[SUCCESS] Comment posted successfully"
-
-          # Clean up
-          rm -f "$COMMENT_FILE" 2>/dev/null || true
-
-          # Return to original branch if needed
-          if [ "$ORIGINAL_BRANCH" != "$(git rev-parse --abbrev-ref HEAD)" ]; then
-            git checkout "$ORIGINAL_BRANCH"
-          fi
-
-      - name: Create or update PR
-        id: create-pr
-        if: ${{ steps.push-changes.outputs.pr_branch != '' && steps.check-pr.outputs.pr_exists != 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
-          PR_BRANCH: ${{ steps.push-changes.outputs.pr_branch }}
-          UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
-          ACTUAL_CHANGES: ${{ steps.update-packages.outputs.actual_changes }}
-        run: |
-          echo "[INFO] Creating new PR from branch $PR_BRANCH"
-
-          # Build PR body with package updates information
-          PR_BODY_FILE=$(mktemp)
-
-          cat > "$PR_BODY_FILE" << EOF
-          ## 📦 Dependency Updates
-
-          This PR updates packages to their latest versions.
-
-          <details>
-          <summary>Latest Package Updates</summary>
-
-          \`\`\`json
-          EOF
-
-          # Flag to track if we successfully added package info
-          PACKAGE_INFO_ADDED=false
-
-          # Try to use UPDATE_INFO directly if it's valid JSON
-          if [ -n "$UPDATE_INFO" ] && echo "$UPDATE_INFO" | jq empty >/dev/null 2>&1; then
-            echo "$UPDATE_INFO" >> "$PR_BODY_FILE"
-            PACKAGE_INFO_ADDED=true
-          # If UPDATE_INFO isn't valid, extract package info from ACTUAL_CHANGES and format as JSON
-          elif [ -n "$ACTUAL_CHANGES" ]; then
-            # Create a temporary file to build the JSON object
-            TEMP_JSON=$(mktemp)
-            echo "{" > "$TEMP_JSON"
-            
-            FIRST_ENTRY=true
-            while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                # Extract package name and version
-                if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
-                  PACKAGE="${BASH_REMATCH[1]}"
-                  VERSION="${BASH_REMATCH[2]}"
-                  
-                  # Add comma before all but the first entry
-                  if [ "$FIRST_ENTRY" = "true" ]; then
-                    FIRST_ENTRY=false
-                  else
-                    echo "," >> "$TEMP_JSON"
-                  fi
-                  
-                  # Write as JSON key-value pair
-                  echo "  \"$PACKAGE\": \"$VERSION\"" >> "$TEMP_JSON"
-                  PACKAGE_INFO_ADDED=true
-                fi
-              fi
-            done <<< "$ACTUAL_CHANGES"
-            
-            echo "}" >> "$TEMP_JSON"
-            
-            # Copy the built JSON to the PR body file
-            cat "$TEMP_JSON" >> "$PR_BODY_FILE"
-            
-            # Clean up
-            rm -f "$TEMP_JSON" 2>/dev/null || true
+          if [ -n "$PR_NUMBER" ]; then
+            echo "[INFO] Commenting on existing dependency PR #$PR_NUMBER"
+            gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
           else
-            # Log what's happening for debugging
-            echo "[INFO] No valid package info found. UPDATE_INFO empty: $([[ -z "$UPDATE_INFO" ]] && echo 'yes' || echo 'no')"
-            echo "[INFO] ACTUAL_CHANGES empty: $([[ -z "$ACTUAL_CHANGES" ]] && echo 'yes' || echo 'no')"
-            # Fallback to empty object
-            echo "{}" >> "$PR_BODY_FILE"
+            echo "[INFO] Creating dependency PR from branch $PR_BRANCH"
+            gh pr create \
+              --title "chore: update dependencies" \
+              --body-file "$COMMENT_FILE" \
+              --base main \
+              --head "$PR_BRANCH"
           fi
 
-          # If no valid package info was added, add error message
-          if [ "$PACKAGE_INFO_ADDED" != "true" ]; then
-            # Remove the empty JSON object we added as fallback
-            sed -i '$ d' "$PR_BODY_FILE"
-            # Add a more informative message
-            cat >> "$PR_BODY_FILE" << EOF
-          {
-            "note": "Package updates were detected, but the specific version information couldn't be extracted for display here. Please check the workflow logs for more details."
-          }
-          EOF
-          fi
-
-          # Close the code block
-          cat >> "$PR_BODY_FILE" << EOF
-          \`\`\`
-          </details>
-          EOF
-
-          cat >> "$PR_BODY_FILE" << EOF
-
-          This PR was automatically created by the dependency update workflow.
-          EOF
-
-          # Create the PR using the GitHub CLI
-          PR_URL=$(gh pr create \
-            --title "chore: update dependencies" \
-            --body-file "$PR_BODY_FILE" \
-            --base main \
-            --head "$PR_BRANCH")
-            
-          if [ $? -eq 0 ]; then
-            echo "[SUCCESS] Pull request created: $PR_URL"
-            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-            
-            # Extract PR number from URL
-            PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          else
-            echo "[ERROR] Failed to create pull request"
-            exit 1
-          fi
-
-          # Clean up
-          rm -f "$PR_BODY_FILE" 2>/dev/null || true
+          rm -f "$COMMENT_FILE"

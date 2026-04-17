@@ -1,28 +1,44 @@
+/**
+ * Regression coverage for the persisted card-config contract.
+ * These cases lock down the merge and cleanup rules shared by the editor and
+ * SVG route, so storage-shape regressions fail here instead of in the UI.
+ */
+
 import {
-  afterEach,
   afterAll,
+  afterEach,
   beforeEach,
   describe,
-  it,
   expect,
+  it,
   mock,
 } from "bun:test";
+
+import { createProtectedWriteGrantCookie } from "@/lib/api/protected-write-grants";
+import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
-  sharedRedisMockSet,
-  sharedRedisMockGet,
-  sharedRedisMockIncr,
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
+import { displayNames } from "@/lib/card-data/validation";
+import {
+  allowConsoleWarningsAndErrors,
+  installStatefulRedisEvalHarness,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__.test";
-import { displayNames } from "@/lib/card-data/validation";
+  sharedRedisMockEval,
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+  sharedRedisMockSet,
+} from "@/tests/unit/__setup__";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalApiSecretToken = process.env.API_SECRET_TOKEN;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 const { POST, OPTIONS } = await import("@/app/api/store-cards/route");
 
 afterAll(() => {
-  // Restore the original app URL
   if (originalAppUrl === undefined) {
     delete process.env.NEXT_PUBLIC_APP_URL;
   } else {
@@ -30,38 +46,127 @@ afterAll(() => {
   }
 });
 
-/**
- * Helper to create a request with standard headers
- */
 function createRequest(
   body?: Record<string, unknown>,
   method: string = "POST",
   origin: string = "http://localhost",
+  extraHeaders?: Record<string, string>,
 ) {
   return new Request("http://localhost/api/store-cards", {
     method,
     headers: {
       "x-forwarded-for": "127.0.0.1",
+      "x-vercel-forwarded-for": "127.0.0.1",
+      "x-vercel-id": "iad1::test-request",
       origin,
       "Content-Type": "application/json",
+      ...extraHeaders,
     },
     body: method === "POST" && body ? JSON.stringify(body) : undefined,
   });
 }
 
+async function createRequestProofCookieHeader(): Promise<string> {
+  const requestProofToken = await createRequestProofToken({
+    ip: "127.0.0.1",
+  });
+  if (!requestProofToken) {
+    throw new Error("Expected request proof token to be generated");
+  }
+
+  return `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`;
+}
+
+async function createProtectedWriteGrantCookieHeader(options: {
+  userId: number;
+  username?: string;
+}): Promise<string> {
+  const cookie = await createProtectedWriteGrantCookie({
+    source: "stored_user",
+    userId: options.userId,
+    username: options.username,
+  });
+  if (!cookie) {
+    throw new Error("Expected protected write grant cookie to be generated");
+  }
+
+  return `${cookie.name}=${cookie.value}`;
+}
+
+function joinCookieHeader(...cookies: Array<string | undefined>): string {
+  return cookies.filter(Boolean).join("; ");
+}
+
+function getStoredCard(
+  stored: unknown,
+  cardName: string,
+): Record<string, unknown> {
+  if (!stored || typeof stored !== "object") {
+    throw new TypeError("Expected stored payload to be an object");
+  }
+
+  const cards = (stored as Record<string, unknown>)["cards"];
+  if (!Array.isArray(cards)) {
+    throw new TypeError("Expected stored payload to contain a cards array");
+  }
+
+  const found = (cards as Array<Record<string, unknown>>).find(
+    (c) => c["cardName"] === cardName,
+  );
+  if (!found) {
+    throw new TypeError(`Expected stored cards to include ${cardName}`);
+  }
+
+  return found;
+}
+
+function createCommittedUserSnapshotRecord(userId: number): string {
+  return JSON.stringify({
+    userId: String(userId),
+    storageFormat: "split-user-v2",
+    schemaVersion: 2,
+    revision: 7,
+    updatedAt: "2026-04-10T12:34:56.000Z",
+    committedAt: "2026-04-10T12:35:00.000Z",
+    snapshotToken: `snapshot-${userId}`,
+    snapshotKeyPrefix: `user:${userId}:snapshot:snapshot-${userId}`,
+  });
+}
+
 describe("Store Cards API POST Endpoint", () => {
   afterEach(() => {
+    if (originalApiSecretToken === undefined) {
+      delete process.env.API_SECRET_TOKEN;
+    } else {
+      process.env.API_SECRET_TOKEN = originalApiSecretToken;
+    }
     mock.clearAllMocks();
   });
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      NODE_ENV: "test",
+    };
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
+    sharedRedisMockEval.mockClear();
     sharedRedisMockIncr.mockReset();
     sharedRatelimitMockLimit.mockReset();
     sharedRatelimitMockSlidingWindow.mockClear();
+    installStatefulRedisEvalHarness();
 
-    sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      const commitMatch = /^user:(\d+):commit$/.exec(key);
+      if (commitMatch) {
+        return Promise.resolve(
+          createCommittedUserSnapshotRecord(Number(commitMatch[1])),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
     sharedRedisMockSet.mockResolvedValue(true);
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
@@ -97,10 +202,102 @@ describe("Store Cards API POST Endpoint", () => {
       );
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
     });
+
+    it("should return the forwarded X-Request-Id on successful writes", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const response = await POST(
+        new Request("http://localhost/api/store-cards", {
+          method: "POST",
+          headers: {
+            "x-forwarded-for": "127.0.0.1",
+            "x-vercel-forwarded-for": "127.0.0.1",
+            origin: "http://localhost",
+            "Content-Type": "application/json",
+            [INTERNAL_REQUEST_ID_HEADER]: "req-store-cards-12345",
+          },
+          body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("X-Request-Id")).toBe(
+        "req-store-cards-12345",
+      );
+      expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
+    });
+
+    it("should reject protected writes without a request proof when API_SECRET_TOKEN is configured", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const res = await POST(
+        createRequest({ userId: 1, statsData: {}, cards: [] }),
+      );
+
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("should reject protected writes when the browser grant is bound to another user", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        userId: 2,
+        username: "BoundUser",
+      });
+
+      const res = await POST(
+        createRequest(
+          { userId: 1, statsData: {}, cards: [] },
+          "POST",
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("Forbidden");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should accept protected writes when the browser grant matches the requested user", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const requestProofCookie = await createRequestProofCookieHeader();
+      const writeGrantCookie = await createProtectedWriteGrantCookieHeader({
+        userId: 1,
+        username: "BoundUser",
+      });
+
+      const res = await POST(
+        createRequest(
+          { userId: 1, statsData: {}, cards: [] },
+          "POST",
+          "http://localhost",
+          {
+            cookie: joinCookieHeader(requestProofCookie, writeGrantCookie),
+          },
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Set-Cookie")).toContain(
+        "anicards_write_grant_1=",
+      );
+    });
   });
 
   describe("Input Validation", () => {
-    it("should return 400 when statsData contains an error", async () => {
+    it("should ignore legacy statsData error payloads for compatibility", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
@@ -109,9 +306,23 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.error).toBe("Invalid data: Invalid stats");
+      expect(data.success).toBe(true);
+    });
+
+    it("should ignore malformed legacy statsData objects for compatibility", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: { score: 95 },
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.success).toBe(true);
     });
 
     it("should reject invalid card data", async () => {
@@ -119,11 +330,25 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         userId: 1,
         statsData: {},
-        cards: null, // Invalid: should be an array
+        cards: null,
       });
 
       const res = await POST(req);
       expect(res.status).toBe(400);
+    });
+
+    it("should reject non-object card entries in array", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [null],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
     });
 
     it("should reject missing userId", async () => {
@@ -131,11 +356,42 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         statsData: {},
         cards: [],
-        // userId omitted
       });
 
       const res = await POST(req);
       expect(res.status).toBe(400);
+    });
+
+    it("should reject malformed ifMatchUpdatedAt", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        ifMatchUpdatedAt: "not-a-real-timestamp",
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject unsupported top-level fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [],
+        unexpectedField: "surprise",
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should reject invalid JSON body", async () => {
@@ -151,7 +407,56 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid JSON body");
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject request bodies larger than 512 KB", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createRequest({
+        userId: 1,
+        statsData: { blob: "x".repeat(513 * 1024) },
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(413);
+      const data = await res.json();
+      expect(data.error).toBe("Request body too large");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject non-boolean disabled field", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: "yes",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
     });
 
     it("should reject invalid card types", async () => {
@@ -175,6 +480,31 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("should reject unsupported nested keys in card patches", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+            unexpectedField: "surprise",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
     it("should return invalid names and suggestions for typos", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -190,7 +520,7 @@ describe("Store Cards API POST Endpoint", () => {
             circleColor: "#f00",
           },
           {
-            cardName: "tagCategoryDistribuution", // typo
+            cardName: "tagCategoryDistribuution",
             variation: "default",
             titleColor: "#000",
             backgroundColor: "#fff",
@@ -212,13 +542,220 @@ describe("Store Cards API POST Endpoint", () => {
     });
   });
 
+  describe("Optimistic concurrency", () => {
+    it("should return 409 with currentUpdatedAt when ifMatchUpdatedAt is stale", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4242;
+      const currentUpdatedAt = "2025-02-02T02:02:02.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: "2025-01-01T00:00:00.000Z",
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+
+      const data = await res.json();
+      expect(data.error).toBe(
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+      );
+      expect(data.currentUpdatedAt).toBe(currentUpdatedAt);
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject existing writes that omit compare tokens", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4344;
+      const currentUpdatedAt = "2025-02-03T03:03:03.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+
+      const data = await res.json();
+      expect(data.currentUpdatedAt).toBe(currentUpdatedAt);
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should atomically write when ifMatchUpdatedAt matches the current version", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4343;
+      const currentUpdatedAt = "2025-02-03T03:03:03.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: currentUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(sharedRedisMockEval).toHaveBeenCalledWith(
+        expect.any(String),
+        [
+          `cards:${userId}`,
+          `cards:${userId}:meta`,
+          `user:${userId}:commit`,
+          `user:${userId}:meta`,
+          `user:${userId}`,
+        ],
+        [currentUpdatedAt, expect.any(String), expect.any(String)],
+      );
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
+        `cards:${userId}`,
+        expect.any(String),
+      );
+    });
+
+    it("should return 409 when the atomic write detects a late conflict", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4444;
+      const originalUpdatedAt = "2025-02-04T04:04:04.000Z";
+      const currentUpdatedAt = "2025-02-05T05:05:05.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: originalUpdatedAt,
+        }),
+      );
+      sharedRedisMockEval.mockImplementationOnce(async () => [
+        0,
+        currentUpdatedAt,
+      ]);
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: originalUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+
+      const data = await res.json();
+      expect(data.error).toBe(
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+      );
+      expect(data.currentUpdatedAt).toBe(currentUpdatedAt);
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+  });
+
   describe("Basic Storage", () => {
     it("should store card configurations successfully", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 123;
       const req = createRequest({
         userId,
-        statsData: { score: 95 },
+        statsData: {},
         cards: [
           {
             cardName: "animeStats",
@@ -248,14 +785,254 @@ describe("Store Cards API POST Endpoint", () => {
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedData.userId).toBe(userId);
       expect(storedData.cards).toHaveLength(1);
+
+      const storedNames = (storedData.cards as Array<{ cardName: string }>).map(
+        (c) => c.cardName,
+      );
+      expect(storedNames).toEqual(["animeStats"]);
+
+      expect(storedData.cardOrder).toBeUndefined();
+
+      const animeStats = (
+        storedData.cards as Array<Record<string, unknown>>
+      ).find((c) => c.cardName === "animeStats");
+      expect(animeStats).toBeDefined();
+      expect(animeStats).toMatchObject({
+        cardName: "animeStats",
+        variation: "default",
+        titleColor: "#000",
+        backgroundColor: "#fff",
+        textColor: "#333",
+        circleColor: "#f00",
+      });
       expect(storedData.updatedAt).toBeDefined();
+    });
+
+    it("should accept and store disabled cards (sets disabled flag)", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 321;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toEqual([]);
+      expect(stored.cardOrder).toBeUndefined();
+    });
+
+    it("should preserve previous settings when a card is disabled", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 400;
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              colorPreset: "custom",
+              titleColor: "#111",
+              backgroundColor: "#222",
+              textColor: "#333",
+              circleColor: "#444",
+              borderColor: "#00ff00",
+              borderRadius: 7,
+              useCustomSettings: true,
+              showPiePercentages: true,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeGenres",
+            disabled: true,
+          },
+        ],
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeGenres = (stored.cards as Array<Record<string, unknown>>).find(
+        (c) => c.cardName === "animeGenres",
+      );
+
+      expect(animeGenres).toMatchObject({
+        cardName: "animeGenres",
+        disabled: true,
+        variation: "pie",
+        colorPreset: "custom",
+        titleColor: "#111",
+        backgroundColor: "#222",
+        textColor: "#333",
+        circleColor: "#444",
+        borderColor: "#00ff00",
+        borderRadius: 7,
+        useCustomSettings: true,
+        showPiePercentages: true,
+      });
+    });
+
+    it("should persist an empty explicit-config set when incoming cards is empty", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 987;
+      const req = createRequest({ userId, statsData: {}, cards: [] });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toEqual([]);
+      expect(stored.cardOrder).toBeUndefined();
+    });
+
+    it("should persist only the authored cardOrder signal separately from explicit card configs", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 654;
+      const requestedOrder = ["favoritesGrid", "animeStats", "animeGenres"];
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cardOrder: requestedOrder,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toHaveLength(1);
+      expect(stored.cards[0]).toMatchObject({ cardName: "animeStats" });
+      expect(stored.cardOrder).toEqual(requestedOrder);
+    });
+
+    it("should clear a previously stored custom card order when an explicit empty order is sent", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 656;
+      const existingUpdatedAt = new Date().toISOString();
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          cardOrder: ["favoritesGrid", "animeStats", "animeGenres"],
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cardOrder: [],
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cardOrder).toBeUndefined();
+    });
+
+    it("should capture the committed user snapshot inside the atomic card write", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 655;
+
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === `cards:${userId}`) {
+          return Promise.resolve(null);
+        }
+
+        if (key === `user:${userId}:commit`) {
+          return Promise.resolve(
+            JSON.stringify({
+              userId: String(userId),
+              storageFormat: "split-user-v2",
+              schemaVersion: 2,
+              revision: 7,
+              updatedAt: "2026-04-10T12:34:56.000Z",
+              committedAt: "2026-04-10T12:35:00.000Z",
+              snapshotToken: "snapshot-655",
+              snapshotKeyPrefix: "user:655:snapshot:snapshot-655",
+            }),
+          );
+        }
+
+        return Promise.resolve(null);
+      });
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const data = await res.json();
+      expect(data.userSnapshot).toEqual({
+        token: "snapshot-655",
+        revision: 7,
+        updatedAt: "2026-04-10T12:34:56.000Z",
+        committedAt: "2026-04-10T12:35:00.000Z",
+      });
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.userSnapshot).toEqual({
+        token: "snapshot-655",
+        revision: 7,
+        updatedAt: "2026-04-10T12:34:56.000Z",
+        committedAt: "2026-04-10T12:35:00.000Z",
+      });
     });
 
     it("should accept up to the allowed number of card types", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with exactly the number of available card types
       const cardsPayload = available.map((cardName) => ({
         cardName,
         variation: "default",
@@ -273,6 +1050,7 @@ describe("Store Cards API POST Endpoint", () => {
     it("should remove unsupported stored card types when saving", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
+      const existingUpdatedAt = new Date().toISOString();
       const existing = {
         userId,
         cards: [
@@ -285,12 +1063,17 @@ describe("Store Cards API POST Endpoint", () => {
             circleColor: "#222",
           },
         ],
-        updatedAt: new Date().toISOString(),
+        updatedAt: existingUpdatedAt,
       };
 
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existing));
 
-      const req = createRequest({ userId, statsData: {}, cards: [] });
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+      });
       const res = await POST(req);
       expect(res.status).toBe(200);
 
@@ -301,14 +1084,14 @@ describe("Store Cards API POST Endpoint", () => {
       );
 
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedData.cards).toHaveLength(0);
+      expect(storedData.cards).toEqual([]);
+      expect(storedData.cardOrder).toBeUndefined();
     });
 
     it("should accept duplicate entries that don't increase unique types", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with available + 1 entry but duplicate of the first card
       const cardsPayload = available
         .map((cardName) => ({
           cardName,
@@ -338,7 +1121,6 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with available + 1 unique card types
       const cardsPayload = available
         .map((cardName) => ({
           cardName,
@@ -376,7 +1158,7 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#fff",
             textColor: "#333",
             circleColor: "#f00",
-            borderRadius: 75, // Valid value that will be stored
+            borderRadius: 75,
           },
         ],
       });
@@ -384,7 +1166,6 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // Verify request was successful and stored
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
@@ -408,21 +1189,22 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
       const data = await res.json();
-      expect(data.error).toBe("Card storage failed");
+      expect(data.error).toBe("Card storage is temporarily unavailable");
+      expect(data.retryable).toBe(true);
     });
   });
 
   describe("Pie Variation Handling", () => {
-    it("should persist showPiePercentages=false when pie card omits it", async () => {
+    it("should not persist showPiePercentages when pie card omits it", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
         statsData: {},
         cards: [
           {
-            cardName: "animeStatusDistribution", // Supports pie
+            cardName: "animeStatusDistribution",
             variation: "pie",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -436,10 +1218,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(false);
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
-    it("should persist showPiePercentages=false when donut card omits it", async () => {
+    it("should not persist showPiePercentages when donut card omits it", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
@@ -460,7 +1244,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(false);
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
     it("should preserve showPiePercentages=true when explicitly set", async () => {
@@ -470,7 +1256,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeGenres", // Supports pie
+            cardName: "animeGenres",
             variation: "pie",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -485,7 +1271,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(true);
+      expect(getStoredCard(stored, "animeGenres").showPiePercentages).toBe(
+        true,
+      );
     });
 
     it("should not save showPiePercentages for non-pie variations", async () => {
@@ -496,12 +1284,12 @@ describe("Store Cards API POST Endpoint", () => {
         cards: [
           {
             cardName: "animeStatusDistribution",
-            variation: "default", // Not pie
+            variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            showPiePercentages: true, // Should be ignored
+            showPiePercentages: true,
           },
         ],
       });
@@ -510,12 +1298,14 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBeUndefined();
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
     it("should merge pie percentages from previous config", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing card with showPiePercentages=true
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 999,
@@ -526,12 +1316,14 @@ describe("Store Cards API POST Endpoint", () => {
               showPiePercentages: true,
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 999,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeGenres",
@@ -540,7 +1332,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            // No showPiePercentages provided - should use previous
           },
         ],
       });
@@ -549,19 +1340,21 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(true);
+      expect(getStoredCard(stored, "animeGenres").showPiePercentages).toBe(
+        true,
+      );
     });
   });
 
   describe("Favorites Handling", () => {
-    it("should persist showFavorites=false for favorite cards when omitted", async () => {
+    it("should not persist showFavorites for favorite cards when omitted", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1001,
         statsData: {},
         cards: [
           {
-            cardName: "animeStaff", // Supports favorites
+            cardName: "animeStaff",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -575,7 +1368,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(false);
+      expect(getStoredCard(stored, "animeStaff").showFavorites).toBeUndefined();
     });
 
     it("should preserve showFavorites=true when explicitly set", async () => {
@@ -585,7 +1378,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStudios", // Supports favorites
+            cardName: "animeStudios",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -600,7 +1393,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(true);
+      expect(getStoredCard(stored, "animeStudios").showFavorites).toBe(true);
     });
 
     it("should not save showFavorites for cards that don't support it", async () => {
@@ -610,13 +1403,13 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStats", // Does NOT support favorites
+            cardName: "animeStats",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            showFavorites: true, // Should be ignored
+            showFavorites: true,
           },
         ],
       });
@@ -625,11 +1418,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBeUndefined();
+      expect(getStoredCard(stored, "animeStats").showFavorites).toBeUndefined();
     });
 
     it("should merge favorites from previous config", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 1001,
@@ -640,12 +1434,14 @@ describe("Store Cards API POST Endpoint", () => {
               showFavorites: true,
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 1001,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeVoiceActors",
@@ -654,7 +1450,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            // No showFavorites provided - should use previous
           },
         ],
       });
@@ -663,7 +1458,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(true);
+      expect(getStoredCard(stored, "animeVoiceActors").showFavorites).toBe(
+        true,
+      );
     });
   });
 
@@ -731,11 +1528,915 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
+
+    it("should not save colorPreset when useCustomSettings is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 500,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            useCustomSettings: false,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.colorPreset).toBeUndefined();
+      expect(animeStats.titleColor).toBeUndefined();
+      expect(animeStats.backgroundColor).toBeUndefined();
+      expect(animeStats.textColor).toBeUndefined();
+      expect(animeStats.circleColor).toBeUndefined();
+      expect(animeStats.useCustomSettings).toBe(false);
+    });
+
+    it("should save colorPreset when useCustomSettings is true", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 500,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+            useCustomSettings: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.colorPreset).toBe("dark");
+      expect(animeStats.useCustomSettings).toBe(true);
+    });
+  });
+
+  describe("Global Settings Color Field Cleanup", () => {
+    it("should clear existing individual global colors when global preset switches away from custom", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 901;
+      const existingUpdatedAt = new Date().toISOString();
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "custom",
+            titleColor: "#111111",
+            backgroundColor: "#222222",
+            textColor: "#333333",
+            circleColor: "#444444",
+            borderEnabled: false,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.colorPreset).toBe("default");
+      expect(stored.globalSettings.titleColor).toBeUndefined();
+      expect(stored.globalSettings.backgroundColor).toBeUndefined();
+      expect(stored.globalSettings.textColor).toBeUndefined();
+      expect(stored.globalSettings.circleColor).toBeUndefined();
+    });
+
+    it("should ignore invalid individual global color fields when preset is non-custom", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createRequest({
+        userId: 902,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          titleColor: "not-a-color",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.colorPreset).toBe("default");
+      expect(stored.globalSettings.titleColor).toBeUndefined();
+    });
+  });
+
+  describe("Per-card Override Cleanup", () => {
+    it("should clear per-card border/advanced overrides when useCustomSettings=false and only persist grid dims for favoritesGrid", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 903;
+      const existingUpdatedAt = new Date().toISOString();
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStaff",
+              variation: "default",
+              useCustomSettings: true,
+              borderRadius: 24,
+              showFavorites: true,
+              useStatusColors: true,
+            },
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              useCustomSettings: true,
+              borderRadius: 10,
+              showPiePercentages: true,
+            },
+            {
+              cardName: "animeStats",
+              variation: "default",
+              useCustomSettings: true,
+              gridCols: 5,
+              gridRows: 5,
+            },
+            {
+              cardName: "favoritesGrid",
+              variation: "default",
+              useCustomSettings: true,
+              gridCols: 4,
+              gridRows: 2,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: false,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStaff",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: false,
+          },
+          {
+            cardName: "animeGenres",
+            variation: "pie",
+            colorPreset: "default",
+            useCustomSettings: false,
+          },
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: true,
+          },
+          {
+            cardName: "favoritesGrid",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: true,
+            gridCols: 3,
+            gridRows: 3,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStaff = getStoredCard(stored, "animeStaff");
+      expect(animeStaff.useCustomSettings).toBe(false);
+      expect(animeStaff.borderRadius).toBeUndefined();
+      expect(animeStaff.showFavorites).toBeUndefined();
+      expect(animeStaff.useStatusColors).toBeUndefined();
+
+      const animeGenres = getStoredCard(stored, "animeGenres");
+      expect(animeGenres.useCustomSettings).toBe(false);
+      expect(animeGenres.borderRadius).toBeUndefined();
+      expect(animeGenres.showPiePercentages).toBeUndefined();
+
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.useCustomSettings).toBe(true);
+      expect(animeStats.gridCols).toBeUndefined();
+      expect(animeStats.gridRows).toBeUndefined();
+
+      const favoritesGrid = getStoredCard(stored, "favoritesGrid");
+      expect(favoritesGrid.useCustomSettings).toBe(true);
+      expect(favoritesGrid.gridCols).toBe(3);
+      expect(favoritesGrid.gridRows).toBe(3);
+    });
+  });
+
+  describe("Border Settings Optimization", () => {
+    it("should not save borderColor in globalSettings when borderEnabled is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+          borderColor: "#ff0000",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(false);
+      expect(stored.globalSettings.borderColor).toBeUndefined();
+    });
+
+    it("should clear existing global borderColor when incoming globalSettings disables border without providing a color", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderColor: "#ff0000",
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(false);
+      expect(stored.globalSettings.borderColor).toBeUndefined();
+    });
+
+    it("should save borderColor in globalSettings when borderEnabled is true", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "#ff0000",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(true);
+      expect(stored.globalSettings.borderColor).toBe("#ff0000");
+    });
+
+    it("should reject unsupported nested keys in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 700,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "#ff0000",
+          unexpectedField: "malicious",
+          nested: { foo: "bar" },
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject globalSettings when incoming contains only unsupported fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 710,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          unexpectedField: "malicious",
+          nested: { foo: "bar" },
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should reject globalSettings requests with unsupported fields even when stored settings already exist", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 801;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderColor: "#00ff00",
+            gridCols: 3,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: { unexpectedField: "malicious" },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
+    it("should accept valid gradient color in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const gradient = {
+        type: "linear",
+        stops: [
+          { color: "#fff", offset: 0 },
+          { color: "#000", offset: 100 },
+        ],
+      };
+      const req = createRequest({
+        userId: 802,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: gradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.titleColor).toEqual(gradient);
+    });
+
+    it("should reject invalid gradient value in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const badGradient = {
+        type: "linear",
+        stops: [{ color: "#fff", offset: 0 }],
+      };
+      const req = createRequest({
+        userId: 803,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: badGradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject invalid color strings in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 810,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: "not-a-color" },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject invalid borderColor strings in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 812,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "not-a-color",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should reject globalSettings when any gradient value is invalid", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const badGradient = {
+        type: "linear",
+        stops: [{ color: "#fff", offset: 0 }],
+      };
+      const req = createRequest({
+        userId: 811,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: "#abcdef", backgroundColor: badGradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should clamp incoming global borderRadius when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 900,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderRadius: 1000,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderRadius).toBe(100);
+    });
+
+    it("should preserve per-card borderColor and borderRadius even when borders are disabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            borderColor: "#00ff00",
+            borderRadius: 8,
+            useCustomSettings: true,
+            colorPreset: "custom",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.borderColor).toBe("#00ff00");
+      expect(animeStats.borderRadius).toBe(8);
+    });
+
+    it("should preserve existing per-card border values when global border is disabled and incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#AAEEFF",
+              borderRadius: 12,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored2 = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStats = getStoredCard(stored2, "animeStats");
+      expect(animeStats.borderColor).toBe("#AAEEFF");
+      expect(animeStats.borderRadius).toBe(12);
+    });
+
+    it("should save borderColor in card config when border is enabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            borderColor: "#00ff00",
+            borderRadius: 8,
+            useCustomSettings: true,
+            colorPreset: "custom",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(getStoredCard(stored, "animeStats").borderColor).toBe("#00ff00");
+    });
+
+    it("should preserve per-card borderColor from previous config when omitted and border is enabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#00abcd",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(getStoredCard(stored, "animeStats").borderColor).toBe("#00abcd");
+    });
+
+    it("should not save borderColor in card config when useCustomSettings is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#FF00FF",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            useCustomSettings: false,
+            colorPreset: "default",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(getStoredCard(stored, "animeStats").borderColor).toBeUndefined();
+    });
+
+    it("should clamp existing global borderRadius when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 900,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderRadius: 150,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 900,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderRadius).toBe(100);
+    });
+  });
+
+  describe("Global Advanced Settings", () => {
+    it("should persist global advanced settings when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 700;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          useStatusColors: false,
+          showPiePercentages: false,
+          showFavorites: false,
+          gridCols: 2,
+          gridRows: 4,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(false);
+      expect(stored.globalSettings.showFavorites).toBe(false);
+      expect(stored.globalSettings.gridCols).toBe(2);
+      expect(stored.globalSettings.gridRows).toBe(4);
+    });
+
+    it("should preserve existing global advanced settings when incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 701;
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            useStatusColors: false,
+            showPiePercentages: true,
+            showFavorites: true,
+            gridCols: 4,
+            gridRows: 1,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(true);
+      expect(stored.globalSettings.showFavorites).toBe(true);
+      expect(stored.globalSettings.gridCols).toBe(4);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp existing global grid dims when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 702;
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            gridCols: 999,
+            gridRows: -10,
+          },
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp incoming global grid dims when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 703;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          gridCols: 999,
+          gridRows: -10,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
   });
 
   describe("Card Merging Logic", () => {
     it("should merge new cards with existing cards", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
@@ -746,12 +2447,14 @@ describe("Store Cards API POST Endpoint", () => {
               titleColor: "#111",
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 777,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeGenres",
@@ -777,6 +2480,7 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should update existing card when same cardName is provided", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
@@ -787,12 +2491,14 @@ describe("Store Cards API POST Endpoint", () => {
               titleColor: "#111",
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 777,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeStats",
@@ -812,6 +2518,7 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should preserve border radius from previous config when not provided", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
@@ -822,12 +2529,14 @@ describe("Store Cards API POST Endpoint", () => {
               borderRadius: 12.5,
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 777,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeStats",
@@ -847,6 +2556,7 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should override border radius with new value", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
@@ -857,12 +2567,14 @@ describe("Store Cards API POST Endpoint", () => {
               borderRadius: 5,
             },
           ],
+          updatedAt: existingUpdatedAt,
         }),
       );
 
       const req = createRequest({
         userId: 777,
         statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
         cards: [
           {
             cardName: "animeStats",
@@ -883,13 +2595,13 @@ describe("Store Cards API POST Endpoint", () => {
   });
 
   describe("Error Recovery & Edge Cases", () => {
-    it("should recover from corrupted Redis payload", async () => {
+    it("should reject corrupted Redis payloads instead of silently overwriting them", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce("[object Object]"); // Corrupted
+      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
 
       const req = createRequest({
         userId: 77,
-        statsData: { score: 42 },
+        statsData: {},
         cards: [
           {
             cardName: "animeStats",
@@ -904,8 +2616,8 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
-      expect(sharedRedisMockSet).toHaveBeenCalled();
+      expect(res.status).toBe(409);
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should increment corrupted records analytics metric", async () => {
@@ -927,10 +2639,15 @@ describe("Store Cards API POST Endpoint", () => {
         ],
       });
 
-      await POST(req);
-      // When existing data is corrupted, the endpoint should recover gracefully
-      // and continue to store the new card configuration
-      expect(sharedRedisMockSet).toHaveBeenCalled();
+      const res = await POST(req);
+      expect(res.status).toBe(409);
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:corrupted_records",
+      );
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
     });
 
     it("should include updatedAt timestamp in stored record", async () => {
@@ -972,8 +2689,6 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      // This depends on validateCardData implementation - adjust expectation if needed
-      // Could be 400 if validation rejects empty, or 200 if it's allowed
       expect([200, 400]).toContain(res.status);
     });
 
@@ -1015,6 +2730,14 @@ describe("Store Cards API POST Endpoint", () => {
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards).toHaveLength(3);
+      expect(stored.cardOrder).toBeUndefined();
+
+      const storedNames = new Set(
+        (stored.cards as Array<{ cardName: string }>).map((c) => c.cardName),
+      );
+      expect(storedNames.has("animeStats")).toBe(true);
+      expect(storedNames.has("animeGenres")).toBe(true);
+      expect(storedNames.has("animeStaff")).toBe(true);
     });
   });
 
@@ -1046,8 +2769,7 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
-        statsData: { error: "Test error" },
-        cards: [],
+        cards: null,
       });
 
       await POST(req);
