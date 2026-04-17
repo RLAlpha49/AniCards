@@ -162,6 +162,9 @@ jobs:
 
           const reportPath = ".artifacts/coverage/lcov.info";
           const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "73");
+          const normalizeCoveragePath = (filePath) => filePath.replace(/\\/g, "/");
+          const shouldSkipCoverageRecord = (filePath) =>
+            /\.(test|spec)\.[cm]?[jt]sx?$/i.test(normalizeCoveragePath(filePath));
 
           if (!Number.isFinite(threshold)) {
             console.error(`Invalid COVERAGE_LINES_THRESHOLD: ${process.env.COVERAGE_LINES_THRESHOLD ?? ""}`);
@@ -175,12 +178,23 @@ jobs:
 
           let linesFound = 0;
           let linesHit = 0;
+          let currentFile = null;
 
           for (const line of fs.readFileSync(reportPath, "utf8").split(/\r?\n/)) {
-            if (line.startsWith("LF:")) {
+            if (line.startsWith("SF:")) {
+              currentFile = line.slice(3);
+            } else if (line.startsWith("LF:")) {
+              if (currentFile && shouldSkipCoverageRecord(currentFile)) {
+                continue;
+              }
               linesFound += Number(line.slice(3));
             } else if (line.startsWith("LH:")) {
+              if (currentFile && shouldSkipCoverageRecord(currentFile)) {
+                continue;
+              }
               linesHit += Number(line.slice(3));
+            } else if (line === "end_of_record") {
+              currentFile = null;
             }
           }
 
@@ -191,7 +205,7 @@ jobs:
 
           const lineCoverage = (linesHit / linesFound) * 100;
           console.log(
-            `Line coverage: ${lineCoverage.toFixed(2)}% (${linesHit}/${linesFound}); threshold: ${threshold.toFixed(2)}%`
+            `Line coverage (excluding *.test/spec files): ${lineCoverage.toFixed(2)}% (${linesHit}/${linesFound}); threshold: ${threshold.toFixed(2)}%`
           );
 
           if (lineCoverage < threshold) {
