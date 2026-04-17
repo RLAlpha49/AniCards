@@ -417,11 +417,11 @@ export const CardPreview = memo(function CardPreview({
 
   const renderAvailabilityAnnouncements = () => (
     <>
-      {!isPreviewAvailable ? (
+      {isPreviewAvailable ? null : (
         <span id={previewUnavailableId} className="sr-only">
           Preview not available
         </span>
-      ) : null}
+      )}
       {isDownloading ? (
         <span id={convertingId} className="sr-only">
           Preparing download...
