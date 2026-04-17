@@ -479,7 +479,7 @@ jobs:
             printf '%s\n' ''
             printf '%s\n' 'This branch was regenerated after passing dependency refresh and validation.'
             printf '%s\n' ''
-            printf '%s\n' "Change kind: \\`$CHANGE_KIND\\`."
+            printf '%s\n' "Change kind: \`$CHANGE_KIND\`."
             printf '%s\n' ''
             printf '%s\n' '<details>'
             printf '%s\n' '<summary>Direct package.json updates</summary>'
