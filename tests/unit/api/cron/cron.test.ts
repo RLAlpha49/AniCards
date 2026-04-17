@@ -156,7 +156,7 @@ function mockUserRecords(
   );
   mockStaleUserIndex(staleOrderedUserIds.slice(0, 5), userIds.length);
   sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
-    const key = String(args[0] ?? "");
+    const key = getStringValue(args[0]);
 
     if (key === "users:known-ids") {
       return userIds.map(String);
@@ -227,6 +227,14 @@ function createDeferredPromise<T>() {
   });
 
   return { promise, resolve, reject };
+}
+
+function parseJsonString<T>(value: unknown, label: string): T {
+  if (typeof value !== "string") {
+    throw new TypeError(`Expected ${label} to be a JSON string.`);
+  }
+
+  return JSON.parse(value) as T;
 }
 
 async function expectApiErrorResponse(
@@ -603,8 +611,13 @@ describe("Cron API Route", () => {
       "username:old-user123",
     );
 
-    const auditEntry = JSON.parse(
-      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    const auditEntry = parseJsonString<{
+      action: string;
+      triggerSource: string;
+      userId: string;
+    }>(
+      sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+      "latest lifecycle audit entry",
     );
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:user-lifecycle-audit:v1",
@@ -763,74 +776,6 @@ describe("Cron API Route", () => {
       "Updated 0/1 users successfully. Failed: 1, Removed: 0",
     );
   });
-
-  // Note: Fails in CI
-  // it("records structured per-user cron errors without aborting the whole job", async () => {
-  //   mockUserRecords(["123"]);
-  //   const capturedRpush = captureSharedRedisRpushCalls();
-  //   const capturedLtrim = captureSharedRedisLtrimCalls();
-
-  //   try {
-  //     sharedRedisMockMget.mockRejectedValueOnce(
-  //       new Error("Part fetch exploded"),
-  //     );
-
-  //     const response = await POST(
-  //       new Request("http://localhost/api/cron", {
-  //         headers: {
-  //           "x-cron-secret": CRON_SECRET,
-  //           "x-request-id": "req-cron-user-error",
-  //         },
-  //       }),
-  //     );
-
-  //     expect(response.status).toBe(200);
-  //     expect(await response.text()).toContain(
-  //       "Updated 0/1 users successfully. Failed: 0, Removed: 0",
-  //     );
-
-  //     await flushScheduledTelemetryTasksForTests();
-
-  //     const errorReportCall = capturedRpush.calls.find(
-  //       ([key]) => key === "telemetry:error-reports:v1",
-  //     );
-  //     expect(errorReportCall).toBeDefined();
-  //     expect(errorReportCall).toEqual([
-  //       "telemetry:error-reports:v1",
-  //       expect.any(String),
-  //     ]);
-
-  //     const ltrimCall = capturedLtrim.calls.find(
-  //       ([key]) => key === "telemetry:error-reports:v1",
-  //     );
-  //     expect(ltrimCall).toEqual(["telemetry:error-reports:v1", -250, -1]);
-
-  //     const serializedReport = errorReportCall?.[1];
-  //     const payload = JSON.parse(String(serializedReport)) as {
-  //       metadata?: Record<string, unknown>;
-  //       requestId?: string;
-  //       route?: string;
-  //       source?: string;
-  //       technicalMessage?: string;
-  //       userAction?: string;
-  //     };
-
-  //     expect(payload.userAction).toBe("cron_refresh_user");
-  //     expect(payload.source).toBe("api_route");
-  //     expect(payload.route).toBe("/api/cron");
-  //     expect(payload.requestId).toBe("req-cron-user-error");
-  //     expect(payload.technicalMessage).toBe("Part fetch exploded");
-  //     expect(payload.metadata).toMatchObject({
-  //       endpoint: "cron_job",
-  //       stage: "fetch_user_data_parts",
-  //     });
-  //     expect(payload.metadata).not.toHaveProperty("requestId");
-  //     expect(payload.metadata).not.toHaveProperty("userId");
-  //   } finally {
-  //     capturedRpush.release();
-  //     capturedLtrim.release();
-  //   }
-  // });
 
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
     sharedRedisMockSmembers.mockRejectedValueOnce(

@@ -694,6 +694,21 @@ function toErrorSpikeAlertMetricGroup(
   };
 }
 
+function getComparisonWindowLabel(options: {
+  comparisonWindow: ErrorSpikeAlertComparisonWindow;
+  snapshot: ErrorReportBufferSnapshot;
+}): string {
+  if (options.comparisonWindow === "report_interval") {
+    return "since the previous analytics report";
+  }
+
+  if (options.comparisonWindow === "rolling_24h") {
+    return `within the last ${options.snapshot.rollingWindow.bucketCount} hours`;
+  }
+
+  return "within the recent comparison window";
+}
+
 function buildErrorSpikeAlertMessage(options: {
   summary: ErrorSpikeAlertSummary;
   snapshot: ErrorReportBufferSnapshot;
@@ -709,12 +724,10 @@ function buildErrorSpikeAlertMessage(options: {
   const cumulativeSaturationRatePercent = `${(
     options.snapshot.cumulativeSaturationRate * 100
   ).toFixed(1)}%`;
-  const comparisonWindowLabel =
-    options.summary.comparisonWindow === "report_interval"
-      ? "since the previous analytics report"
-      : options.summary.comparisonWindow === "rolling_24h"
-        ? `within the last ${options.snapshot.rollingWindow.bucketCount} hours`
-        : "within the recent comparison window";
+  const comparisonWindowLabel = getComparisonWindowLabel({
+    comparisonWindow: options.summary.comparisonWindow,
+    snapshot: options.snapshot,
+  });
 
   return [
     `[AniCards] ${reasonLabels.join(" + ")}`,
@@ -1008,6 +1021,26 @@ async function rewriteStoredAnalyticsReportList(
   }
 }
 
+function collectRetainedAnalyticsReportEntries(
+  currentEntries: unknown[],
+  now: number,
+): StoredAnalyticsReportEntry[] {
+  const retainedEntries: StoredAnalyticsReportEntry[] = [];
+
+  currentEntries.forEach((entry, index) => {
+    const parsedEntry = toStoredAnalyticsReportEntry(entry, index);
+    if (!parsedEntry) {
+      return;
+    }
+
+    if (isAnalyticsReportWithinRetentionWindow(parsedEntry.report, now)) {
+      retainedEntries.push(parsedEntry);
+    }
+  });
+
+  return retainedEntries;
+}
+
 async function pruneStoredAnalyticsReports(
   redisClient: UpstashRedis,
   options?: {
@@ -1017,18 +1050,10 @@ async function pruneStoredAnalyticsReports(
   const rawEntries = await redisClient.lrange(ANALYTICS_REPORTS_KEY, 0, -1);
   const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
   const now = Date.now();
-  const nextEntries = currentEntries
-    .flatMap((entry, index) => {
-      const parsedEntry = toStoredAnalyticsReportEntry(entry, index);
-      if (!parsedEntry) {
-        return [];
-      }
-
-      return isAnalyticsReportWithinRetentionWindow(parsedEntry.report, now)
-        ? [parsedEntry]
-        : [];
-    })
-    .slice(-MAX_STORED_ANALYTICS_REPORTS);
+  const nextEntries = collectRetainedAnalyticsReportEntries(
+    currentEntries,
+    now,
+  ).slice(-MAX_STORED_ANALYTICS_REPORTS);
 
   if (
     options?.persistPrune &&

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   allowConsoleWarningsAndErrors,
+  parseRequestInitJson,
   sharedRedisMockExpire,
   sharedRedisMockGet,
   sharedRedisMockLrange,
@@ -17,6 +18,16 @@ const { GET, POST } = await import("@/app/api/cron/analytics-reporting/route");
 
 const CRON_SECRET = "testsecret";
 const BASE_URL = "http://localhost/api/cron/analytics-reporting";
+const compareAlphabetically = (left: string, right: string) =>
+  left.localeCompare(right);
+
+function parseJsonString<T>(value: unknown, label: string): T {
+  if (typeof value !== "string") {
+    throw new TypeError(`Expected ${label} to be a JSON string.`);
+  }
+
+  return JSON.parse(value) as T;
+}
 
 function createCronRequest(
   secret: string | null = CRON_SECRET,
@@ -65,7 +76,7 @@ function createRollingWindowCounterValues(options?: {
 }
 
 function setupAnalyticsData(values: Record<string, string | null>) {
-  const keys = Object.keys(values).sort();
+  const keys = Object.keys(values).sort(compareAlphabetically);
   const dataKeys = keys.filter((key) => key !== "analytics:reports");
   sharedRedisMockLrange.mockResolvedValueOnce([]);
   sharedRedisMockLrange.mockResolvedValueOnce([]);
@@ -654,14 +665,12 @@ describe("Analytics & Reporting Cron API", () => {
     );
 
     const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-    const fetchBody = JSON.parse(
-      String((firstFetchCall?.[1] as RequestInit | undefined)?.body),
-    ) as {
+    const fetchBody = parseRequestInitJson<{
       details?: {
         operationId?: string;
         requestId?: string;
       };
-    };
+    }>(firstFetchCall?.[1] as RequestInit | undefined);
 
     expect(fetchBody.details?.operationId).toBe("op-analytics-report-12345");
     expect(fetchBody.details?.requestId).toBe("req-analytics-report-12345");
@@ -712,14 +721,12 @@ describe("Analytics & Reporting Cron API", () => {
     await expectSuccessfulReport(await POST(createCronRequest()));
 
     const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-    const fetchBody = JSON.parse(
-      String((firstFetchCall?.[1] as RequestInit | undefined)?.body),
-    ) as {
+    const fetchBody = parseRequestInitJson<{
       details?: {
         errorReportBuffer?: Record<string, unknown>;
         errorReports?: unknown;
       };
-    };
+    }>(firstFetchCall?.[1] as RequestInit | undefined);
 
     expect(fetchBody.details?.errorReportBuffer).toEqual({
       capacity: 250,
@@ -904,13 +911,13 @@ describe("Analytics & Reporting Cron API", () => {
     );
     expect(storedReportCall).toBeDefined();
 
-    const storedReport = JSON.parse(String(storedReportCall?.[1])) as {
+    const storedReport = parseJsonString<{
       summary?: {
         observability?: {
           errorReports?: Record<string, unknown>;
         };
       };
-    };
+    }>(storedReportCall?.[1], "stored analytics report");
 
     expect(storedReport.summary?.observability?.errorReports).toMatchObject({
       capacity: 250,
