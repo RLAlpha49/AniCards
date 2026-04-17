@@ -106,11 +106,13 @@ function getSearchMethodOptionClass(isSelected: boolean): string {
   );
 }
 
-function SearchStatusAlert(props: {
-  alertMessage: string;
-  hasFieldError: boolean;
-  prefersReducedMotion: boolean;
-}) {
+function SearchStatusAlert(
+  props: Readonly<{
+    alertMessage: string;
+    hasFieldError: boolean;
+    prefersReducedMotion: boolean;
+  }>,
+) {
   if (!props.alertMessage) {
     return null;
   }
@@ -143,15 +145,17 @@ function SearchStatusAlert(props: {
   );
 }
 
-function SearchMethodToggle(props: {
-  prefersReducedMotion: boolean;
-  searchMethod: SearchLookupMode;
-  searchMethodHintId: string;
-  searchMethodName: string;
-  updateSearchMethod: (nextMethod: SearchLookupMode) => void;
-  userIdRadioId: string;
-  usernameRadioId: string;
-}) {
+function SearchMethodToggle(
+  props: Readonly<{
+    prefersReducedMotion: boolean;
+    searchMethod: SearchLookupMode;
+    searchMethodHintId: string;
+    searchMethodName: string;
+    updateSearchMethod: (nextMethod: SearchLookupMode) => void;
+    userIdRadioId: string;
+    usernameRadioId: string;
+  }>,
+) {
   return (
     <fieldset className="space-y-3" aria-describedby={props.searchMethodHintId}>
       <legend className="
