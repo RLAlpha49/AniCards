@@ -10,13 +10,8 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
   (typeof DEFAULT_TRUSTED_CLIENT_IP_HEADERS)[number],
   readonly string[]
 >;
-const DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS = Array.from(
-  new Set(
-    Object.values(DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS).flatMap(
-      (headers) => headers,
-    ),
-  ),
-);
+const DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS =
+  collectTrustedProxyProvenanceHeaders();
 
 const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
 const REQUEST_PROOF_VERSION = 1;
@@ -84,6 +79,33 @@ function normalizeHeaderName(value: string): string | null {
   }
 
   return /^[a-z0-9-]+$/.test(normalized) ? normalized : null;
+}
+
+function collectTrustedProxyProvenanceHeaders(): string[] {
+  const provenanceHeaders = new Set<string>();
+
+  for (const headers of Object.values(
+    DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS,
+  )) {
+    for (const header of headers) {
+      provenanceHeaders.add(header);
+    }
+  }
+
+  return Array.from(provenanceHeaders);
+}
+
+function resolveVerifiedClientIpFailureReason(options: {
+  sawHeaderWithoutProxyProvenance: boolean;
+  sawTrustedHeader: boolean;
+}): Extract<VerifiedClientIpResult, { verified: false }>["reason"] {
+  if (options.sawHeaderWithoutProxyProvenance) {
+    return "missing_proxy_provenance";
+  }
+
+  return options.sawTrustedHeader
+    ? "invalid_trusted_header"
+    : "missing_trusted_header";
 }
 
 export function getTrustedClientIpHeaderNames(): string[] {
@@ -230,11 +252,10 @@ export function resolveVerifiedClientIp(
     verified: false,
     ip: null,
     source: null,
-    reason: sawHeaderWithoutProxyProvenance
-      ? "missing_proxy_provenance"
-      : sawTrustedHeader
-        ? "invalid_trusted_header"
-        : "missing_trusted_header",
+    reason: resolveVerifiedClientIpFailureReason({
+      sawHeaderWithoutProxyProvenance,
+      sawTrustedHeader,
+    }),
   };
 }
 

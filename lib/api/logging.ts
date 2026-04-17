@@ -4,14 +4,16 @@ import {
 } from "@/lib/api/request-context";
 import {
   redactIp,
-  redactUserIdentifier,
   sanitizeErrorReportRoute,
   sanitizeErrorReportText,
   sanitizePrivacySafeLogValue,
 } from "@/lib/error-report-sanitization";
 import type { PersistedRequestMetadata } from "@/lib/types/records";
 
-export { redactIp, redactUserIdentifier };
+export {
+  redactIp,
+  redactUserIdentifier,
+} from "@/lib/error-report-sanitization";
 
 export function buildPersistedRequestMetadata(
   ip: string,
@@ -41,6 +43,38 @@ function normalizeOperationId(value: unknown): string | undefined {
   return normalizeRequestId(value);
 }
 
+type SanitizedLogContextValue = Exclude<
+  ReturnType<typeof sanitizePrivacySafeLogValue>,
+  undefined
+>;
+
+function buildSafeLogContext(
+  context: Record<string, unknown> | undefined,
+): Record<string, SanitizedLogContextValue> {
+  const safeContextEntries: Array<[string, SanitizedLogContextValue]> = [];
+
+  for (const [key, value] of Object.entries(context ?? {})) {
+    const normalizedKey = key.replaceAll(/_/g, "").toLowerCase();
+    if (normalizedKey === "requestid" || normalizedKey === "operationid") {
+      continue;
+    }
+
+    const sanitizedValue = sanitizePrivacySafeLogValue(key, value, {
+      maxLength: 120,
+      stackMaxLength: 200,
+      stackMaxFrames: 5,
+      stackSeparator: " | ",
+      stackFrameMaxLength: 80,
+    });
+
+    if (sanitizedValue !== undefined) {
+      safeContextEntries.push([key, sanitizedValue]);
+    }
+  }
+
+  return Object.fromEntries(safeContextEntries);
+}
+
 export function logPrivacySafe(
   level: "log" | "warn" | "error",
   endpoint: string,
@@ -56,26 +90,7 @@ export function logPrivacySafe(
     : undefined;
   const requestIdFromContext = normalizeRequestId(context?.requestId);
   const operationIdFromContext = normalizeOperationId(context?.operationId);
-
-  const safeContextEntries = Object.entries(context ?? {}).flatMap(
-    ([key, value]) => {
-      const normalizedKey = key.replaceAll(/_/g, "").toLowerCase();
-      if (normalizedKey === "requestid" || normalizedKey === "operationid") {
-        return [];
-      }
-
-      const sanitizedValue = sanitizePrivacySafeLogValue(key, value, {
-        maxLength: 120,
-        stackMaxLength: 200,
-        stackMaxFrames: 5,
-        stackSeparator: " | ",
-        stackFrameMaxLength: 80,
-      });
-      return sanitizedValue === undefined ? [] : [[key, sanitizedValue]];
-    },
-  );
-
-  const safeContext = Object.fromEntries(safeContextEntries);
+  const safeContext = buildSafeLogContext(context);
   const safeMessage =
     sanitizeErrorReportText(message, 160) ?? "Privacy-safe log entry";
   const safePath = sanitizeErrorReportRoute(requestContext?.path);

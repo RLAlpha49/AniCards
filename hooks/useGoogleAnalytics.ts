@@ -12,6 +12,26 @@ import {
   safeTrack,
 } from "@/lib/utils/google-analytics";
 
+function getAnalyticsPreconditionFailureReason():
+  | "bootstrap_not_ready"
+  | "consent_not_granted"
+  | "measurement_id_missing"
+  | null {
+  if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID === undefined) {
+    return "measurement_id_missing";
+  }
+
+  if (hasAnalyticsConsent()) {
+    if (isAnalyticsBootstrapReady()) {
+      return null;
+    }
+
+    return "bootstrap_not_ready";
+  }
+
+  return "consent_not_granted";
+}
+
 /**
  * Send pageview events to Google Analytics when the pathname or query changes.
  * Requires NEXT_PUBLIC_GOOGLE_ANALYTICS_ID to be defined at build-time.
@@ -30,16 +50,9 @@ export function useGoogleAnalytics(consentGranted: boolean) {
   const normalizedPageTitle = normalizedPage.pageTitle;
 
   useEffect(() => {
-    if (!consentGranted) return;
+    if (consentGranted === false) return;
 
-    const preconditionFailureReason = !process.env
-      .NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
-      ? "measurement_id_missing"
-      : !hasAnalyticsConsent()
-        ? "consent_not_granted"
-        : !isAnalyticsBootstrapReady()
-          ? "bootstrap_not_ready"
-          : undefined;
+    const preconditionFailureReason = getAnalyticsPreconditionFailureReason();
 
     if (preconditionFailureReason) {
       void reportAnalyticsPreconditionFailure({

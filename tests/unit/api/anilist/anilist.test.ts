@@ -11,7 +11,6 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
   captureSharedRedisIncrCalls,
-  captureSharedRedisRpushCalls,
   parseRequestInitJson,
   sharedRatelimitMockLimit,
   sharedRedisMockGet,
@@ -378,7 +377,6 @@ describe("AniList API Route", () => {
   it("surfaces non-retried AniList HTTP errors", async () => {
     setEnvironment("test");
     const capturedIncr = captureSharedRedisIncrCalls();
-    const capturedRpush = captureSharedRedisRpushCalls();
 
     try {
       mockJsonFetch(
@@ -404,19 +402,8 @@ describe("AniList API Route", () => {
       expect(capturedIncr.calls).toContainEqual([
         "analytics:anilist_api:failed_requests",
       ]);
-
-      // Note: Fails in CI
-      // const errorReportCall = capturedRpush.calls.find(
-      //   ([key]) => key === "telemetry:error-reports:v1",
-      // );
-      // expect(errorReportCall).toBeDefined();
-      // expect(errorReportCall).toEqual([
-      //   "telemetry:error-reports:v1",
-      //   expect.any(String),
-      // ]);
     } finally {
       capturedIncr.release();
-      capturedRpush.release();
     }
   });
 

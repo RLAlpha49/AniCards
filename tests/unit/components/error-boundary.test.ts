@@ -17,7 +17,10 @@ import {
   ErrorFallbackPanel,
 } from "@/components/ErrorBoundary";
 import { useAppRouterErrorBoundaryReporting } from "@/hooks/useAppRouterErrorBoundaryReporting";
-import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
+import {
+  allowConsoleWarningsAndErrors,
+  parseRequestInitJson,
+} from "@/tests/unit/__setup__";
 import {
   installHappyDom,
   resetHappyDom,
@@ -25,6 +28,14 @@ import {
 } from "@/tests/unit/hooks/test-helpers";
 
 installHappyDom("http://localhost/error-boundary");
+
+function parseJsonString<T>(value: unknown, label: string): T {
+  if (typeof value !== "string") {
+    throw new TypeError(`Expected ${label} to be a JSON string.`);
+  }
+
+  return JSON.parse(value) as T;
+}
 
 function readLastConsoleJsonLog(method: "error" | "log") {
   const calls = (
@@ -37,11 +48,11 @@ function readLastConsoleJsonLog(method: "error" | "log") {
 
   expect(calls.length).toBeGreaterThan(0);
 
-  return JSON.parse(String(calls.at(-1)?.[0])) as {
+  return parseJsonString<{
     endpoint?: string;
     message?: string;
     context?: Record<string, string>;
-  };
+  }>(calls.at(-1)?.[0], `${method} console payload`);
 }
 
 function AppRouterBoundaryHarness(
@@ -164,11 +175,13 @@ describe("ErrorBoundary fallback model", () => {
 
     try {
       render(
-        createElement(ErrorBoundary, {
-          children: createElement(ThrowingComponent, {
+        createElement(
+          ErrorBoundary,
+          undefined,
+          createElement(ThrowingComponent, {
             error: new Error("Failed to fetch user Alex profile"),
           }),
-        }),
+        ),
       );
 
       await waitFor(() => {
@@ -178,10 +191,9 @@ describe("ErrorBoundary fallback model", () => {
       const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
       expect(firstFetchCall).toBeTruthy();
 
-      const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
-      const payload = JSON.parse(String(requestInit?.body)) as {
+      const payload = parseRequestInitJson<{
         id?: string;
-      };
+      }>(firstFetchCall?.[1] as RequestInit | undefined);
 
       await waitFor(() => {
         expect(payload.id).toBeTruthy();
@@ -264,10 +276,9 @@ describe("ErrorBoundary fallback model", () => {
       const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
       expect(firstFetchCall).toBeTruthy();
 
-      const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
-      const payload = JSON.parse(String(requestInit?.body)) as {
+      const payload = parseRequestInitJson<{
         id?: string;
-      };
+      }>(firstFetchCall?.[1] as RequestInit | undefined);
 
       await waitFor(() => {
         expect(payload.id).toBeTruthy();
@@ -340,6 +351,7 @@ describe("ErrorBoundary fallback model", () => {
       });
 
       const logEntry = readLastConsoleJsonLog("error");
+      const serializedLogEntry = JSON.stringify(logEntry);
 
       expect(logEntry.endpoint).toBe("ErrorBoundary");
       expect(logEntry.message).toBe("React error boundary caught render error");
@@ -348,11 +360,11 @@ describe("ErrorBoundary fallback model", () => {
       expect(logEntry.context?.error).toContain("[redacted-email]");
       expect(logEntry.context?.error).toContain("[redacted-url]");
       expect(logEntry.context?.componentStack).toContain("at PrivateCard");
-      expect(JSON.stringify(logEntry)).not.toContain("alex@example.com");
-      expect(JSON.stringify(logEntry)).not.toContain(
+      expect(serializedLogEntry).not.toContain("alex@example.com");
+      expect(serializedLogEntry).not.toContain(
         "super-secret-token-value-1234567890",
       );
-      expect(JSON.stringify(logEntry)).not.toContain("/Users/Alex/private");
+      expect(serializedLogEntry).not.toContain("/Users/Alex/private");
     } finally {
       Object.defineProperty(globalThis, "fetch", {
         value: originalFetch,
@@ -401,6 +413,7 @@ describe("ErrorBoundary fallback model", () => {
       });
 
       const logEntry = readLastConsoleJsonLog("error");
+      const serializedLogEntry = JSON.stringify(logEntry);
 
       expect(logEntry.endpoint).toBe("AppRouterErrorBoundary");
       expect(logEntry.message).toBe(
@@ -411,11 +424,11 @@ describe("ErrorBoundary fallback model", () => {
       expect(logEntry.context?.route).toBe("/error-boundary");
       expect(logEntry.context?.error).toContain("[redacted-email]");
       expect(logEntry.context?.error).toContain("[redacted-url]");
-      expect(JSON.stringify(logEntry)).not.toContain("alex@example.com");
-      expect(JSON.stringify(logEntry)).not.toContain(
+      expect(serializedLogEntry).not.toContain("alex@example.com");
+      expect(serializedLogEntry).not.toContain(
         "super-secret-token-value-1234567890",
       );
-      expect(JSON.stringify(logEntry)).not.toContain("/Users/Alex/private");
+      expect(serializedLogEntry).not.toContain("/Users/Alex/private");
     } finally {
       Object.defineProperty(globalThis, "fetch", {
         value: originalFetch,

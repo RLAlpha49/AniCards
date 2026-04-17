@@ -115,6 +115,62 @@ function coerceErrorStatusCode(value: unknown): number | undefined {
   return value;
 }
 
+function resolveStructuredErrorMessage(
+  error: unknown,
+  structuredError: StructuredErrorLike | undefined,
+  fallbackMessage: string,
+): string {
+  const publicMessage = structuredError?.publicMessage;
+  if (typeof publicMessage === "string" && publicMessage.trim().length > 0) {
+    return publicMessage.trim();
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error.trim();
+  }
+
+  return fallbackMessage;
+}
+
+function resolveErrorDetailsCategory(
+  message: string,
+  statusCode: number | undefined,
+  options: GetErrorDetailsOptions | undefined,
+  exactMatch: ErrorDetails | undefined,
+): ErrorCategory {
+  if (options?.category) {
+    return options.category;
+  }
+
+  if (exactMatch?.category) {
+    return exactMatch.category;
+  }
+
+  return statusCode
+    ? categorizeByStatusCode(statusCode)
+    : categorizeError(message);
+}
+
+function resolveFallbackErrorRetryable(
+  category: ErrorCategory,
+  statusCode: number | undefined,
+  options: GetErrorDetailsOptions | undefined,
+): boolean {
+  if (typeof options?.retryable === "boolean") {
+    return options.retryable;
+  }
+
+  if (options?.category) {
+    return isRetryableErrorCategory(category);
+  }
+
+  return statusCode ? statusCode >= 500 : false;
+}
+
 /**
  * Resolve structured error metadata from a thrown value while preserving a
  * safe fallback when optional metadata is missing.
@@ -131,15 +187,11 @@ export function extractStructuredErrorContext(
     typeof error === "object" && error !== null
       ? (error as StructuredErrorLike)
       : undefined;
-  const publicMessage = structuredError?.publicMessage;
-  const message =
-    typeof publicMessage === "string" && publicMessage.trim().length > 0
-      ? publicMessage.trim()
-      : error instanceof Error && error.message.trim().length > 0
-        ? error.message.trim()
-        : typeof error === "string" && error.trim().length > 0
-          ? error.trim()
-          : fallbackMessage;
+  const message = resolveStructuredErrorMessage(
+    error,
+    structuredError,
+    fallbackMessage,
+  );
   const statusCode =
     coerceErrorStatusCode(structuredError?.statusCode) ??
     coerceErrorStatusCode(structuredError?.status);
@@ -571,21 +623,21 @@ export function getErrorDetails(
   const exactMatch = Object.entries(ERROR_MESSAGE_MAP).find(
     ([key]) =>
       normalizedMessage.includes(key) || key.includes(normalizedMessage),
-  );
+  )?.[1];
 
-  const category =
-    options?.category ??
-    exactMatch?.[1].category ??
-    (statusCode
-      ? categorizeByStatusCode(statusCode)
-      : categorizeError(message));
+  const category = resolveErrorDetailsCategory(
+    message,
+    statusCode,
+    options,
+    exactMatch,
+  );
 
   const categoryMatch = Object.values(ERROR_MESSAGE_MAP).find(
     (details) => details.category === category,
   );
 
   const template =
-    (options?.category ? categoryMatch : (exactMatch?.[1] ?? categoryMatch)) ??
+    (options?.category ? categoryMatch : (exactMatch ?? categoryMatch)) ??
     categoryMatch;
 
   if (template) {
@@ -605,14 +657,7 @@ export function getErrorDetails(
     userMessage: "Something went wrong",
     technicalMessage: message,
     category,
-    retryable:
-      typeof options?.retryable === "boolean"
-        ? options.retryable
-        : options?.category
-          ? isRetryableErrorCategory(category)
-          : statusCode
-            ? statusCode >= 500
-            : false,
+    retryable: resolveFallbackErrorRetryable(category, statusCode, options),
     suggestions: options?.recoverySuggestions ?? [
       {
         title: "Try again",

@@ -434,41 +434,55 @@ export function sanitizePrivacySafeLogValue(
   );
 }
 
+function collectSanitizedErrorReportMetadataEntries(
+  metadata: Record<string, unknown>,
+): Array<[string, ErrorReportMetadataValue]> {
+  const entries: Array<[string, ErrorReportMetadataValue]> = [];
+
+  for (const [key, value] of Object.entries(metadata).slice(
+    0,
+    MAX_METADATA_ENTRIES,
+  )) {
+    const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
+    if (
+      !normalizedKey ||
+      normalizedKey.toLowerCase() === "requestid" ||
+      isSensitiveMetadataKey(normalizedKey)
+    ) {
+      continue;
+    }
+
+    if (
+      value === null ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      entries.push([normalizedKey, value satisfies ErrorReportMetadataValue]);
+      continue;
+    }
+
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const sanitizedValue = sanitizeErrorReportText(
+      value,
+      MAX_METADATA_VALUE_LENGTH,
+    );
+    if (sanitizedValue) {
+      entries.push([normalizedKey, sanitizedValue]);
+    }
+  }
+
+  return entries;
+}
+
 export function sanitizeErrorReportMetadata(
   metadata: Record<string, unknown> | undefined,
 ): Record<string, ErrorReportMetadataValue> | undefined {
   if (!metadata) return undefined;
 
-  const entries = Object.entries(metadata)
-    .slice(0, MAX_METADATA_ENTRIES)
-    .flatMap(([key, value]) => {
-      const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
-      if (
-        !normalizedKey ||
-        normalizedKey.toLowerCase() === "requestid" ||
-        isSensitiveMetadataKey(normalizedKey)
-      ) {
-        return [];
-      }
-
-      if (
-        value === null ||
-        typeof value === "number" ||
-        typeof value === "boolean"
-      ) {
-        return [[normalizedKey, value satisfies ErrorReportMetadataValue]];
-      }
-
-      if (typeof value === "string") {
-        const sanitizedValue = sanitizeErrorReportText(
-          value,
-          MAX_METADATA_VALUE_LENGTH,
-        );
-        return sanitizedValue ? [[normalizedKey, sanitizedValue]] : [];
-      }
-
-      return [];
-    });
+  const entries = collectSanitizedErrorReportMetadataEntries(metadata);
 
   if (entries.length === 0) {
     return undefined;
