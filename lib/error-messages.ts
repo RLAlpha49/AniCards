@@ -171,6 +171,12 @@ function resolveFallbackErrorRetryable(
   return statusCode ? statusCode >= 500 : false;
 }
 
+function buildOptionalStatusCodeField(
+  statusCode: number | undefined,
+): { statusCode: number } | Record<string, never> {
+  return statusCode === undefined ? {} : { statusCode };
+}
+
 /**
  * Resolve structured error metadata from a thrown value while preserving a
  * safe fallback when optional metadata is missing.
@@ -210,7 +216,7 @@ export function extractStructuredErrorContext(
 
   return {
     message,
-    ...(statusCode !== undefined ? { statusCode } : {}),
+    ...buildOptionalStatusCodeField(statusCode),
     ...(category ? { category } : {}),
     ...(typeof retryable === "boolean" ? { retryable } : {}),
     ...(recoverySuggestions ? { recoverySuggestions } : {}),
@@ -655,7 +661,7 @@ export function getErrorDetails(
           ? options.retryable
           : template.retryable,
       suggestions: options?.recoverySuggestions ?? template.suggestions,
-      ...(statusCode !== undefined ? { statusCode } : {}),
+      ...buildOptionalStatusCodeField(statusCode),
     };
   }
 
@@ -671,7 +677,7 @@ export function getErrorDetails(
           "Please try again or contact support if the issue persists",
       },
     ],
-    ...(statusCode !== undefined ? { statusCode } : {}),
+    ...buildOptionalStatusCodeField(statusCode),
   };
 }
 

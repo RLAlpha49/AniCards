@@ -183,7 +183,7 @@ function coerceUnknownToLogString(value: unknown): string {
     return stringifyPlainObjectForLogString(value) ?? "[Object]";
   }
 
-  return String(value);
+  return "[Unknown]";
 }
 
 function isRouteOrPathMetadataKey(normalizedKey: string): boolean {

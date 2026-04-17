@@ -1548,6 +1548,45 @@ function buildClientErrorReportQueueState(
   };
 }
 
+function parseClientErrorReportQueueStatCounter(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : 0;
+}
+
+function parseClientErrorReportQueueEvent(
+  value: unknown,
+): ClientErrorReportQueueEvent | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const triage = parseClientErrorReportQueueTriage(value);
+  const reason =
+    typeof value.reason === "string"
+      ? (value.reason as ClientErrorReportQueueDropReason)
+      : undefined;
+  const timestamp =
+    typeof value.timestamp === "number" && Number.isFinite(value.timestamp)
+      ? Math.max(0, Math.trunc(value.timestamp))
+      : undefined;
+
+  if (!triage || !reason || !timestamp) {
+    return undefined;
+  }
+
+  return {
+    ...triage,
+    reason,
+    timestamp,
+    ...(typeof value.attempts === "number" &&
+    Number.isInteger(value.attempts) &&
+    value.attempts >= 0
+      ? { attempts: Math.trunc(value.attempts) }
+      : {}),
+  };
+}
+
 function parseClientErrorReportQueueStats(
   value: unknown,
   storage: ClientErrorReportQueueStorageKind,
@@ -1557,78 +1596,28 @@ function parseClientErrorReportQueueStats(
   }
 
   const recentDrops = Array.isArray(value.recentDrops)
-    ? value.recentDrops.filter(isRecord).flatMap((entry) => {
-        const triage = parseClientErrorReportQueueTriage(entry);
-        if (!triage) {
-          return [];
-        }
-
-        const reason =
-          typeof entry.reason === "string"
-            ? (entry.reason as ClientErrorReportQueueDropReason)
-            : undefined;
-        const timestamp =
-          typeof entry.timestamp === "number" &&
-          Number.isFinite(entry.timestamp)
-            ? Math.max(0, Math.trunc(entry.timestamp))
-            : undefined;
-
-        if (!reason || !timestamp) {
-          return [];
-        }
-
-        return [
-          {
-            ...triage,
-            reason,
-            timestamp,
-            ...(typeof entry.attempts === "number" &&
-            Number.isInteger(entry.attempts) &&
-            entry.attempts >= 0
-              ? { attempts: Math.trunc(entry.attempts) }
-              : {}),
-          } satisfies ClientErrorReportQueueEvent,
-        ];
-      })
+    ? value.recentDrops
+        .map((entry) => parseClientErrorReportQueueEvent(entry))
+        .filter((entry): entry is ClientErrorReportQueueEvent => !!entry)
     : [];
 
   return {
     storage,
-    totalQueued:
-      typeof value.totalQueued === "number" &&
-      Number.isFinite(value.totalQueued)
-        ? Math.max(0, Math.trunc(value.totalQueued))
-        : 0,
-    totalDelivered:
-      typeof value.totalDelivered === "number" &&
-      Number.isFinite(value.totalDelivered)
-        ? Math.max(0, Math.trunc(value.totalDelivered))
-        : 0,
-    totalEvicted:
-      typeof value.totalEvicted === "number" &&
-      Number.isFinite(value.totalEvicted)
-        ? Math.max(0, Math.trunc(value.totalEvicted))
-        : 0,
-    totalExpired:
-      typeof value.totalExpired === "number" &&
-      Number.isFinite(value.totalExpired)
-        ? Math.max(0, Math.trunc(value.totalExpired))
-        : 0,
-    totalDroppedAfterMaxAttempts:
-      typeof value.totalDroppedAfterMaxAttempts === "number" &&
-      Number.isFinite(value.totalDroppedAfterMaxAttempts)
-        ? Math.max(0, Math.trunc(value.totalDroppedAfterMaxAttempts))
-        : 0,
-    totalNonRetryableDeliveryFailures:
-      typeof value.totalNonRetryableDeliveryFailures === "number" &&
-      Number.isFinite(value.totalNonRetryableDeliveryFailures)
-        ? Math.max(0, Math.trunc(value.totalNonRetryableDeliveryFailures))
-        : 0,
-    totalRateLimited:
-      typeof value.totalRateLimited === "number" &&
-      Number.isFinite(value.totalRateLimited)
-        ? Math.max(0, Math.trunc(value.totalRateLimited))
-        : 0,
+    totalQueued: parseClientErrorReportQueueStatCounter(value.totalQueued),
+    totalDelivered: parseClientErrorReportQueueStatCounter(
+      value.totalDelivered,
+    ),
+    totalEvicted: parseClientErrorReportQueueStatCounter(value.totalEvicted),
+    totalExpired: parseClientErrorReportQueueStatCounter(value.totalExpired),
+    totalDroppedAfterMaxAttempts: parseClientErrorReportQueueStatCounter(
+      value.totalDroppedAfterMaxAttempts,
+    ),
+    totalNonRetryableDeliveryFailures: parseClientErrorReportQueueStatCounter(
+      value.totalNonRetryableDeliveryFailures,
+    ),
+    totalRateLimited: parseClientErrorReportQueueStatCounter(
+      value.totalRateLimited,
+    ),
     recentDrops: recentDrops.slice(
       0,
       MAX_CLIENT_ERROR_REPORT_QUEUE_DROP_SAMPLES,
@@ -3307,52 +3296,53 @@ async function flushQueuedClientErrorReports(): Promise<void> {
   }
 }
 
-async function persistStructuredErrorBufferEntry(
-  report: StructuredErrorReport,
-): Promise<void> {
-  await pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS);
+async function readEvictedStructuredErrorReports(
+  persistedLength: number,
+): Promise<StructuredErrorReport[]> {
+  if (persistedLength <= MAX_ERROR_REPORTS) {
+    return [];
+  }
 
-  const persistedLength = await redisClient.rpush(
+  const overflowCount = persistedLength - MAX_ERROR_REPORTS;
+  const evictedEntriesRaw = await redisClient.lrange(
     ERROR_REPORTS_KEY,
-    JSON.stringify(report),
+    0,
+    overflowCount - 1,
   );
 
-  let evictedReports: StructuredErrorReport[] = [];
+  return Array.isArray(evictedEntriesRaw)
+    ? evictedEntriesRaw
+        .map((entry) => parseStructuredErrorReport(entry))
+        .filter((entry): entry is StructuredErrorReport => entry !== undefined)
+    : [];
+}
 
-  if (persistedLength > MAX_ERROR_REPORTS) {
-    const overflowCount = persistedLength - MAX_ERROR_REPORTS;
-    const evictedEntriesRaw = await redisClient.lrange(
-      ERROR_REPORTS_KEY,
-      0,
-      overflowCount - 1,
-    );
-    evictedReports = Array.isArray(evictedEntriesRaw)
-      ? evictedEntriesRaw
-          .map((entry) => parseStructuredErrorReport(entry))
-          .filter(
-            (entry): entry is StructuredErrorReport => entry !== undefined,
-          )
-      : [];
-  }
+function logStructuredErrorPersistenceWarning(
+  message: string,
+  error: unknown,
+): void {
+  logPrivacySafe("warn", "ErrorTracking", message, {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 
-  await redisClient.ltrim(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1);
-  await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
-
+async function persistEvictedStructuredErrorReportsSafely(
+  reports: StructuredErrorReport[],
+): Promise<void> {
   try {
-    await appendEvictedStructuredErrorReports(evictedReports);
+    await appendEvictedStructuredErrorReports(reports);
   } catch (error) {
-    logPrivacySafe(
-      "warn",
-      "ErrorTracking",
+    logStructuredErrorPersistenceWarning(
       "Failed to persist recent evicted error reports",
-      {
-        error: error instanceof Error ? error.message : String(error),
-      },
+      error,
     );
   }
+}
 
+async function updateStructuredErrorBufferCountersSafely(
+  droppedOnWrite: number,
+): Promise<void> {
   try {
-    const droppedOnWrite = persistedLength > MAX_ERROR_REPORTS ? 1 : 0;
     await Promise.all([
       redisClient.incr(ERROR_REPORTS_TOTAL_KEY),
       ...(droppedOnWrite > 0
@@ -3360,31 +3350,27 @@ async function persistStructuredErrorBufferEntry(
         : []),
     ]);
   } catch (error) {
-    logPrivacySafe(
-      "warn",
-      "ErrorTracking",
+    logStructuredErrorPersistenceWarning(
       "Failed to update error-report buffer saturation counters",
-      {
-        error: error instanceof Error ? error.message : String(error),
-      },
+      error,
     );
   }
+}
 
+async function updateStructuredErrorRollingWindowSafely(
+  droppedOnWrite: number,
+): Promise<void> {
   try {
-    await recordErrorReportRollingWindowEvent(
-      persistedLength > MAX_ERROR_REPORTS ? 1 : 0,
-    );
+    await recordErrorReportRollingWindowEvent(droppedOnWrite);
   } catch (error) {
-    logPrivacySafe(
-      "warn",
-      "ErrorTracking",
+    logStructuredErrorPersistenceWarning(
       "Failed to update rolling error-report window counters",
-      {
-        error: error instanceof Error ? error.message : String(error),
-      },
+      error,
     );
   }
+}
 
+function logStructuredErrorBufferEntry(report: StructuredErrorReport): void {
   logPrivacySafe("error", "ErrorTracking", "Structured error recorded", {
     source: report.source,
     userAction: report.userAction,
@@ -3399,6 +3385,29 @@ async function persistStructuredErrorBufferEntry(
   if (process.env.NODE_ENV === "development") {
     console.error("[ErrorTracking]", report);
   }
+}
+
+async function persistStructuredErrorBufferEntry(
+  report: StructuredErrorReport,
+): Promise<void> {
+  await pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS);
+
+  const persistedLength = await redisClient.rpush(
+    ERROR_REPORTS_KEY,
+    JSON.stringify(report),
+  );
+  const evictedReports =
+    await readEvictedStructuredErrorReports(persistedLength);
+
+  await redisClient.ltrim(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1);
+  await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
+  const droppedOnWrite = persistedLength > MAX_ERROR_REPORTS ? 1 : 0;
+
+  await persistEvictedStructuredErrorReportsSafely(evictedReports);
+  await updateStructuredErrorBufferCountersSafely(droppedOnWrite);
+  await updateStructuredErrorRollingWindowSafely(droppedOnWrite);
+
+  logStructuredErrorBufferEntry(report);
 }
 
 /**
