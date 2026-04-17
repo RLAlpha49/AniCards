@@ -94,6 +94,151 @@ function getSearchInputMeta(searchMethod: SearchLookupMode): {
   };
 }
 
+function getSearchMethodOptionClass(isSelected: boolean): string {
+  return cn(
+    `
+      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold
+      transition-colors duration-200
+      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
+      peer-focus-visible:outline-gold
+    `,
+    isSelected ? "text-gold" : "text-foreground/40 hover:text-foreground/60",
+  );
+}
+
+function SearchStatusAlert(props: {
+  alertMessage: string;
+  hasFieldError: boolean;
+  prefersReducedMotion: boolean;
+}) {
+  if (!props.alertMessage) {
+    return null;
+  }
+
+  return (
+    <motion.div
+      initial={
+        props.prefersReducedMotion
+          ? false
+          : { opacity: 0, scale: 0.95, height: 0 }
+      }
+      animate={{ opacity: 1, scale: 1, height: "auto" }}
+      transition={
+        props.prefersReducedMotion ? NO_MOTION_TRANSITION : { duration: 0.3 }
+      }
+    >
+      <Alert
+        variant="destructive"
+        className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
+      >
+        <Info className="size-4" />
+        <AlertTitle className="text-red-800 dark:text-red-200">
+          {props.hasFieldError ? "Check the search field" : "Navigation hiccup"}
+        </AlertTitle>
+        <AlertDescription className="text-red-700 dark:text-red-300">
+          {props.alertMessage}
+        </AlertDescription>
+      </Alert>
+    </motion.div>
+  );
+}
+
+function SearchMethodToggle(props: {
+  prefersReducedMotion: boolean;
+  searchMethod: SearchLookupMode;
+  searchMethodHintId: string;
+  searchMethodName: string;
+  updateSearchMethod: (nextMethod: SearchLookupMode) => void;
+  userIdRadioId: string;
+  usernameRadioId: string;
+}) {
+  return (
+    <fieldset className="space-y-3" aria-describedby={props.searchMethodHintId}>
+      <legend className="
+        block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
+      ">
+        Look Up By
+      </legend>
+      <p id={props.searchMethodHintId} className="sr-only">
+        Choose whether to search by AniList username or numeric AniList user ID.
+      </p>
+      <div className="relative flex border border-gold/15 bg-gold/3">
+        <motion.div
+          className="absolute inset-y-0 left-0 w-1/2 border border-gold/25 bg-gold/10"
+          initial={false}
+          animate={{
+            x: props.searchMethod === "username" ? "0%" : "100%",
+          }}
+          transition={
+            props.prefersReducedMotion
+              ? NO_MOTION_TRANSITION
+              : { type: "spring", stiffness: 400, damping: 30 }
+          }
+        />
+        <label className="flex flex-1">
+          <input
+            id={props.usernameRadioId}
+            type="radio"
+            name={props.searchMethodName}
+            value="username"
+            checked={props.searchMethod === "username"}
+            onChange={() => props.updateSearchMethod("username")}
+            className="peer sr-only"
+          />
+          <span
+            className={getSearchMethodOptionClass(
+              props.searchMethod === "username",
+            )}
+          >
+            <User aria-hidden="true" className="size-4" />
+            Username
+          </span>
+        </label>
+        <label className="flex flex-1">
+          <input
+            id={props.userIdRadioId}
+            type="radio"
+            name={props.searchMethodName}
+            value="userId"
+            checked={props.searchMethod === "userId"}
+            onChange={() => props.updateSearchMethod("userId")}
+            className="peer sr-only"
+          />
+          <span
+            className={getSearchMethodOptionClass(
+              props.searchMethod === "userId",
+            )}
+          >
+            <Hash aria-hidden="true" className="size-4" />
+            User ID
+          </span>
+        </label>
+      </div>
+    </fieldset>
+  );
+}
+
+function SearchModeInput(props: { searchMethod: SearchLookupMode }) {
+  return props.searchMethod === "userId" ? (
+    <input type="hidden" name="mode" value="userId" />
+  ) : null;
+}
+
+function SearchSubmitButtonContent(props: { loading: boolean }) {
+  return props.loading ? (
+    <>
+      <Loader2 className="mr-2 size-5 animate-spin" />
+      Checking profile...
+    </>
+  ) : (
+    <>
+      <Search className="mr-2 size-5" />
+      Find Profile
+      <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" />
+    </>
+  );
+}
+
 /**
  * Props for the SearchForm component.
  * @source
@@ -224,6 +369,13 @@ export function SearchForm({
     setFormError("");
   }, []);
 
+  const handleNavigationError = useCallback(() => {
+    setLoading(false);
+    onLoadingChange?.(false);
+    setFieldError("");
+    setFormError("Something went wrong with navigation. Try again?");
+  }, [onLoadingChange]);
+
   const showValidationError = useCallback(
     (message: string, options?: { selectContents?: boolean }) => {
       setFieldError(message);
@@ -298,21 +450,20 @@ export function SearchForm({
 
       scheduleAfterPaint(() => {
         try {
-          Promise.resolve(router.push(nextUrl)).catch(() => {
-            setLoading(false);
-            onLoadingChange?.(false);
-            setFieldError("");
-            setFormError("Something went wrong with navigation. Try again?");
-          });
+          Promise.resolve(router.push(nextUrl)).catch(handleNavigationError);
         } catch {
-          setLoading(false);
-          onLoadingChange?.(false);
-          setFieldError("");
-          setFormError("Something went wrong with navigation. Try again?");
+          handleNavigationError();
         }
       });
     },
-    [clearErrors, onLoadingChange, router, searchMethod, showValidationError],
+    [
+      clearErrors,
+      handleNavigationError,
+      onLoadingChange,
+      router,
+      searchMethod,
+      showValidationError,
+    ],
   );
 
   /**
@@ -354,9 +505,7 @@ export function SearchForm({
           onSubmit={handleSubmit}
           className="space-y-6"
         >
-          {searchMethod === "userId" ? (
-            <input type="hidden" name="mode" value="userId" />
-          ) : null}
+          <SearchModeInput searchMethod={searchMethod} />
 
           <p
             role="status"
@@ -367,115 +516,22 @@ export function SearchForm({
             {modeAnnouncement}
           </p>
 
-          {alertMessage ? (
-            <motion.div
-              initial={
-                prefersReducedMotion
-                  ? false
-                  : { opacity: 0, scale: 0.95, height: 0 }
-              }
-              animate={{ opacity: 1, scale: 1, height: "auto" }}
-              transition={
-                prefersReducedMotion ? NO_MOTION_TRANSITION : { duration: 0.3 }
-              }
-            >
-              <Alert
-                variant="destructive"
-                className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
-              >
-                <Info className="size-4" />
-                <AlertTitle className="text-red-800 dark:text-red-200">
-                  {hasFieldError
-                    ? "Check the search field"
-                    : "Navigation hiccup"}
-                </AlertTitle>
-                <AlertDescription className="text-red-700 dark:text-red-300">
-                  {alertMessage}
-                </AlertDescription>
-              </Alert>
-            </motion.div>
-          ) : null}
+          <SearchStatusAlert
+            alertMessage={alertMessage}
+            hasFieldError={hasFieldError}
+            prefersReducedMotion={prefersReducedMotion}
+          />
 
           {/* Method Toggle with sliding indicator */}
-          <fieldset className="space-y-3" aria-describedby={searchMethodHintId}>
-            <legend className="
-              block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
-            ">
-              Look Up By
-            </legend>
-            <p id={searchMethodHintId} className="sr-only">
-              Choose whether to search by AniList username or numeric AniList
-              user ID.
-            </p>
-            <div className="relative flex border border-gold/15 bg-gold/3">
-              <motion.div
-                className="absolute inset-y-0 left-0 w-1/2 border border-gold/25 bg-gold/10"
-                initial={false}
-                animate={{
-                  x: searchMethod === "username" ? "0%" : "100%",
-                }}
-                transition={
-                  prefersReducedMotion
-                    ? NO_MOTION_TRANSITION
-                    : { type: "spring", stiffness: 400, damping: 30 }
-                }
-              />
-              <label className="flex flex-1">
-                <input
-                  id={usernameRadioId}
-                  type="radio"
-                  name={searchMethodName}
-                  value="username"
-                  checked={searchMethod === "username"}
-                  onChange={() => updateSearchMethod("username")}
-                  className="peer sr-only"
-                />
-                <span
-                  className={cn(
-                    `
-                      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm
-                      font-semibold transition-colors duration-200
-                      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
-                      peer-focus-visible:outline-gold
-                    `,
-                    searchMethod === "username"
-                      ? "text-gold"
-                      : "text-foreground/40 hover:text-foreground/60",
-                  )}
-                >
-                  <User aria-hidden="true" className="size-4" />
-                  Username
-                </span>
-              </label>
-              <label className="flex flex-1">
-                <input
-                  id={userIdRadioId}
-                  type="radio"
-                  name={searchMethodName}
-                  value="userId"
-                  checked={searchMethod === "userId"}
-                  onChange={() => updateSearchMethod("userId")}
-                  className="peer sr-only"
-                />
-                <span
-                  className={cn(
-                    `
-                      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm
-                      font-semibold transition-colors duration-200
-                      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
-                      peer-focus-visible:outline-gold
-                    `,
-                    searchMethod === "userId"
-                      ? "text-gold"
-                      : "text-foreground/40 hover:text-foreground/60",
-                  )}
-                >
-                  <Hash aria-hidden="true" className="size-4" />
-                  User ID
-                </span>
-              </label>
-            </div>
-          </fieldset>
+          <SearchMethodToggle
+            prefersReducedMotion={prefersReducedMotion}
+            searchMethod={searchMethod}
+            searchMethodHintId={searchMethodHintId}
+            searchMethodName={searchMethodName}
+            updateSearchMethod={updateSearchMethod}
+            userIdRadioId={userIdRadioId}
+            usernameRadioId={usernameRadioId}
+          />
 
           {/* Input field */}
           <div className="space-y-3">
@@ -573,18 +629,7 @@ export function SearchForm({
               "
               disabled={loading}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 size-5 animate-spin" />
-                  Checking profile...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 size-5" />
-                  Find Profile
-                  <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" />
-                </>
-              )}
+              <SearchSubmitButtonContent loading={loading} />
             </Button>
           </motion.div>
         </form>
