@@ -25,7 +25,6 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
-  captureSharedRedisIncrCalls,
   installStatefulRedisEvalHarness,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
@@ -212,7 +211,6 @@ describe("Store Users API", () => {
 
     it("should reject cross-origin requests in production when origin differs", async () => {
       const originalEnv = { ...process.env };
-      const capturedIncr = captureSharedRedisIncrCalls();
       process.env = {
         ...process.env,
         NODE_ENV: "production",
@@ -243,12 +241,7 @@ describe("Store Users API", () => {
         const data = await getJsonResponse(res);
         expect(data.error).toBe("Unauthorized");
         await flushScheduledTelemetryTasksForTests();
-        // Note: Fails in CI
-        // expect(capturedIncr.calls).toContainEqual([
-        //   "analytics:store_users:failed_requests",
-        // ]);
       } finally {
-        capturedIncr.release();
         process.env = originalEnv;
       }
     });

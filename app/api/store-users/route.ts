@@ -39,6 +39,7 @@ import {
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
 import {
   getPersistedUserState,
+  type PersistedUserState,
   saveUserRecord,
   UserDataIntegrityError,
   UserRecordConflictError,
@@ -114,30 +115,122 @@ function createStoreUsersConflictResponse(params: {
     {
       category: "invalid_data",
       retryable: false,
-      additionalFields:
-        params.currentUpdatedAt ||
-        params.currentRevision ||
-        params.currentSnapshotToken
-          ? {
-              ...(params.currentUpdatedAt
-                ? {
-                    currentUpdatedAt: params.currentUpdatedAt,
-                  }
-                : {}),
-              ...(params.currentRevision
-                ? {
-                    currentRevision: params.currentRevision,
-                  }
-                : {}),
-              ...(params.currentSnapshotToken
-                ? {
-                    currentSnapshotToken: params.currentSnapshotToken,
-                  }
-                : {}),
-            }
-          : undefined,
+      additionalFields: buildStoreUsersConflictAdditionalFields({
+        currentUpdatedAt: params.currentUpdatedAt,
+        currentRevision: params.currentRevision,
+        currentSnapshotToken: params.currentSnapshotToken,
+      }),
     },
   );
+}
+
+function buildStoreUsersConflictAdditionalFields(params: {
+  currentUpdatedAt?: string;
+  currentRevision?: number;
+  currentSnapshotToken?: string;
+}): Record<string, number | string> | undefined {
+  const additionalFields: Record<string, number | string> = {};
+
+  if (params.currentUpdatedAt) {
+    additionalFields.currentUpdatedAt = params.currentUpdatedAt;
+  }
+
+  if (params.currentRevision) {
+    additionalFields.currentRevision = params.currentRevision;
+  }
+
+  if (params.currentSnapshotToken) {
+    additionalFields.currentSnapshotToken = params.currentSnapshotToken;
+  }
+
+  return Object.keys(additionalFields).length > 0
+    ? additionalFields
+    : undefined;
+}
+
+function hasStoreUsersCompareToken(options: {
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
+  ifMatchUpdatedAt?: string;
+}): boolean {
+  return (
+    Boolean(options.ifMatchUpdatedAt) ||
+    typeof options.ifMatchRevision === "number" ||
+    Boolean(options.ifMatchSnapshotToken)
+  );
+}
+
+function resolveStoreUsersCompareConflict(params: {
+  endpoint: string;
+  endpointKey: string;
+  existingState?: PersistedUserState | null;
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
+  ifMatchUpdatedAt?: string;
+  request: Request;
+}): NextResponse | null {
+  if (!params.existingState) {
+    return null;
+  }
+
+  const currentRevision =
+    params.existingState.revision > 0
+      ? params.existingState.revision
+      : undefined;
+  const currentSnapshotToken = params.existingState.snapshot?.token;
+  const currentUpdatedAt = params.existingState.updatedAt;
+
+  if (!hasStoreUsersCompareToken(params)) {
+    return createStoreUsersConflictResponse({
+      endpoint: params.endpoint,
+      endpointKey: params.endpointKey,
+      currentRevision,
+      currentSnapshotToken,
+      request: params.request,
+      currentUpdatedAt,
+    });
+  }
+
+  if (params.ifMatchUpdatedAt && currentUpdatedAt !== params.ifMatchUpdatedAt) {
+    return createStoreUsersConflictResponse({
+      endpoint: params.endpoint,
+      endpointKey: params.endpointKey,
+      currentRevision,
+      currentSnapshotToken,
+      request: params.request,
+      currentUpdatedAt,
+    });
+  }
+
+  if (
+    typeof params.ifMatchRevision === "number" &&
+    currentRevision !== params.ifMatchRevision
+  ) {
+    return createStoreUsersConflictResponse({
+      endpoint: params.endpoint,
+      endpointKey: params.endpointKey,
+      currentRevision,
+      currentSnapshotToken,
+      request: params.request,
+      currentUpdatedAt,
+    });
+  }
+
+  if (
+    params.ifMatchSnapshotToken &&
+    currentSnapshotToken !== params.ifMatchSnapshotToken
+  ) {
+    return createStoreUsersConflictResponse({
+      endpoint: params.endpoint,
+      endpointKey: params.endpointKey,
+      currentRevision,
+      currentSnapshotToken,
+      request: params.request,
+      currentUpdatedAt,
+    });
+  }
+
+  return null;
 }
 
 function createStoreUsersUsernameConflictResponse(params: {
@@ -442,67 +535,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       createdAt = existingState.createdAt;
     }
 
-    const currentRevision =
-      existingState && existingState.revision > 0
-        ? existingState.revision
-        : undefined;
-    const currentSnapshotToken = existingState?.snapshot?.token;
-
-    if (existingState) {
-      const hasCompareToken =
-        Boolean(ifMatchUpdatedAt) ||
-        typeof ifMatchRevision === "number" ||
-        Boolean(ifMatchSnapshotToken);
-
-      if (!hasCompareToken) {
-        return createStoreUsersConflictResponse({
-          endpoint,
-          endpointKey,
-          currentRevision,
-          currentSnapshotToken,
-          request,
-          currentUpdatedAt: existingState.updatedAt,
-        });
-      }
-
-      if (ifMatchUpdatedAt && existingState.updatedAt !== ifMatchUpdatedAt) {
-        return createStoreUsersConflictResponse({
-          endpoint,
-          endpointKey,
-          currentRevision,
-          currentSnapshotToken,
-          request,
-          currentUpdatedAt: existingState.updatedAt,
-        });
-      }
-
-      if (
-        typeof ifMatchRevision === "number" &&
-        currentRevision !== ifMatchRevision
-      ) {
-        return createStoreUsersConflictResponse({
-          endpoint,
-          endpointKey,
-          currentRevision,
-          currentSnapshotToken,
-          request,
-          currentUpdatedAt: existingState.updatedAt,
-        });
-      }
-
-      if (
-        ifMatchSnapshotToken &&
-        currentSnapshotToken !== ifMatchSnapshotToken
-      ) {
-        return createStoreUsersConflictResponse({
-          endpoint,
-          endpointKey,
-          currentRevision,
-          currentSnapshotToken,
-          request,
-          currentUpdatedAt: existingState.updatedAt,
-        });
-      }
+    const compareConflictResponse = resolveStoreUsersCompareConflict({
+      endpoint,
+      endpointKey,
+      existingState,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
+      ifMatchUpdatedAt,
+      request,
+    });
+    if (compareConflictResponse) {
+      return compareConflictResponse;
     }
 
     const userData: UserRecord = {
