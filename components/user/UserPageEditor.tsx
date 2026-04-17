@@ -2313,6 +2313,231 @@ function canSaveEditorChanges(params: {
   );
 }
 
+type UserPageEditorStoreState = ReturnType<typeof useUserPageEditor.getState>;
+type UserPageAutoSaveState = ReturnType<typeof useCardAutoSave>;
+type UserPageEditorConflictSummary = NonNullable<
+  UserPageAutoSaveState["saveConflictSummary"]
+>;
+type UserPageEditorSaveConflict = NonNullable<
+  UserPageAutoSaveState["saveConflict"]
+>;
+type UserPageEditorWorkspaceBackup = ReturnType<typeof makeWorkspaceBackup>;
+
+function useRememberSuccessfulUserPageRoute(params: {
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  userId: UserPageEditorStoreState["userId"];
+  username: UserPageEditorStoreState["username"];
+}) {
+  useEffect(() => {
+    if (params.isLoading || params.loadError || !params.userId) {
+      return;
+    }
+
+    rememberLastSuccessfulUserPageRoute({
+      userId: params.userId,
+      username: params.username,
+    });
+  }, [params.isLoading, params.loadError, params.userId, params.username]);
+}
+
+function buildUserPageEditorConflictNoticeSummary(options: {
+  cardMetaById: Map<string, { label: string; group: string }>;
+  saveConflict: UserPageEditorSaveConflict;
+  saveConflictSummary: UserPageEditorConflictSummary;
+}) {
+  const changedCards = options.saveConflictSummary.changedCardIds
+    .slice(0, 4)
+    .map((cardId) => {
+      const meta = options.cardMetaById.get(cardId);
+
+      return {
+        cardId,
+        group: meta?.group,
+        label: meta?.label ?? cardId,
+      };
+    });
+
+  return {
+    attemptedAt: options.saveConflictSummary.attemptedAt,
+    changedCardCount: options.saveConflictSummary.changedCardCount,
+    changedCards,
+    changedGlobalSettingCount:
+      options.saveConflictSummary.changedGlobalSettingCount,
+    currentUpdatedAt: options.saveConflict.currentUpdatedAt,
+    lastSavedAt: options.saveConflictSummary.lastSavedAt,
+    remainingChangedCardCount: Math.max(
+      0,
+      options.saveConflictSummary.changedCardCount - changedCards.length,
+    ),
+    reorderedCardCount: options.saveConflictSummary.reorderedCardCount,
+  };
+}
+
+function buildUserPageEditorWorkspaceBackupPayload(
+  state: UserPageEditorStoreState,
+): UserPageEditorWorkspaceBackup {
+  const draftRecord = state.userId ? readUserPageDraft(state.userId) : null;
+  const exitSaveFallbackRecord = state.userId
+    ? readUserPageExitSaveFallback(state.userId)
+    : null;
+
+  return makeWorkspaceBackup({
+    userId: state.userId,
+    username: state.username,
+    workspace: {
+      global: state.getGlobalSettingsSnapshot(),
+      cardConfigs: state.cardConfigs,
+      cardOrder: state.cardOrder,
+    },
+    editorState: {
+      templates: state.settingsTemplates,
+      draft: draftRecord
+        ? {
+            savedAt: draftRecord.savedAt,
+            patch: draftRecord.patch,
+          }
+        : null,
+      exitSaveFallback: exitSaveFallbackRecord
+        ? {
+            savedAt: exitSaveFallbackRecord.savedAt,
+            reason: exitSaveFallbackRecord.reason,
+          }
+        : null,
+    },
+  });
+}
+
+function downloadUserPageEditorWorkspaceBackup(
+  payload: UserPageEditorWorkspaceBackup,
+): void {
+  const json = stringifyWorkspaceBackup(payload);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const identity = trimOuterRepeatedCharacter(
+    (payload.username || payload.userId || "workspace")
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9_-]+/g, "-"),
+    "-",
+  ).slice(0, 40);
+  a.download = `anicards-${identity || "workspace"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast.success("Workspace backup downloaded", {
+    description:
+      "Open Global Settings → Settings Tools to restore it or share your current profile cards.",
+  });
+}
+
+function replaceCurrentUserPageEditorUrl(href: string): void {
+  if (!("window" in globalThis)) {
+    return;
+  }
+
+  const nextUrl = `${href}${globalThis.window.location.hash}`;
+  const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
+
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  globalThis.window.history.replaceState(null, "", nextUrl);
+}
+
+function retryUserPageLoad(
+  reload: ReturnType<typeof useUserDataLoader>["reload"],
+  errorMessage: string,
+): void {
+  reload().catch((error) => {
+    console.error(errorMessage, error);
+  });
+}
+
+function useUserPageLoadRetry(params: {
+  canRetryLoadInPlace: boolean;
+  hasAutoRetriedLoadRef: { current: boolean };
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  reload: ReturnType<typeof useUserDataLoader>["reload"];
+}) {
+  useEffect(() => {
+    if (!params.isLoading && !params.loadError) {
+      params.hasAutoRetriedLoadRef.current = false;
+      return;
+    }
+
+    if (!params.canRetryLoadInPlace || params.hasAutoRetriedLoadRef.current) {
+      return;
+    }
+
+    params.hasAutoRetriedLoadRef.current = true;
+    retryUserPageLoad(
+      params.reload,
+      "Failed to auto-retry loading the user page:",
+    );
+  }, [
+    params.canRetryLoadInPlace,
+    params.hasAutoRetriedLoadRef,
+    params.isLoading,
+    params.loadError,
+    params.reload,
+  ]);
+}
+
+function renderRequestedUserHelpDialog(props: {
+  handleHelpDialogOpenChange: (open: boolean) => void;
+  hasRequestedHelpDialog: boolean;
+  isHelpDialogOpen: boolean;
+  startTour: () => void;
+}): ReactNode {
+  if (!props.hasRequestedHelpDialog) {
+    return null;
+  }
+
+  return (
+    <LazyUserHelpDialog
+      open={props.isHelpDialogOpen}
+      onOpenChange={props.handleHelpDialogOpenChange}
+      onStartTour={props.startTour}
+    />
+  );
+}
+
+function renderUserPageEditorBlockingState(options: {
+  canRetryLoadInPlace: boolean;
+  expectedCardCount: number;
+  isLoading: boolean;
+  loadError: UserPageEditorStoreState["loadError"];
+  loadingPhase: LoadingPhase;
+  onRetry: () => void;
+  prefersSimplifiedMotion: boolean;
+}): ReactNode {
+  if (options.isLoading) {
+    return (
+      <UserPageEditorLoadingScreen
+        loadingPhase={options.loadingPhase}
+        expectedCardCount={options.expectedCardCount}
+        prefersSimplifiedMotion={options.prefersSimplifiedMotion}
+      />
+    );
+  }
+
+  if (options.loadError) {
+    return (
+      <UserPageEditorErrorScreen
+        loadError={options.loadError}
+        canRetry={options.canRetryLoadInPlace}
+        prefersSimplifiedMotion={options.prefersSimplifiedMotion}
+        onRetry={options.onRetry}
+      />
+    );
+  }
+
+  return null;
+}
+
 export function UserPageEditor({
   routeUsername,
 }: Readonly<{
@@ -2620,16 +2845,12 @@ export function UserPageEditor({
     userId,
   });
 
-  useEffect(() => {
-    if (isLoading || loadError || !userId) {
-      return;
-    }
-
-    rememberLastSuccessfulUserPageRoute({
-      userId,
-      username,
-    });
-  }, [isLoading, loadError, userId, username]);
+  useRememberSuccessfulUserPageRoute({
+    isLoading,
+    loadError,
+    userId,
+    username,
+  });
 
   const showDraftNotice =
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
@@ -2637,37 +2858,17 @@ export function UserPageEditor({
     ? "exit-save-fallback"
     : "draft";
   const showConflictNotice = saveConflict != null;
-  const conflictNoticeSummary = useMemo(() => {
-    if (!saveConflict || !saveConflictSummary) {
-      return null;
-    }
-
-    const changedCards = saveConflictSummary.changedCardIds
-      .slice(0, 4)
-      .map((cardId) => {
-        const meta = cardMetaById.get(cardId);
-
-        return {
-          cardId,
-          group: meta?.group,
-          label: meta?.label ?? cardId,
-        };
-      });
-
-    return {
-      attemptedAt: saveConflictSummary.attemptedAt,
-      changedCardCount: saveConflictSummary.changedCardCount,
-      changedCards,
-      changedGlobalSettingCount: saveConflictSummary.changedGlobalSettingCount,
-      currentUpdatedAt: saveConflict.currentUpdatedAt,
-      lastSavedAt: saveConflictSummary.lastSavedAt,
-      remainingChangedCardCount: Math.max(
-        0,
-        saveConflictSummary.changedCardCount - changedCards.length,
-      ),
-      reorderedCardCount: saveConflictSummary.reorderedCardCount,
-    };
-  }, [cardMetaById, saveConflict, saveConflictSummary]);
+  const conflictNoticeSummary = useMemo(
+    () =>
+      saveConflict && saveConflictSummary
+        ? buildUserPageEditorConflictNoticeSummary({
+            cardMetaById,
+            saveConflict,
+            saveConflictSummary,
+          })
+        : null,
+    [cardMetaById, saveConflict, saveConflictSummary],
+  );
   const shouldProtectUnsavedWork = useMemo(
     () =>
       shouldWarnBeforeLeavingEditor({
@@ -2704,55 +2905,9 @@ export function UserPageEditor({
   }, [resolvedTheme, setTheme]);
 
   const handleExportSettings = useCallback(() => {
-    const state = useUserPageEditor.getState();
-    const draftRecord = state.userId ? readUserPageDraft(state.userId) : null;
-    const exitSaveFallbackRecord = state.userId
-      ? readUserPageExitSaveFallback(state.userId)
-      : null;
-
-    const payload = makeWorkspaceBackup({
-      userId: state.userId,
-      username: state.username,
-      workspace: {
-        global: state.getGlobalSettingsSnapshot(),
-        cardConfigs: state.cardConfigs,
-        cardOrder: state.cardOrder,
-      },
-      editorState: {
-        templates: state.settingsTemplates,
-        draft: draftRecord
-          ? {
-              savedAt: draftRecord.savedAt,
-              patch: draftRecord.patch,
-            }
-          : null,
-        exitSaveFallback: exitSaveFallbackRecord
-          ? {
-              savedAt: exitSaveFallbackRecord.savedAt,
-              reason: exitSaveFallbackRecord.reason,
-            }
-          : null,
-      },
-    });
-
-    const json = stringifyWorkspaceBackup(payload);
-    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const identity = trimOuterRepeatedCharacter(
-      (payload.username || payload.userId || "workspace")
-        .toLowerCase()
-        .replaceAll(/[^a-z0-9_-]+/g, "-"),
-      "-",
-    ).slice(0, 40);
-    a.download = `anicards-${identity || "workspace"}-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.success("Workspace backup downloaded", {
-      description:
-        "Open Global Settings → Settings Tools to restore it or share your current profile cards.",
-    });
+    downloadUserPageEditorWorkspaceBackup(
+      buildUserPageEditorWorkspaceBackupPayload(useUserPageEditor.getState()),
+    );
   }, []);
 
   const { recentActionsStorageKey, commandPaletteCommands } =
@@ -2804,20 +2959,6 @@ export function UserPageEditor({
     },
     [router],
   );
-  const replaceCurrentEditorUrl = useCallback((href: string) => {
-    if (!("window" in globalThis)) {
-      return;
-    }
-
-    const nextUrl = `${href}${globalThis.window.location.hash}`;
-    const currentUrl = `${globalThis.window.location.pathname}${globalThis.window.location.search}${globalThis.window.location.hash}`;
-
-    if (nextUrl === currentUrl) {
-      return;
-    }
-
-    globalThis.window.history.replaceState(null, "", nextUrl);
-  }, []);
 
   useUserPageEditorLeaveProtection({
     currentUrl: currentEditorUrl,
@@ -2833,49 +2974,27 @@ export function UserPageEditor({
     visibility,
     selectedGroup,
     customFilter,
-    replace: replaceCurrentEditorUrl,
+    replace: replaceCurrentUserPageEditorUrl,
   });
 
   const handleRetryLoad = useCallback(() => {
-    reload().catch((error) => {
-      console.error("Failed to retry loading the user page:", error);
-    });
+    retryUserPageLoad(reload, "Failed to retry loading the user page:");
   }, [reload]);
 
-  useEffect(() => {
-    if (!isLoading && !loadError) {
-      hasAutoRetriedLoadRef.current = false;
-      return;
-    }
+  useUserPageLoadRetry({
+    canRetryLoadInPlace,
+    hasAutoRetriedLoadRef,
+    isLoading,
+    loadError,
+    reload,
+  });
 
-    if (!canRetryLoadInPlace || hasAutoRetriedLoadRef.current) {
-      return;
-    }
-
-    hasAutoRetriedLoadRef.current = true;
-    reload().catch((error) => {
-      console.error("Failed to auto-retry loading the user page:", error);
-    });
-  }, [canRetryLoadInPlace, loadError, reload]);
-
-  const helpDialog = useMemo(() => {
-    if (!hasRequestedHelpDialog) {
-      return null;
-    }
-
-    return (
-      <LazyUserHelpDialog
-        open={isHelpDialogOpen}
-        onOpenChange={handleHelpDialogOpenChange}
-        onStartTour={startTour}
-      />
-    );
-  }, [
-    handleHelpDialogOpenChange,
+  const helpDialog = renderRequestedUserHelpDialog({
     hasRequestedHelpDialog,
     isHelpDialogOpen,
+    handleHelpDialogOpenChange,
     startTour,
-  ]);
+  });
 
   const clearAllFilters = useCallback(() => {
     setQuery("");
@@ -2952,25 +3071,18 @@ export function UserPageEditor({
     ],
   );
 
-  if (isLoading) {
-    return (
-      <UserPageEditorLoadingScreen
-        loadingPhase={loadingPhase}
-        expectedCardCount={expectedCardCount}
-        prefersSimplifiedMotion={prefersSimplifiedMotion}
-      />
-    );
-  }
+  const blockingState = renderUserPageEditorBlockingState({
+    isLoading,
+    loadingPhase,
+    expectedCardCount,
+    prefersSimplifiedMotion,
+    loadError,
+    canRetryLoadInPlace,
+    onRetry: handleRetryLoad,
+  });
 
-  if (loadError) {
-    return (
-      <UserPageEditorErrorScreen
-        loadError={loadError}
-        canRetry={canRetryLoadInPlace}
-        prefersSimplifiedMotion={prefersSimplifiedMotion}
-        onRetry={handleRetryLoad}
-      />
-    );
+  if (blockingState) {
+    return blockingState;
   }
 
   return (

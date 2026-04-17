@@ -431,98 +431,98 @@ export const CardPreview = memo(function CardPreview({
   );
 
   const renderDesktopActionOverlay = () => {
-    if (!showDesktopActionOverlay) {
-      return null;
+    if (showDesktopActionOverlay) {
+      return (
+        <>
+          {/* Subtle scrim for better hierarchy when actions appear */}
+          <div
+            aria-hidden="true"
+            className={cn(
+              `
+                pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15 via-black/0
+                to-black/0
+                md:block
+              `,
+              "transition-opacity duration-200",
+              overlayVisibilityClass,
+            )}
+          />
+
+          {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
+          <button
+            type="button"
+            aria-label={`Toggle actions for ${label}`}
+            aria-pressed={showActions}
+            onClick={() => setShowActions((value) => !value)}
+            className="
+              pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
+              justify-center rounded-full bg-white/10 text-white opacity-0
+              focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
+              focus-visible:ring-white/70 focus-visible:outline-none
+              md:inline-flex
+            "
+          >
+            <MoreHorizontal className="size-4" aria-hidden="true" />
+          </button>
+
+          <div
+            className={cn(
+              `
+                pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
+                transition-opacity duration-300
+                md:flex
+              `,
+              overlayVisibilityClass,
+            )}
+          >
+            <OpenInNewTabButton
+              openHref={openHref}
+              label={label}
+              isPreviewAvailable={isPreviewAvailable}
+              previewUnavailableId={previewUnavailableId}
+            />
+
+            <RefreshPreviewButton
+              disabled={!previewUrl || isLoading}
+              title={previewUrl ? "Refresh preview" : "Preview not available"}
+              ariaLabel={`Refresh preview for ${label}`}
+              onRefresh={handleRefresh}
+            />
+
+            {hideCopyDownload ? null : (
+              <>
+                <div className="pointer-events-auto">
+                  <CopyPopover
+                    open={copyPopoverOpen}
+                    onOpenChange={setCopyPopoverOpen}
+                    previewUrl={previewUrl}
+                    copiedFormat={copiedFormat}
+                    copyError={copyError}
+                    onCopyUrl={onCopyUrl}
+                    onCopyAniList={onCopyAniList}
+                    previewUnavailableId={previewUnavailableId}
+                  />
+                </div>
+                <div className="pointer-events-auto">
+                  <DownloadPopover
+                    open={downloadPopoverOpen}
+                    onOpenChange={setDownloadPopoverOpen}
+                    previewUrl={previewUrl}
+                    isDownloading={isDownloading}
+                    downloadError={downloadError}
+                    onDownload={onDownload}
+                    downloadDescrId={downloadDescrId}
+                    downloadTitle={downloadTitle}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      );
     }
 
-    return (
-      <>
-        {/* Subtle scrim for better hierarchy when actions appear */}
-        <div
-          aria-hidden="true"
-          className={cn(
-            `
-              pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15 via-black/0
-              to-black/0
-              md:block
-            `,
-            "transition-opacity duration-200",
-            overlayVisibilityClass,
-          )}
-        />
-
-        {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
-        <button
-          type="button"
-          aria-label={`Toggle actions for ${label}`}
-          aria-pressed={showActions}
-          onClick={() => setShowActions((value) => !value)}
-          className="
-            pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
-            justify-center rounded-full bg-white/10 text-white opacity-0
-            focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
-            focus-visible:ring-white/70 focus-visible:outline-none
-            md:inline-flex
-          "
-        >
-          <MoreHorizontal className="size-4" aria-hidden="true" />
-        </button>
-
-        <div
-          className={cn(
-            `
-              pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
-              transition-opacity duration-300
-              md:flex
-            `,
-            overlayVisibilityClass,
-          )}
-        >
-          <OpenInNewTabButton
-            openHref={openHref}
-            label={label}
-            isPreviewAvailable={isPreviewAvailable}
-            previewUnavailableId={previewUnavailableId}
-          />
-
-          <RefreshPreviewButton
-            disabled={!previewUrl || isLoading}
-            title={previewUrl ? "Refresh preview" : "Preview not available"}
-            ariaLabel={`Refresh preview for ${label}`}
-            onRefresh={handleRefresh}
-          />
-
-          {hideCopyDownload ? null : (
-            <>
-              <div className="pointer-events-auto">
-                <CopyPopover
-                  open={copyPopoverOpen}
-                  onOpenChange={setCopyPopoverOpen}
-                  previewUrl={previewUrl}
-                  copiedFormat={copiedFormat}
-                  copyError={copyError}
-                  onCopyUrl={onCopyUrl}
-                  onCopyAniList={onCopyAniList}
-                  previewUnavailableId={previewUnavailableId}
-                />
-              </div>
-              <div className="pointer-events-auto">
-                <DownloadPopover
-                  open={downloadPopoverOpen}
-                  onOpenChange={setDownloadPopoverOpen}
-                  previewUrl={previewUrl}
-                  isDownloading={isDownloading}
-                  downloadError={downloadError}
-                  onDownload={onDownload}
-                  downloadDescrId={downloadDescrId}
-                  downloadTitle={downloadTitle}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </>
-    );
+    return null;
   };
 
   const renderReachableActionBar = () => {

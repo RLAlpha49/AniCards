@@ -99,6 +99,27 @@ type InlineFeedback = {
   tone: "error" | "success";
 };
 
+type UserPageEditorStoreState = ReturnType<typeof useUserPageEditor.getState>;
+type SettingsToolsWorkspaceBackup = ReturnType<typeof makeWorkspaceBackup>;
+type SettingsToolsShareBuildResult = ReturnType<typeof buildShareableCards>;
+type SettingsToolsFeedbackOutcome = {
+  errorMessage?: string;
+  successMessage?: string;
+};
+type SettingsToolsProfileShareDownloadOutcome =
+  | {
+      kind: "error";
+      errorMessage: string;
+    }
+  | {
+      kind: "noop";
+    }
+  | {
+      dismissDelayMs?: number;
+      kind: "summary";
+      summary: DownloadSummary;
+    };
+
 function clearTimeoutRef(timerRef: {
   current: ReturnType<typeof setTimeout> | null;
 }) {
@@ -187,6 +208,271 @@ function downloadJson(filename: string, json: string) {
 
 function isExportKind(value: string): value is ExportKind {
   return value === "current" || value === "templates" || value === "all";
+}
+
+function buildSettingsToolsWorkspaceBackupPayload(options: {
+  cardConfigs: UserPageEditorStoreState["cardConfigs"];
+  getGlobalSettingsSnapshot: UserPageEditorStoreState["getGlobalSettingsSnapshot"];
+  mode: SettingsToolsProps["mode"];
+  orderedCardIds: string[];
+  settingsTemplates: UserPageEditorStoreState["settingsTemplates"];
+  userId: UserPageEditorStoreState["userId"];
+  username: UserPageEditorStoreState["username"];
+}): SettingsToolsWorkspaceBackup | null {
+  if (options.mode !== "global") {
+    return null;
+  }
+
+  const draftRecord = options.userId ? readUserPageDraft(options.userId) : null;
+  const exitSaveFallbackRecord = options.userId
+    ? readUserPageExitSaveFallback(options.userId)
+    : null;
+
+  return makeWorkspaceBackup({
+    userId: options.userId,
+    username: options.username,
+    workspace: {
+      global: options.getGlobalSettingsSnapshot(),
+      cardConfigs: options.cardConfigs,
+      cardOrder: options.orderedCardIds,
+    },
+    editorState: {
+      templates: options.settingsTemplates,
+      draft: draftRecord
+        ? {
+            savedAt: draftRecord.savedAt,
+            patch: draftRecord.patch,
+          }
+        : null,
+      exitSaveFallback: exitSaveFallbackRecord
+        ? {
+            savedAt: exitSaveFallbackRecord.savedAt,
+            reason: exitSaveFallbackRecord.reason,
+          }
+        : null,
+    },
+  });
+}
+
+function buildSettingsToolsCurrentExport(options: {
+  getCardSettingsSnapshot: UserPageEditorStoreState["getCardSettingsSnapshot"];
+  getGlobalSettingsSnapshot: UserPageEditorStoreState["getGlobalSettingsSnapshot"];
+  props: Readonly<SettingsToolsProps>;
+}): SettingsExportV1 {
+  if (options.props.mode === "global") {
+    const global = options.getGlobalSettingsSnapshot();
+    return makeSettingsExport({ schemaVersion: 1, scope: "global", global });
+  }
+
+  const card = options.getCardSettingsSnapshot(options.props.cardId);
+  return makeSettingsExport({
+    schemaVersion: 1,
+    scope: "card",
+    cardId: options.props.cardId,
+    cardLabel: options.props.cardLabel,
+    card,
+  });
+}
+
+function buildSettingsToolsExport(options: {
+  currentExport: SettingsExportV1;
+  exportKind: ExportKind;
+  exportSettingsTemplates: UserPageEditorStoreState["exportSettingsTemplates"];
+  getGlobalSettingsSnapshot: UserPageEditorStoreState["getGlobalSettingsSnapshot"];
+  settingsTemplates: UserPageEditorStoreState["settingsTemplates"];
+}): SettingsExportV1 {
+  if (options.exportKind === "templates") {
+    return options.exportSettingsTemplates();
+  }
+
+  if (options.exportKind === "all") {
+    return makeSettingsExport({
+      schemaVersion: 1,
+      scope: "all",
+      global: options.getGlobalSettingsSnapshot(),
+      templates: options.settingsTemplates,
+    });
+  }
+
+  return options.currentExport;
+}
+
+function applyImportedSettingsExport(options: {
+  applySnapshotToTarget: (snapshot: SettingsSnapshot) => void;
+  exp: SettingsExportV1;
+  importSettingsTemplates: UserPageEditorStoreState["importSettingsTemplates"];
+}): SettingsToolsFeedbackOutcome {
+  switch (options.exp.scope) {
+    case "templates": {
+      const importResult = options.importSettingsTemplates(
+        options.exp.templates,
+      );
+      return importResult.ok
+        ? {
+            successMessage: `Imported ${options.exp.templates.length} template(s).`,
+          }
+        : { errorMessage: importResult.error };
+    }
+
+    case "all": {
+      options.applySnapshotToTarget(options.exp.global);
+      const importResult = options.importSettingsTemplates(
+        options.exp.templates,
+      );
+
+      return importResult.ok
+        ? { successMessage: "Imported global settings + templates." }
+        : {
+            errorMessage: `Imported settings applied, but ${importResult.error}`,
+          };
+    }
+
+    case "global":
+      options.applySnapshotToTarget(options.exp.global);
+      return { successMessage: "Imported settings applied." };
+
+    case "card":
+      options.applySnapshotToTarget(options.exp.card);
+      return { successMessage: "Imported settings applied." };
+  }
+}
+
+function restoreSettingsToolsWorkspaceBackup(options: {
+  applyLocalEditsPatch: UserPageEditorStoreState["applyLocalEditsPatch"];
+  applySettingsSnapshotToGlobal: UserPageEditorStoreState["applySettingsSnapshotToGlobal"];
+  raw: string;
+  userId: UserPageEditorStoreState["userId"];
+}): SettingsToolsFeedbackOutcome {
+  const parsed = parseWorkspaceBackupJson(options.raw);
+  if (!parsed.ok) {
+    return { errorMessage: parsed.error };
+  }
+
+  const backup = parsed.value;
+  options.applySettingsSnapshotToGlobal(backup.workspace.global);
+  options.applyLocalEditsPatch({
+    cardConfigs: backup.workspace.cardConfigs,
+    cardOrder: backup.workspace.cardOrder,
+  });
+
+  const persistTemplatesResult = writeSettingsTemplatesToStorage(
+    backup.editorState.templates,
+  );
+  if (persistTemplatesResult.ok) {
+    useUserPageEditor.setState({
+      settingsTemplates: backup.editorState.templates,
+    });
+  }
+
+  if (options.userId) {
+    if (backup.editorState.draft) {
+      writeUserPageDraft(options.userId, backup.editorState.draft.patch);
+    } else {
+      clearUserPageDraft(options.userId);
+    }
+
+    if (backup.editorState.exitSaveFallback) {
+      writeUserPageExitSaveFallback(
+        options.userId,
+        backup.editorState.exitSaveFallback.reason,
+      );
+    } else {
+      clearUserPageExitSaveFallback(options.userId);
+    }
+  }
+
+  const restoreLabel = buildWorkspaceRestoreLabel(
+    backup.username ?? backup.userId,
+  );
+
+  return persistTemplatesResult.ok
+    ? { successMessage: `${restoreLabel}.` }
+    : {
+        errorMessage: `${restoreLabel}, but ${persistTemplatesResult.error}`,
+      };
+}
+
+function getSettingsToolsTemplateSnapshot(options: {
+  getCardSettingsSnapshot: UserPageEditorStoreState["getCardSettingsSnapshot"];
+  getGlobalSettingsSnapshot: UserPageEditorStoreState["getGlobalSettingsSnapshot"];
+  props: Readonly<SettingsToolsProps>;
+}): SettingsSnapshot {
+  return options.props.mode === "global"
+    ? options.getGlobalSettingsSnapshot()
+    : options.getCardSettingsSnapshot(options.props.cardId);
+}
+
+function getSettingsToolsExportKindOptions(
+  mode: SettingsToolsProps["mode"],
+): Array<{ label: string; value: ExportKind }> {
+  const base: Array<{ label: string; value: ExportKind }> = [
+    {
+      value: "current",
+      label: mode === "global" ? "Global settings" : "This card settings",
+    },
+    { value: "templates", label: "Templates" },
+  ];
+
+  if (mode === "global") {
+    base.push({ value: "all", label: "Global + templates" });
+  }
+
+  return base;
+}
+
+async function downloadSettingsToolsProfileShareCards(options: {
+  format: CardDownloadFormat;
+  onProgress: (progress: { current: number; total: number }) => void;
+  profileShareCards: SettingsToolsShareBuildResult["shareableCards"];
+  requestedTotal: number;
+  skippedDisabledCards: SettingsToolsShareBuildResult["skippedDisabledCards"];
+}): Promise<SettingsToolsProfileShareDownloadOutcome> {
+  const skippedDisabledRawTypes = options.skippedDisabledCards.map(
+    (card) => card.rawType,
+  );
+  const hasShareCards = options.profileShareCards.length > 0;
+
+  if (!hasShareCards && skippedDisabledRawTypes.length === 0) {
+    return { kind: "noop" };
+  }
+
+  if (!hasShareCards) {
+    return {
+      kind: "summary",
+      summary: createDownloadSummary({
+        requestedTotal: options.requestedTotal,
+        skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+      }),
+    };
+  }
+
+  try {
+    const result = await downloadShareableCards({
+      cards: options.profileShareCards,
+      format: options.format,
+      onProgress: options.onProgress,
+    });
+    const failedRawTypes =
+      result.failedCards?.map((card) => card.rawType || card.type) ?? [];
+    const summary = createDownloadSummary({
+      requestedTotal: options.requestedTotal,
+      exported: result.exported,
+      failed: result.failed,
+      failedCardRawTypes: failedRawTypes,
+      skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+    });
+
+    return {
+      kind: "summary",
+      summary,
+      dismissDelayMs: summary.failed > 0 ? 10000 : 5000,
+    };
+  } catch (error) {
+    return {
+      kind: "error",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function SettingsTools(props: Readonly<SettingsToolsProps>) {
@@ -407,36 +693,14 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   ]);
 
   const buildWorkspaceBackupPayload = useCallback(() => {
-    if (props.mode !== "global") return null;
-
-    const draftRecord = userId ? readUserPageDraft(userId) : null;
-    const exitSaveFallbackRecord = userId
-      ? readUserPageExitSaveFallback(userId)
-      : null;
-
-    return makeWorkspaceBackup({
+    return buildSettingsToolsWorkspaceBackupPayload({
+      mode: props.mode,
       userId,
       username,
-      workspace: {
-        global: getGlobalSettingsSnapshot(),
-        cardConfigs,
-        cardOrder: orderedCardIds,
-      },
-      editorState: {
-        templates: settingsTemplates,
-        draft: draftRecord
-          ? {
-              savedAt: draftRecord.savedAt,
-              patch: draftRecord.patch,
-            }
-          : null,
-        exitSaveFallback: exitSaveFallbackRecord
-          ? {
-              savedAt: exitSaveFallbackRecord.savedAt,
-              reason: exitSaveFallbackRecord.reason,
-            }
-          : null,
-      },
+      cardConfigs,
+      orderedCardIds,
+      settingsTemplates,
+      getGlobalSettingsSnapshot,
     });
   }, [
     cardConfigs,
@@ -449,37 +713,21 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   ]);
 
   const buildCurrentExport = useCallback((): SettingsExportV1 => {
-    if (props.mode === "global") {
-      const global = getGlobalSettingsSnapshot();
-      return makeSettingsExport({ schemaVersion: 1, scope: "global", global });
-    }
-
-    const card = getCardSettingsSnapshot(props.cardId);
-    return makeSettingsExport({
-      schemaVersion: 1,
-      scope: "card",
-      cardId: props.cardId,
-      cardLabel: props.cardLabel,
-      card,
+    return buildSettingsToolsCurrentExport({
+      props,
+      getGlobalSettingsSnapshot,
+      getCardSettingsSnapshot,
     });
   }, [getCardSettingsSnapshot, getGlobalSettingsSnapshot, props]);
 
   const buildExport = useCallback((): SettingsExportV1 => {
-    if (exportKind === "templates") {
-      return exportSettingsTemplates();
-    }
-
-    if (exportKind === "all") {
-      const global = getGlobalSettingsSnapshot();
-      return makeSettingsExport({
-        schemaVersion: 1,
-        scope: "all",
-        global,
-        templates: settingsTemplates,
-      });
-    }
-
-    return buildCurrentExport();
+    return buildSettingsToolsExport({
+      currentExport: buildCurrentExport(),
+      exportKind,
+      exportSettingsTemplates,
+      getGlobalSettingsSnapshot,
+      settingsTemplates,
+    });
   }, [
     buildCurrentExport,
     exportKind,
@@ -548,65 +796,45 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     async (format: CardDownloadFormat = "png") => {
       if (isShareDownloading) return;
 
-      const skippedDisabledRawTypes = profileShareSkippedDisabledCards.map(
-        (card) => card.rawType,
-      );
-      const hasShareCards = profileShareCards.length > 0;
-      const hasSkippedDisabledCards = skippedDisabledRawTypes.length > 0;
-
-      if (!hasShareCards && !hasSkippedDisabledCards) {
-        return;
-      }
-
       clearTimeoutRef(shareDownloadSummaryTimerRef);
       setShareDownloadSummary(null);
       setShareDownloadError(null);
 
-      if (!hasShareCards) {
-        setShareDownloadSummary(
-          createDownloadSummary({
-            requestedTotal: orderedCardIds.length,
-            skippedDisabledCardRawTypes: skippedDisabledRawTypes,
-          }),
-        );
-        return;
+      const shouldTrackDownloadProgress = profileShareCards.length > 0;
+      if (shouldTrackDownloadProgress) {
+        setIsShareDownloading(true);
+        setShareDownloadProgress({
+          current: 0,
+          total: profileShareCards.length,
+        });
       }
 
-      setIsShareDownloading(true);
-      setShareDownloadProgress({ current: 0, total: profileShareCards.length });
+      const result = await downloadSettingsToolsProfileShareCards({
+        profileShareCards,
+        skippedDisabledCards: profileShareSkippedDisabledCards,
+        requestedTotal: orderedCardIds.length,
+        format,
+        onProgress: (progress) => {
+          setShareDownloadProgress({
+            current: progress.current,
+            total: progress.total,
+          });
+        },
+      });
 
-      try {
-        const result = await downloadShareableCards({
-          cards: profileShareCards,
-          format,
-          onProgress: (progress) => {
-            setShareDownloadProgress({
-              current: progress.current,
-              total: progress.total,
-            });
-          },
-        });
+      if (result.kind === "summary") {
+        setShareDownloadSummary(result.summary);
+        if (result.dismissDelayMs) {
+          shareDownloadSummaryTimerRef.current = globalThis.setTimeout(() => {
+            setShareDownloadSummary(null);
+            shareDownloadSummaryTimerRef.current = null;
+          }, result.dismissDelayMs);
+        }
+      } else if (result.kind === "error") {
+        setShareDownloadError(result.errorMessage);
+      }
 
-        const failedRawTypes =
-          result.failedCards?.map((card) => card.rawType || card.type) ?? [];
-        const nextSummary = createDownloadSummary({
-          requestedTotal: orderedCardIds.length,
-          exported: result.exported,
-          failed: result.failed,
-          failedCardRawTypes: failedRawTypes,
-          skippedDisabledCardRawTypes: skippedDisabledRawTypes,
-        });
-        const summaryDismissDelay = nextSummary.failed > 0 ? 10000 : 5000;
-
-        setShareDownloadSummary(nextSummary);
-        shareDownloadSummaryTimerRef.current = globalThis.setTimeout(() => {
-          setShareDownloadSummary(null);
-          shareDownloadSummaryTimerRef.current = null;
-        }, summaryDismissDelay);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setShareDownloadError(message);
-      } finally {
+      if (shouldTrackDownloadProgress) {
         setIsShareDownloading(false);
       }
     },
@@ -663,42 +891,19 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
   const applyImportedExport = useCallback(
     (exp: SettingsExportV1) => {
-      switch (exp.scope) {
-        case "templates": {
-          const importResult = importSettingsTemplates(exp.templates);
-          if (!importResult.ok) {
-            setImportError(importResult.error);
-            return;
-          }
+      const outcome = applyImportedSettingsExport({
+        exp,
+        applySnapshotToTarget,
+        importSettingsTemplates,
+      });
 
-          setImportSuccess(`Imported ${exp.templates.length} template(s).`);
-          return;
-        }
+      if (outcome.errorMessage) {
+        setImportError(outcome.errorMessage);
+        return;
+      }
 
-        case "all": {
-          applySnapshotToTarget(exp.global);
-
-          const importResult = importSettingsTemplates(exp.templates);
-          if (!importResult.ok) {
-            setImportError(
-              `Imported settings applied, but ${importResult.error}`,
-            );
-            return;
-          }
-
-          setImportSuccess("Imported global settings + templates.");
-          return;
-        }
-
-        case "global":
-          applySnapshotToTarget(exp.global);
-          setImportSuccess("Imported settings applied.");
-          return;
-
-        case "card":
-          applySnapshotToTarget(exp.card);
-          setImportSuccess("Imported settings applied.");
-          return;
+      if (outcome.successMessage) {
+        setImportSuccess(outcome.successMessage);
       }
     },
     [applySnapshotToTarget, importSettingsTemplates],
@@ -748,55 +953,20 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       setWorkspaceImportError(null);
       setWorkspaceImportSuccess(null);
 
-      const parsed = parseWorkspaceBackupJson(raw);
-      if (!parsed.ok) {
-        setWorkspaceImportError(parsed.error);
-        return;
-      }
-
-      const backup = parsed.value;
-      applySettingsSnapshotToGlobal(backup.workspace.global);
-      applyLocalEditsPatch({
-        cardConfigs: backup.workspace.cardConfigs,
-        cardOrder: backup.workspace.cardOrder,
+      const outcome = restoreSettingsToolsWorkspaceBackup({
+        raw,
+        userId,
+        applySettingsSnapshotToGlobal,
+        applyLocalEditsPatch,
       });
 
-      const persistTemplatesResult = writeSettingsTemplatesToStorage(
-        backup.editorState.templates,
-      );
-      if (persistTemplatesResult.ok) {
-        useUserPageEditor.setState({
-          settingsTemplates: backup.editorState.templates,
-        });
-      }
-
-      if (userId) {
-        if (backup.editorState.draft) {
-          writeUserPageDraft(userId, backup.editorState.draft.patch);
-        } else {
-          clearUserPageDraft(userId);
-        }
-
-        if (backup.editorState.exitSaveFallback) {
-          writeUserPageExitSaveFallback(
-            userId,
-            backup.editorState.exitSaveFallback.reason,
-          );
-        } else {
-          clearUserPageExitSaveFallback(userId);
-        }
-      }
-
-      const restoreLabel = buildWorkspaceRestoreLabel(
-        backup.username ?? backup.userId,
-      );
-      if (persistTemplatesResult.ok) {
-        setWorkspaceImportSuccess(`${restoreLabel}.`);
+      if (outcome.successMessage) {
+        setWorkspaceImportSuccess(outcome.successMessage);
         return;
       }
 
       setWorkspaceImportError(
-        `${restoreLabel}, but ${persistTemplatesResult.error}`,
+        outcome.errorMessage ?? "Workspace restore failed.",
       );
     },
     [applyLocalEditsPatch, applySettingsSnapshotToGlobal, userId],
@@ -826,10 +996,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     setImportSuccess(null);
     setTemplateFeedback(null);
 
-    const snapshot =
-      props.mode === "global"
-        ? getGlobalSettingsSnapshot()
-        : getCardSettingsSnapshot(props.cardId);
+    const snapshot = getSettingsToolsTemplateSnapshot({
+      props,
+      getGlobalSettingsSnapshot,
+      getCardSettingsSnapshot,
+    });
 
     const createResult = createSettingsTemplate(trimmed, snapshot);
     if (!createResult.ok) {
@@ -902,20 +1073,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [copyFromCardId, copySettingsFromCard, props]);
 
   const exportKindOptions = useMemo(() => {
-    const base: Array<{ value: ExportKind; label: string }> = [
-      {
-        value: "current",
-        label:
-          props.mode === "global" ? "Global settings" : "This card settings",
-      },
-      { value: "templates", label: "Templates" },
-    ];
-
-    if (props.mode === "global") {
-      base.push({ value: "all", label: "Global + templates" });
-    }
-
-    return base;
+    return getSettingsToolsExportKindOptions(props.mode);
   }, [props.mode]);
 
   const handleExportKindChange = useCallback((value: string) => {
@@ -1124,11 +1282,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                             excluded automatically.
                           </span>
                         ) : null}
-                        {!userId ? (
+                        {userId ? null : (
                           <span>
                             Load a profile before generating share URLs.
                           </span>
-                        ) : null}
+                        )}
                       </div>
 
                       <div

@@ -83,38 +83,17 @@ describe("share-utils", () => {
     });
 
     const fetchMock = Object.assign(
-      mock(
-        async (
-          _input: Parameters<typeof fetch>[0],
-          _init?: Parameters<typeof fetch>[1],
-        ) => {
-          void _input;
-          void _init;
-
-          return new Response(
-            '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
-            {
-              headers: { "Content-Type": "image/svg+xml" },
-              status: 200,
-            },
-          );
-        },
-      ),
+      mock(async () => {
+        return new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
+          headers: { "Content-Type": "image/svg+xml" },
+          status: 200,
+        });
+      }),
       originalFetch,
     );
     globalThis.fetch = fetchMock;
-    URL.createObjectURL = mock(
-      (_source: Parameters<typeof URL.createObjectURL>[0]) => {
-        void _source;
-        return "blob:cached-preview";
-      },
-    );
-    URL.revokeObjectURL = mock(
-      (_url: Parameters<typeof URL.revokeObjectURL>[0]) => {
-        void _url;
-        return undefined;
-      },
-    );
+    URL.createObjectURL = mock(() => "blob:cached-preview");
+    URL.revokeObjectURL = mock(() => undefined);
     console.error = originalConsoleError;
   });
 
@@ -236,13 +215,18 @@ describe("share-utils", () => {
       rawType: "animeGenres-radar",
     });
 
-    const animeStatsUrl = new URL(result.shareableCards[0]!.url);
+    const [animeStatsShareCard, animeGenresShareCard] = result.shareableCards;
+    if (!animeStatsShareCard || !animeGenresShareCard) {
+      throw new TypeError("Expected two shareable cards.");
+    }
+
+    const animeStatsUrl = new URL(animeStatsShareCard.url);
     expect(animeStatsUrl.searchParams.get("userId")).toBe("42");
     expect(animeStatsUrl.searchParams.get("cardType")).toBe("animeStats");
     expect(animeStatsUrl.searchParams.get("variation")).toBe("compact");
     expect(animeStatsUrl.searchParams.get("colorPreset")).toBe("default");
 
-    const animeGenresUrl = new URL(result.shareableCards[1]!.url);
+    const animeGenresUrl = new URL(animeGenresShareCard.url);
     expect(animeGenresUrl.searchParams.get("cardType")).toBe("animeGenres");
     expect(animeGenresUrl.searchParams.get("variation")).toBe("radar");
     expect(animeGenresUrl.searchParams.get("colorPreset")).toBeNull();
