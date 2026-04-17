@@ -22,8 +22,12 @@ const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalNodeEnv = process.env.NODE_ENV;
 
-async function importRealUtils() {
+async function importRealUtils(): Promise<typeof import("../../../lib/utils")> {
   return await import(new URL("../../../lib/utils.ts", import.meta.url).href);
+}
+
+function getMutableProcessEnv() {
+  return process.env as Record<string, string | undefined>;
 }
 
 describe("additional utils coverage", () => {
@@ -32,13 +36,13 @@ describe("additional utils coverage", () => {
     mock.restore();
     console.error = mock(() => undefined) as typeof console.error;
     console.warn = mock(() => undefined) as typeof console.warn;
-    process.env.NODE_ENV = originalNodeEnv;
+    getMutableProcessEnv().NODE_ENV = originalNodeEnv;
   });
 
   afterEach(() => {
     console.error = originalConsoleError;
     console.warn = originalConsoleWarn;
-    process.env.NODE_ENV = originalNodeEnv;
+    getMutableProcessEnv().NODE_ENV = originalNodeEnv;
   });
 
   afterAll(() => {
@@ -88,7 +92,7 @@ describe("additional utils coverage", () => {
 
   it("keeps parse failure logs bounded in production mode", async () => {
     const { safeParse } = await importRealUtils();
-    process.env.NODE_ENV = "production";
+    getMutableProcessEnv().NODE_ENV = "production";
 
     expect(() => safeParse("{bad json}", "workspace-backup")).toThrow();
     expect(console.error).toHaveBeenCalledTimes(1);
@@ -116,7 +120,7 @@ describe("additional utils coverage", () => {
         cardName: "animeStats",
         borderColor: "#123456",
         borderRadius: 14,
-      }),
+      } as Parameters<typeof extractStyles>[0] & { animate: boolean }),
     ).toMatchObject({
       animate: true,
       borderColor: "#123456",

@@ -30,7 +30,9 @@ describe("lib/api/validation", () => {
   });
 
   beforeEach(() => {
-    console.warn = mock(() => undefined) as typeof console.warn;
+    console.warn = mock(
+      (..._args: unknown[]) => undefined,
+    ) as typeof console.warn;
   });
 
   afterEach(() => {
@@ -67,7 +69,7 @@ describe("lib/api/validation", () => {
   });
 
   it("rejects unsupported top-level user payload fields", async () => {
-    const consoleWarn = mock(() => undefined);
+    const consoleWarn = mock((..._args: unknown[]) => undefined);
     console.warn = consoleWarn as typeof console.warn;
 
     const result = validateUserData(

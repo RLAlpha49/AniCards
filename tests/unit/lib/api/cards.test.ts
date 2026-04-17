@@ -44,7 +44,7 @@ describe("lib/api/cards", () => {
             status: 200,
           },
         ),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     const result = await fetchUserCards("42");
 
@@ -87,7 +87,7 @@ describe("lib/api/cards", () => {
             status: 200,
           },
         ),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     const result = await fetchUserCards("42");
 
@@ -109,7 +109,7 @@ describe("lib/api/cards", () => {
           headers: { "Content-Type": "application/json" },
           status: 404,
         }),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
 
     const result = await fetchUserCards("42");
 
@@ -131,7 +131,7 @@ describe("lib/api/cards", () => {
 
     globalThis.fetch = mock(async () => {
       throw timeoutError;
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const result = await fetchUserCards("42");
 
@@ -163,7 +163,7 @@ describe("lib/api/cards", () => {
     const networkError = new Error("socket hang up");
     globalThis.fetch = mock(async () => {
       throw networkError;
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const result = await fetchUserCards("42");
 

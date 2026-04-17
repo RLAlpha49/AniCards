@@ -84,7 +84,7 @@ describe("share-utils", () => {
           headers: { "Content-Type": "image/svg+xml" },
           status: 200,
         }),
-    ) as typeof fetch;
+    ) as unknown as typeof fetch;
     URL.createObjectURL = mock(
       () => "blob:cached-preview",
     ) as typeof URL.createObjectURL;
