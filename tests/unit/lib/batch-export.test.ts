@@ -15,23 +15,20 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
+const realUtilsModule = {
+  ...(await import(new URL("../../../lib/utils.ts", import.meta.url).href)),
+} as typeof import("@/lib/utils");
+
 const convertSvgToBlob = mock();
 const readSvgMarkupFromObjectUrl = mock();
 const readSvgMarkupFromUrl = mock();
 const cn = (...inputs: Array<string | false | null | undefined>) =>
   inputs.filter(Boolean).join(" ");
 
-mock.module("@/lib/utils", () => ({
-  cn,
-  convertSvgToBlob,
-  readSvgMarkupFromObjectUrl,
-  readSvgMarkupFromUrl,
-}));
-
 installHappyDom();
 
-const { batchConvertAndZip, batchConvertSvgsToPngs } =
-  await import("@/lib/batch-export");
+let batchConvertAndZip: typeof import("@/lib/batch-export").batchConvertAndZip;
+let batchConvertSvgsToPngs: typeof import("@/lib/batch-export").batchConvertSvgsToPngs;
 
 let createdAnchors: HTMLAnchorElement[] = [];
 const originalCreateElement = document.createElement.bind(document);
@@ -49,7 +46,7 @@ const createObjectURL = mock((blob: Blob | MediaSource) => {
 });
 const revokeObjectURL = mock(() => {});
 
-beforeEach(() => {
+beforeEach(async () => {
   resetHappyDom();
   createdAnchors = [];
   convertSvgToBlob.mockReset();
@@ -59,6 +56,16 @@ beforeEach(() => {
   createObjectURL.mockReset();
   revokeObjectURL.mockReset();
   createObjectURL.mockReturnValue("blob:zip-download");
+
+  mock.module("@/lib/utils", () => ({
+    ...realUtilsModule,
+    cn,
+    convertSvgToBlob,
+    readSvgMarkupFromObjectUrl,
+    readSvgMarkupFromUrl,
+  }));
+  ({ batchConvertAndZip, batchConvertSvgsToPngs } =
+    await import("@/lib/batch-export"));
 
   document.createElement = ((
     tagName: string,
@@ -99,6 +106,7 @@ afterEach(() => {
     configurable: true,
     value: originalRevokeObjectURL,
   });
+  mock.module("@/lib/utils", () => realUtilsModule);
 });
 
 afterAll(() => {

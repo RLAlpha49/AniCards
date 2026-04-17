@@ -19,6 +19,17 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
+const realUserPageEditorModule = {
+  ...(await import(
+    new URL("../../../../lib/stores/user-page-editor.ts", import.meta.url).href
+  )),
+} as typeof import("@/lib/stores/user-page-editor");
+const realApiCardsModule = {
+  ...(await import(
+    new URL("../../../../lib/api/cards.ts", import.meta.url).href
+  )),
+} as typeof import("@/lib/api/cards");
+
 const routerReplace = mock((href: string) => href);
 const fetchUserCardsMock = mock();
 const originalFetch = globalThis.fetch;
@@ -73,19 +84,11 @@ mock.module("next/navigation", () => ({
   useSearchParams: () => routeSearchParams,
 }));
 
-mock.module("@/lib/api/cards", () => ({
-  fetchUserCards: fetchUserCardsMock,
-}));
-
-mock.module("@/lib/stores/user-page-editor", () => ({
-  useUserPageEditor: useUserPageEditorMock,
-}));
-
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
-const { useUserDataLoader } =
-  await import("@/components/user/hooks/useUserDataLoader");
+
+let useUserDataLoader: typeof import("@/components/user/hooks/useUserDataLoader").useUserDataLoader;
 
 function createJsonResponse(
   body: unknown,
@@ -164,7 +167,7 @@ async function flushLoader(rounds = 12) {
 }
 
 describe("useUserDataLoader", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetHappyDom();
     pathname = "/user";
     routeSearchParams = new URLSearchParams("username=Alex");
@@ -176,11 +179,24 @@ describe("useUserDataLoader", () => {
     editorStoreActions.setLoadError.mockReset();
     editorStoreActions.setLoading.mockReset();
     editorStoreActions.setUserData.mockReset();
+    mock.module("@/lib/api/cards", () => ({
+      fetchUserCards: fetchUserCardsMock,
+    }));
+    mock.module("@/lib/stores/user-page-editor", () => ({
+      useUserPageEditor: useUserPageEditorMock,
+    }));
+    ({ useUserDataLoader } =
+      await import("@/components/user/hooks/useUserDataLoader"));
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     cleanup();
+    mock.module(
+      "@/lib/stores/user-page-editor",
+      () => realUserPageEditorModule,
+    );
+    mock.module("@/lib/api/cards", () => realApiCardsModule);
   });
 
   afterAll(async () => {

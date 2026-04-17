@@ -31,23 +31,20 @@ const readSvgMarkupFromUrl = mock(async () => "<svg />");
 const toCardApiHref = mock((previewUrl: string): string | null => previewUrl);
 const cn = (...inputs: Array<string | false | null | undefined>) =>
   inputs.filter(Boolean).join(" ");
-const actualUtils = await import("@/lib/utils");
-
-mock.module("@/components/user/tile/preview-cache", () => previewCache);
-mock.module("@/lib/utils", () => ({
-  ...actualUtils,
-  cn,
-  convertSvgToBlob,
-  getAbsoluteUrl,
-  readSvgMarkupFromObjectUrl,
-  readSvgMarkupFromUrl,
-  toCardApiHref,
-}));
+const realUtilsModule = {
+  ...(await import(new URL("../../../lib/utils.ts", import.meta.url).href)),
+} as typeof import("@/lib/utils");
+const realPreviewCacheModule = {
+  ...(await import(
+    new URL("../../../components/user/tile/preview-cache.ts", import.meta.url)
+      .href
+  )),
+} as typeof import("@/components/user/tile/preview-cache");
 
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
-const { useDownload } = await import("@/hooks/useDownload");
+let useDownload: typeof import("@/hooks/useDownload").useDownload;
 let createdAnchors: HTMLAnchorElement[] = [];
 const originalCreateElement = document.createElement.bind(document);
 const originalAnchorClick = HTMLAnchorElement.prototype.click;
@@ -64,7 +61,7 @@ const createObjectURL = mock((blob: Blob | MediaSource) => {
 });
 const revokeObjectURL = mock(() => {});
 
-beforeEach(() => {
+beforeEach(async () => {
   resetHappyDom();
   createdAnchors = [];
   previewCache.getCachedPreviewObjectUrl.mockReset();
@@ -88,6 +85,18 @@ beforeEach(() => {
   readSvgMarkupFromUrl.mockResolvedValue("<svg />");
   toCardApiHref.mockImplementation((previewUrl: string) => previewUrl);
   createObjectURL.mockReturnValue("blob:download-result");
+
+  mock.module("@/components/user/tile/preview-cache", () => previewCache);
+  mock.module("@/lib/utils", () => ({
+    ...realUtilsModule,
+    cn,
+    convertSvgToBlob,
+    getAbsoluteUrl,
+    readSvgMarkupFromObjectUrl,
+    readSvgMarkupFromUrl,
+    toCardApiHref,
+  }));
+  ({ useDownload } = await import("@/hooks/useDownload"));
 
   document.createElement = ((
     tagName: string,
@@ -129,6 +138,11 @@ afterEach(() => {
     configurable: true,
     value: originalRevokeObjectURL,
   });
+  mock.module("@/lib/utils", () => realUtilsModule);
+  mock.module(
+    "@/components/user/tile/preview-cache",
+    () => realPreviewCacheModule,
+  );
 });
 
 afterAll(() => {

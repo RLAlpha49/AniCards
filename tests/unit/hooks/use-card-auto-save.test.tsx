@@ -29,6 +29,12 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
+const realUserPageEditorModule = {
+  ...(await import(
+    new URL("../../../lib/stores/user-page-editor.ts", import.meta.url).href
+  )),
+} as typeof import("@/lib/stores/user-page-editor");
+
 const editorStore = createMockUserPageEditorStore();
 const toast = {
   error: mock(),
@@ -37,12 +43,12 @@ const toast = {
 };
 
 mock.module("sonner", () => ({ toast }));
-mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
 
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
-const { useCardAutoSave } = await import("@/hooks/useCardAutoSave");
+
+let useCardAutoSave: typeof import("@/hooks/useCardAutoSave").useCardAutoSave;
 
 const originalFetch = globalThis.fetch;
 
@@ -50,12 +56,15 @@ function shortColors(...colors: string[]) {
   return colors as unknown as CardEditorConfig["colorOverride"]["colors"];
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers();
   resetHappyDom();
   toast.error.mockReset();
   toast.loading.mockReset();
   toast.success.mockReset();
+
+  mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
+  ({ useCardAutoSave } = await import("@/hooks/useCardAutoSave"));
 
   editorStore.reset({
     cardOrder: ["animeStats", "favoritesGrid"],
@@ -68,6 +77,7 @@ afterEach(() => {
   vi.useRealTimers();
   globalThis.fetch = originalFetch;
   (globalThis.navigator as { sendBeacon?: unknown }).sendBeacon = undefined;
+  mock.module("@/lib/stores/user-page-editor", () => realUserPageEditorModule);
 });
 
 afterAll(() => {

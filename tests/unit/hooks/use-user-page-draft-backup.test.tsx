@@ -20,21 +20,29 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
-const editorStore = createMockUserPageEditorStore();
+const realUserPageEditorModule = {
+  ...(await import(
+    new URL("../../../lib/stores/user-page-editor.ts", import.meta.url).href
+  )),
+} as typeof import("@/lib/stores/user-page-editor");
 
-mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
+const editorStore = createMockUserPageEditorStore();
 
 installHappyDom();
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const { readUserPageDraft, readUserPageExitSaveFallback } =
   await import("@/lib/user-page-editor-draft");
-const { recordUserPageExitSaveFallback, useUserPageDraftBackup } =
-  await import("@/hooks/useUserPageDraftBackup");
 
-beforeEach(() => {
+let recordUserPageExitSaveFallback: typeof import("@/hooks/useUserPageDraftBackup").recordUserPageExitSaveFallback;
+let useUserPageDraftBackup: typeof import("@/hooks/useUserPageDraftBackup").useUserPageDraftBackup;
+
+beforeEach(async () => {
   vi.useFakeTimers();
   resetHappyDom();
+  mock.module("@/lib/stores/user-page-editor", () => editorStore.module);
+  ({ recordUserPageExitSaveFallback, useUserPageDraftBackup } =
+    await import("@/hooks/useUserPageDraftBackup"));
   editorStore.reset({
     isDirty: false,
     userId: "42",
@@ -44,6 +52,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  mock.module("@/lib/stores/user-page-editor", () => realUserPageEditorModule);
 });
 
 afterAll(() => {

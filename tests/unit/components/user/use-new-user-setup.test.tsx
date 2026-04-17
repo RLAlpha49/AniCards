@@ -22,6 +22,12 @@ import {
   restoreHappyDom,
 } from "@/tests/unit/hooks/test-helpers";
 
+const realUserPageEditorModule = {
+  ...(await import(
+    new URL("../../../../lib/stores/user-page-editor.ts", import.meta.url).href
+  )),
+} as typeof import("@/lib/stores/user-page-editor");
+
 const initializeFromServerData = mock(() => {});
 const trackUserActionErrorMock = mock(async () => undefined);
 const originalFetch = globalThis.fetch;
@@ -36,10 +42,6 @@ useUserPageEditorMock.getState = () =>
     typeof import("@/lib/stores/user-page-editor").useUserPageEditor.getState
   >;
 
-mock.module("@/lib/stores/user-page-editor", () => ({
-  useUserPageEditor: useUserPageEditorMock,
-}));
-
 mock.module("@/lib/error-tracking", () => ({
   trackUserActionError: trackUserActionErrorMock,
 }));
@@ -49,8 +51,8 @@ installHappyDom();
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const { USER_ID_QUERY, USER_STATS_QUERY } =
   await import("@/lib/anilist/queries");
-const { useNewUserSetup } =
-  await import("@/components/user/hooks/useNewUserSetup");
+
+let useNewUserSetup: typeof import("@/components/user/hooks/useNewUserSetup").useNewUserSetup;
 
 function createJsonResponse(
   body: unknown,
@@ -125,15 +127,24 @@ async function flushSetup(rounds = 10) {
 }
 
 describe("useNewUserSetup", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetHappyDom();
     initializeFromServerData.mockReset();
     trackUserActionErrorMock.mockReset();
+    mock.module("@/lib/stores/user-page-editor", () => ({
+      useUserPageEditor: useUserPageEditorMock,
+    }));
+    ({ useNewUserSetup } =
+      await import("@/components/user/hooks/useNewUserSetup"));
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     cleanup();
+    mock.module(
+      "@/lib/stores/user-page-editor",
+      () => realUserPageEditorModule,
+    );
   });
 
   afterAll(() => {
