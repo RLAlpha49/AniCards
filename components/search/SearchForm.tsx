@@ -41,7 +41,7 @@ function scheduleAfterPaint(callback: () => void) {
 }
 
 function replaceCurrentSearchPageUrl(nextPath: string) {
-  if (typeof globalThis.window === "undefined") {
+  if (globalThis.window === undefined) {
     return;
   }
 

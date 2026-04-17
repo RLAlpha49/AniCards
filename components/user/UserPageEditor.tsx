@@ -257,6 +257,14 @@ type EditorCardRenderContext = {
   };
 };
 
+type EditorModChordHandlers = Record<string, (event: KeyboardEvent) => void>;
+
+type ReorderCardsInScope = (opts: {
+  activeId: string;
+  overId: string;
+  scopeIds?: readonly string[];
+}) => void;
+
 const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
   idle: "Preparing...",
   checking: "Checking your profile...",
@@ -827,13 +835,145 @@ function useUserPageEditorCommandPalette(opts: {
   return { recentActionsStorageKey, commandPaletteCommands };
 }
 
+function isTypingInEditorField(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target as HTMLElement).isContentEditable
+  );
+}
+
+function hasOpenEditorDialog() {
+  return Boolean(
+    globalThis.document?.querySelector(
+      '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
+    ),
+  );
+}
+
+function focusEditorFilterTarget(params: {
+  groupFilterTriggerId: string;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  shiftKey: boolean;
+}) {
+  if (params.shiftKey) {
+    const groupFilterTrigger = globalThis.document?.getElementById(
+      params.groupFilterTriggerId,
+    ) as HTMLButtonElement | null;
+    groupFilterTrigger?.focus();
+    return;
+  }
+
+  params.searchRef.current?.focus();
+}
+
+function shouldBlockBrowserShortcutDefault(key: string, shiftKey: boolean) {
+  return !shiftKey && (key === "d" || key === "h" || key === "s");
+}
+
+function handleEditorEscapeShortcut(params: {
+  clearSelection: () => void;
+  event: KeyboardEvent;
+  isReorderMode: boolean;
+  key: string;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+}): boolean {
+  if (params.key !== "escape") {
+    return false;
+  }
+
+  if (isTypingInEditorField(params.event.target) || hasOpenEditorDialog()) {
+    return true;
+  }
+
+  const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+  if (!hasSelection && !params.isReorderMode) {
+    return true;
+  }
+
+  params.event.preventDefault();
+  if (hasSelection) {
+    params.clearSelection();
+    return true;
+  }
+
+  params.setIsReorderMode(false);
+  return true;
+}
+
+function handleEditorModChord(params: {
+  event: KeyboardEvent;
+  groupFilterTriggerId: string;
+  key: string;
+  modChordHandlers: EditorModChordHandlers;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}): boolean {
+  const isMod = params.event.ctrlKey || params.event.metaKey;
+  if (!isMod || params.event.altKey) {
+    return false;
+  }
+
+  if (!params.event.shiftKey && params.key === "k") {
+    params.event.preventDefault();
+    if (!hasOpenEditorDialog()) {
+      params.setIsCommandPaletteOpen(true);
+    }
+    return true;
+  }
+
+  const shouldPreventDefault = shouldBlockBrowserShortcutDefault(
+    params.key,
+    params.event.shiftKey,
+  );
+
+  if (hasOpenEditorDialog()) {
+    if (shouldPreventDefault) {
+      params.event.preventDefault();
+    }
+    return true;
+  }
+
+  if (isTypingInEditorField(params.event.target)) {
+    if (shouldPreventDefault) {
+      params.event.preventDefault();
+    }
+    return true;
+  }
+
+  if (params.key === "f") {
+    params.event.preventDefault();
+    focusEditorFilterTarget({
+      groupFilterTriggerId: params.groupFilterTriggerId,
+      searchRef: params.searchRef,
+      shiftKey: params.event.shiftKey,
+    });
+    return true;
+  }
+
+  if (params.event.shiftKey) {
+    return false;
+  }
+
+  const action = params.modChordHandlers[params.key];
+  if (!action) {
+    return false;
+  }
+
+  action(params.event);
+  return true;
+}
+
 function useUserPageEditorKeyboardShortcuts(opts: {
   canEnterReorderMode: boolean;
   isReorderMode: boolean;
   setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
   clearSelection: () => void;
   selectAllEnabled: () => void;
-  visibility: VisibilityFilter;
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
   saveNow: () => void | Promise<void>;
   openHelpDialog: () => void;
@@ -842,51 +982,6 @@ function useUserPageEditorKeyboardShortcuts(opts: {
   groupFilterTriggerId: string;
 }): void {
   useEffect(() => {
-    const isTypingInField = (target: EventTarget | null) => {
-      if (!(target instanceof Element)) return false;
-      return (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target as HTMLElement).isContentEditable
-      );
-    };
-
-    const hasAnyOpenDialog = () =>
-      Boolean(
-        globalThis.document?.querySelector(
-          '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
-        ),
-      );
-
-    const handleEscape = (e: KeyboardEvent, key: string) => {
-      if (key !== "escape") return false;
-      if (isTypingInField(e.target) || hasAnyOpenDialog()) return true;
-
-      const hasSelection =
-        useUserPageEditor.getState().selectedCardIds.size > 0;
-      if (!hasSelection && !opts.isReorderMode) return true;
-
-      e.preventDefault();
-      if (hasSelection) {
-        opts.clearSelection();
-      } else if (opts.isReorderMode) {
-        opts.setIsReorderMode(false);
-      }
-      return true;
-    };
-    const handleFindShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-
-      if (e.shiftKey) {
-        const el = globalThis.document?.getElementById(
-          opts.groupFilterTriggerId,
-        ) as HTMLButtonElement | null;
-        el?.focus();
-      } else {
-        opts.searchRef.current?.focus();
-      }
-    };
-
     const handleHelpShortcut = (e: KeyboardEvent) => {
       e.preventDefault();
       opts.openHelpDialog();
@@ -918,7 +1013,9 @@ function useUserPageEditorKeyboardShortcuts(opts: {
 
     const handleEnabledOnlyShortcut = (e: KeyboardEvent) => {
       e.preventDefault();
-      opts.setVisibility(opts.visibility === "enabled" ? "all" : "enabled");
+      opts.setVisibility((current) =>
+        current === "enabled" ? "all" : "enabled",
+      );
     };
 
     const handleSaveShortcut = (e: KeyboardEvent) => {
@@ -926,7 +1023,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
       opts.saveNow();
     };
 
-    const modChordHandlers: Record<string, (e: KeyboardEvent) => void> = {
+    const modChordHandlers: EditorModChordHandlers = {
       h: handleHelpShortcut,
       d: handleReorderShortcut,
       a: handleSelectAllShortcut,
@@ -934,57 +1031,30 @@ function useUserPageEditorKeyboardShortcuts(opts: {
       s: handleSaveShortcut,
     };
 
-    const handleModChord = (e: KeyboardEvent, key: string) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod || e.altKey) return false;
-
-      // Ctrl/Cmd+K is commonly used for a command palette. Prevent the browser
-      // default even when focused in an input.
-      if (!e.shiftKey && key === "k") {
-        e.preventDefault();
-        if (!hasAnyOpenDialog()) {
-          opts.setIsCommandPaletteOpen(true);
-        }
-        return true;
-      }
-
-      // Don't allow browser-level defaults for shortcuts we advertise.
-      // (e.g., Ctrl/Cmd+D = bookmark, Ctrl/Cmd+H = history, Ctrl/Cmd+S = save page)
-      const shouldBlockBrowserDefault =
-        !e.shiftKey && (key === "d" || key === "h" || key === "s");
-
-      if (hasAnyOpenDialog()) {
-        if (shouldBlockBrowserDefault) {
-          e.preventDefault();
-        }
-        return true;
-      }
-
-      if (isTypingInField(e.target)) {
-        if (shouldBlockBrowserDefault) {
-          e.preventDefault();
-        }
-        return true;
-      }
-
-      if (key === "f") {
-        handleFindShortcut(e);
-        return true;
-      }
-      if (e.shiftKey) return false;
-
-      const action = modChordHandlers[key];
-      if (!action) return false;
-      action(e);
-      return true;
-    };
-
     const handler = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat) return;
 
       const key = e.key.toLowerCase();
-      if (handleEscape(e, key)) return;
-      handleModChord(e, key);
+      if (
+        handleEditorEscapeShortcut({
+          clearSelection: opts.clearSelection,
+          event: e,
+          isReorderMode: opts.isReorderMode,
+          key,
+          setIsReorderMode: opts.setIsReorderMode,
+        })
+      ) {
+        return;
+      }
+
+      handleEditorModChord({
+        event: e,
+        groupFilterTriggerId: opts.groupFilterTriggerId,
+        key,
+        modChordHandlers,
+        searchRef: opts.searchRef,
+        setIsCommandPaletteOpen: opts.setIsCommandPaletteOpen,
+      });
     };
 
     globalThis.addEventListener("keydown", handler);
@@ -1001,7 +1071,6 @@ function useUserPageEditorKeyboardShortcuts(opts: {
     opts.setIsCommandPaletteOpen,
     opts.setIsReorderMode,
     opts.setVisibility,
-    opts.visibility,
   ]);
 }
 
@@ -1528,7 +1597,6 @@ function useUserPageEditorLeaveProtection(params: {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       flushUserPageDraftBackup(params.userId);
       event.preventDefault();
-      event.returnValue = "";
     };
 
     const handleDocumentClick = (event: MouseEvent) => {
@@ -1597,6 +1665,50 @@ function useUserPageEditorLeaveProtection(params: {
   }, [params.isActive, params.navigate, params.userId]);
 }
 
+function buildEditorCardReorderControls(params: {
+  cardId: string;
+  cardIndex: number;
+  isReorderMode: boolean;
+  reorderCardsInScope: ReorderCardsInScope;
+  scopeIds: readonly string[];
+}): EditorCardRenderContext["reorderControls"] {
+  if (!params.isReorderMode) {
+    return undefined;
+  }
+
+  const previousId = params.scopeIds[params.cardIndex - 1];
+  const nextId = params.scopeIds[params.cardIndex + 1];
+
+  return {
+    canMoveEarlier: previousId !== undefined,
+    canMoveLater: nextId !== undefined,
+    onMoveEarlier: () => {
+      if (previousId === undefined) {
+        return;
+      }
+
+      params.reorderCardsInScope({
+        activeId: params.cardId,
+        overId: previousId,
+        scopeIds: params.scopeIds,
+      });
+    },
+    onMoveLater: () => {
+      if (nextId === undefined) {
+        return;
+      }
+
+      params.reorderCardsInScope({
+        activeId: params.cardId,
+        overId: nextId,
+        scopeIds: params.scopeIds,
+      });
+    },
+    position: params.cardIndex + 1,
+    total: params.scopeIds.length,
+  };
+}
+
 type RenderableCardType = (typeof statCardTypes)[number];
 
 const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
@@ -1617,11 +1729,7 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
       index: number,
       ctx?: EditorCardRenderContext,
     ) => ReactNode;
-    reorderCardsInScope: (opts: {
-      activeId: string;
-      overId: string;
-      scopeIds?: readonly string[];
-    }) => void;
+    reorderCardsInScope: ReorderCardsInScope;
     prefersSimplifiedMotion: boolean;
     setQuery: (value: string) => void;
     setVisibility: (value: VisibilityFilter) => void;
@@ -1715,36 +1823,18 @@ const EditorCardGroupsPanel = memo(function EditorCardGroupsPanel(
                 defaultExpanded={index === 0}
                 cards={filteredCards}
                 renderCard={(cardType, cardIndex, ctx) => {
-                  const previousId = scopeIds[cardIndex - 1];
-                  const nextId = scopeIds[cardIndex + 1];
+                  const reorderControls = buildEditorCardReorderControls({
+                    cardId: cardType.id,
+                    cardIndex,
+                    isReorderMode: props.isReorderMode,
+                    reorderCardsInScope: props.reorderCardsInScope,
+                    scopeIds,
+                  });
 
                   return props.renderCardTile(cardType, cardIndex, {
                     dragHandleProps: ctx?.dragHandleProps,
                     isDragging: ctx?.isDragging,
-                    reorderControls: props.isReorderMode
-                      ? {
-                          canMoveEarlier: typeof previousId === "string",
-                          canMoveLater: typeof nextId === "string",
-                          onMoveEarlier: () => {
-                            if (!previousId) return;
-                            props.reorderCardsInScope({
-                              activeId: cardType.id,
-                              overId: previousId,
-                              scopeIds,
-                            });
-                          },
-                          onMoveLater: () => {
-                            if (!nextId) return;
-                            props.reorderCardsInScope({
-                              activeId: cardType.id,
-                              overId: nextId,
-                              scopeIds,
-                            });
-                          },
-                          position: cardIndex + 1,
-                          total: scopeIds.length,
-                        }
-                      : undefined,
+                    reorderControls,
                   });
                 }}
                 getCardKey={(cardType) => cardType.id}
@@ -2502,7 +2592,6 @@ export function UserPageEditor({
     setIsReorderMode,
     clearSelection,
     selectAllEnabled,
-    visibility,
     setVisibility,
     saveNow,
     openHelpDialog,
@@ -2716,7 +2805,7 @@ export function UserPageEditor({
     [router],
   );
   const replaceCurrentEditorUrl = useCallback((href: string) => {
-    if (typeof globalThis.window === "undefined") {
+    if (!("window" in globalThis)) {
       return;
     }
 

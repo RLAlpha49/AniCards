@@ -1,6 +1,11 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import {
+  motion,
+  type TargetAndTransition,
+  type Transition,
+  useReducedMotion,
+} from "framer-motion";
 import {
   ArrowRight,
   Loader2,
@@ -26,6 +31,51 @@ import { SearchForm } from "./SearchForm";
 
 function getRememberedUserRouteTitle(route: RememberedUserPageRoute): string {
   return route.username ? `@${route.username}` : `AniList user ${route.userId}`;
+}
+
+type SearchHeroLookupResult = NonNullable<
+  SearchHeroSectionProps["lookupResult"]
+>;
+
+function SearchHeroFloatingGlyph(
+  props: Readonly<{
+    animate: TargetAndTransition;
+    className: string;
+    glyph: string;
+    prefersReducedMotion: boolean;
+    transition: Transition;
+  }>,
+) {
+  return (
+    <motion.div
+      className={props.className}
+      animate={props.prefersReducedMotion ? undefined : props.animate}
+      transition={props.prefersReducedMotion ? undefined : props.transition}
+    >
+      {props.glyph}
+    </motion.div>
+  );
+}
+
+function SearchHeroLookupAvatar(
+  props: Readonly<{ lookupResult: SearchHeroLookupResult }>,
+) {
+  if (props.lookupResult.avatarUrl) {
+    return (
+      <img
+        src={props.lookupResult.avatarUrl}
+        alt=""
+        className="size-full object-cover"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (props.lookupResult.kind === "confirmed") {
+    return <UserRound className="size-5 text-gold-dim dark:text-gold" />;
+  }
+
+  return <Search className="size-5 text-gold-dim dark:text-gold" />;
 }
 
 interface SearchHeroSectionProps {
@@ -107,89 +157,57 @@ export function SearchHeroSection({
       " />
 
       {/* Floating decorative elements */}
-      <motion.div
+      <SearchHeroFloatingGlyph
         className="pointer-events-none absolute top-24 left-[8%] text-5xl text-gold/10 select-none"
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : { y: [0, -15, 0], rotate: [0, 12, 0] }
-        }
-        transition={
-          prefersReducedMotion
-            ? undefined
-            : { duration: 9, repeat: Infinity, ease: "easeInOut" }
-        }
-      >
-        ◆
-      </motion.div>
-      <motion.div
+        glyph="◆"
+        prefersReducedMotion={prefersReducedMotion}
+        animate={{ y: [0, -15, 0], rotate: [0, 12, 0] }}
+        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <SearchHeroFloatingGlyph
         className="
           pointer-events-none absolute right-[10%] bottom-32 text-3xl text-gold/8 select-none
         "
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : { y: [0, 12, 0], rotate: [0, -8, 0] }
-        }
-        transition={
-          prefersReducedMotion
-            ? undefined
-            : {
-                duration: 7,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 2,
-              }
-        }
-      >
-        ✦
-      </motion.div>
-      <motion.div
+        glyph="✦"
+        prefersReducedMotion={prefersReducedMotion}
+        animate={{ y: [0, 12, 0], rotate: [0, -8, 0] }}
+        transition={{
+          duration: 7,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 2,
+        }}
+      />
+      <SearchHeroFloatingGlyph
         className="
           pointer-events-none absolute top-[50%] left-[5%] hidden text-2xl text-gold/6 select-none
           md:block
         "
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : { y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }
-        }
-        transition={
-          prefersReducedMotion
-            ? undefined
-            : {
-                duration: 6,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 1,
-              }
-        }
-      >
-        ◇
-      </motion.div>
-      <motion.div
+        glyph="◇"
+        prefersReducedMotion={prefersReducedMotion}
+        animate={{ y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }}
+        transition={{
+          duration: 6,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 1,
+        }}
+      />
+      <SearchHeroFloatingGlyph
         className="
           pointer-events-none absolute top-[20%] right-[6%] hidden text-xl text-gold/5 select-none
           lg:block
         "
-        animate={
-          prefersReducedMotion
-            ? undefined
-            : { y: [0, 8, 0], rotate: [0, -15, 0] }
-        }
-        transition={
-          prefersReducedMotion
-            ? undefined
-            : {
-                duration: 10,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: 3,
-              }
-        }
-      >
-        ◇
-      </motion.div>
+        glyph="◇"
+        prefersReducedMotion={prefersReducedMotion}
+        animate={{ y: [0, 8, 0], rotate: [0, -15, 0] }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 3,
+        }}
+      />
 
       <motion.div
         variants={containerVariants}
@@ -396,18 +414,7 @@ export function SearchHeroSection({
                   rounded-full bg-gold/15
                   dark:bg-gold/10
                 ">
-                  {lookupResult.avatarUrl ? (
-                    <img
-                      src={lookupResult.avatarUrl}
-                      alt=""
-                      className="size-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : lookupResult.kind === "confirmed" ? (
-                    <UserRound className="size-5 text-gold-dim dark:text-gold" />
-                  ) : (
-                    <Search className="size-5 text-gold-dim dark:text-gold" />
-                  )}
+                  <SearchHeroLookupAvatar lookupResult={lookupResult} />
                 </div>
 
                 <div className="min-w-0 flex-1">

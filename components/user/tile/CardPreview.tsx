@@ -348,47 +348,62 @@ export const CardPreview = memo(function CardPreview({
   }, [showActions]);
 
   const paddingClass = getPaddingClass(previewSize);
-
+  const isPreviewAvailable = Boolean(previewUrl);
   const shouldRenderFallbackSrc = Boolean(previewUrl && error);
   const resolvedSrc = imageSrc ?? (shouldRenderFallbackSrc ? previewUrl : null);
+  const overlayPinned = isAnyPopoverOpen || showActions || forceActionsVisible;
+  const showDesktopActionOverlay = !prefersCoarsePointer;
+  const showReachableActionBar = prefersCoarsePointer;
+  const overlayVisibilityClass = overlayPinned
+    ? "opacity-100"
+    : `
+      opacity-0
+      group-focus-within/card-preview:opacity-100
+      group-hover/card-preview:opacity-100
+    `;
 
-  let previewNode: ReactNode;
-  if (!previewUrl) {
-    previewNode = (
-      <div className="flex size-full items-center justify-center text-muted-foreground">
-        <Eye className="size-8" />
-      </div>
-    );
-  } else if (!resolvedSrc && isLoading) {
-    previewNode = (
-      <div className={cn("size-full", paddingClass)}>
-        <Skeleton className="size-full" />
-        <span className="sr-only">Loading preview...</span>
-      </div>
-    );
-  } else if (resolvedSrc) {
-    previewNode = (
-      <img
-        src={resolvedSrc}
-        alt={`${label} preview`}
-        loading="lazy"
-        decoding="async"
-        className={cn(
-          "absolute inset-0 size-full object-contain blur-none brightness-100",
-          paddingClass,
-          "transition-all duration-300 ease-out will-change-[transform,filter]",
-          "group-focus-within/card-preview:scale-[1.02] group-hover/card-preview:scale-[1.02]",
-          "group-focus-within/card-preview:blur-[2px] group-hover/card-preview:blur-[2px]",
-          `
-            group-focus-within/card-preview:brightness-[0.7]
-            group-hover/card-preview:brightness-[0.7]
-          `,
-        )}
-        style={{ borderRadius: borderRadiusValue }}
-      />
-    );
-  } else {
-    previewNode = (
+  const renderPreviewNode = (): ReactNode => {
+    if (!isPreviewAvailable) {
+      return (
+        <div className="flex size-full items-center justify-center text-muted-foreground">
+          <Eye className="size-8" />
+        </div>
+      );
+    }
+
+    if (!resolvedSrc && isLoading) {
+      return (
+        <div className={cn("size-full", paddingClass)}>
+          <Skeleton className="size-full" />
+          <span className="sr-only">Loading preview...</span>
+        </div>
+      );
+    }
+
+    if (resolvedSrc) {
+      return (
+        <img
+          src={resolvedSrc}
+          alt={`${label} preview`}
+          loading="lazy"
+          decoding="async"
+          className={cn(
+            "absolute inset-0 size-full object-contain blur-none brightness-100",
+            paddingClass,
+            "transition-all duration-300 ease-out will-change-[transform,filter]",
+            "group-focus-within/card-preview:scale-[1.02] group-hover/card-preview:scale-[1.02]",
+            "group-focus-within/card-preview:blur-[2px] group-hover/card-preview:blur-[2px]",
+            `
+              group-focus-within/card-preview:brightness-[0.7]
+              group-hover/card-preview:brightness-[0.7]
+            `,
+          )}
+          style={{ borderRadius: borderRadiusValue }}
+        />
+      );
+    }
+
+    return (
       <div className="flex size-full items-center justify-center text-muted-foreground">
         <LoadingSpinner
           size="md"
@@ -398,12 +413,179 @@ export const CardPreview = memo(function CardPreview({
         />
       </div>
     );
-  }
+  };
 
-  const overlayPinned = isAnyPopoverOpen || showActions || forceActionsVisible;
-  const showDesktopActionOverlay = !prefersCoarsePointer;
-  const showReachableActionBar =
-    prefersCoarsePointer || !showDesktopActionOverlay;
+  const renderAvailabilityAnnouncements = () => (
+    <>
+      {!isPreviewAvailable ? (
+        <span id={previewUnavailableId} className="sr-only">
+          Preview not available
+        </span>
+      ) : null}
+      {isDownloading ? (
+        <span id={convertingId} className="sr-only">
+          Preparing download...
+        </span>
+      ) : null}
+    </>
+  );
+
+  const renderDesktopActionOverlay = () => {
+    if (!showDesktopActionOverlay) {
+      return null;
+    }
+
+    return (
+      <>
+        {/* Subtle scrim for better hierarchy when actions appear */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            `
+              pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15 via-black/0
+              to-black/0
+              md:block
+            `,
+            "transition-opacity duration-200",
+            overlayVisibilityClass,
+          )}
+        />
+
+        {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
+        <button
+          type="button"
+          aria-label={`Toggle actions for ${label}`}
+          aria-pressed={showActions}
+          onClick={() => setShowActions((value) => !value)}
+          className="
+            pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
+            justify-center rounded-full bg-white/10 text-white opacity-0
+            focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
+            focus-visible:ring-white/70 focus-visible:outline-none
+            md:inline-flex
+          "
+        >
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </button>
+
+        <div
+          className={cn(
+            `
+              pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
+              transition-opacity duration-300
+              md:flex
+            `,
+            overlayVisibilityClass,
+          )}
+        >
+          <OpenInNewTabButton
+            openHref={openHref}
+            label={label}
+            isPreviewAvailable={isPreviewAvailable}
+            previewUnavailableId={previewUnavailableId}
+          />
+
+          <RefreshPreviewButton
+            disabled={!previewUrl || isLoading}
+            title={previewUrl ? "Refresh preview" : "Preview not available"}
+            ariaLabel={`Refresh preview for ${label}`}
+            onRefresh={handleRefresh}
+          />
+
+          {hideCopyDownload ? null : (
+            <>
+              <div className="pointer-events-auto">
+                <CopyPopover
+                  open={copyPopoverOpen}
+                  onOpenChange={setCopyPopoverOpen}
+                  previewUrl={previewUrl}
+                  copiedFormat={copiedFormat}
+                  copyError={copyError}
+                  onCopyUrl={onCopyUrl}
+                  onCopyAniList={onCopyAniList}
+                  previewUnavailableId={previewUnavailableId}
+                />
+              </div>
+              <div className="pointer-events-auto">
+                <DownloadPopover
+                  open={downloadPopoverOpen}
+                  onOpenChange={setDownloadPopoverOpen}
+                  previewUrl={previewUrl}
+                  isDownloading={isDownloading}
+                  downloadError={downloadError}
+                  onDownload={onDownload}
+                  downloadDescrId={downloadDescrId}
+                  downloadTitle={downloadTitle}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  const renderReachableActionBar = () => {
+    if (!showReachableActionBar) {
+      return null;
+    }
+
+    return (
+      <div className="border-t border-gold/10 p-2">
+        <div className="grid grid-cols-2 gap-2">
+          <OpenInNewTabButton
+            openHref={openHref}
+            label={label}
+            isPreviewAvailable={isPreviewAvailable}
+            previewUnavailableId={previewUnavailableId}
+            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+            iconClassName="size-4"
+            visibleLabel="Open"
+          />
+
+          <RefreshPreviewButton
+            disabled={!previewUrl || isLoading}
+            title={previewUrl ? "Refresh preview" : "Preview not available"}
+            ariaLabel={`Refresh preview for ${label}`}
+            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+            iconClassName="size-4"
+            visibleLabel="Refresh"
+            onRefresh={handleRefresh}
+          />
+
+          {hideCopyDownload ? null : (
+            <>
+              <CopyPopover
+                open={copyPopoverOpen}
+                onOpenChange={setCopyPopoverOpen}
+                previewUrl={previewUrl}
+                copiedFormat={copiedFormat}
+                copyError={copyError}
+                onCopyUrl={onCopyUrl}
+                onCopyAniList={onCopyAniList}
+                previewUnavailableId={previewUnavailableId}
+                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                triggerLabel="Copy"
+              />
+
+              <DownloadPopover
+                open={downloadPopoverOpen}
+                onOpenChange={setDownloadPopoverOpen}
+                previewUrl={previewUrl}
+                isDownloading={isDownloading}
+                downloadError={downloadError}
+                onDownload={onDownload}
+                downloadDescrId={downloadDescrId}
+                downloadTitle={downloadTitle}
+                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                triggerLabel="Download"
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="bg-gold/3 dark:bg-gold/2">
@@ -414,182 +596,12 @@ export const CardPreview = memo(function CardPreview({
         onPointerEnter={() => onHoverChange?.(true)}
         onPointerLeave={() => onHoverChange?.(false)}
       >
-        {previewNode}
-
-        {showDesktopActionOverlay ? (
-          <>
-            {/* Subtle scrim for better hierarchy when actions appear */}
-            <div
-              aria-hidden="true"
-              className={cn(
-                `
-                  pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15
-                  via-black/0 to-black/0
-                  md:block
-                `,
-                "transition-opacity duration-200",
-                overlayPinned
-                  ? "opacity-100"
-                  : `
-                    opacity-0
-                    group-focus-within/card-preview:opacity-100
-                    group-hover/card-preview:opacity-100
-                  `,
-              )}
-            />
-
-            {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
-            <button
-              type="button"
-              aria-label={`Toggle actions for ${label}`}
-              aria-pressed={showActions}
-              onClick={() => setShowActions((v) => !v)}
-              className="
-                pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
-                justify-center rounded-full bg-white/10 text-white opacity-0
-                focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
-                focus-visible:ring-white/70 focus-visible:outline-none
-                md:inline-flex
-              "
-            >
-              <MoreHorizontal className="size-4" aria-hidden="true" />
-            </button>
-          </>
-        ) : null}
-
-        {!previewUrl && (
-          <span id={previewUnavailableId} className="sr-only">
-            Preview not available
-          </span>
-        )}
-        {isDownloading && (
-          <span id={convertingId} className="sr-only">
-            Preparing download...
-          </span>
-        )}
-        {showDesktopActionOverlay ? (
-          <div
-            className={cn(
-              `
-                pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
-                transition-opacity duration-300
-                md:flex
-              `,
-              overlayPinned
-                ? "opacity-100"
-                : `
-                  opacity-0
-                  group-focus-within/card-preview:opacity-100
-                  group-hover/card-preview:opacity-100
-                `,
-            )}
-          >
-            <OpenInNewTabButton
-              openHref={openHref}
-              label={label}
-              isPreviewAvailable={Boolean(previewUrl)}
-              previewUnavailableId={previewUnavailableId}
-            />
-
-            <RefreshPreviewButton
-              disabled={!previewUrl || isLoading}
-              title={previewUrl ? "Refresh preview" : "Preview not available"}
-              ariaLabel={`Refresh preview for ${label}`}
-              onRefresh={handleRefresh}
-            />
-
-            {hideCopyDownload ? null : (
-              <>
-                <div className="pointer-events-auto">
-                  <CopyPopover
-                    open={copyPopoverOpen}
-                    onOpenChange={setCopyPopoverOpen}
-                    previewUrl={previewUrl}
-                    copiedFormat={copiedFormat}
-                    copyError={copyError}
-                    onCopyUrl={onCopyUrl}
-                    onCopyAniList={onCopyAniList}
-                    previewUnavailableId={previewUnavailableId}
-                  />
-                </div>
-                <div className="pointer-events-auto">
-                  <DownloadPopover
-                    open={downloadPopoverOpen}
-                    onOpenChange={setDownloadPopoverOpen}
-                    previewUrl={previewUrl}
-                    isDownloading={isDownloading}
-                    downloadError={downloadError}
-                    onDownload={onDownload}
-                    downloadDescrId={downloadDescrId}
-                    downloadTitle={downloadTitle}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        ) : null}
+        {renderPreviewNode()}
+        {renderDesktopActionOverlay()}
+        {renderAvailabilityAnnouncements()}
       </div>
 
-      {showReachableActionBar ? (
-        <div
-          className={cn(
-            "border-t border-gold/10 p-2",
-            showDesktopActionOverlay ? "md:hidden" : undefined,
-          )}
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <OpenInNewTabButton
-              openHref={openHref}
-              label={label}
-              isPreviewAvailable={Boolean(previewUrl)}
-              previewUnavailableId={previewUnavailableId}
-              className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-              iconClassName="size-4"
-              visibleLabel="Open"
-            />
-
-            <RefreshPreviewButton
-              disabled={!previewUrl || isLoading}
-              title={previewUrl ? "Refresh preview" : "Preview not available"}
-              ariaLabel={`Refresh preview for ${label}`}
-              className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-              iconClassName="size-4"
-              visibleLabel="Refresh"
-              onRefresh={handleRefresh}
-            />
-
-            {hideCopyDownload ? null : (
-              <>
-                <CopyPopover
-                  open={copyPopoverOpen}
-                  onOpenChange={setCopyPopoverOpen}
-                  previewUrl={previewUrl}
-                  copiedFormat={copiedFormat}
-                  copyError={copyError}
-                  onCopyUrl={onCopyUrl}
-                  onCopyAniList={onCopyAniList}
-                  previewUnavailableId={previewUnavailableId}
-                  triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-                  triggerLabel="Copy"
-                />
-
-                <DownloadPopover
-                  open={downloadPopoverOpen}
-                  onOpenChange={setDownloadPopoverOpen}
-                  previewUrl={previewUrl}
-                  isDownloading={isDownloading}
-                  downloadError={downloadError}
-                  onDownload={onDownload}
-                  downloadDescrId={downloadDescrId}
-                  downloadTitle={downloadTitle}
-                  triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
-                  triggerLabel="Download"
-                />
-              </>
-            )}
-          </div>
-        </div>
-      ) : null}
+      {renderReachableActionBar()}
     </div>
   );
 });

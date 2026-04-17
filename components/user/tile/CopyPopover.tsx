@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, Check, Copy, ImageIcon, Link } from "lucide-react";
+import type { ReactElement } from "react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -23,6 +24,93 @@ interface CopyPopoverProps {
   triggerLabel?: string;
 }
 
+type CopyFormat = CopyPopoverProps["copiedFormat"];
+
+function getCopiedMessage(copiedFormat: CopyFormat): string {
+  if (copiedFormat === "url") {
+    return "Copied URL to clipboard";
+  }
+
+  if (copiedFormat === "anilist") {
+    return "Copied AniList format to clipboard";
+  }
+
+  if (copiedFormat) {
+    return "Copied to clipboard";
+  }
+
+  return "";
+}
+
+function CopyErrorNotice() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="
+        mt-1 rounded-md border border-red-200/60 bg-red-50/80 p-2 text-xs text-red-700
+        dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300
+      "
+    >
+      <div className="flex items-start gap-2">
+        <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="font-medium text-red-800 dark:text-red-200">
+            Copy didn&apos;t work
+          </p>
+          <p className="mt-1 leading-relaxed">
+            Try again, or open the preview in a new tab and copy from there.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CopyActionButton({
+  copiedFormat,
+  currentFormat,
+  icon,
+  label,
+  onClick,
+  previewUnavailableId,
+  previewUrl,
+}: Readonly<{
+  copiedFormat: CopyFormat;
+  currentFormat: "url" | "anilist";
+  icon: ReactElement;
+  label: string;
+  onClick: () => Promise<void> | void;
+  previewUnavailableId?: string;
+  previewUrl: string | null;
+}>) {
+  const isCopied = copiedFormat === currentFormat;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="
+        h-9 justify-start gap-2 px-2.5 text-sm
+        hover:bg-gold/5
+        disabled:cursor-not-allowed disabled:opacity-70
+        dark:hover:bg-gold/5
+      "
+      onClick={onClick}
+      disabled={!previewUrl}
+      aria-disabled={!previewUrl}
+      aria-describedby={previewUrl ? undefined : previewUnavailableId}
+      title={previewUrl ? undefined : "Preview not available"}
+    >
+      {icon}
+      <span>{label}</span>
+      {isCopied ? (
+        <Check className="ml-auto size-4 text-green-600" aria-hidden="true" />
+      ) : null}
+    </Button>
+  );
+}
+
 export function CopyPopover({
   open,
   onOpenChange,
@@ -35,12 +123,8 @@ export function CopyPopover({
   triggerClassName,
   triggerLabel,
 }: Readonly<CopyPopoverProps>) {
-  const srCopiedMessage = (() => {
-    if (copiedFormat === "url") return "Copied URL to clipboard";
-    if (copiedFormat === "anilist") return "Copied AniList format to clipboard";
-    if (copiedFormat) return "Copied to clipboard";
-    return "";
-  })();
+  const srCopiedMessage = getCopiedMessage(copiedFormat);
+  const triggerLabelText = copiedFormat ? "Copied" : triggerLabel;
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -75,9 +159,7 @@ export function CopyPopover({
           ) : (
             <Copy className="size-5" aria-hidden="true" />
           )}
-          {triggerLabel ? (
-            <span>{copiedFormat ? "Copied" : triggerLabel}</span>
-          ) : null}
+          {triggerLabelText ? <span>{triggerLabelText}</span> : null}
           <span className="sr-only">
             {copiedFormat ? "Copied" : "Copy URL"}
           </span>
@@ -91,94 +173,43 @@ export function CopyPopover({
         align="center"
       >
         <div className="flex flex-col gap-0.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="
-              h-9 justify-start gap-2 px-2.5 text-sm
-              hover:bg-gold/5
-              disabled:cursor-not-allowed disabled:opacity-70
-              dark:hover:bg-gold/5
-            "
+          <CopyActionButton
+            copiedFormat={copiedFormat}
+            currentFormat="url"
+            icon={
+              <Link
+                className="size-4 text-gold-dim dark:text-gold"
+                aria-hidden="true"
+              />
+            }
+            label="Copy URL"
             onClick={onCopyUrl}
-            disabled={!previewUrl}
-            aria-disabled={!previewUrl}
-            aria-describedby={previewUrl ? undefined : previewUnavailableId}
-            title={previewUrl ? undefined : "Preview not available"}
-          >
-            <Link
-              className="size-4 text-gold-dim dark:text-gold"
-              aria-hidden="true"
-            />
-            <span>Copy URL</span>
-            {copiedFormat === "url" && (
-              <Check
-                className="ml-auto size-4 text-green-600"
+            previewUnavailableId={previewUnavailableId}
+            previewUrl={previewUrl}
+          />
+
+          <CopyActionButton
+            copiedFormat={copiedFormat}
+            currentFormat="anilist"
+            icon={
+              <ImageIcon
+                className="size-4 text-gold-dim dark:text-gold"
                 aria-hidden="true"
               />
-            )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="
-              h-9 justify-start gap-2 px-2.5 text-sm
-              hover:bg-gold/5
-              disabled:cursor-not-allowed disabled:opacity-70
-              dark:hover:bg-gold/5
-            "
+            }
+            label="AniList Format"
             onClick={onCopyAniList}
-            disabled={!previewUrl}
-            aria-disabled={!previewUrl}
-            aria-describedby={previewUrl ? undefined : previewUnavailableId}
-            title={previewUrl ? undefined : "Preview not available"}
-          >
-            <ImageIcon
-              className="size-4 text-gold-dim dark:text-gold"
-              aria-hidden="true"
-            />
-            <span>AniList Format</span>
-            {copiedFormat === "anilist" && (
-              <Check
-                className="ml-auto size-4 text-green-600"
-                aria-hidden="true"
-              />
-            )}
-          </Button>
+            previewUnavailableId={previewUnavailableId}
+            previewUrl={previewUrl}
+          />
 
-          {copiedFormat && (
+          {copiedFormat ? (
             <span aria-live="polite" className="sr-only">
               {srCopiedMessage}
             </span>
-          )}
-
-          {copyError ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="
-                mt-1 rounded-md border border-red-200/60 bg-red-50/80 p-2 text-xs text-red-700
-                dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300
-              "
-            >
-              <div className="flex items-start gap-2">
-                <AlertCircle
-                  className="mt-0.5 size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <div>
-                  <p className="font-medium text-red-800 dark:text-red-200">
-                    Copy didn&apos;t work
-                  </p>
-                  <p className="mt-1 leading-relaxed">
-                    Try again, or open the preview in a new tab and copy from
-                    there.
-                  </p>
-                </div>
-              </div>
-            </div>
           ) : null}
+
+          {copyError ? <CopyErrorNotice /> : null}
         </div>
       </PopoverContent>
     </Popover>

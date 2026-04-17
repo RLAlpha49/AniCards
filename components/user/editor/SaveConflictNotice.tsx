@@ -20,6 +20,17 @@ type SaveConflictNoticeSummary = {
   reorderedCardCount: number;
 };
 
+type MetricCard = {
+  title: string;
+  value: string;
+};
+
+type TimelineItem = {
+  key: string;
+  label: string;
+  value: string;
+};
+
 function formatTimestamp(
   value: number | string | null | undefined,
 ): string | null {
@@ -27,12 +38,88 @@ function formatTimestamp(
     return null;
   }
 
-  const date = typeof value === "number" ? new Date(value) : new Date(value);
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
 
   return date.toLocaleString();
+}
+
+function formatPendingChangeCount(count: number, noun: string): string {
+  if (count === 0) {
+    return `No ${noun} edits`;
+  }
+
+  return `${count} pending change${count === 1 ? "" : "s"}`;
+}
+
+function formatChangedCount(count: number, noun: string): string {
+  if (count === 0) {
+    return `No ${noun}`;
+  }
+
+  return `${count} ${noun}${count === 1 ? "" : "s"} changed`;
+}
+
+function formatReorderedCount(count: number): string {
+  if (count === 0) {
+    return "No reorder changes";
+  }
+
+  return `${count} position${count === 1 ? "" : "s"} changed`;
+}
+
+function buildMetricCards(summary: SaveConflictNoticeSummary): MetricCard[] {
+  return [
+    {
+      title: "Edited cards",
+      value: formatPendingChangeCount(summary.changedCardCount, "per-card"),
+    },
+    {
+      title: "Global settings",
+      value: formatChangedCount(summary.changedGlobalSettingCount, "setting"),
+    },
+    {
+      title: "Card order",
+      value: formatReorderedCount(summary.reorderedCardCount),
+    },
+  ];
+}
+
+function buildTimelineItems(
+  summary: SaveConflictNoticeSummary,
+): TimelineItem[] {
+  const items: TimelineItem[] = [];
+
+  const localLastSavedLabel = formatTimestamp(summary.lastSavedAt);
+  if (localLastSavedLabel) {
+    items.push({
+      key: "local-last-saved",
+      label: "Last saved here",
+      value: localLastSavedLabel,
+    });
+  }
+
+  const serverUpdatedAtLabel = formatTimestamp(summary.currentUpdatedAt);
+  if (serverUpdatedAtLabel) {
+    items.push({
+      key: "server-updated-at",
+      label: "Latest server save",
+      value: serverUpdatedAtLabel,
+    });
+  }
+
+  const conflictDetectedLabel = formatTimestamp(summary.attemptedAt);
+  if (conflictDetectedLabel) {
+    items.push({
+      key: "conflict-detected",
+      label: "Conflict detected",
+      value: conflictDetectedLabel,
+    });
+  }
+
+  return items;
 }
 
 export function SaveConflictNotice({
@@ -47,10 +134,8 @@ export function SaveConflictNotice({
   onReloadLatest: () => void;
 }>) {
   if (!isVisible) return null;
-
-  const localLastSavedLabel = formatTimestamp(summary?.lastSavedAt);
-  const conflictDetectedLabel = formatTimestamp(summary?.attemptedAt);
-  const serverUpdatedAtLabel = formatTimestamp(summary?.currentUpdatedAt);
+  const metricCards = summary ? buildMetricCards(summary) : [];
+  const timelineItems = summary ? buildTimelineItems(summary) : [];
 
   return (
     <div className="flex justify-center" role="alert">
@@ -81,47 +166,22 @@ export function SaveConflictNotice({
             {summary ? (
               <div className="mt-3 space-y-3">
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="
-                    border border-red-200/60 bg-white/60 px-3 py-2 text-xs
-                    dark:border-red-900/40 dark:bg-black/10
-                  ">
-                    <div className="font-medium text-red-900 dark:text-red-100">
-                      Edited cards
+                  {metricCards.map((metric) => (
+                    <div
+                      key={metric.title}
+                      className="
+                        border border-red-200/60 bg-white/60 px-3 py-2 text-xs
+                        dark:border-red-900/40 dark:bg-black/10
+                      "
+                    >
+                      <div className="font-medium text-red-900 dark:text-red-100">
+                        {metric.title}
+                      </div>
+                      <div className="mt-1 text-red-700 dark:text-red-200">
+                        {metric.value}
+                      </div>
                     </div>
-                    <div className="mt-1 text-red-700 dark:text-red-200">
-                      {summary.changedCardCount === 0
-                        ? "No per-card edits"
-                        : `${summary.changedCardCount} pending change${summary.changedCardCount === 1 ? "" : "s"}`}
-                    </div>
-                  </div>
-
-                  <div className="
-                    border border-red-200/60 bg-white/60 px-3 py-2 text-xs
-                    dark:border-red-900/40 dark:bg-black/10
-                  ">
-                    <div className="font-medium text-red-900 dark:text-red-100">
-                      Global settings
-                    </div>
-                    <div className="mt-1 text-red-700 dark:text-red-200">
-                      {summary.changedGlobalSettingCount === 0
-                        ? "No global edits"
-                        : `${summary.changedGlobalSettingCount} setting${summary.changedGlobalSettingCount === 1 ? "" : "s"} changed`}
-                    </div>
-                  </div>
-
-                  <div className="
-                    border border-red-200/60 bg-white/60 px-3 py-2 text-xs
-                    dark:border-red-900/40 dark:bg-black/10
-                  ">
-                    <div className="font-medium text-red-900 dark:text-red-100">
-                      Card order
-                    </div>
-                    <div className="mt-1 text-red-700 dark:text-red-200">
-                      {summary.reorderedCardCount === 0
-                        ? "No reorder changes"
-                        : `${summary.reorderedCardCount} position${summary.reorderedCardCount === 1 ? "" : "s"} changed`}
-                    </div>
-                  </div>
+                  ))}
                 </div>
 
                 {summary.changedCards.length > 0 ? (
@@ -158,29 +218,22 @@ export function SaveConflictNotice({
                   </div>
                 ) : null}
 
-                <div className="
-                  flex flex-wrap gap-x-4 gap-y-2 text-xs text-red-700
-                  dark:text-red-200
-                ">
-                  {localLastSavedLabel ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock3 className="size-3" aria-hidden="true" />
-                      Last saved here: {localLastSavedLabel}
-                    </span>
-                  ) : null}
-                  {serverUpdatedAtLabel ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock3 className="size-3" aria-hidden="true" />
-                      Latest server save: {serverUpdatedAtLabel}
-                    </span>
-                  ) : null}
-                  {conflictDetectedLabel ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Clock3 className="size-3" aria-hidden="true" />
-                      Conflict detected: {conflictDetectedLabel}
-                    </span>
-                  ) : null}
-                </div>
+                {timelineItems.length > 0 ? (
+                  <div className="
+                    flex flex-wrap gap-x-4 gap-y-2 text-xs text-red-700
+                    dark:text-red-200
+                  ">
+                    {timelineItems.map((item) => (
+                      <span
+                        key={item.key}
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        <Clock3 className="size-3" aria-hidden="true" />
+                        {item.label}: {item.value}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

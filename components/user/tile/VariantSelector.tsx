@@ -1,7 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { memo, useId, useState } from "react";
+import { memo, type ReactNode, useId, useState } from "react";
 
 import { Label } from "@/components/ui/Label";
 import {
@@ -35,6 +35,45 @@ interface VariantSelectorProps {
   label?: string;
   onOpenChange?: (open: boolean) => void;
   preferTapInfoDisclosure?: boolean;
+}
+
+function VariantInfoDisclosure({
+  infoButton,
+  isOpen,
+  onOpenChange,
+  preferTapInfoDisclosure,
+  tooltip,
+}: Readonly<{
+  infoButton: ReactNode;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  preferTapInfoDisclosure: boolean;
+  tooltip: string;
+}>) {
+  if (preferTapInfoDisclosure) {
+    return (
+      <Popover open={isOpen} onOpenChange={onOpenChange}>
+        <PopoverTrigger asChild>{infoButton}</PopoverTrigger>
+        <PopoverContent
+          side="top"
+          align="start"
+          className="max-w-xs text-xs"
+          sideOffset={8}
+        >
+          <p>{tooltip}</p>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs" sideOffset={8}>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 function getEffectiveVariant(
@@ -98,33 +137,13 @@ export const VariantSelector = memo(function VariantSelector({
           {label}
         </Label>
         {selectedTooltip ? (
-          preferTapInfoDisclosure ? (
-            <Popover
-              open={isInfoPopoverOpen}
-              onOpenChange={setIsInfoPopoverOpen}
-            >
-              <PopoverTrigger asChild>{infoButton}</PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="start"
-                className="max-w-xs text-xs"
-                sideOffset={8}
-              >
-                <p>{selectedTooltip}</p>
-              </PopoverContent>
-            </Popover>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
-              <TooltipContent
-                side="top"
-                className="max-w-xs text-xs"
-                sideOffset={8}
-              >
-                <p>{selectedTooltip}</p>
-              </TooltipContent>
-            </Tooltip>
-          )
+          <VariantInfoDisclosure
+            infoButton={infoButton}
+            isOpen={isInfoPopoverOpen}
+            onOpenChange={setIsInfoPopoverOpen}
+            preferTapInfoDisclosure={preferTapInfoDisclosure}
+            tooltip={selectedTooltip}
+          />
         ) : null}
       </div>
 

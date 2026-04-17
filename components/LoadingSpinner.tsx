@@ -295,7 +295,7 @@ export function LoadingOverlay({
   description = "AniCards is still working. The rest of the page is temporarily unavailable until loading finishes.",
   children,
 }: Readonly<LoadingOverlayProps>) {
-  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
   const overlayRootRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -442,9 +442,9 @@ export function LoadingOverlay({
         fixed inset-0 z-1000 flex items-center justify-center bg-background/85 backdrop-blur-md
       "
     >
-      <div
+      <dialog
+        open
         ref={dialogRef}
-        role="dialog"
         aria-modal="true"
         aria-busy="true"
         aria-labelledby={titleId}
@@ -472,7 +472,7 @@ export function LoadingOverlay({
         </p>
         <LoadingSpinner size="lg" text={text} liveRegion="off" />
         {children}
-      </div>
+      </dialog>
     </div>,
     portalTarget,
   );

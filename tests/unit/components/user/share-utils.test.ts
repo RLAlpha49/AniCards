@@ -82,17 +82,39 @@ describe("share-utils", () => {
       configurable: true,
     });
 
-    globalThis.fetch = mock(
-      async () =>
-        new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
-          headers: { "Content-Type": "image/svg+xml" },
-          status: 200,
-        }),
-    ) as unknown as typeof fetch;
+    const fetchMock = Object.assign(
+      mock(
+        async (
+          _input: Parameters<typeof fetch>[0],
+          _init?: Parameters<typeof fetch>[1],
+        ) => {
+          void _input;
+          void _init;
+
+          return new Response(
+            '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+            {
+              headers: { "Content-Type": "image/svg+xml" },
+              status: 200,
+            },
+          );
+        },
+      ),
+      originalFetch,
+    );
+    globalThis.fetch = fetchMock;
     URL.createObjectURL = mock(
-      () => "blob:cached-preview",
-    ) as typeof URL.createObjectURL;
-    URL.revokeObjectURL = mock(() => undefined) as typeof URL.revokeObjectURL;
+      (_source: Parameters<typeof URL.createObjectURL>[0]) => {
+        void _source;
+        return "blob:cached-preview";
+      },
+    );
+    URL.revokeObjectURL = mock(
+      (_url: Parameters<typeof URL.revokeObjectURL>[0]) => {
+        void _url;
+        return undefined;
+      },
+    );
     console.error = originalConsoleError;
   });
 

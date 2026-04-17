@@ -131,10 +131,6 @@ export function CategorySection({
     cardTypes.length - visibleCardTypeCount,
   );
 
-  if (cardTypes.length === 0) {
-    return null;
-  }
-
   useEffect(() => {
     setVisibleCardTypeCount(getInitialVisibleCardTypeCount(cardTypes.length));
   }, [cardTypeSignature, cardTypes.length]);
@@ -144,6 +140,10 @@ export function CategorySection({
       Math.min(currentVisibleCount + CARD_TYPE_CHUNK_SIZE, cardTypes.length),
     );
   }, [cardTypes.length]);
+
+  if (cardTypes.length === 0) {
+    return null;
+  }
 
   return (
     <motion.section

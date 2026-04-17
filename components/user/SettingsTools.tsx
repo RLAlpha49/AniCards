@@ -99,6 +99,45 @@ type InlineFeedback = {
   tone: "error" | "success";
 };
 
+function clearTimeoutRef(timerRef: {
+  current: ReturnType<typeof setTimeout> | null;
+}) {
+  if (!timerRef.current) {
+    return;
+  }
+
+  clearTimeout(timerRef.current);
+  timerRef.current = null;
+}
+
+function buildWorkspaceRestoreLabel(identity?: string | null): string {
+  return identity
+    ? `Workspace restored from ${identity}`
+    : "Workspace restored";
+}
+
+function TemplateFeedbackMessage(
+  props: Readonly<{ feedback: InlineFeedback | null }>,
+) {
+  if (!props.feedback) {
+    return null;
+  }
+
+  if (props.feedback.tone === "error") {
+    return (
+      <p role="alert" className="text-sm text-red-600">
+        {props.feedback.message}
+      </p>
+    );
+  }
+
+  return (
+    <output className="text-sm text-green-600" aria-live="polite">
+      {props.feedback.message}
+    </output>
+  );
+}
+
 function buildExportFilename(exp: SettingsExportV1): string {
   const date = new Date(exp.exportedAt);
   const y = date.getFullYear();
@@ -245,14 +284,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
   useEffect(() => {
     return () => {
-      if (shareCopyTimerRef.current) {
-        clearTimeout(shareCopyTimerRef.current);
-        shareCopyTimerRef.current = null;
-      }
-      if (shareDownloadSummaryTimerRef.current) {
-        clearTimeout(shareDownloadSummaryTimerRef.current);
-        shareDownloadSummaryTimerRef.current = null;
-      }
+      clearTimeoutRef(shareCopyTimerRef);
+      clearTimeoutRef(shareDownloadSummaryTimerRef);
     };
   }, []);
 
@@ -313,6 +346,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       </span>
     );
   }, [workspaceImportError, workspaceImportSuccess]);
+
+  const templateFeedbackNode = useMemo(
+    () => <TemplateFeedbackMessage feedback={templateFeedback} />,
+    [templateFeedback],
+  );
 
   const orderedCardIds = useMemo(() => {
     const seen = new Set<string>();
@@ -478,10 +516,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       try {
         await copyShareableCardUrlsToClipboard(profileShareCards, format);
         setCopiedShareFormat(format);
-        if (shareCopyTimerRef.current) {
-          clearTimeout(shareCopyTimerRef.current);
-          shareCopyTimerRef.current = null;
-        }
+        clearTimeoutRef(shareCopyTimerRef);
         shareCopyTimerRef.current = globalThis.setTimeout(() => {
           setCopiedShareFormat(null);
           shareCopyTimerRef.current = null;
@@ -499,10 +534,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     try {
       await navigator.clipboard.writeText(list.join("\n"));
       setCopiedShareFormat("failed-list");
-      if (shareCopyTimerRef.current) {
-        clearTimeout(shareCopyTimerRef.current);
-        shareCopyTimerRef.current = null;
-      }
+      clearTimeoutRef(shareCopyTimerRef);
       shareCopyTimerRef.current = globalThis.setTimeout(() => {
         setCopiedShareFormat(null);
         shareCopyTimerRef.current = null;
@@ -519,22 +551,18 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       const skippedDisabledRawTypes = profileShareSkippedDisabledCards.map(
         (card) => card.rawType,
       );
+      const hasShareCards = profileShareCards.length > 0;
+      const hasSkippedDisabledCards = skippedDisabledRawTypes.length > 0;
 
-      if (
-        profileShareCards.length === 0 &&
-        skippedDisabledRawTypes.length === 0
-      ) {
+      if (!hasShareCards && !hasSkippedDisabledCards) {
         return;
       }
 
-      if (shareDownloadSummaryTimerRef.current) {
-        clearTimeout(shareDownloadSummaryTimerRef.current);
-        shareDownloadSummaryTimerRef.current = null;
-      }
+      clearTimeoutRef(shareDownloadSummaryTimerRef);
       setShareDownloadSummary(null);
       setShareDownloadError(null);
 
-      if (profileShareCards.length === 0) {
+      if (!hasShareCards) {
         setShareDownloadSummary(
           createDownloadSummary({
             requestedTotal: orderedCardIds.length,
@@ -568,15 +596,13 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
           failedCardRawTypes: failedRawTypes,
           skippedDisabledCardRawTypes: skippedDisabledRawTypes,
         });
+        const summaryDismissDelay = nextSummary.failed > 0 ? 10000 : 5000;
 
         setShareDownloadSummary(nextSummary);
-        shareDownloadSummaryTimerRef.current = globalThis.setTimeout(
-          () => {
-            setShareDownloadSummary(null);
-            shareDownloadSummaryTimerRef.current = null;
-          },
-          nextSummary.failed > 0 ? 10000 : 5000,
-        );
+        shareDownloadSummaryTimerRef.current = globalThis.setTimeout(() => {
+          setShareDownloadSummary(null);
+          shareDownloadSummaryTimerRef.current = null;
+        }, summaryDismissDelay);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setShareDownloadError(message);
@@ -635,6 +661,49 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     [applySettingsSnapshotToCard, applySettingsSnapshotToGlobal, props],
   );
 
+  const applyImportedExport = useCallback(
+    (exp: SettingsExportV1) => {
+      switch (exp.scope) {
+        case "templates": {
+          const importResult = importSettingsTemplates(exp.templates);
+          if (!importResult.ok) {
+            setImportError(importResult.error);
+            return;
+          }
+
+          setImportSuccess(`Imported ${exp.templates.length} template(s).`);
+          return;
+        }
+
+        case "all": {
+          applySnapshotToTarget(exp.global);
+
+          const importResult = importSettingsTemplates(exp.templates);
+          if (!importResult.ok) {
+            setImportError(
+              `Imported settings applied, but ${importResult.error}`,
+            );
+            return;
+          }
+
+          setImportSuccess("Imported global settings + templates.");
+          return;
+        }
+
+        case "global":
+          applySnapshotToTarget(exp.global);
+          setImportSuccess("Imported settings applied.");
+          return;
+
+        case "card":
+          applySnapshotToTarget(exp.card);
+          setImportSuccess("Imported settings applied.");
+          return;
+      }
+    },
+    [applySnapshotToTarget, importSettingsTemplates],
+  );
+
   const handleImportString = useCallback(
     (raw: string) => {
       setImportError(null);
@@ -653,42 +722,9 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         return;
       }
 
-      const exp = parsed.value.value;
-      if (exp.scope === "templates") {
-        const importResult = importSettingsTemplates(exp.templates);
-        if (!importResult.ok) {
-          setImportError(importResult.error);
-          return;
-        }
-        setImportSuccess(`Imported ${exp.templates.length} template(s).`);
-        return;
-      }
-
-      if (exp.scope === "all") {
-        applySnapshotToTarget(exp.global);
-
-        const importResult = importSettingsTemplates(exp.templates);
-        if (!importResult.ok) {
-          setImportError(
-            `Imported settings applied, but ${importResult.error}`,
-          );
-          return;
-        }
-
-        setImportSuccess("Imported global settings + templates.");
-        return;
-      }
-
-      if (exp.scope === "global") {
-        applySnapshotToTarget(exp.global);
-        setImportSuccess("Imported settings applied.");
-        return;
-      }
-
-      applySnapshotToTarget(exp.card);
-      setImportSuccess("Imported settings applied.");
+      applyImportedExport(parsed.value.value);
     },
-    [applySnapshotToTarget, importSettingsTemplates],
+    [applyImportedExport, applySnapshotToTarget],
   );
 
   const handleImportFile = useCallback(
@@ -751,16 +787,16 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         }
       }
 
-      const backupIdentity = backup.username ?? backup.userId;
-      if (!persistTemplatesResult.ok) {
-        setWorkspaceImportError(
-          `Workspace restored${backupIdentity ? ` from ${backupIdentity}` : ""}, but ${persistTemplatesResult.error}`,
-        );
+      const restoreLabel = buildWorkspaceRestoreLabel(
+        backup.username ?? backup.userId,
+      );
+      if (persistTemplatesResult.ok) {
+        setWorkspaceImportSuccess(`${restoreLabel}.`);
         return;
       }
 
-      setWorkspaceImportSuccess(
-        `Workspace restored${backupIdentity ? ` from ${backupIdentity}` : ""}.`,
+      setWorkspaceImportError(
+        `${restoreLabel}, but ${persistTemplatesResult.error}`,
       );
     },
     [applyLocalEditsPatch, applySettingsSnapshotToGlobal, userId],
@@ -1062,20 +1098,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                     </AlertDialog>
                   </div>
 
-                  {templateFeedback ? (
-                    templateFeedback.tone === "error" ? (
-                      <p role="alert" className="text-sm text-red-600">
-                        {templateFeedback.message}
-                      </p>
-                    ) : (
-                      <output
-                        className="text-sm text-green-600"
-                        aria-live="polite"
-                      >
-                        {templateFeedback.message}
-                      </output>
-                    )
-                  ) : null}
+                  {templateFeedbackNode}
                 </div>
               </ToolGroup>
 
