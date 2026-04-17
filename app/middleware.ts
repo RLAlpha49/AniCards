@@ -24,7 +24,9 @@ const DOCUMENT_INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES = [
 const DOCUMENT_FETCH_DESTINATIONS = new Set(["document", "iframe"]);
 
 function pathnameLooksLikeDocument(pathname: string): boolean {
-  const lastSegment = pathname.split("/").filter(Boolean).at(-1);
+  const lastSegment = pathname
+    .split("/")
+    .findLast((segment) => segment.length > 0);
   return !lastSegment?.includes(".");
 }
 

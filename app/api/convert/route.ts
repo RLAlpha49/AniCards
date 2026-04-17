@@ -779,7 +779,7 @@ function parseRequestedFormat(format: unknown): ConversionFormat {
 }
 
 function parseResponseMode(responseType: unknown): ConvertResponseMode {
-  if (typeof responseType === "undefined") {
+  if (responseType === undefined) {
     return "binary";
   }
 
