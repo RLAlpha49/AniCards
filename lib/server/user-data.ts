@@ -1713,6 +1713,90 @@ async function releaseLegacyUserMigrationLock(
   }
 }
 
+function assertLoadedUserDataPartsAreComplete(
+  userId: string | number,
+  loaded: LoadedUserDataPartsResult,
+  context?: Record<string, unknown>,
+): void {
+  if (loaded.missingRequiredParts.length > 0) {
+    throwMissingUserDataParts(
+      userId,
+      "Stored split user record is incomplete",
+      loaded.missingRequiredParts,
+      context,
+    );
+  }
+}
+
+function buildLegacySplitUserDataReadResult(
+  userId: string | number,
+  data: Partial<Record<UserDataPart, unknown>>,
+): UserDataReadResult {
+  const meta = data.meta as (UserMeta & Record<string, unknown>) | undefined;
+
+  return {
+    parts: data,
+    state: meta
+      ? buildPersistedUserState({
+          ...buildPersistedStateFromMeta(userId, meta, "split"),
+          completeness: buildUserPayloadCompletenessFromParts(data),
+        })
+      : null,
+    snapshotMatched: true,
+  };
+}
+
+async function loadCommittedUserDataPartsFromCommitPointer(
+  userId: string | number,
+  parts: UserDataPart[],
+  commitPointer: UserCommitPointer,
+  options?: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): Promise<UserDataReadResult | null> {
+  const selection = selectCommittedSnapshotState(commitPointer, options);
+
+  if (selection.snapshotKeyPrefix) {
+    return {
+      parts: await loadSnapshotUserDataParts(
+        userId,
+        parts,
+        selection.snapshotKeyPrefix,
+        `${selection.snapshotKind}-snapshot:${selection.state.revision}`,
+      ),
+      state: selection.state,
+      snapshotMatched: selection.snapshotMatched,
+    };
+  }
+
+  const loaded = await loadStoredUserDataParts(
+    userId,
+    parts,
+    (part) => getUserDataKey(userId, part),
+    `legacy-committed-split:${commitPointer.revision}`,
+  );
+
+  if (!loaded.foundAnyRequestedPart) {
+    return null;
+  }
+
+  assertLoadedUserDataPartsAreComplete(userId, loaded, {
+    revision: commitPointer.revision,
+  });
+
+  return {
+    parts: loaded.data,
+    state: buildPersistedUserState({
+      ...selection.state,
+      completeness:
+        selection.state.completeness ??
+        buildUserPayloadCompletenessFromParts(loaded.data),
+    }),
+    snapshotMatched: selection.snapshotMatched,
+  };
+}
+
 async function loadLegacyCompatibleUserDataPartsWithoutSaving(
   userId: string | number,
   parts: UserDataPart[],
@@ -1723,48 +1807,15 @@ async function loadLegacyCompatibleUserDataPartsWithoutSaving(
 ): Promise<UserDataReadResult> {
   const commitPointer = await readUserCommitPointer(userId);
   if (commitPointer) {
-    const selection = selectCommittedSnapshotState(commitPointer, options);
-
-    if (selection.snapshotKeyPrefix) {
-      return {
-        parts: await loadSnapshotUserDataParts(
-          userId,
-          parts,
-          selection.snapshotKeyPrefix,
-          `${selection.snapshotKind}-snapshot:${selection.state.revision}`,
-        ),
-        state: selection.state,
-        snapshotMatched: selection.snapshotMatched,
-      };
-    }
-
-    const loaded = await loadStoredUserDataParts(
+    const committedData = await loadCommittedUserDataPartsFromCommitPointer(
       userId,
       parts,
-      (part) => getUserDataKey(userId, part),
-      `legacy-committed-split:${commitPointer.revision}`,
+      commitPointer,
+      options,
     );
 
-    if (loaded.foundAnyRequestedPart) {
-      if (loaded.missingRequiredParts.length > 0) {
-        throwMissingUserDataParts(
-          userId,
-          "Stored split user record is incomplete",
-          loaded.missingRequiredParts,
-          { revision: commitPointer.revision },
-        );
-      }
-
-      return {
-        parts: loaded.data,
-        state: buildPersistedUserState({
-          ...selection.state,
-          completeness:
-            selection.state.completeness ??
-            buildUserPayloadCompletenessFromParts(loaded.data),
-        }),
-        snapshotMatched: selection.snapshotMatched,
-      };
+    if (committedData) {
+      return committedData;
     }
   }
 
@@ -1776,28 +1827,8 @@ async function loadLegacyCompatibleUserDataPartsWithoutSaving(
   );
 
   if (loaded.foundAnyRequestedPart) {
-    if (loaded.missingRequiredParts.length > 0) {
-      throwMissingUserDataParts(
-        userId,
-        "Stored split user record is incomplete",
-        loaded.missingRequiredParts,
-      );
-    }
-
-    const meta = loaded.data.meta as
-      | (UserMeta & Record<string, unknown>)
-      | undefined;
-
-    return {
-      parts: loaded.data,
-      state: meta
-        ? buildPersistedUserState({
-            ...buildPersistedStateFromMeta(userId, meta, "split"),
-            completeness: buildUserPayloadCompletenessFromParts(loaded.data),
-          })
-        : null,
-      snapshotMatched: true,
-    };
+    assertLoadedUserDataPartsAreComplete(userId, loaded);
+    return buildLegacySplitUserDataReadResult(userId, loaded.data);
   }
 
   return loadRequestedPartsFromLegacyRecord(userId, parts);
@@ -1920,6 +1951,36 @@ async function rewriteLegacySplitUserDataWithLock(
   }
 }
 
+async function rewriteLegacyCommittedUserDataIfPossible(
+  userId: string | number,
+  result: UserDataReadResult,
+  commitPointer: UserCommitPointer,
+): Promise<void> {
+  if (
+    commitPointer.snapshotKeyPrefix ||
+    !canReconstructFullUserRecord(result.parts)
+  ) {
+    return;
+  }
+
+  await rewriteLegacyCommittedUserDataWithLock(
+    userId,
+    result.parts,
+    commitPointer,
+  );
+}
+
+async function rewriteLegacySplitUserDataIfPossible(
+  userId: string | number,
+  data: Partial<Record<UserDataPart, unknown>>,
+): Promise<void> {
+  if (!canReconstructFullUserRecord(data)) {
+    return;
+  }
+
+  await rewriteLegacySplitUserDataWithLock(userId, data);
+}
+
 async function loadLegacyCompatibleUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
@@ -1936,16 +1997,11 @@ async function loadLegacyCompatibleUserDataParts(
       options,
     );
 
-    if (
-      !commitPointer.snapshotKeyPrefix &&
-      canReconstructFullUserRecord(result.parts)
-    ) {
-      await rewriteLegacyCommittedUserDataWithLock(
-        userId,
-        result.parts,
-        commitPointer,
-      );
-    }
+    await rewriteLegacyCommittedUserDataIfPossible(
+      userId,
+      result,
+      commitPointer,
+    );
 
     return result;
   }
@@ -1961,32 +2017,9 @@ async function loadLegacyCompatibleUserDataParts(
     return migrateLegacyUserDataPartsWithLock(userId, parts, options);
   }
 
-  if (loaded.missingRequiredParts.length > 0) {
-    throwMissingUserDataParts(
-      userId,
-      "Stored split user record is incomplete",
-      loaded.missingRequiredParts,
-    );
-  }
-
-  if (canReconstructFullUserRecord(loaded.data)) {
-    await rewriteLegacySplitUserDataWithLock(userId, loaded.data);
-  }
-
-  const meta = loaded.data.meta as
-    | (UserMeta & Record<string, unknown>)
-    | undefined;
-
-  return {
-    parts: loaded.data,
-    state: meta
-      ? buildPersistedUserState({
-          ...buildPersistedStateFromMeta(userId, meta, "split"),
-          completeness: buildUserPayloadCompletenessFromParts(loaded.data),
-        })
-      : null,
-    snapshotMatched: true,
-  };
+  assertLoadedUserDataPartsAreComplete(userId, loaded);
+  await rewriteLegacySplitUserDataIfPossible(userId, loaded.data);
+  return buildLegacySplitUserDataReadResult(userId, loaded.data);
 }
 
 async function rebuildUserRefreshIndex(): Promise<number> {

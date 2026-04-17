@@ -265,17 +265,23 @@ function resolveStoredCardOrderState(opts: {
 } {
   const fallbackOrder = SUPPORTED_BASE_CARD_TYPES;
 
-  const effectiveFullCardOrder = opts.hasIncomingCardOrder
-    ? expandSupportedCardOrderSignal(
-        opts.incomingCardOrder ?? [],
-        fallbackOrder,
-      )
-    : opts.existingCardOrder && opts.existingCardOrder.length > 0
-      ? expandSupportedCardOrderSignal(opts.existingCardOrder, fallbackOrder)
-      : expandSupportedCardOrderSignal(
-          opts.existingCards.map((card) => card.cardName),
-          fallbackOrder,
-        );
+  let effectiveFullCardOrder: string[];
+  if (opts.hasIncomingCardOrder) {
+    effectiveFullCardOrder = expandSupportedCardOrderSignal(
+      opts.incomingCardOrder ?? [],
+      fallbackOrder,
+    );
+  } else if (opts.existingCardOrder && opts.existingCardOrder.length > 0) {
+    effectiveFullCardOrder = expandSupportedCardOrderSignal(
+      opts.existingCardOrder,
+      fallbackOrder,
+    );
+  } else {
+    effectiveFullCardOrder = expandSupportedCardOrderSignal(
+      opts.existingCards.map((card) => card.cardName),
+      fallbackOrder,
+    );
+  }
 
   return {
     effectiveFullCardOrder,
@@ -620,6 +626,97 @@ function inferUseCustomSettings(
   );
 }
 
+function resolveStoredCardColorSettings(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+  useCustomSettings: boolean,
+): {
+  effectiveColorPreset?: StoredCardConfig["colorPreset"];
+  titleColor?: StoredCardConfig["titleColor"];
+  backgroundColor?: StoredCardConfig["backgroundColor"];
+  textColor?: StoredCardConfig["textColor"];
+  circleColor?: StoredCardConfig["circleColor"];
+} {
+  const effectiveColorPreset = useCustomSettings
+    ? (incoming.colorPreset ?? previous?.colorPreset)
+    : undefined;
+  const shouldSaveIndividualColors =
+    useCustomSettings &&
+    (!effectiveColorPreset || effectiveColorPreset === "custom");
+
+  return {
+    effectiveColorPreset,
+    titleColor: shouldSaveIndividualColors
+      ? (incoming.titleColor ?? previous?.titleColor)
+      : undefined,
+    backgroundColor: shouldSaveIndividualColors
+      ? (incoming.backgroundColor ?? previous?.backgroundColor)
+      : undefined,
+    textColor: shouldSaveIndividualColors
+      ? (incoming.textColor ?? previous?.textColor)
+      : undefined,
+    circleColor: shouldSaveIndividualColors
+      ? (incoming.circleColor ?? previous?.circleColor)
+      : undefined,
+  };
+}
+
+function resolveStoredCardGridSettings(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+  useCustomSettings: boolean,
+  baseCardType: string,
+): {
+  gridCols?: number;
+  gridRows?: number;
+} {
+  if (!useCustomSettings || baseCardType !== "favoritesGrid") {
+    return {
+      gridCols: undefined,
+      gridRows: undefined,
+    };
+  }
+
+  return {
+    gridCols:
+      clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols),
+    gridRows:
+      clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows),
+  };
+}
+
+function resolveStoredCardAdvancedSettings(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+  useCustomSettings: boolean,
+): {
+  borderColor?: string;
+  borderRadius?: number;
+  showFavorites?: boolean;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+} {
+  if (!useCustomSettings) {
+    return {
+      borderColor: undefined,
+      borderRadius: undefined,
+      showFavorites: undefined,
+      useStatusColors: undefined,
+      showPiePercentages: undefined,
+    };
+  }
+
+  return {
+    borderColor:
+      sanitizeStoredBorderColor(incoming.borderColor) ??
+      sanitizeStoredBorderColor(previous?.borderColor),
+    borderRadius: computeBorderRadius(incoming, previous),
+    showFavorites: computeShowFavorites(incoming, previous),
+    useStatusColors: incoming.useStatusColors ?? previous?.useStatusColors,
+    showPiePercentages: computeShowPiePercentages(incoming, previous),
+  };
+}
+
 /**
  * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
  * Only saves individual colors when colorPreset is "custom" or not set.
@@ -635,70 +732,29 @@ function buildCardConfig(
   previous: StoredCardConfig | undefined,
 ): StoredCardConfig {
   const useCustomSettings = inferUseCustomSettings(incoming, previous);
-
-  const normalizedBorderRadius = useCustomSettings
-    ? computeBorderRadius(incoming, previous)
-    : undefined;
-
   const baseCardType = (incoming.cardName || "").split("-")[0] || "";
-  const shouldSaveColorData = useCustomSettings;
-  const effectiveColorPreset = shouldSaveColorData
-    ? (incoming.colorPreset ?? previous?.colorPreset)
-    : undefined;
-  const shouldSaveIndividualColors =
-    shouldSaveColorData &&
-    (!effectiveColorPreset || effectiveColorPreset === "custom");
-
-  const shouldPersistFavoritesGridDims =
-    useCustomSettings && baseCardType === "favoritesGrid";
-  const resolvedGridCols = shouldPersistFavoritesGridDims
-    ? (clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols))
-    : undefined;
-  const resolvedGridRows = shouldPersistFavoritesGridDims
-    ? (clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows))
-    : undefined;
-
-  const effectiveBorderColor = useCustomSettings
-    ? (sanitizeStoredBorderColor(incoming.borderColor) ??
-      sanitizeStoredBorderColor(previous?.borderColor))
-    : undefined;
-
-  const resolvedUseStatusColors = useCustomSettings
-    ? (incoming.useStatusColors ?? previous?.useStatusColors)
-    : undefined;
-
-  const resolvedShowFavorites = useCustomSettings
-    ? computeShowFavorites(incoming, previous)
-    : undefined;
-
-  const resolvedShowPiePercentages = useCustomSettings
-    ? computeShowPiePercentages(incoming, previous)
-    : undefined;
+  const { effectiveColorPreset, ...colorSettings } =
+    resolveStoredCardColorSettings(incoming, previous, useCustomSettings);
+  const gridSettings = resolveStoredCardGridSettings(
+    incoming,
+    previous,
+    useCustomSettings,
+    baseCardType,
+  );
+  const advancedSettings = resolveStoredCardAdvancedSettings(
+    incoming,
+    previous,
+    useCustomSettings,
+  );
 
   return {
     cardName: incoming.cardName,
     disabled: incoming.disabled === true ? true : undefined,
     variation: incoming.variation ?? previous?.variation,
     colorPreset: effectiveColorPreset,
-    titleColor: shouldSaveIndividualColors
-      ? (incoming.titleColor ?? previous?.titleColor)
-      : undefined,
-    backgroundColor: shouldSaveIndividualColors
-      ? (incoming.backgroundColor ?? previous?.backgroundColor)
-      : undefined,
-    textColor: shouldSaveIndividualColors
-      ? (incoming.textColor ?? previous?.textColor)
-      : undefined,
-    circleColor: shouldSaveIndividualColors
-      ? (incoming.circleColor ?? previous?.circleColor)
-      : undefined,
-    borderColor: effectiveBorderColor,
-    borderRadius: normalizedBorderRadius,
-    showFavorites: resolvedShowFavorites,
-    useStatusColors: resolvedUseStatusColors,
-    showPiePercentages: resolvedShowPiePercentages,
-    gridCols: resolvedGridCols,
-    gridRows: resolvedGridRows,
+    ...colorSettings,
+    ...advancedSettings,
+    ...gridSettings,
     useCustomSettings,
   };
 }
@@ -860,6 +916,13 @@ type ParsedStoreCardsBody = {
   cardOrder?: string[];
 };
 
+type StoreCardsRouteContext = {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  startTime: number;
+};
+
 const STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA = `
 local function parse_json_object(raw)
   if type(raw) ~= "string" or string.len(raw) == 0 then
@@ -990,6 +1053,11 @@ type StoreCardsAtomicWriteResult =
       reason: "conflict" | "missing_user_snapshot";
     };
 
+type SuccessfulStoreCardsAtomicWriteResult = Extract<
+  StoreCardsAtomicWriteResult,
+  { didWrite: true }
+>;
+
 async function createIfMatchConflictResponse(
   currentUpdatedAt: string | undefined,
   endpoint: string,
@@ -1040,6 +1108,59 @@ async function createMissingUserSnapshotResponse(
   );
 }
 
+function getExistingCardsRecordUpdatedAt(
+  existingRecord: CardsRecord | undefined,
+): string | undefined {
+  if (
+    typeof existingRecord?.updatedAt === "string" &&
+    existingRecord.updatedAt.length > 0
+  ) {
+    return existingRecord.updatedAt;
+  }
+
+  return undefined;
+}
+
+async function createStoreCardsIfMatchConflictResult(
+  currentUpdatedAt: string | undefined,
+  routeContext: StoreCardsRouteContext,
+): Promise<IfMatchUpdatedAtCheckResult> {
+  return {
+    shouldEnforceAtomicCheck: false,
+    conflictResponse: await createIfMatchConflictResponse(
+      currentUpdatedAt,
+      routeContext.endpoint,
+      routeContext.endpointKey,
+      routeContext.request,
+      routeContext.startTime,
+    ),
+  };
+}
+
+function resolveStoreCardsSchemaIssueDetails(issueField: unknown): {
+  message: string;
+  reasonCode: string;
+} {
+  if (issueField === "userId") {
+    return {
+      message: "Invalid userId",
+      reasonCode: "invalid_user_id",
+    };
+  }
+
+  if (issueField === "cardOrder") {
+    return {
+      message: "Invalid cardOrder",
+      reasonCode: "invalid_card_order",
+    };
+  }
+
+  return {
+    message: "Invalid data",
+    reasonCode: "payload_rejected",
+  };
+}
+
 async function parseStoreCardsRequestBody(
   request: Request,
   endpoint: string,
@@ -1064,6 +1185,7 @@ async function parseStoreCardsRequestBody(
   const parsedBody = storeCardsRequestSchema.safeParse(body);
   if (!parsedBody.success) {
     const issueField = parsedBody.error.issues[0]?.path[0];
+    const issueDetails = resolveStoreCardsSchemaIssueDetails(issueField);
 
     scheduleStoreCardsMetric(
       endpoint,
@@ -1072,35 +1194,12 @@ async function parseStoreCardsRequestBody(
       request,
       {
         durationMs: Date.now() - startTime,
-        reasonCode:
-          issueField === "userId"
-            ? "invalid_user_id"
-            : issueField === "cardOrder"
-              ? "invalid_card_order"
-              : "payload_rejected",
+        reasonCode: issueDetails.reasonCode,
       },
     );
 
-    if (issueField === "userId") {
-      return {
-        errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
-          category: "invalid_data",
-          retryable: false,
-        }),
-      };
-    }
-
-    if (issueField === "cardOrder") {
-      return {
-        errorResponse: apiErrorResponse(request, 400, "Invalid cardOrder", {
-          category: "invalid_data",
-          retryable: false,
-        }),
-      };
-    }
-
     return {
-      errorResponse: apiErrorResponse(request, 400, "Invalid data", {
+      errorResponse: apiErrorResponse(request, 400, issueDetails.message, {
         category: "invalid_data",
         retryable: false,
       }),
@@ -1156,95 +1255,64 @@ async function parseStoreCardsRequestBody(
     },
   };
 }
-async function enforceIfMatchUpdatedAt(
-  existingData: unknown,
-  existingRecord: CardsRecord | undefined,
-  ifMatchUpdatedAt: string | undefined,
-  ifMatchRevision: number | undefined,
-  ifMatchSnapshotToken: string | undefined,
-  endpoint: string,
-  endpointKey: string,
-  request: Request,
-  startTime: number,
-): Promise<IfMatchUpdatedAtCheckResult> {
+async function enforceIfMatchUpdatedAt(params: {
+  existingData: unknown;
+  existingRecord: CardsRecord | undefined;
+  ifMatchUpdatedAt: string | undefined;
+  ifMatchRevision: number | undefined;
+  ifMatchSnapshotToken: string | undefined;
+  routeContext: StoreCardsRouteContext;
+}): Promise<IfMatchUpdatedAtCheckResult> {
+  const {
+    existingData,
+    existingRecord,
+    ifMatchUpdatedAt,
+    ifMatchRevision,
+    ifMatchSnapshotToken,
+    routeContext,
+  } = params;
+
   if (typeof existingData !== "string" || existingData.length === 0) {
     return { shouldEnforceAtomicCheck: false };
   }
-  const existingUpdatedAt =
-    typeof existingRecord?.updatedAt === "string" &&
-    existingRecord.updatedAt.length > 0
-      ? existingRecord.updatedAt
-      : undefined;
+  const existingUpdatedAt = getExistingCardsRecordUpdatedAt(existingRecord);
 
   if (!ifMatchUpdatedAt) {
-    return {
-      shouldEnforceAtomicCheck: false,
-      conflictResponse: await createIfMatchConflictResponse(
-        existingUpdatedAt,
-        endpoint,
-        endpointKey,
-        request,
-        startTime,
-      ),
-    };
+    return createStoreCardsIfMatchConflictResult(
+      existingUpdatedAt,
+      routeContext,
+    );
   }
 
   if (!existingRecord || !existingUpdatedAt) {
-    return {
-      shouldEnforceAtomicCheck: false,
-      conflictResponse: await createIfMatchConflictResponse(
-        undefined,
-        endpoint,
-        endpointKey,
-        request,
-        startTime,
-      ),
-    };
+    return createStoreCardsIfMatchConflictResult(undefined, routeContext);
   }
 
   if (
     typeof ifMatchRevision === "number" &&
     existingRecord.userSnapshot?.revision !== ifMatchRevision
   ) {
-    return {
-      shouldEnforceAtomicCheck: false,
-      conflictResponse: await createIfMatchConflictResponse(
-        existingUpdatedAt,
-        endpoint,
-        endpointKey,
-        request,
-        startTime,
-      ),
-    };
+    return createStoreCardsIfMatchConflictResult(
+      existingUpdatedAt,
+      routeContext,
+    );
   }
 
   if (
     ifMatchSnapshotToken &&
     existingRecord.userSnapshot?.token !== ifMatchSnapshotToken
   ) {
-    return {
-      shouldEnforceAtomicCheck: false,
-      conflictResponse: await createIfMatchConflictResponse(
-        existingUpdatedAt,
-        endpoint,
-        endpointKey,
-        request,
-        startTime,
-      ),
-    };
+    return createStoreCardsIfMatchConflictResult(
+      existingUpdatedAt,
+      routeContext,
+    );
   }
 
   if (existingUpdatedAt !== ifMatchUpdatedAt) {
-    return {
-      shouldEnforceAtomicCheck: false,
-      conflictResponse: await createIfMatchConflictResponse(
-        existingUpdatedAt,
-        endpoint,
-        endpointKey,
-        request,
-        startTime,
-      ),
-    };
+    return createStoreCardsIfMatchConflictResult(
+      existingUpdatedAt,
+      routeContext,
+    );
   }
 
   return {
@@ -1375,6 +1443,233 @@ async function storeCardsRecord(params: {
   return parseStoreCardsAtomicWriteResult(result);
 }
 
+type LoadedStoreCardsState = {
+  existingCards: StoredCardConfig[];
+  existingCardOrder?: string[];
+  existingGlobalSettings?: GlobalCardSettings;
+  ifMatchCheck: IfMatchUpdatedAtCheckResult;
+};
+
+async function loadExistingStoreCardsState(params: {
+  cardsKey: string;
+  userId: number;
+  ifMatchUpdatedAt?: string;
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
+  routeContext: StoreCardsRouteContext;
+}): Promise<LoadedStoreCardsState | { errorResponse: NextResponse }> {
+  const {
+    cardsKey,
+    userId,
+    ifMatchUpdatedAt,
+    ifMatchRevision,
+    ifMatchSnapshotToken,
+    routeContext,
+  } = params;
+
+  const existingData = await redisClient.get(cardsKey);
+  const existingRecord = parseExistingCardsRecord(
+    existingData,
+    routeContext.endpoint,
+    routeContext.endpointKey,
+    cardsKey,
+    userId,
+  );
+
+  const ifMatchCheck = await enforceIfMatchUpdatedAt({
+    existingData,
+    existingRecord,
+    ifMatchUpdatedAt,
+    ifMatchRevision,
+    ifMatchSnapshotToken,
+    routeContext,
+  });
+  if (ifMatchCheck.conflictResponse) {
+    return {
+      errorResponse: ifMatchCheck.conflictResponse,
+    };
+  }
+
+  return {
+    existingCards: filterSupportedStoredCards(
+      existingRecord?.cards ?? [],
+      routeContext.endpoint,
+      cardsKey,
+    ),
+    existingCardOrder: existingRecord?.cardOrder,
+    existingGlobalSettings: existingRecord?.globalSettings,
+    ifMatchCheck,
+  };
+}
+
+function buildStoreCardsRecordData(params: {
+  userId: number;
+  orderedStoredCards: StoredCardConfig[];
+  persistedCardOrder: string[];
+  mergedGlobalSettings?: GlobalCardSettings;
+}): CardsRecord {
+  const cardData: CardsRecord = {
+    userId: params.userId,
+    cards: params.orderedStoredCards,
+    globalSettings: params.mergedGlobalSettings,
+    updatedAt: new Date().toISOString(),
+    schemaVersion: CARDS_RECORD_SCHEMA_VERSION,
+  };
+
+  if (params.persistedCardOrder.length > 0) {
+    cardData.cardOrder = params.persistedCardOrder;
+  }
+
+  return cardData;
+}
+
+async function prepareStoreCardsRecordForWrite(params: {
+  incomingCards: StoredCardConfig[];
+  existingCards: StoredCardConfig[];
+  existingCardOrder?: string[];
+  existingGlobalSettings?: GlobalCardSettings;
+  cardOrder?: string[];
+  hasCardOrder: boolean;
+  globalSettings?: Partial<GlobalCardSettings>;
+  userId: number;
+  routeContext: StoreCardsRouteContext;
+}): Promise<{ cardData: CardsRecord } | { errorResponse: NextResponse }> {
+  const {
+    incomingCards,
+    existingCards,
+    existingCardOrder,
+    existingGlobalSettings,
+    cardOrder,
+    hasCardOrder,
+    globalSettings,
+    userId,
+    routeContext,
+  } = params;
+
+  const assembly = await assembleStoredCardsAndGlobalSettings({
+    incomingCards,
+    existingCards,
+    existingCardOrder,
+    existingGlobalSettings,
+    cardOrder,
+    hasCardOrder,
+    globalSettings,
+    endpoint: routeContext.endpoint,
+    endpointKey: routeContext.endpointKey,
+    request: routeContext.request,
+    startTime: routeContext.startTime,
+  });
+  if ("errorResponse" in assembly) {
+    return assembly;
+  }
+
+  const { orderedStoredCards, mergedGlobalSettings, persistedCardOrder } =
+    assembly;
+
+  const colorValidationError = await validateCardColors(
+    orderedStoredCards,
+    routeContext.endpoint,
+    routeContext.endpointKey,
+    routeContext.request,
+    routeContext.startTime,
+  );
+  if (colorValidationError) {
+    return {
+      errorResponse: colorValidationError,
+    };
+  }
+
+  return {
+    cardData: buildStoreCardsRecordData({
+      userId,
+      orderedStoredCards,
+      persistedCardOrder,
+      mergedGlobalSettings,
+    }),
+  };
+}
+
+async function createStoreCardsSuccessResponse(params: {
+  userId: number;
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  startTime: number;
+  cardData: CardsRecord;
+  storeResult: SuccessfulStoreCardsAtomicWriteResult;
+}): Promise<NextResponse> {
+  const {
+    userId,
+    endpoint,
+    endpointKey,
+    request,
+    startTime,
+    cardData,
+    storeResult,
+  } = params;
+  const duration = Date.now() - startTime;
+  logSuccess(endpoint, userId, duration, "Stored cards", request);
+  scheduleStoreCardsMetric(
+    endpoint,
+    endpointKey,
+    "successful_requests",
+    request,
+    {
+      durationMs: duration,
+    },
+  );
+
+  const storedUpdatedAt = storeResult.updatedAt ?? cardData.updatedAt;
+
+  try {
+    await releaseUnpinnedRetainedUserSnapshot(userId);
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Stored cards succeeded but retained snapshot cleanup could not be completed",
+      {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      request,
+    );
+  }
+
+  const protectedWriteGrantHeader = await createProtectedWriteGrantCookieHeader(
+    {
+      source: "stored_user",
+      userId,
+    },
+  );
+
+  const responseBody: {
+    success: true;
+    userId: number;
+    updatedAt: string;
+    userSnapshot?: Required<NonNullable<CardsRecord["userSnapshot"]>>;
+  } = {
+    success: true,
+    userId,
+    updatedAt: storedUpdatedAt,
+  };
+
+  if (storeResult.userSnapshot) {
+    responseBody.userSnapshot = storeResult.userSnapshot;
+  }
+
+  return jsonWithCors(
+    responseBody,
+    request,
+    undefined,
+    protectedWriteGrantHeader
+      ? {
+          "Set-Cookie": protectedWriteGrantHeader,
+        }
+      : undefined,
+  );
+}
+
 /**
  * Build merged global settings from sanitized incoming and existing settings.
  * Encapsulates color preset normalization and conditional persistence rules.
@@ -1428,6 +1723,109 @@ function buildMergedGlobalSettings(
   });
 }
 
+function validateAndSanitizeStoreCardsGlobalSettings(params: {
+  globalSettings?: Partial<GlobalCardSettings>;
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  startTime: number;
+}):
+  | { sanitizedGlobalSettings?: Partial<GlobalCardSettings> }
+  | { errorResponse: NextResponse } {
+  const sanitizeResult = sanitizeIncomingGlobalSettings(params.globalSettings);
+  if (!sanitizeResult?.invalidColorStringKey) {
+    return {
+      sanitizedGlobalSettings: sanitizeResult?.sanitized,
+    };
+  }
+
+  logPrivacySafe(
+    "warn",
+    params.endpoint,
+    "Invalid globalSettings color value",
+    { invalidColorKey: sanitizeResult.invalidColorStringKey },
+    params.request,
+  );
+  scheduleStoreCardsMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+    {
+      durationMs: Date.now() - params.startTime,
+      reasonCode: "payload_rejected",
+    },
+  );
+
+  return {
+    errorResponse: apiErrorResponse(params.request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    }),
+  };
+}
+
+function buildMergedExplicitStoredCardsByName(
+  existingCardsMap: Map<string, StoredCardConfig>,
+): Map<string, StoredCardConfig> {
+  const mergedExplicitCardsByName = new Map<string, StoredCardConfig>();
+
+  for (const [cardName, card] of existingCardsMap) {
+    if (!shouldPersistExplicitStoredCardConfig(card)) {
+      continue;
+    }
+
+    mergedExplicitCardsByName.set(cardName, card);
+  }
+
+  return mergedExplicitCardsByName;
+}
+
+function resolveMergedStoreCardsGlobalSettings(params: {
+  sanitizedGlobalSettings?: Partial<GlobalCardSettings>;
+  existingGlobalSettings?: GlobalCardSettings;
+}): GlobalCardSettings | undefined {
+  const { sanitizedGlobalSettings, existingGlobalSettings } = params;
+  const effectiveBorderEnabled =
+    sanitizedGlobalSettings?.borderEnabled ??
+    existingGlobalSettings?.borderEnabled;
+  const effectiveBorderRadius = computeEffectiveBorderRadius(
+    effectiveBorderEnabled,
+    sanitizedGlobalSettings,
+    existingGlobalSettings,
+  );
+  const effectiveBorderColor = effectiveBorderEnabled
+    ? (sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
+      sanitizeStoredBorderColor(existingGlobalSettings?.borderColor))
+    : undefined;
+
+  const {
+    useStatusColors: effectiveUseStatusColors,
+    showPiePercentages: effectiveShowPiePercentages,
+    showFavorites: effectiveShowFavorites,
+    gridCols: effectiveGridCols,
+    gridRows: effectiveGridRows,
+  } = mergeGlobalAdvancedSettings(
+    sanitizedGlobalSettings,
+    existingGlobalSettings,
+  );
+
+  return buildMergedGlobalSettings(
+    sanitizedGlobalSettings,
+    existingGlobalSettings,
+    {
+      borderEnabled: effectiveBorderEnabled,
+      borderColor: effectiveBorderColor,
+      borderRadius: effectiveBorderRadius,
+      useStatusColors: effectiveUseStatusColors,
+      showPiePercentages: effectiveShowPiePercentages,
+      showFavorites: effectiveShowFavorites,
+      gridCols: effectiveGridCols,
+      gridRows: effectiveGridRows,
+    },
+  );
+}
+
 /**
  * Assemble stored cards and merged global settings.
  */
@@ -1469,45 +1867,21 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     existingCards.map((card) => [card.cardName, card]),
   );
 
-  const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
-  if (sanitizeResult?.invalidColorStringKey) {
-    logPrivacySafe(
-      "warn",
-      endpoint,
-      "Invalid globalSettings color value",
-      { invalidColorKey: sanitizeResult.invalidColorStringKey },
-      request,
-    );
-    scheduleStoreCardsMetric(
-      endpoint,
-      endpointKey,
-      "failed_requests",
-      request,
-      {
-        durationMs: Date.now() - startTime,
-        reasonCode: "payload_rejected",
-      },
-    );
-    return {
-      errorResponse: apiErrorResponse(request, 400, "Invalid data", {
-        category: "invalid_data",
-        retryable: false,
-      }),
-    };
+  const globalSettingsResult = validateAndSanitizeStoreCardsGlobalSettings({
+    globalSettings,
+    endpoint,
+    endpointKey,
+    request,
+    startTime,
+  });
+  if ("errorResponse" in globalSettingsResult) {
+    return globalSettingsResult;
   }
-  const sanitizedGlobalSettings = sanitizeResult?.sanitized;
-
-  const effectiveBorderEnabled =
-    sanitizedGlobalSettings?.borderEnabled ??
-    existingGlobalSettings?.borderEnabled;
+  const { sanitizedGlobalSettings } = globalSettingsResult;
 
   applyIncomingCards(existingCardsMap, incomingCards);
-
-  const mergedExplicitCardsByName = new Map<string, StoredCardConfig>();
-  for (const [cardName, card] of existingCardsMap) {
-    if (!shouldPersistExplicitStoredCardConfig(card)) continue;
-    mergedExplicitCardsByName.set(cardName, card);
-  }
+  const mergedExplicitCardsByName =
+    buildMergedExplicitStoredCardsByName(existingCardsMap);
 
   const { effectiveFullCardOrder, persistedCardOrder } =
     resolveStoredCardOrderState({
@@ -1522,39 +1896,10 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     mergedExplicitCardsByName,
   });
 
-  const effectiveBorderRadius = computeEffectiveBorderRadius(
-    effectiveBorderEnabled,
+  const mergedGlobalSettings = resolveMergedStoreCardsGlobalSettings({
     sanitizedGlobalSettings,
     existingGlobalSettings,
-  );
-
-  const effectiveBorderColor = effectiveBorderEnabled
-    ? (sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
-      sanitizeStoredBorderColor(existingGlobalSettings?.borderColor))
-    : undefined;
-
-  const {
-    useStatusColors: effectiveUseStatusColors,
-    showPiePercentages: effectiveShowPiePercentages,
-    showFavorites: effectiveShowFavorites,
-    gridCols: effectiveGridCols,
-    gridRows: effectiveGridRows,
-  } = mergeGlobalAdvancedSettings(
-    sanitizedGlobalSettings,
-    existingGlobalSettings,
-  );
-
-  const mergedGlobalSettings: GlobalCardSettings | undefined =
-    buildMergedGlobalSettings(sanitizedGlobalSettings, existingGlobalSettings, {
-      borderEnabled: effectiveBorderEnabled,
-      borderColor: effectiveBorderColor,
-      borderRadius: effectiveBorderRadius,
-      useStatusColors: effectiveUseStatusColors,
-      showPiePercentages: effectiveShowPiePercentages,
-      showFavorites: effectiveShowFavorites,
-      gridCols: effectiveGridCols,
-      gridRows: effectiveGridRows,
-    });
+  });
 
   return { orderedStoredCards, mergedGlobalSettings, persistedCardOrder };
 }
@@ -1661,6 +2006,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (init.errorResponse) return init.errorResponse;
 
   const { startTime, endpoint, endpointKey } = init;
+  const routeContext: StoreCardsRouteContext = {
+    endpoint,
+    endpointKey,
+    request,
+    startTime,
+  };
 
   try {
     const bodyParse = await parseStoreCardsRequestBody(
@@ -1726,83 +2077,40 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
-    const existingData = await redisClient.get(cardsKey);
-    const existingRecord = parseExistingCardsRecord(
-      existingData,
-      endpoint,
-      endpointKey,
+    const existingState = await loadExistingStoreCardsState({
       cardsKey,
       userId,
-    );
-
-    // Optimistic concurrency: reject when the record has been updated since the
-    // caller's expected version.
-    const ifMatchCheck = await enforceIfMatchUpdatedAt(
-      existingData,
-      existingRecord,
       ifMatchUpdatedAt,
       ifMatchRevision,
       ifMatchSnapshotToken,
-      endpoint,
-      endpointKey,
-      request,
-      startTime,
-    );
-    if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
-    const existingCards = filterSupportedStoredCards(
-      existingRecord?.cards ?? [],
-      endpoint,
-      cardsKey,
-    );
-    const existingCardOrder = existingRecord?.cardOrder;
+      routeContext,
+    });
+    if ("errorResponse" in existingState) return existingState.errorResponse;
 
-    const existingGlobalSettings = existingRecord?.globalSettings;
-
-    const assembly = await assembleStoredCardsAndGlobalSettings({
+    const preparedRecord = await prepareStoreCardsRecordForWrite({
       incomingCards: incomingCardsTyped,
-      existingCards,
-      existingCardOrder,
-      existingGlobalSettings,
+      existingCards: existingState.existingCards,
+      existingCardOrder: existingState.existingCardOrder,
+      existingGlobalSettings: existingState.existingGlobalSettings,
       cardOrder,
       hasCardOrder,
       globalSettings,
-      endpoint,
-      endpointKey,
-      request,
-      startTime,
-    });
-    if ("errorResponse" in assembly) return assembly.errorResponse;
-    const { orderedStoredCards, mergedGlobalSettings, persistedCardOrder } =
-      assembly;
-
-    const colorValidationError = await validateCardColors(
-      orderedStoredCards,
-      endpoint,
-      endpointKey,
-      request,
-      startTime,
-    );
-    if (colorValidationError) return colorValidationError;
-
-    const cardData: CardsRecord = {
       userId,
-      cards: orderedStoredCards,
-      ...(persistedCardOrder.length > 0
-        ? { cardOrder: persistedCardOrder }
-        : {}),
-      globalSettings: mergedGlobalSettings,
-      updatedAt: new Date().toISOString(),
-      schemaVersion: CARDS_RECORD_SCHEMA_VERSION,
-    };
+      routeContext,
+    });
+    if ("errorResponse" in preparedRecord) return preparedRecord.errorResponse;
+
+    const { cardData } = preparedRecord;
 
     const storeResult = await storeCardsRecord({
       cardsKey,
       expectedSerializedCurrentRecord:
-        ifMatchCheck.expectedSerializedCurrentRecord,
+        existingState.ifMatchCheck.expectedSerializedCurrentRecord,
       userId,
       serializedCardData: JSON.stringify(cardData),
       ifMatchUpdatedAt,
-      shouldEnforceAtomicCheck: ifMatchCheck.shouldEnforceAtomicCheck,
+      shouldEnforceAtomicCheck:
+        existingState.ifMatchCheck.shouldEnforceAtomicCheck,
     });
     if (!storeResult.didWrite) {
       if (storeResult.reason === "missing_user_snapshot") {
@@ -1823,58 +2131,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const duration = Date.now() - startTime;
-    logSuccess(endpoint, userId, duration, "Stored cards", request);
-    scheduleStoreCardsMetric(
+    return createStoreCardsSuccessResponse({
+      userId,
       endpoint,
       endpointKey,
-      "successful_requests",
       request,
-      {
-        durationMs: duration,
-      },
-    );
-
-    const storedUpdatedAt = storeResult.updatedAt ?? cardData.updatedAt;
-
-    try {
-      await releaseUnpinnedRetainedUserSnapshot(userId);
-    } catch (error) {
-      logPrivacySafe(
-        "warn",
-        endpoint,
-        "Stored cards succeeded but retained snapshot cleanup could not be completed",
-        {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        request,
-      );
-    }
-
-    const protectedWriteGrantHeader =
-      await createProtectedWriteGrantCookieHeader({
-        source: "stored_user",
-        userId,
-      });
-
-    return jsonWithCors(
-      {
-        success: true,
-        userId,
-        updatedAt: storedUpdatedAt,
-        ...(storeResult.userSnapshot
-          ? { userSnapshot: storeResult.userSnapshot }
-          : {}),
-      },
-      request,
-      undefined,
-      protectedWriteGrantHeader
-        ? {
-            "Set-Cookie": protectedWriteGrantHeader,
-          }
-        : undefined,
-    );
+      startTime,
+      cardData,
+      storeResult,
+    });
   } catch (error) {
     return handleError(
       error as Error,

@@ -251,6 +251,18 @@ function formatCardDataErrorMessage(err: CardDataError): string {
   return raw.startsWith("Server Error:") ? raw : `Server Error: ${raw}`;
 }
 
+function resolveCardFailureReasonCode(err: CardDataError): string | undefined {
+  if (err.status === 404) {
+    return "not_found";
+  }
+
+  if (err.status >= 400 && err.status < 500) {
+    return "request_rejected";
+  }
+
+  return err.category;
+}
+
 /**
  * Headers used for successful SVG responses.
  *
@@ -813,12 +825,7 @@ async function handleCardDataError(
     request,
     baseCardType,
     status: err.status,
-    reasonCode:
-      err.status === 404
-        ? "not_found"
-        : err.status >= 400 && err.status < 500
-          ? "request_rejected"
-          : err.category,
+    reasonCode: resolveCardFailureReasonCode(err),
     durationMs: Date.now() - startTime,
   });
 
@@ -899,6 +906,22 @@ function buildCardCacheKeyParams(
     gridCols: normalizedGridCols,
     gridRows: normalizedGridRows,
   };
+}
+
+function normalizeGridDimension(
+  raw: string | null | undefined,
+  fallback = 3,
+): number {
+  if (raw === null || raw === undefined) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.min(5, parsed));
 }
 
 function buildSavedCardRenderCacheKey(
@@ -1065,6 +1088,180 @@ function createInternalErrorResponse(request: Request): Response {
   );
 }
 
+type PreparedCardCacheContext = {
+  cacheKey: string;
+  preloadedCardDoc?: CardsRecord;
+};
+
+async function prepareCardRenderCacheContext(
+  request: Request,
+  params: ValidatedParams,
+  effectiveUserId: number,
+  startTime: number,
+): Promise<PreparedCardCacheContext | { error: Response }> {
+  const normalizedGridCols = normalizeGridDimension(params.gridColsParam);
+  const normalizedGridRows = normalizeGridDimension(params.gridRowsParam);
+  const cacheKeyParams = buildCardCacheKeyParams(
+    params,
+    normalizedGridCols,
+    normalizedGridRows,
+  );
+
+  if (!needsCardConfigFromDb(params)) {
+    return {
+      cacheKey: generateCacheKey(
+        effectiveUserId,
+        params.cardType,
+        cacheKeyParams,
+      ),
+    };
+  }
+
+  let preloadedCardDoc: CardsRecord | undefined;
+  let preloadedCardMeta:
+    | Pick<CardsRecordMetadata, "updatedAt" | "userSnapshot">
+    | undefined;
+
+  try {
+    const savedCardCacheStamp =
+      await fetchStoredCardsRecordCacheStamp(effectiveUserId);
+    preloadedCardDoc = savedCardCacheStamp.preloadedCardDoc;
+    preloadedCardMeta = savedCardCacheStamp.cardMeta;
+  } catch (error) {
+    if (error instanceof CardDataError) {
+      return {
+        error: await handleCardDataError(
+          error,
+          request,
+          params.baseCardType,
+          startTime,
+        ),
+      };
+    }
+
+    throw error;
+  }
+
+  return {
+    cacheKey: preloadedCardMeta
+      ? buildSavedCardRenderCacheKey(
+          effectiveUserId,
+          params.cardType,
+          cacheKeyParams,
+          preloadedCardMeta,
+        )
+      : generateCacheKey(effectiveUserId, params.cardType, cacheKeyParams),
+    preloadedCardDoc,
+  };
+}
+
+async function tryServeCachedCardResponse(args: {
+  request: Request;
+  params: ValidatedParams;
+  effectiveUserId: number;
+  cacheKey: string;
+  preloadedCardDoc?: CardsRecord;
+  startTime: number;
+  successCachePolicy: CardSuccessCachePolicy;
+}): Promise<Response | null> {
+  const {
+    request,
+    params,
+    effectiveUserId,
+    cacheKey,
+    preloadedCardDoc,
+    startTime,
+    successCachePolicy,
+  } = args;
+  const cachedEntry = getSvgFromMemoryCache(cacheKey);
+
+  if (cachedEntry) {
+    void trackCacheMetric(true, "memory");
+
+    if (cachedEntry.isStale) {
+      scheduleStaleCacheRevalidation({
+        request,
+        params,
+        effectiveUserId,
+        cacheKey,
+        preloadedCardDoc,
+      });
+
+      return createSuccessResponse(
+        markTrustedSvg(cachedEntry.svg),
+        request,
+        cachedEntry.borderRadius,
+        {
+          cacheSource: "memory",
+          cachePolicy: successCachePolicy,
+        },
+      );
+    }
+
+    logPrivacySafe(
+      "log",
+      "Card SVG",
+      "Served SVG from memory cache",
+      { userId: effectiveUserId, durationMs: Date.now() - startTime },
+      request,
+    );
+    void trackSuccessfulRequest(
+      params.baseCardType,
+      request,
+      Date.now() - startTime,
+    );
+
+    return createSuccessResponse(
+      markTrustedSvg(cachedEntry.svg),
+      request,
+      cachedEntry.borderRadius,
+      {
+        cacheSource: "memory",
+        cachePolicy: successCachePolicy,
+      },
+    );
+  }
+
+  void trackCacheMetric(false, "memory", { includeOverall: false });
+
+  const sharedCachedEntry = await getSvgFromSharedCache(cacheKey);
+  if (!sharedCachedEntry) {
+    void trackCacheMetric(false, "redis");
+    return null;
+  }
+
+  void trackCacheMetric(true, "redis");
+  restoreSharedSvgEntryToMemoryCache(
+    cacheKey,
+    sharedCachedEntry,
+    effectiveUserId,
+  );
+
+  logPrivacySafe(
+    "log",
+    "Card SVG",
+    "Served SVG from shared cache",
+    { userId: effectiveUserId, durationMs: Date.now() - startTime },
+    request,
+  );
+
+  void trackSuccessfulRequest(
+    params.baseCardType,
+    request,
+    Date.now() - startTime,
+  );
+
+  return createSuccessResponse(
+    markTrustedSvg(sharedCachedEntry.svg),
+    request,
+    sharedCachedEntry.borderRadius,
+    {
+      cacheSource: "redis",
+      cachePolicy: successCachePolicy,
+    },
+  );
+}
+
 /**
  * GET handler for generating card SVGs.
  *
@@ -1163,54 +1360,17 @@ export async function GET(request: Request) {
     { userId: effectiveUserId, cardType: params.cardType },
     request,
   );
-
-  const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
-    if (raw === null || raw === undefined) return fallback;
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isNaN(parsed)) return fallback;
-    return Math.max(1, Math.min(5, parsed));
-  };
-  const normalizedGridCols = normalizeGridDim(params.gridColsParam);
-  const normalizedGridRows = normalizeGridDim(params.gridRowsParam);
-  const needsDbCardConfig = needsCardConfigFromDb(params);
-  const cacheKeyParams = buildCardCacheKeyParams(
+  const cacheContextResult = await prepareCardRenderCacheContext(
+    request,
     params,
-    normalizedGridCols,
-    normalizedGridRows,
+    effectiveUserId,
+    startTime,
   );
-
-  let preloadedCardDoc: CardsRecord | undefined;
-  let preloadedCardMeta:
-    | Pick<CardsRecordMetadata, "updatedAt" | "userSnapshot">
-    | undefined;
-  if (needsDbCardConfig) {
-    try {
-      const savedCardCacheStamp =
-        await fetchStoredCardsRecordCacheStamp(effectiveUserId);
-      preloadedCardDoc = savedCardCacheStamp.preloadedCardDoc;
-      preloadedCardMeta = savedCardCacheStamp.cardMeta;
-    } catch (error) {
-      if (error instanceof CardDataError) {
-        return handleCardDataError(
-          error,
-          request,
-          params.baseCardType,
-          startTime,
-        );
-      }
-
-      throw error;
-    }
+  if ("error" in cacheContextResult) {
+    return cacheContextResult.error;
   }
 
-  const cacheKey = preloadedCardMeta
-    ? buildSavedCardRenderCacheKey(
-        effectiveUserId,
-        params.cardType,
-        cacheKeyParams,
-        preloadedCardMeta,
-      )
-    : generateCacheKey(effectiveUserId, params.cardType, cacheKeyParams);
+  const { cacheKey, preloadedCardDoc } = cacheContextResult;
 
   if (isManualRefresh) {
     logPrivacySafe(
@@ -1221,90 +1381,19 @@ export async function GET(request: Request) {
       request,
     );
   } else {
-    const cachedEntry = getSvgFromMemoryCache(cacheKey);
-    if (cachedEntry) {
-      void trackCacheMetric(true, "memory");
+    const cachedResponse = await tryServeCachedCardResponse({
+      request,
+      params,
+      effectiveUserId,
+      cacheKey,
+      preloadedCardDoc,
+      startTime,
+      successCachePolicy,
+    });
 
-      if (cachedEntry.isStale) {
-        scheduleStaleCacheRevalidation({
-          request,
-          params,
-          effectiveUserId,
-          cacheKey,
-          preloadedCardDoc,
-        });
-
-        return createSuccessResponse(
-          markTrustedSvg(cachedEntry.svg),
-          request,
-          cachedEntry.borderRadius,
-          {
-            cacheSource: "memory",
-            cachePolicy: successCachePolicy,
-          },
-        );
-      }
-
-      logPrivacySafe(
-        "log",
-        "Card SVG",
-        "Served SVG from memory cache",
-        { userId: effectiveUserId, durationMs: Date.now() - startTime },
-        request,
-      );
-      void trackSuccessfulRequest(
-        params.baseCardType,
-        request,
-        Date.now() - startTime,
-      );
-      return createSuccessResponse(
-        markTrustedSvg(cachedEntry.svg),
-        request,
-        cachedEntry.borderRadius,
-        {
-          cacheSource: "memory",
-          cachePolicy: successCachePolicy,
-        },
-      );
+    if (cachedResponse) {
+      return cachedResponse;
     }
-
-    void trackCacheMetric(false, "memory", { includeOverall: false });
-
-    const sharedCachedEntry = await getSvgFromSharedCache(cacheKey);
-    if (sharedCachedEntry) {
-      void trackCacheMetric(true, "redis");
-      restoreSharedSvgEntryToMemoryCache(
-        cacheKey,
-        sharedCachedEntry,
-        effectiveUserId,
-      );
-
-      logPrivacySafe(
-        "log",
-        "Card SVG",
-        "Served SVG from shared cache",
-        { userId: effectiveUserId, durationMs: Date.now() - startTime },
-        request,
-      );
-
-      void trackSuccessfulRequest(
-        params.baseCardType,
-        request,
-        Date.now() - startTime,
-      );
-
-      return createSuccessResponse(
-        markTrustedSvg(sharedCachedEntry.svg),
-        request,
-        sharedCachedEntry.borderRadius,
-        {
-          cacheSource: "redis",
-          cachePolicy: successCachePolicy,
-        },
-      );
-    }
-
-    void trackCacheMetric(false, "redis");
   }
 
   return generateCardResponse(
@@ -1370,8 +1459,23 @@ function validateUserRecordForCard(
   };
 }
 
-async function loadUserAndCardConfig(
-  needsDbCardConfig: boolean,
+type LoadedUserAndCardConfigResult =
+  | {
+      userDoc: import("@/lib/types/records").UserRecord;
+      cardConfig: import("@/lib/types/records").StoredCardConfig;
+      effectiveVariation: string;
+      favorites: string[];
+    }
+  | { error: Response };
+
+function resolveEffectiveCardVariation(
+  baseCardType: string,
+  variation: string,
+): string {
+  return baseCardType === "profileOverview" ? "default" : variation;
+}
+
+async function loadSavedUserAndCardConfig(
   params: ValidatedParams,
   effectiveUserId: number,
   request: Request,
@@ -1379,81 +1483,72 @@ async function loadUserAndCardConfig(
   options?: {
     preloadedCardDoc?: CardsRecord;
   },
-): Promise<
-  | {
-      userDoc: import("@/lib/types/records").UserRecord;
-      cardConfig: import("@/lib/types/records").StoredCardConfig;
-      effectiveVariation: string;
-      favorites: string[];
-    }
-  | { error: Response }
-> {
-  if (needsDbCardConfig) {
-    const data = await fetchUserDataWithState(
-      effectiveUserId,
-      params.cardType,
+): Promise<LoadedUserAndCardConfigResult> {
+  const data = await fetchUserDataWithState(effectiveUserId, params.cardType, {
+    preloadedCardDoc: options?.preloadedCardDoc,
+  });
+  const { cardDoc } = data;
+  let userDoc = data.userDoc;
+
+  if (!data.snapshotMatched) {
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Card configuration snapshot no longer matches a retained user snapshot; rendering latest committed user data",
       {
-        preloadedCardDoc: options?.preloadedCardDoc,
+        userId: effectiveUserId,
+        cardType: params.cardType,
+        requestedSnapshotToken: cardDoc.userSnapshot?.token,
+        requestedSnapshotUpdatedAt: cardDoc.userSnapshot?.updatedAt,
+        resolvedSnapshotToken: data.userReadState?.snapshot?.token,
+        resolvedSnapshotUpdatedAt: data.userReadState?.snapshot?.updatedAt,
       },
+      request,
     );
-    const { cardDoc } = data;
-    let userDoc = data.userDoc;
-
-    if (!data.snapshotMatched) {
-      logPrivacySafe(
-        "warn",
-        "Card SVG",
-        "Card configuration snapshot no longer matches a retained user snapshot; rendering latest committed user data",
-        {
-          userId: effectiveUserId,
-          cardType: params.cardType,
-          requestedSnapshotToken: cardDoc.userSnapshot?.token,
-          requestedSnapshotUpdatedAt: cardDoc.userSnapshot?.updatedAt,
-          resolvedSnapshotToken: data.userReadState?.snapshot?.token,
-          resolvedSnapshotUpdatedAt: data.userReadState?.snapshot?.updatedAt,
-        },
-        request,
-      );
-    }
-
-    const validationResult = validateUserRecordForCard(
-      params.baseCardType,
-      userDoc,
-      { snapshotMatched: data.snapshotMatched },
-    );
-    if ("error" in validationResult) {
-      return {
-        error: handleValidationError(
-          validationResult,
-          request,
-          params.baseCardType,
-          startTime,
-        ),
-      };
-    }
-    userDoc = validationResult.normalized;
-
-    const processed = processCardConfig(cardDoc, params, userDoc);
-    const normalizedEffectiveVariation =
-      params.baseCardType === "profileOverview"
-        ? "default"
-        : processed.effectiveVariation;
-    return {
-      userDoc,
-      cardConfig: processed.cardConfig,
-      effectiveVariation: normalizedEffectiveVariation,
-      favorites: processed.favorites,
-    };
   }
 
+  const validationResult = validateUserRecordForCard(
+    params.baseCardType,
+    userDoc,
+    { snapshotMatched: data.snapshotMatched },
+  );
+  if ("error" in validationResult) {
+    return {
+      error: handleValidationError(
+        validationResult,
+        request,
+        params.baseCardType,
+        startTime,
+      ),
+    };
+  }
+  userDoc = validationResult.normalized;
+
+  const processed = processCardConfig(cardDoc, params, userDoc);
+  return {
+    userDoc,
+    cardConfig: processed.cardConfig,
+    effectiveVariation: resolveEffectiveCardVariation(
+      params.baseCardType,
+      processed.effectiveVariation,
+    ),
+    favorites: processed.favorites,
+  };
+}
+
+async function loadPreviewUserAndCardConfig(
+  params: ValidatedParams,
+  effectiveUserId: number,
+  request: Request,
+  startTime: number,
+): Promise<LoadedUserAndCardConfigResult> {
   const userData = await fetchUserDataForCardWithState(
     effectiveUserId,
     params.cardType,
   );
-  const userDoc = userData.userDoc;
   const validationResult = validateUserRecordForCard(
     params.baseCardType,
-    userDoc,
+    userData.userDoc,
     { snapshotMatched: userData.snapshotMatched },
   );
   if ("error" in validationResult) {
@@ -1471,23 +1566,51 @@ async function loadUserAndCardConfig(
   const cardConfig = buildCardConfigFromParams(params);
   const effectiveVariationRaw =
     params.variationParam || cardConfig.variation || "default";
-  const effectiveVariation =
-    params.baseCardType === "profileOverview"
-      ? "default"
-      : effectiveVariationRaw;
-  const favorites = processFavorites(
-    params.baseCardType,
-    params.showFavoritesParam,
-    cardConfig.showFavorites,
-    normalized,
-  );
 
   return {
     userDoc: normalized,
     cardConfig,
-    effectiveVariation,
-    favorites,
+    effectiveVariation: resolveEffectiveCardVariation(
+      params.baseCardType,
+      effectiveVariationRaw,
+    ),
+    favorites: processFavorites(
+      params.baseCardType,
+      params.showFavoritesParam,
+      cardConfig.showFavorites,
+      normalized,
+    ),
   };
+}
+
+async function loadUserAndCardConfig(
+  needsDbCardConfig: boolean,
+  params: ValidatedParams,
+  effectiveUserId: number,
+  request: Request,
+  startTime: number,
+  options?: {
+    preloadedCardDoc?: CardsRecord;
+  },
+): Promise<LoadedUserAndCardConfigResult> {
+  if (needsDbCardConfig) {
+    return loadSavedUserAndCardConfig(
+      params,
+      effectiveUserId,
+      request,
+      startTime,
+      {
+        preloadedCardDoc: options?.preloadedCardDoc,
+      },
+    );
+  }
+
+  return loadPreviewUserAndCardConfig(
+    params,
+    effectiveUserId,
+    request,
+    startTime,
+  );
 }
 
 async function generateCardResponse(

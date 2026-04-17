@@ -256,6 +256,181 @@ function createStoreUsersUsernameConflictResponse(params: {
   );
 }
 
+function normalizeComparableUsername(
+  value: string | null | undefined,
+): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized ? normalized : undefined;
+}
+
+function resolveAuthoritativeStoreUsersUsername(params: {
+  endpoint: string;
+  request: Request;
+  grant: {
+    source: string;
+    username?: string | null | undefined;
+  };
+  authoritativeUsernameFromStats?: string;
+  requestedUsername?: string;
+  userId: number;
+}): string | undefined {
+  const {
+    endpoint,
+    request,
+    grant,
+    authoritativeUsernameFromStats,
+    requestedUsername,
+    userId,
+  } = params;
+
+  let authoritativeUsername = requestedUsername;
+  if (grant.source !== "test_bypass" && grant.username) {
+    authoritativeUsername = grant.username;
+  }
+  if (authoritativeUsernameFromStats) {
+    authoritativeUsername = authoritativeUsernameFromStats;
+  }
+
+  const normalizedGrantUsername = normalizeComparableUsername(grant.username);
+  const normalizedStatsUsername = normalizeComparableUsername(
+    authoritativeUsernameFromStats,
+  );
+
+  if (
+    normalizedGrantUsername &&
+    normalizedStatsUsername &&
+    normalizedGrantUsername !== normalizedStatsUsername
+  ) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Protected write grant username no longer matched the authoritative AniList stats username; preferring the stats payload",
+      {
+        grantUsername: grant.username,
+        authoritativeUsername: authoritativeUsernameFromStats,
+        requestedUserId: userId,
+      },
+      request,
+    );
+  }
+
+  const normalizedRequestedUsername =
+    normalizeComparableUsername(requestedUsername);
+  const normalizedAuthoritativeUsername = normalizeComparableUsername(
+    authoritativeUsername,
+  );
+
+  if (
+    normalizedRequestedUsername &&
+    normalizedAuthoritativeUsername &&
+    normalizedRequestedUsername !== normalizedAuthoritativeUsername
+  ) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Ignoring client-supplied username that did not match the bound AniList snapshot",
+      {
+        authoritativeUsername,
+        requestedUserId: userId,
+        suppliedUsername: requestedUsername,
+      },
+      request,
+    );
+  }
+
+  return authoritativeUsername;
+}
+
+async function loadExistingStoreUsersState(params: {
+  endpoint: string;
+  request: Request;
+  userId: number;
+}): Promise<PersistedUserState | undefined> {
+  try {
+    const existingState = await getPersistedUserState(params.userId);
+    return existingState ?? undefined;
+  } catch (error) {
+    if (error instanceof UserDataIntegrityError) {
+      logPrivacySafe(
+        "warn",
+        params.endpoint,
+        "Ignoring corrupt persisted user state during overwrite",
+        {
+          userId: params.userId,
+          error: error.message,
+        },
+        params.request,
+      );
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function buildStoreUsersUserData(params: {
+  authoritativeUsername?: string;
+  createdAt: string;
+  requestMetadata?: PersistedUserRecord["requestMetadata"];
+  stats: UserRecord["stats"];
+  updatedAt: string;
+  userId: number;
+}): UserRecord {
+  const {
+    authoritativeUsername,
+    createdAt,
+    requestMetadata,
+    stats,
+    updatedAt,
+    userId,
+  } = params;
+
+  return {
+    userId: String(userId),
+    username: authoritativeUsername,
+    stats,
+    ...(requestMetadata ? { requestMetadata } : {}),
+    createdAt,
+    updatedAt,
+  };
+}
+
+async function createStoreUsersSuccessResponse(params: {
+  request: Request;
+  userId: number;
+  username?: string;
+  saveResult: {
+    updatedAt: string;
+    revision: number;
+    snapshotToken: string;
+  };
+}): Promise<NextResponse> {
+  const protectedWriteGrantHeader = await createProtectedWriteGrantCookieHeader(
+    {
+      source: "stored_user",
+      userId: params.userId,
+      username: params.username,
+    },
+  );
+
+  return jsonWithCors(
+    {
+      success: true,
+      userId: params.userId,
+      updatedAt: params.saveResult.updatedAt,
+      revision: params.saveResult.revision,
+      snapshotToken: params.saveResult.snapshotToken,
+    },
+    params.request,
+    undefined,
+    protectedWriteGrantHeader
+      ? {
+          "Set-Cookie": protectedWriteGrantHeader,
+        }
+      : undefined,
+  );
+}
+
 async function persistPreparedUserRecord(params: {
   endpoint: string;
   endpointKey: string;
@@ -463,77 +638,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     const grant = protectedWriteGrantResult.grant;
     const authoritativeUsernameFromStats =
       getAuthoritativeUsernameFromUserStats(stats);
-    const authoritativeUsername =
-      grant.source === "test_bypass"
-        ? (authoritativeUsernameFromStats ?? username)
-        : (authoritativeUsernameFromStats ?? grant.username ?? username);
-
-    if (
-      grant.username &&
-      authoritativeUsernameFromStats &&
-      grant.username.trim().toLowerCase() !==
-        authoritativeUsernameFromStats.trim().toLowerCase()
-    ) {
-      logPrivacySafe(
-        "warn",
-        endpoint,
-        "Protected write grant username no longer matched the authoritative AniList stats username; preferring the stats payload",
-        {
-          grantUsername: grant.username,
-          authoritativeUsername: authoritativeUsernameFromStats,
-          requestedUserId: userId,
-        },
-        request,
-      );
-    }
-
-    if (
-      username &&
-      authoritativeUsername &&
-      username.trim().toLowerCase() !==
-        authoritativeUsername.trim().toLowerCase()
-    ) {
-      logPrivacySafe(
-        "warn",
-        endpoint,
-        "Ignoring client-supplied username that did not match the bound AniList snapshot",
-        {
-          authoritativeUsername,
-          requestedUserId: userId,
-          suppliedUsername: username,
-        },
-        request,
-      );
-    }
+    const authoritativeUsername = resolveAuthoritativeStoreUsersUsername({
+      endpoint,
+      request,
+      grant,
+      authoritativeUsernameFromStats,
+      requestedUsername: username,
+      userId,
+    });
 
     const requestMetadata = buildPersistedRequestMetadata(ip);
 
     const now = new Date().toISOString();
-    let createdAt = now;
-
-    let existingState;
-    try {
-      existingState = await getPersistedUserState(userId);
-    } catch (error) {
-      if (error instanceof UserDataIntegrityError) {
-        logPrivacySafe(
-          "warn",
-          endpoint,
-          "Ignoring corrupt persisted user state during overwrite",
-          {
-            userId,
-            error: error.message,
-          },
-          request,
-        );
-      } else {
-        throw error;
-      }
-    }
-
-    if (existingState?.createdAt) {
-      createdAt = existingState.createdAt;
-    }
+    const existingState = await loadExistingStoreUsersState({
+      endpoint,
+      request,
+      userId,
+    });
+    const createdAt = existingState?.createdAt ?? now;
 
     const compareConflictResponse = resolveStoreUsersCompareConflict({
       endpoint,
@@ -548,14 +670,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       return compareConflictResponse;
     }
 
-    const userData: UserRecord = {
-      userId: String(userId),
-      username: authoritativeUsername,
-      stats: stats as unknown as UserRecord["stats"],
-      ...(requestMetadata ? { requestMetadata } : {}),
+    const userData = buildStoreUsersUserData({
+      authoritativeUsername,
       createdAt,
+      requestMetadata,
+      stats: stats as unknown as UserRecord["stats"],
       updatedAt: now,
-    };
+      userId,
+    });
 
     const preparedRecord = preparePersistedUserRecord({
       endpoint,
@@ -602,29 +724,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
-    const protectedWriteGrantHeader =
-      await createProtectedWriteGrantCookieHeader({
-        source: "stored_user",
-        userId,
-        username: preparedRecord.persistedUserData.username,
-      });
-
-    return jsonWithCors(
-      {
-        success: true,
-        userId,
-        updatedAt: persistResult.saveResult.updatedAt,
-        revision: persistResult.saveResult.revision,
-        snapshotToken: persistResult.saveResult.snapshotToken,
-      },
+    return createStoreUsersSuccessResponse({
       request,
-      undefined,
-      protectedWriteGrantHeader
-        ? {
-            "Set-Cookie": protectedWriteGrantHeader,
-          }
-        : undefined,
-    );
+      userId,
+      username: preparedRecord.persistedUserData.username,
+      saveResult: persistResult.saveResult,
+    });
   } catch (error) {
     return handleError(
       error as Error,

@@ -179,6 +179,82 @@ function parseEvalDeletePayload(args: unknown[]): EvalDeletePayload | null {
   }
 }
 
+function getNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function getPositiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && value > 0 ? value : undefined;
+}
+
+function getEvalCurrentSnapshotToken(
+  existingState: Record<string, unknown> | undefined,
+): string | undefined {
+  const snapshot = isRecord(existingState?.snapshot)
+    ? existingState.snapshot
+    : undefined;
+
+  return getNonEmptyString(snapshot?.token);
+}
+
+function buildEvalConflictResult(options: {
+  currentUpdatedAt?: string;
+  currentRevision: number;
+  currentSnapshotToken?: string;
+}): unknown[] {
+  return [
+    0,
+    options.currentUpdatedAt ?? "",
+    String(options.currentRevision),
+    options.currentSnapshotToken ?? "",
+  ];
+}
+
+function getEvalSaveConflictResult(options: {
+  payload: EvalSavePayload;
+  existingState: Record<string, unknown> | undefined;
+}): unknown[] | null {
+  const expectedUpdatedAt = getNonEmptyString(
+    options.payload.expectedUpdatedAt,
+  );
+  const expectedRevision = getPositiveNumber(options.payload.expectedRevision);
+  const expectedSnapshotToken = getNonEmptyString(
+    options.payload.expectedSnapshotToken,
+  );
+  const currentUpdatedAt = getNonEmptyString(options.existingState?.updatedAt);
+  const currentRevision =
+    getPositiveNumber(options.existingState?.revision) ?? 0;
+  const currentSnapshotToken = getEvalCurrentSnapshotToken(
+    options.existingState,
+  );
+
+  if (expectedSnapshotToken && currentSnapshotToken !== expectedSnapshotToken) {
+    return buildEvalConflictResult({
+      currentUpdatedAt,
+      currentRevision,
+      currentSnapshotToken,
+    });
+  }
+
+  if (expectedRevision && currentRevision !== expectedRevision) {
+    return buildEvalConflictResult({
+      currentUpdatedAt,
+      currentRevision,
+      currentSnapshotToken,
+    });
+  }
+
+  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    return buildEvalConflictResult({
+      currentUpdatedAt,
+      currentRevision,
+      currentSnapshotToken,
+    });
+  }
+
+  return null;
+}
+
 function buildEvalStoredCardsUserSnapshotFromRecord(options: {
   record: Record<string, unknown> | null;
   tokenKey?: string;
@@ -311,6 +387,20 @@ function buildEvalCommitPointer(options: {
   }
 
   return commitPointer;
+}
+
+function getEvalDeletePreviousSnapshotKeyPrefix(
+  commitPointer: Record<string, unknown> | null,
+): string | undefined {
+  if (typeof commitPointer?.retainedSnapshotKeyPrefix === "string") {
+    return commitPointer.retainedSnapshotKeyPrefix;
+  }
+
+  if (typeof commitPointer?.previousSnapshotKeyPrefix === "string") {
+    return commitPointer.previousSnapshotKeyPrefix;
+  }
+
+  return undefined;
 }
 
 function normalizeTrackedAliasValues(values: unknown[]): string[] {
@@ -516,59 +606,13 @@ async function emulateAtomicUserSaveEval(
       ? payload.normalizedUsername
       : undefined;
   const existingState = normalizeEvalExistingState(payload.existingState);
-  const expectedUpdatedAt =
-    typeof payload.expectedUpdatedAt === "string"
-      ? payload.expectedUpdatedAt
-      : undefined;
-  const expectedRevision =
-    typeof payload.expectedRevision === "number" && payload.expectedRevision > 0
-      ? payload.expectedRevision
-      : undefined;
-  const expectedSnapshotToken =
-    typeof payload.expectedSnapshotToken === "string" &&
-    payload.expectedSnapshotToken.length > 0
-      ? payload.expectedSnapshotToken
-      : undefined;
-  const currentUpdatedAt =
-    typeof existingState?.updatedAt === "string"
-      ? existingState.updatedAt
-      : undefined;
-  const currentRevision =
-    typeof existingState?.revision === "number" && existingState.revision > 0
-      ? existingState.revision
-      : 0;
-  const currentSnapshotToken =
-    isRecord(existingState?.snapshot) &&
-    typeof existingState.snapshot.token === "string" &&
-    existingState.snapshot.token.length > 0
-      ? existingState.snapshot.token
-      : undefined;
+  const conflictResult = getEvalSaveConflictResult({
+    payload,
+    existingState,
+  });
 
-  if (expectedSnapshotToken && currentSnapshotToken !== expectedSnapshotToken) {
-    return [
-      0,
-      currentUpdatedAt ?? "",
-      String(currentRevision),
-      currentSnapshotToken ?? "",
-    ];
-  }
-
-  if (expectedRevision && currentRevision !== expectedRevision) {
-    return [
-      0,
-      currentUpdatedAt ?? "",
-      String(currentRevision),
-      currentSnapshotToken ?? "",
-    ];
-  }
-
-  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
-    return [
-      0,
-      currentUpdatedAt ?? "",
-      String(currentRevision),
-      currentSnapshotToken ?? "",
-    ];
+  if (conflictResult) {
+    return conflictResult;
   }
 
   const revision =
@@ -701,11 +745,7 @@ async function emulateAtomicUserDeleteEval(
   }
 
   const previousSnapshotKeyPrefix =
-    typeof commitPointer?.retainedSnapshotKeyPrefix === "string"
-      ? commitPointer.retainedSnapshotKeyPrefix
-      : typeof commitPointer?.previousSnapshotKeyPrefix === "string"
-        ? commitPointer.previousSnapshotKeyPrefix
-        : undefined;
+    getEvalDeletePreviousSnapshotKeyPrefix(commitPointer);
   if (previousSnapshotKeyPrefix) {
     payload.allParts.forEach((partName) => {
       deletedKeys.push(`${previousSnapshotKeyPrefix}:${partName}`);
@@ -875,6 +915,41 @@ async function emulateAtomicStoreCardsEval(
   ];
 }
 
+function getEvalSavePayloadArg(argList: unknown[]): string | null {
+  if (argList.length !== 1 || typeof argList[0] !== "string") {
+    return null;
+  }
+
+  return parseEvalSavePayload(argList[0]) ? argList[0] : null;
+}
+
+function hasEvalDeleteArgs(keyList: unknown[], argList: unknown[]): boolean {
+  return (
+    keyList.length === 9 &&
+    argList.length === 2 &&
+    parseEvalDeletePayload(argList) !== null
+  );
+}
+
+async function tryEmulateDirectCardWrite(
+  keyList: unknown[],
+  argList: unknown[],
+): Promise<unknown[] | null> {
+  if (keyList.length !== 1 || argList.length < 2) {
+    return null;
+  }
+
+  const [cardsKey] = keyList;
+  const serializedCardData = argList[1];
+
+  if (typeof cardsKey !== "string" || typeof serializedCardData !== "string") {
+    return null;
+  }
+
+  await sharedRedisMockSet(cardsKey, serializedCardData);
+  return [1];
+}
+
 export async function defaultRedisEval(
   _script: unknown,
   keys: unknown,
@@ -883,34 +958,22 @@ export async function defaultRedisEval(
   const keyList = Array.isArray(keys) ? keys : [];
   const argList = Array.isArray(args) ? args : [];
 
-  if (argList.length === 1 && typeof argList[0] === "string") {
-    if (parseEvalSavePayload(argList[0])) {
-      return emulateAtomicUserSaveEval(keyList, argList[0]);
-    }
+  const savePayload = getEvalSavePayloadArg(argList);
+  if (savePayload) {
+    return emulateAtomicUserSaveEval(keyList, savePayload);
   }
 
-  if (keyList.length === 9 && argList.length === 2) {
-    const deletePayload = parseEvalDeletePayload(argList);
-    if (deletePayload) {
-      return emulateAtomicUserDeleteEval(keyList, argList);
-    }
+  if (hasEvalDeleteArgs(keyList, argList)) {
+    return emulateAtomicUserDeleteEval(keyList, argList);
   }
 
   if (keyList.length === 5 && argList.length === 3) {
     return emulateAtomicStoreCardsEval(keyList, argList);
   }
 
-  if (keyList.length === 1 && argList.length >= 2) {
-    const [cardsKey] = keyList;
-    const serializedCardData = argList[1];
-
-    if (
-      typeof cardsKey === "string" &&
-      typeof serializedCardData === "string"
-    ) {
-      await sharedRedisMockSet(cardsKey, serializedCardData);
-      return [1];
-    }
+  const directWriteResult = await tryEmulateDirectCardWrite(keyList, argList);
+  if (directWriteResult) {
+    return directWriteResult;
   }
 
   return [1];

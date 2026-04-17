@@ -44,6 +44,24 @@ const {
 const compareAlphabetically = (left: string, right: string) =>
   left.localeCompare(right);
 
+function getRequiredString(value: unknown, errorMessage: string): string {
+  if (typeof value !== "string") {
+    throw new Error(errorMessage);
+  }
+
+  return value;
+}
+
+function parseRequiredJson(value: unknown, errorMessage: string): unknown {
+  return JSON.parse(getRequiredString(value, errorMessage)) as unknown;
+}
+
+function getStringCallArgs(call: readonly unknown[] | undefined): string[] {
+  return (call ?? []).flatMap((value) =>
+    typeof value === "string" ? [value] : [],
+  );
+}
+
 function createPersistedUserRecord(
   overrides: Partial<
     Pick<
@@ -306,7 +324,7 @@ describe("user-data persistence", () => {
     );
 
     const userScopedSetKeys = sharedRedisMockSet.mock.calls
-      .map((call) => String(call[0]))
+      .map((call) => getStringValue(call[0]))
       .filter((key) => key.startsWith("user:5:") && !key.includes(":snapshot:"))
       .sort(compareAlphabetically);
 
@@ -324,7 +342,10 @@ describe("user-data persistence", () => {
     ]);
 
     const auditEntry = JSON.parse(
-      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+      getRequiredString(
+        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+        "Expected save audit payload to be a string.",
+      ),
     );
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:user-lifecycle-audit:v1",
@@ -702,7 +723,10 @@ describe("user-data persistence", () => {
     });
     sharedRedisMockSet.mockImplementation((key: string, value: unknown) => {
       if (key === "user:26:migrating") {
-        migrationToken = String(value);
+        migrationToken = getRequiredString(
+          value,
+          "Expected migration token to be a string.",
+        );
         return Promise.resolve("OK");
       }
 
@@ -848,7 +872,9 @@ describe("user-data persistence", () => {
     expect(
       sharedRedisMockSet.mock.calls.some(
         ([key]) =>
-          String(key).startsWith("user:13:") && key !== "user:13:migrating",
+          typeof key === "string" &&
+          key.startsWith("user:13:") &&
+          key !== "user:13:migrating",
       ),
     ).toBe(false);
     expect(sharedRedisMockDel).not.toHaveBeenCalledWith("user:13:migrating");
@@ -856,7 +882,10 @@ describe("user-data persistence", () => {
     await flushScheduledTelemetryTasksForTests();
 
     const auditEntry = JSON.parse(
-      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+      getRequiredString(
+        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+        "Expected access audit payload to be a string.",
+      ),
     );
     expect(auditEntry).toMatchObject({
       action: "access",
@@ -992,7 +1021,9 @@ describe("user-data persistence", () => {
     expect(
       sharedRedisMockSet.mock.calls.some(
         ([key]) =>
-          String(key).startsWith("user:14:") && key !== "user:14:migrating",
+          typeof key === "string" &&
+          key.startsWith("user:14:") &&
+          key !== "user:14:migrating",
       ),
     ).toBe(false);
     expect(sharedRedisMockDel).not.toHaveBeenCalledWith("user:14:migrating");
@@ -1085,7 +1116,10 @@ describe("user-data persistence", () => {
     expect(reconstructed).not.toHaveProperty("ip");
 
     const auditEntry = JSON.parse(
-      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+      getRequiredString(
+        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+        "Expected access audit payload to be a string.",
+      ),
     );
     expect(auditEntry).toMatchObject({
       action: "access",
@@ -1102,7 +1136,10 @@ describe("user-data persistence", () => {
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
 
     const auditEntry = JSON.parse(
-      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+      getRequiredString(
+        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+        "Expected delete audit payload to be a string.",
+      ),
     );
     expect(auditEntry).toMatchObject({
       action: "delete",
@@ -1133,12 +1170,22 @@ describe("user-data persistence", () => {
     );
 
     expect(auditCalls).toHaveLength(2);
-    expect(JSON.parse(String(auditCalls[0]?.[1]))).toMatchObject({
+    expect(
+      parseRequiredJson(
+        auditCalls[0]?.[1],
+        "Expected privacy intake audit payload to be a string.",
+      ),
+    ).toMatchObject({
       action: "privacy_request_intake",
       triggerSource: "privacy_request_delete",
       userId: "55",
     });
-    expect(JSON.parse(String(auditCalls[1]?.[1]))).toMatchObject({
+    expect(
+      parseRequiredJson(
+        auditCalls[1]?.[1],
+        "Expected privacy fulfillment audit payload to be a string.",
+      ),
+    ).toMatchObject({
       action: "privacy_request_fulfillment",
       triggerSource: "privacy_request_delete",
       userId: "55",
@@ -1175,11 +1222,21 @@ describe("user-data persistence", () => {
       "telemetry:user-lifecycle-audit:v1",
     );
     expect(auditCalls).toHaveLength(2);
-    expect(JSON.parse(String(auditCalls[0]?.[1]))).toMatchObject({
+    expect(
+      parseRequiredJson(
+        auditCalls[0]?.[1],
+        "Expected retained audit payload to be a string.",
+      ),
+    ).toMatchObject({
       action: "access",
       userId: "recent-user",
     });
-    expect(JSON.parse(String(auditCalls.at(-1)?.[1]))).toMatchObject({
+    expect(
+      parseRequiredJson(
+        auditCalls.at(-1)?.[1],
+        "Expected delete audit payload to be a string.",
+      ),
+    ).toMatchObject({
       action: "delete",
       triggerSource: "user_data_delete",
       userId: "5",
@@ -1253,9 +1310,7 @@ describe("user-data persistence", () => {
     });
 
     const result = await deleteUserRecord("5");
-    const deletedKeys = (sharedRedisMockDel.mock.calls.at(-1) ?? []).map(
-      String,
-    );
+    const deletedKeys = getStringCallArgs(sharedRedisMockDel.mock.calls.at(-1));
 
     expect(result.usernameIndexKeys).toEqual(["username:userfive"]);
     expect(deletedKeys).toContain("username:userfive");
@@ -1532,7 +1587,7 @@ describe("user-data persistence", () => {
 
   it("prunes orphaned registry entries and stale sorted-set members during cardinality repair", async () => {
     sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
-      const key = String(args[0] ?? "");
+      const key = getStringValue(args[0]);
 
       if (key === "users:known-ids") {
         return ["5", "7"];

@@ -54,7 +54,7 @@ function buildSafeLogContext(
   const safeContextEntries: Array<[string, SanitizedLogContextValue]> = [];
 
   for (const [key, value] of Object.entries(context ?? {})) {
-    const normalizedKey = key.replaceAll(/_/g, "").toLowerCase();
+    const normalizedKey = key.replaceAll("_", "").toLowerCase();
     if (normalizedKey === "requestid" || normalizedKey === "operationid") {
       continue;
     }

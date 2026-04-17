@@ -173,6 +173,269 @@ function summarizeCronRefreshBudget(totalUsers: number): {
   };
 }
 
+type CronRefreshBatchCounts = {
+  successfulUpdates: number;
+  failedUpdates: number;
+  removedUsers: number;
+};
+
+type StoredCronRefreshMeta = {
+  userId?: string;
+  username?: string;
+};
+
+function resolveStoredCronRefreshUserId(
+  meta: StoredCronRefreshMeta,
+  fallbackUserId: string,
+): string {
+  if (typeof meta.userId === "string" && meta.userId.length > 0) {
+    return meta.userId;
+  }
+
+  return fallbackUserId;
+}
+
+function resolveStoredCronRefreshUsername(meta: StoredCronRefreshMeta): string {
+  if (typeof meta.username === "string" && meta.username.length > 0) {
+    return meta.username;
+  }
+
+  return "no username";
+}
+
+function aggregateCronRefreshBatchCounts(
+  results: readonly CronRefreshBatchCounts[],
+): CronRefreshBatchCounts {
+  const totals: CronRefreshBatchCounts = {
+    successfulUpdates: 0,
+    failedUpdates: 0,
+    removedUsers: 0,
+  };
+
+  for (const result of results) {
+    totals.successfulUpdates += result.successfulUpdates;
+    totals.failedUpdates += result.failedUpdates;
+    totals.removedUsers += result.removedUsers;
+  }
+
+  return totals;
+}
+
+function normalizeRefreshedUserRecord(
+  user: ReturnType<typeof reconstructUserRecord>,
+) {
+  const normalizationResult = validateAndNormalizeUserRecord(user);
+  if ("normalized" in normalizationResult) {
+    return normalizationResult.normalized;
+  }
+
+  return user;
+}
+
+async function loadStoredCronRefreshMeta(params: {
+  id: string;
+  endpoint: string;
+  request?: Request;
+}): Promise<{
+  meta: StoredCronRefreshMeta;
+  metaParts: Awaited<ReturnType<typeof fetchUserDataParts>>;
+  trackedUserId: string;
+}> {
+  const { id, endpoint, request } = params;
+  const metaParts = await fetchUserDataParts(
+    id,
+    [...USER_BOOTSTRAP_DATA_PARTS],
+    {
+      triggerSource: "cron_refresh",
+    },
+  );
+  const meta = metaParts.meta as StoredCronRefreshMeta | undefined;
+
+  if (!meta) {
+    throw new Error("Stored user metadata is missing");
+  }
+
+  const trackedUserId = resolveStoredCronRefreshUserId(meta, id);
+
+  logPrivacySafe(
+    "log",
+    endpoint,
+    "Starting scheduled user refresh",
+    {
+      userId: trackedUserId,
+      username: resolveStoredCronRefreshUsername(meta),
+    },
+    request,
+  );
+
+  return {
+    meta,
+    metaParts,
+    trackedUserId,
+  };
+}
+
+async function persistScheduledCronRefreshUser(params: {
+  endpoint: string;
+  trackedUserId: string;
+  metaParts: Awaited<ReturnType<typeof fetchUserDataParts>>;
+  statsData: AniListUserStatsData;
+  setStage: (stage: CronUserRefreshStage) => void;
+}): Promise<string> {
+  params.setStage("fetch_user_data_parts");
+  const remainingParts = await fetchUserDataParts(
+    params.trackedUserId,
+    [...USER_REFRESH_DEFERRED_DATA_PARTS],
+    {
+      audit: false,
+      triggerSource: "cron_refresh",
+    },
+  );
+
+  params.setStage("reconstruct_user_record");
+  const user = reconstructUserRecord({
+    ...remainingParts,
+    meta: params.metaParts.meta,
+  });
+  const resolvedTrackedUserId = user.userId || params.trackedUserId;
+  user.stats = params.statsData;
+
+  params.setStage("normalize_user_record");
+  const finalUser = normalizeRefreshedUserRecord(user);
+  finalUser.updatedAt = new Date().toISOString();
+
+  params.setStage("save_user_record");
+  await saveUserRecord(finalUser, {
+    triggerSource: "cron_refresh",
+  });
+
+  return resolvedTrackedUserId;
+}
+
+async function abortScheduledCronRefreshUpdate(
+  updateResultPromise: Promise<UpdateResult>,
+  updateAbortController: AbortController,
+): Promise<void> {
+  updateAbortController.abort(
+    new Error("Aborted scheduled refresh after local user-data loading failed"),
+  );
+  await updateResultPromise.catch(() => undefined);
+}
+
+async function processScheduledUserRefresh(params: {
+  id: string;
+  endpoint: string;
+  operationId?: string;
+  request?: Request;
+  requestId?: string;
+}): Promise<CronRefreshBatchCounts> {
+  const { id, endpoint, operationId, request, requestId } = params;
+  let stage: CronUserRefreshStage = "fetch_user_data_parts";
+  let trackedUserId = id;
+  const updateAbortController = new AbortController();
+  let updateResultPromise: Promise<UpdateResult> | null = null;
+  const setStage = (nextStage: CronUserRefreshStage) => {
+    stage = nextStage;
+  };
+
+  const getUpdateResultPromise = () => {
+    // Avoid spending AniList budget on records that already fail local
+    // bootstrap validation before we even know whether the stored entry is
+    // readable enough to refresh.
+    updateResultPromise ??= updateUserStats(
+      trackedUserId,
+      request,
+      updateAbortController.signal,
+    );
+
+    return updateResultPromise;
+  };
+
+  try {
+    const metaLoad = await loadStoredCronRefreshMeta({
+      id,
+      endpoint,
+      request,
+    });
+    const { metaParts } = metaLoad;
+    trackedUserId = metaLoad.trackedUserId;
+
+    setStage("refresh_user_stats");
+    const updateResult = await getUpdateResultPromise();
+
+    if (!updateResult.success) {
+      if (!updateResult.is404Error) {
+        return {
+          successfulUpdates: 0,
+          failedUpdates: 1,
+          removedUsers: 0,
+        };
+      }
+
+      setStage("handle_failure_tracking");
+      const wasRemoved = await handleFailureTracking(
+        redisClient,
+        trackedUserId,
+        request,
+      );
+
+      return {
+        successfulUpdates: 0,
+        failedUpdates: 1,
+        removedUsers: wasRemoved ? 1 : 0,
+      };
+    }
+
+    trackedUserId = await persistScheduledCronRefreshUser({
+      endpoint,
+      trackedUserId,
+      metaParts,
+      statsData: updateResult.statsData,
+      setStage,
+    });
+
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Successfully refreshed stored user",
+      { userId: trackedUserId },
+      request,
+    );
+
+    setStage("clear_failure_tracking");
+    await clearFailureTracking(redisClient, trackedUserId);
+
+    return {
+      successfulUpdates: 1,
+      failedUpdates: 0,
+      removedUsers: 0,
+    };
+  } catch (error) {
+    if (stage === "fetch_user_data_parts" && updateResultPromise) {
+      await abortScheduledCronRefreshUpdate(
+        updateResultPromise,
+        updateAbortController,
+      );
+    }
+
+    await reportCronUserRefreshError({
+      endpoint,
+      error,
+      operationId,
+      request,
+      requestId,
+      stage,
+      userId: trackedUserId,
+    });
+
+    return {
+      successfulUpdates: 0,
+      failedUpdates: 1,
+      removedUsers: 0,
+    };
+  }
+}
+
 async function reportCronUserRefreshError(options: {
   endpoint: string;
   error: unknown;
@@ -407,23 +670,26 @@ function trackCronRequestOutcome(
   outcome: "success" | "failure",
   reasonCode?: string,
 ): void {
-  const metrics =
-    outcome === "success"
-      ? [
-          buildAnalyticsMetricKey("cron_job", "successful_requests"),
-          ...buildLatencyBucketMetricKeys("cron_job", durationMs, "success"),
-        ]
-      : [
-          ...buildFailedRequestMetricKeys("cron_job", reasonCode),
-          ...buildLatencyBucketMetricKeys("cron_job", durationMs, "failure"),
-        ];
+  if (outcome === "success") {
+    const metrics = [
+      buildAnalyticsMetricKey("cron_job", "successful_requests"),
+      ...buildLatencyBucketMetricKeys("cron_job", durationMs, "success"),
+    ];
 
-  const scheduleMetrics =
-    outcome === "success"
-      ? scheduleAnalyticsBatch
-      : scheduleLowValueAnalyticsBatch;
+    scheduleAnalyticsBatch(metrics, {
+      endpoint: "Cron Job",
+      request,
+      taskName: metrics[0],
+    });
+    return;
+  }
 
-  scheduleMetrics(metrics, {
+  const metrics = [
+    ...buildFailedRequestMetricKeys("cron_job", reasonCode),
+    ...buildLatencyBucketMetricKeys("cron_job", durationMs, "failure"),
+  ];
+
+  scheduleLowValueAnalyticsBatch(metrics, {
     endpoint: "Cron Job",
     request,
     taskName: metrics[0],
@@ -474,157 +740,20 @@ export async function POST(request: Request) {
       request,
     );
 
-    let successfulUpdates = 0;
-    let failedUpdates = 0;
-    let removedUsers = 0;
-
-    await Promise.all(
-      batch.map(async ({ id }) => {
-        let stage: CronUserRefreshStage = "fetch_user_data_parts";
-        let trackedUserId = id;
-        const updateAbortController = new AbortController();
-        let updateResultPromise: Promise<UpdateResult> | null = null;
-
-        const getUpdateResultPromise = () => {
-          // Avoid spending AniList budget on records that already fail local
-          // bootstrap validation before we even know whether the stored entry is
-          // readable enough to refresh.
-          updateResultPromise ??= updateUserStats(
-            trackedUserId,
-            request,
-            updateAbortController.signal,
-          );
-
-          return updateResultPromise;
-        };
-
-        try {
-          // Meta is enough to identify the stored user and log context. The
-          // full split record is only needed when we actually have fresh stats
-          // to persist, so defer the heavier Redis read until success.
-          const metaParts = await fetchUserDataParts(
-            id,
-            [...USER_BOOTSTRAP_DATA_PARTS],
-            {
-              triggerSource: "cron_refresh",
-            },
-          );
-          const meta = metaParts.meta as
-            | { userId?: string; username?: string }
-            | undefined;
-
-          if (!meta) {
-            throw new Error("Stored user metadata is missing");
-          }
-
-          trackedUserId =
-            typeof meta.userId === "string" && meta.userId.length > 0
-              ? meta.userId
-              : id;
-
-          logPrivacySafe(
-            "log",
-            endpoint,
-            "Starting scheduled user refresh",
-            {
-              userId: trackedUserId,
-              username:
-                typeof meta.username === "string" && meta.username.length > 0
-                  ? meta.username
-                  : "no username",
-            },
-            request,
-          );
-
-          stage = "refresh_user_stats";
-          const updateResult = await getUpdateResultPromise();
-
-          if (updateResult.success) {
-            stage = "fetch_user_data_parts";
-            const remainingParts = await fetchUserDataParts(
-              trackedUserId,
-              [...USER_REFRESH_DEFERRED_DATA_PARTS],
-              {
-                audit: false,
-                triggerSource: "cron_refresh",
-              },
-            );
-
-            stage = "reconstruct_user_record";
-            const user = reconstructUserRecord({
-              ...remainingParts,
-              meta: metaParts.meta,
-            });
-            trackedUserId = user.userId || trackedUserId;
-            user.stats = updateResult.statsData;
-
-            stage = "normalize_user_record";
-            const normalizationResult = validateAndNormalizeUserRecord(user);
-            const finalUser =
-              "normalized" in normalizationResult
-                ? normalizationResult.normalized
-                : user;
-
-            finalUser.updatedAt = new Date().toISOString();
-
-            stage = "save_user_record";
-            await saveUserRecord(finalUser, {
-              triggerSource: "cron_refresh",
-            });
-
-            logPrivacySafe(
-              "log",
-              endpoint,
-              "Successfully refreshed stored user",
-              { userId: trackedUserId },
-              request,
-            );
-            successfulUpdates++;
-
-            stage = "clear_failure_tracking";
-            await clearFailureTracking(redisClient, trackedUserId);
-          } else {
-            failedUpdates++;
-
-            if (updateResult.is404Error) {
-              stage = "handle_failure_tracking";
-              const wasRemoved = await handleFailureTracking(
-                redisClient,
-                trackedUserId,
-                request,
-              );
-              if (wasRemoved) {
-                removedUsers++;
-              }
-            }
-          }
-        } catch (error) {
-          failedUpdates++;
-
-          if (stage === "fetch_user_data_parts" && updateResultPromise) {
-            const pendingUpdateResultPromise: Promise<UpdateResult> =
-              updateResultPromise;
-
-            updateAbortController.abort(
-              new Error(
-                "Aborted scheduled refresh after local user-data loading failed",
-              ),
-            );
-            await pendingUpdateResultPromise.catch(() => undefined);
-          }
-
-          await reportCronUserRefreshError({
-            endpoint,
-            error,
-            operationId,
-            request,
-            requestId,
-            stage,
-            userId: trackedUserId,
-          });
-        }
-      }),
+    const batchResults = await Promise.all(
+      batch.map(({ id }) =>
+        processScheduledUserRefresh({
+          id,
+          endpoint,
+          operationId,
+          request,
+          requestId,
+        }),
+      ),
     );
+
+    const { successfulUpdates, failedUpdates, removedUsers } =
+      aggregateCronRefreshBatchCounts(batchResults);
 
     logPrivacySafe(
       "log",
