@@ -255,6 +255,60 @@ function getEvalSaveConflictResult(options: {
   return null;
 }
 
+function getEvalStoreCardsExpectedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function resolveEvalCurrentStoreCardsRawRecord(options: {
+  fetchedCurrentRawRecord: unknown;
+  expectedSerializedCurrent?: string;
+}): unknown {
+  return (options.fetchedCurrentRawRecord === undefined ||
+    options.fetchedCurrentRawRecord === null) &&
+    options.expectedSerializedCurrent
+    ? options.expectedSerializedCurrent
+    : options.fetchedCurrentRawRecord;
+}
+
+function getEvalStoreCardsCurrentUpdatedAt(
+  currentRawRecord: unknown,
+): string | undefined {
+  return typeof currentRawRecord === "string"
+    ? (parseEvalJsonRecord(currentRawRecord)?.updatedAt as string | undefined)
+    : undefined;
+}
+
+function getEvalStoreCardsCurrentVersion(
+  currentRawRecord: unknown,
+): number | undefined {
+  return typeof currentRawRecord === "string"
+    ? (parseEvalJsonRecord(currentRawRecord)?.version as number | undefined)
+    : undefined;
+}
+
+function buildEvalStoreCardsConflictResult(
+  currentRawRecord: unknown,
+): unknown[] {
+  return [0, getEvalStoreCardsCurrentUpdatedAt(currentRawRecord)];
+}
+
+function buildEvalStoreCardsMetaRecord(options: {
+  nextRecord: Record<string, unknown>;
+  nextVersion: number;
+  userSnapshot: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    userId: options.nextRecord.userId,
+    updatedAt: options.nextRecord.updatedAt,
+    version: options.nextVersion,
+    ...(typeof options.nextRecord.schemaVersion === "number" &&
+    options.nextRecord.schemaVersion > 0
+      ? { schemaVersion: options.nextRecord.schemaVersion }
+      : {}),
+    userSnapshot: options.userSnapshot,
+  };
+}
+
 function buildEvalStoredCardsUserSnapshotFromRecord(options: {
   record: Record<string, unknown> | null;
   tokenKey?: string;
@@ -806,22 +860,16 @@ async function emulateAtomicStoreCardsEval(
   }
 
   const expectedUpdatedAt =
-    typeof rawExpectedUpdatedAt === "string" && rawExpectedUpdatedAt.length > 0
-      ? rawExpectedUpdatedAt
-      : undefined;
-  const expectedSerializedCurrent =
-    typeof rawExpectedSerializedCurrent === "string" &&
-    rawExpectedSerializedCurrent.length > 0
-      ? rawExpectedSerializedCurrent
-      : undefined;
+    getEvalStoreCardsExpectedString(rawExpectedUpdatedAt);
+  const expectedSerializedCurrent = getEvalStoreCardsExpectedString(
+    rawExpectedSerializedCurrent,
+  );
 
   const fetchedCurrentRawRecord = await sharedRedisMockGet(cardsKey);
-  const currentRawRecord =
-    (fetchedCurrentRawRecord === undefined ||
-      fetchedCurrentRawRecord === null) &&
-    expectedSerializedCurrent
-      ? expectedSerializedCurrent
-      : fetchedCurrentRawRecord;
+  const currentRawRecord = resolveEvalCurrentStoreCardsRawRecord({
+    fetchedCurrentRawRecord,
+    expectedSerializedCurrent,
+  });
 
   if (!currentRawRecord && expectedSerializedCurrent) {
     return [0];
@@ -832,25 +880,12 @@ async function emulateAtomicStoreCardsEval(
     typeof currentRawRecord === "string" &&
     currentRawRecord !== expectedSerializedCurrent
   ) {
-    const currentRecord = parseEvalJsonRecord(currentRawRecord);
-    const currentUpdatedAt =
-      typeof currentRecord?.updatedAt === "string"
-        ? currentRecord.updatedAt
-        : undefined;
-
-    return [0, currentUpdatedAt];
+    return buildEvalStoreCardsConflictResult(currentRawRecord);
   }
 
-  if (expectedUpdatedAt) {
-    const currentRecord = parseEvalJsonRecord(currentRawRecord);
-    const currentUpdatedAt =
-      typeof currentRecord?.updatedAt === "string"
-        ? currentRecord.updatedAt
-        : undefined;
-
-    if (currentUpdatedAt !== expectedUpdatedAt) {
-      return [0, currentUpdatedAt];
-    }
+  const currentUpdatedAt = getEvalStoreCardsCurrentUpdatedAt(currentRawRecord);
+  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    return buildEvalStoreCardsConflictResult(currentRawRecord);
   }
 
   const nextRecord = parseEvalJsonRecord(rawSerializedCardData);
@@ -875,10 +910,7 @@ async function emulateAtomicStoreCardsEval(
     return [2];
   }
 
-  const currentVersion =
-    typeof currentRawRecord === "string"
-      ? (parseEvalJsonRecord(currentRawRecord)?.version as number | undefined)
-      : undefined;
+  const currentVersion = getEvalStoreCardsCurrentVersion(currentRawRecord);
   const nextVersion =
     typeof currentVersion === "number" && currentVersion > 0
       ? currentVersion + 1
@@ -891,16 +923,13 @@ async function emulateAtomicStoreCardsEval(
   if (typeof cardsMetaKey === "string") {
     await sharedRedisMockSet(
       cardsMetaKey,
-      JSON.stringify({
-        userId: nextRecord.userId,
-        updatedAt: nextRecord.updatedAt,
-        version: nextVersion,
-        ...(typeof nextRecord.schemaVersion === "number" &&
-        nextRecord.schemaVersion > 0
-          ? { schemaVersion: nextRecord.schemaVersion }
-          : {}),
-        userSnapshot,
-      }),
+      JSON.stringify(
+        buildEvalStoreCardsMetaRecord({
+          nextRecord,
+          nextVersion,
+          userSnapshot,
+        }),
+      ),
     );
   }
 

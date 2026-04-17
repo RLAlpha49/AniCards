@@ -260,7 +260,7 @@ function normalizeComparableUsername(
   value: string | null | undefined,
 ): string | undefined {
   const normalized = value?.trim().toLowerCase();
-  return normalized ? normalized : undefined;
+  return normalized || undefined;
 }
 
 function resolveAuthoritativeStoreUsersUsername(params: {
@@ -268,7 +268,7 @@ function resolveAuthoritativeStoreUsersUsername(params: {
   request: Request;
   grant: {
     source: string;
-    username?: string | null | undefined;
+    username?: string | null;
   };
   authoritativeUsernameFromStats?: string;
   requestedUsername?: string;

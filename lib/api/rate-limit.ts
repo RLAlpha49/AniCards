@@ -51,7 +51,7 @@ type ResolvedRateLimitRequest =
       ip?: never;
     }
   | {
-      response?: undefined;
+      response?: never;
       effectiveLimiter: Ratelimit;
       ip: string;
     };
@@ -62,7 +62,7 @@ type RateLimitAttempt =
       result?: never;
     }
   | {
-      response?: undefined;
+      response?: never;
       result: RateLimitCheckResult;
     };
 

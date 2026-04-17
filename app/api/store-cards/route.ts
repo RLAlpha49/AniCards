@@ -1336,6 +1336,54 @@ function normalizeStoreCardsAtomicStatus(value: unknown): number | undefined {
   return undefined;
 }
 
+function parseStoreCardsAtomicString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function parseStoreCardsAtomicUserSnapshot(
+  result: unknown[],
+): Required<NonNullable<CardsRecord["userSnapshot"]>> | undefined {
+  const snapshotToken = parseStoreCardsAtomicString(result[3]);
+  const snapshotRevision = normalizeStoreCardsAtomicStatus(result[4]);
+  const snapshotUpdatedAt = parseStoreCardsAtomicString(result[5]);
+  const snapshotCommittedAt = parseStoreCardsAtomicString(result[6]);
+
+  if (
+    !snapshotToken ||
+    typeof snapshotRevision !== "number" ||
+    snapshotRevision <= 0 ||
+    !snapshotUpdatedAt ||
+    !snapshotCommittedAt
+  ) {
+    return undefined;
+  }
+
+  return {
+    token: snapshotToken,
+    revision: snapshotRevision,
+    updatedAt: snapshotUpdatedAt,
+    committedAt: snapshotCommittedAt,
+  };
+}
+
+function parseStoreCardsSuccessfulAtomicWriteResult(
+  result: unknown[],
+): SuccessfulStoreCardsAtomicWriteResult {
+  const userSnapshot = parseStoreCardsAtomicUserSnapshot(result);
+
+  return {
+    didWrite: true,
+    updatedAt: parseStoreCardsAtomicString(result[1]),
+    ...(userSnapshot ? { userSnapshot } : {}),
+  };
+}
+
+function createUnexpectedStoreCardsAtomicWriteError(): never {
+  throw new Error(
+    "Unexpected result from store-cards optimistic concurrency script",
+  );
+}
+
 function parseStoreCardsAtomicWriteResult(
   result: unknown,
 ): StoreCardsAtomicWriteResult {
@@ -1344,54 +1392,19 @@ function parseStoreCardsAtomicWriteResult(
       return { didWrite: true };
     }
 
-    throw new Error(
-      "Unexpected result from store-cards optimistic concurrency script",
-    );
+    createUnexpectedStoreCardsAtomicWriteError();
   }
 
   const status = normalizeStoreCardsAtomicStatus(result[0]);
   if (status === 1) {
-    const snapshotToken = result[3];
-    const snapshotRevision = normalizeStoreCardsAtomicStatus(result[4]);
-    const snapshotUpdatedAt = result[5];
-    const snapshotCommittedAt = result[6];
-
-    const userSnapshot =
-      typeof snapshotToken === "string" &&
-      snapshotToken.length > 0 &&
-      typeof snapshotUpdatedAt === "string" &&
-      snapshotUpdatedAt.length > 0 &&
-      typeof snapshotCommittedAt === "string" &&
-      snapshotCommittedAt.length > 0 &&
-      typeof snapshotRevision === "number" &&
-      snapshotRevision > 0
-        ? {
-            token: snapshotToken,
-            revision: snapshotRevision,
-            updatedAt: snapshotUpdatedAt,
-            committedAt: snapshotCommittedAt,
-          }
-        : undefined;
-
-    return {
-      didWrite: true,
-      updatedAt:
-        typeof result[1] === "string" && result[1].length > 0
-          ? result[1]
-          : undefined,
-      ...(userSnapshot ? { userSnapshot } : {}),
-    };
+    return parseStoreCardsSuccessfulAtomicWriteResult(result);
   }
 
-  const currentUpdatedAt = result[1];
   if (status === 0) {
     return {
       didWrite: false,
       reason: "conflict",
-      currentUpdatedAt:
-        typeof currentUpdatedAt === "string" && currentUpdatedAt.length > 0
-          ? currentUpdatedAt
-          : undefined,
+      currentUpdatedAt: parseStoreCardsAtomicString(result[1]),
     };
   }
 
@@ -1402,9 +1415,7 @@ function parseStoreCardsAtomicWriteResult(
     };
   }
 
-  throw new Error(
-    "Unexpected result from store-cards optimistic concurrency script",
-  );
+  createUnexpectedStoreCardsAtomicWriteError();
 }
 
 async function storeCardsRecord(params: {

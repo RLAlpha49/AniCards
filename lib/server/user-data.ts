@@ -3373,46 +3373,54 @@ function normalizeScriptStatus(value: unknown): number | undefined {
   return undefined;
 }
 
+function parseSaveUserRecordScriptString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function createUnexpectedSaveUserRecordScriptResultError(
+  userId: string,
+): never {
+  throw new UserDataIntegrityError(
+    userId,
+    "Unexpected result from saveUserRecord atomic write",
+  );
+}
+
+function parseSuccessfulSaveUserRecordScriptResult(
+  userId: string,
+  result: unknown[],
+): SaveUserRecordScriptResult {
+  const updatedAt = parseSaveUserRecordScriptString(result[1]);
+  const revision = normalizeScriptStatus(result[2]);
+  const snapshotToken = parseSaveUserRecordScriptString(result[3]);
+
+  if (!updatedAt || !revision || !snapshotToken) {
+    createUnexpectedSaveUserRecordScriptResultError(userId);
+  }
+
+  return {
+    didWrite: true,
+    updatedAt,
+    revision,
+    snapshotToken,
+  };
+}
+
 function parseSaveUserRecordScriptResult(
   userId: string,
   result: unknown,
 ): SaveUserRecordScriptResult {
   if (!Array.isArray(result)) {
-    throw new UserDataIntegrityError(
-      userId,
-      "Unexpected result from saveUserRecord atomic write",
-    );
+    createUnexpectedSaveUserRecordScriptResultError(userId);
   }
 
   const status = normalizeScriptStatus(result[0]);
   if (status === 1) {
-    const updatedAt =
-      typeof result[1] === "string" && result[1].length > 0 ? result[1] : "";
-    const revision = normalizeScriptStatus(result[2]);
-    const snapshotToken =
-      typeof result[3] === "string" && result[3].length > 0 ? result[3] : "";
-
-    if (!updatedAt || !revision || !snapshotToken) {
-      throw new UserDataIntegrityError(
-        userId,
-        "Unexpected result from saveUserRecord atomic write",
-      );
-    }
-
-    return {
-      didWrite: true,
-      updatedAt,
-      revision,
-      snapshotToken,
-    };
+    return parseSuccessfulSaveUserRecordScriptResult(userId, result);
   }
 
   if (status === 0) {
     const currentRevision = normalizeScriptStatus(result[2]);
-    const currentSnapshotToken =
-      typeof result[3] === "string" && result[3].length > 0
-        ? result[3]
-        : undefined;
 
     return {
       didWrite: false,
@@ -3421,11 +3429,8 @@ function parseSaveUserRecordScriptResult(
         typeof currentRevision === "number" && currentRevision > 0
           ? currentRevision
           : undefined,
-      currentSnapshotToken,
-      currentUpdatedAt:
-        typeof result[1] === "string" && result[1].length > 0
-          ? result[1]
-          : undefined,
+      currentSnapshotToken: parseSaveUserRecordScriptString(result[3]),
+      currentUpdatedAt: parseSaveUserRecordScriptString(result[1]),
     };
   }
 
@@ -3433,17 +3438,11 @@ function parseSaveUserRecordScriptResult(
     return {
       didWrite: false,
       reason: "username_conflict",
-      conflictingUserId:
-        typeof result[1] === "string" && result[1].length > 0
-          ? result[1]
-          : undefined,
+      conflictingUserId: parseSaveUserRecordScriptString(result[1]),
     };
   }
 
-  throw new UserDataIntegrityError(
-    userId,
-    "Unexpected result from saveUserRecord atomic write",
-  );
+  createUnexpectedSaveUserRecordScriptResultError(userId);
 }
 
 function parseScriptStringArray(

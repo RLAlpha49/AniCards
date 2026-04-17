@@ -46,7 +46,7 @@ const compareAlphabetically = (left: string, right: string) =>
 
 function getRequiredString(value: unknown, errorMessage: string): string {
   if (typeof value !== "string") {
-    throw new Error(errorMessage);
+    throw new TypeError(errorMessage);
   }
 
   return value;
