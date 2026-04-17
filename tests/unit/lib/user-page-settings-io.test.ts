@@ -67,7 +67,7 @@ function createCardConfig(
   cardId: string,
   overrides: Partial<CardEditorConfig> = {},
 ): CardEditorConfig {
-  return {
+  const cardConfig: CardEditorConfig = {
     cardId,
     enabled: overrides.enabled ?? true,
     variant: overrides.variant ?? "default",
@@ -75,13 +75,17 @@ function createCardConfig(
       useCustomSettings: false,
     },
     advancedSettings: overrides.advancedSettings ?? {},
-    ...(overrides.borderColor !== undefined
-      ? { borderColor: overrides.borderColor }
-      : {}),
-    ...(overrides.borderRadius !== undefined
-      ? { borderRadius: overrides.borderRadius }
-      : {}),
   };
+
+  if (overrides.borderColor !== undefined) {
+    cardConfig.borderColor = overrides.borderColor;
+  }
+
+  if (overrides.borderRadius !== undefined) {
+    cardConfig.borderRadius = overrides.borderRadius;
+  }
+
+  return cardConfig;
 }
 
 function expectIsoTimestamp(value: string) {

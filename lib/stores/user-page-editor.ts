@@ -97,6 +97,17 @@ export type SettingsTemplateMutationResult =
   | { ok: true }
   | { ok: false; error: string };
 
+type InitializeFromServerDataArgs = [
+  userId: string,
+  username: string | null,
+  avatarUrl: string | null,
+  cards: ServerCardData[],
+  globalSettings?: ServerGlobalSettings,
+  allCardIds?: readonly string[],
+  serverUpdatedAt?: string | null,
+  cardOrder?: readonly string[],
+];
+
 type DirtyCardIdMap = Record<string, true>;
 
 type DirtyTrackerState = {
@@ -463,16 +474,7 @@ export interface UserPageEditorActions {
    */
   applyLocalEditsPatch: (patch: LocalEditsPatch) => void;
 
-  initializeFromServerData: (
-    userId: string,
-    username: string | null,
-    avatarUrl: string | null,
-    cards: ServerCardData[],
-    globalSettings?: ServerGlobalSettings,
-    allCardIds?: readonly string[],
-    serverUpdatedAt?: string | null,
-    cardOrder?: readonly string[],
-  ) => void;
+  initializeFromServerData: (...args: InitializeFromServerDataArgs) => void;
 
   // Reset store
   reset: () => void;
@@ -940,13 +942,21 @@ function extractGlobalSettings(firstCard: ServerCardData): {
  * Converts a server card to an editor config.
  * @source
  */
-function serverCardToEditorConfig(
-  card: ServerCardData,
-  globalPreset: string,
-  globalColors: ColorValue[],
-  globalBorderColor: string,
-  globalBorderRadius: number,
-): CardEditorConfig {
+function serverCardToEditorConfig(options: {
+  card: ServerCardData;
+  globalPreset: string;
+  globalColors: ColorValue[];
+  globalBorderColor: string;
+  globalBorderRadius: number;
+}): CardEditorConfig {
+  const {
+    card,
+    globalPreset,
+    globalColors,
+    globalBorderColor,
+    globalBorderRadius,
+  } = options;
+
   // If useCustomSettings is explicitly set from server, use that value
   // Otherwise, fall back to heuristic detection for backwards compatibility
   let hasCustomColors: boolean;
@@ -1128,13 +1138,13 @@ function processServerCards(
   const cardConfigs: Record<string, CardEditorConfig> = {};
 
   for (const card of cards) {
-    cardConfigs[card.cardName] = serverCardToEditorConfig(
+    cardConfigs[card.cardName] = serverCardToEditorConfig({
       card,
       globalPreset,
       globalColors,
       globalBorderColor,
       globalBorderRadius,
-    );
+    });
   }
 
   const globalAdvancedSettings: CardAdvancedSettings = {
@@ -2257,16 +2267,18 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           });
         },
 
-        initializeFromServerData: (
-          userId,
-          username,
-          avatarUrl,
-          cards,
-          globalSettings,
-          allCardIds,
-          serverUpdatedAt,
-          cardOrder,
-        ) => {
+        initializeFromServerData: (...args: InitializeFromServerDataArgs) => {
+          const [
+            userId,
+            username,
+            avatarUrl,
+            cards,
+            globalSettings,
+            allCardIds,
+            serverUpdatedAt,
+            cardOrder,
+          ] = args;
+
           const result = processServerCards(cards, globalSettings);
           const seededCardConfigs = seedMissingCardConfigs(
             result.cardConfigs,

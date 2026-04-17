@@ -683,6 +683,27 @@ function buildUserPayloadCompletenessFromParts(
   };
 }
 
+function normalizeBoundedSections(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalizedSections = new Set<string>();
+
+  value.forEach((section) => {
+    if (typeof section !== "string") {
+      return;
+    }
+
+    const trimmed = section.trim();
+    if (trimmed.length > 0) {
+      normalizedSections.add(trimmed);
+    }
+  });
+
+  return Array.from(normalizedSections);
+}
+
 function normalizeUserPayloadCompleteness(
   value: unknown,
 ): UserPayloadCompleteness | undefined {
@@ -697,20 +718,7 @@ function normalizeUserPayloadCompleteness(
   const explicitMissingAggregates = normalizeUserAggregateKeyArray(
     value.missingAggregates,
   );
-  const boundedSections = Array.isArray(value.boundedSections)
-    ? Array.from(
-        new Set(
-          value.boundedSections.flatMap((section) => {
-            if (typeof section !== "string") {
-              return [];
-            }
-
-            const trimmed = section.trim();
-            return trimmed.length > 0 ? [trimmed] : [];
-          }),
-        ),
-      )
-    : [];
+  const boundedSections = normalizeBoundedSections(value.boundedSections);
 
   return {
     sampled: value.sampled !== false,
@@ -902,25 +910,36 @@ async function rewriteUserLifecycleAuditEntries(
   }
 }
 
+function collectRetainedUserLifecycleAuditEntries(
+  currentEntries: unknown[],
+  now: number,
+): StoredUserLifecycleAuditEntry[] {
+  const retainedEntries: StoredUserLifecycleAuditEntry[] = [];
+
+  currentEntries.forEach((value) => {
+    const parsedEntry = toStoredUserLifecycleAuditEntry(value);
+    if (!parsedEntry) {
+      return;
+    }
+
+    if (
+      isUserLifecycleAuditEntryWithinRetentionWindow(parsedEntry.entry, now)
+    ) {
+      retainedEntries.push(parsedEntry);
+    }
+  });
+
+  return retainedEntries;
+}
+
 async function pruneUserLifecycleAuditEntries(): Promise<void> {
   const rawEntries = await redisClient.lrange(USER_LIFECYCLE_AUDIT_KEY, 0, -1);
   const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
   const now = Date.now();
-  const nextEntries = currentEntries
-    .flatMap((value) => {
-      const parsedEntry = toStoredUserLifecycleAuditEntry(value);
-      if (!parsedEntry) {
-        return [];
-      }
-
-      return isUserLifecycleAuditEntryWithinRetentionWindow(
-        parsedEntry.entry,
-        now,
-      )
-        ? [parsedEntry]
-        : [];
-    })
-    .slice(-MAX_USER_LIFECYCLE_AUDIT_EVENTS);
+  const nextEntries = collectRetainedUserLifecycleAuditEntries(
+    currentEntries,
+    now,
+  ).slice(-MAX_USER_LIFECYCLE_AUDIT_EVENTS);
 
   if (shouldRewriteUserLifecycleAuditEntries(currentEntries, nextEntries)) {
     await rewriteUserLifecycleAuditEntries(nextEntries);

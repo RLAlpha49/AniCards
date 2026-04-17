@@ -643,6 +643,79 @@ function parseWorkspaceBackupExitSaveFallback(
   };
 }
 
+function parseWorkspaceBackupWorkspace(
+  value: unknown,
+):
+  | { ok: true; value: UserPageWorkspaceBackupV1["workspace"] }
+  | { ok: false; error: string } {
+  if (!isPlainObject(value)) {
+    return { ok: false, error: "Invalid workspace backup payload." };
+  }
+
+  const global = parseSettingsSnapshot(value.global);
+  if (!global) {
+    return { ok: false, error: "Invalid workspace global settings payload." };
+  }
+
+  const cardConfigs = parseCardConfigsRecord(value.cardConfigs);
+  if (!cardConfigs) {
+    return { ok: false, error: "Invalid workspace card configs payload." };
+  }
+
+  const cardOrder = parseCardOrder(value.cardOrder);
+  if (!cardOrder) {
+    return { ok: false, error: "Invalid workspace card order payload." };
+  }
+
+  return {
+    ok: true,
+    value: {
+      global,
+      cardConfigs: sortCardConfigsRecord(cardConfigs),
+      cardOrder,
+    },
+  };
+}
+
+function parseWorkspaceBackupEditorState(
+  value: unknown,
+):
+  | { ok: true; value: UserPageWorkspaceBackupV1["editorState"] }
+  | { ok: false; error: string } {
+  if (!isPlainObject(value)) {
+    return { ok: false, error: "Invalid workspace editor state payload." };
+  }
+
+  const templates = parseTemplatesPayload(value.templates);
+  if (!templates) {
+    return { ok: false, error: "Invalid workspace templates payload." };
+  }
+
+  const draft = parseWorkspaceBackupDraft(value.draft);
+  if (value.draft !== undefined && !draft) {
+    return { ok: false, error: "Invalid workspace draft payload." };
+  }
+
+  const exitSaveFallback = parseWorkspaceBackupExitSaveFallback(
+    value.exitSaveFallback,
+  );
+  if (value.exitSaveFallback !== undefined && !exitSaveFallback) {
+    return {
+      ok: false,
+      error: "Invalid workspace exit-save fallback payload.",
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      templates: sortTemplatesForBackup(templates),
+      ...(draft ? { draft } : {}),
+      ...(exitSaveFallback ? { exitSaveFallback } : {}),
+    },
+  };
+}
+
 function parseWorkspaceBackupObject(
   parsed: unknown,
 ):
@@ -666,47 +739,14 @@ function parseWorkspaceBackupObject(
     };
   }
 
-  if (!isPlainObject(parsed.workspace)) {
-    return { ok: false, error: "Invalid workspace backup payload." };
+  const workspaceResult = parseWorkspaceBackupWorkspace(parsed.workspace);
+  if (!workspaceResult.ok) {
+    return workspaceResult;
   }
 
-  const global = parseSettingsSnapshot(parsed.workspace.global);
-  if (!global) {
-    return { ok: false, error: "Invalid workspace global settings payload." };
-  }
-
-  const cardConfigs = parseCardConfigsRecord(parsed.workspace.cardConfigs);
-  if (!cardConfigs) {
-    return { ok: false, error: "Invalid workspace card configs payload." };
-  }
-
-  const cardOrder = parseCardOrder(parsed.workspace.cardOrder);
-  if (!cardOrder) {
-    return { ok: false, error: "Invalid workspace card order payload." };
-  }
-
-  if (!isPlainObject(parsed.editorState)) {
-    return { ok: false, error: "Invalid workspace editor state payload." };
-  }
-
-  const templates = parseTemplatesPayload(parsed.editorState.templates);
-  if (!templates) {
-    return { ok: false, error: "Invalid workspace templates payload." };
-  }
-
-  const draft = parseWorkspaceBackupDraft(parsed.editorState.draft);
-  if (parsed.editorState.draft !== undefined && !draft) {
-    return { ok: false, error: "Invalid workspace draft payload." };
-  }
-
-  const exitSaveFallback = parseWorkspaceBackupExitSaveFallback(
-    parsed.editorState.exitSaveFallback,
-  );
-  if (parsed.editorState.exitSaveFallback !== undefined && !exitSaveFallback) {
-    return {
-      ok: false,
-      error: "Invalid workspace exit-save fallback payload.",
-    };
+  const editorStateResult = parseWorkspaceBackupEditorState(parsed.editorState);
+  if (!editorStateResult.ok) {
+    return editorStateResult;
   }
 
   const exportedAt =
@@ -725,16 +765,8 @@ function parseWorkspaceBackupObject(
       exportedAt,
       ...(userId ? { userId } : {}),
       ...(username ? { username } : {}),
-      workspace: {
-        global,
-        cardConfigs: sortCardConfigsRecord(cardConfigs),
-        cardOrder,
-      },
-      editorState: {
-        templates: sortTemplatesForBackup(templates),
-        ...(draft ? { draft } : {}),
-        ...(exitSaveFallback ? { exitSaveFallback } : {}),
-      },
+      workspace: workspaceResult.value,
+      editorState: editorStateResult.value,
     },
   };
 }

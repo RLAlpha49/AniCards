@@ -19,8 +19,7 @@ function blockLocalStorageWrites() {
 
   Object.defineProperty(storage, "setItem", {
     configurable: true,
-    value: ((...args: Parameters<typeof storage.setItem>) => {
-      void args;
+    value: ((..._args: Parameters<typeof storage.setItem>) => {
       throw new Error("localStorage write blocked");
     }) as typeof storage.setItem,
   });

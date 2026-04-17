@@ -58,6 +58,9 @@ if (!NON_DEFAULT_PRESET) {
   throw new Error("Expected at least one non-default color preset.");
 }
 
+const compareAlphabetically = (left: string, right: string) =>
+  left.localeCompare(right);
+
 const originalDateNow = Date.now;
 const originalCrypto = globalThis.crypto;
 
@@ -459,7 +462,7 @@ describe("user-page-editor store direct coverage", () => {
     );
 
     expect(result.applied).toEqual(["animeStats"]);
-    expect(result.skipped.sort()).toEqual([
+    expect(result.skipped.sort(compareAlphabetically)).toEqual([
       "animeStatusDistribution",
       "profileOverview",
     ]);
@@ -522,8 +525,8 @@ describe("user-page-editor store direct coverage", () => {
 
     state.enableAllCards();
     state.selectAllEnabled();
-    expect([...getState().selectedCardIds].sort()).toEqual(
-      [...TEST_CARD_IDS].sort(),
+    expect([...getState().selectedCardIds].sort(compareAlphabetically)).toEqual(
+      [...TEST_CARD_IDS].sort(compareAlphabetically),
     );
 
     state.disableAllCards();
@@ -532,10 +535,9 @@ describe("user-page-editor store direct coverage", () => {
     ).toBe(true);
 
     state.selectCardsByGroup("Core Stats");
-    expect([...getState().selectedCardIds].sort()).toEqual([
-      "animeStats",
-      "profileOverview",
-    ]);
+    expect([...getState().selectedCardIds].sort(compareAlphabetically)).toEqual(
+      ["animeStats", "profileOverview"],
+    );
 
     state.selectCardsByGroup("All");
     expect(getState().selectedCardIds.size).toBe(TEST_CARD_IDS.length);
@@ -544,7 +546,7 @@ describe("user-page-editor store direct coverage", () => {
       ["animeStats", "profileOverview"],
       NON_DEFAULT_PRESET,
     );
-    expect(presetResult.applied.sort()).toEqual([
+    expect(presetResult.applied.sort(compareAlphabetically)).toEqual([
       "animeStats",
       "profileOverview",
     ]);

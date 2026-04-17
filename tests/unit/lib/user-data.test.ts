@@ -4,6 +4,7 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,
+  getStringValue,
   installStatefulRedisEvalHarness,
   sharedRedisMockDel,
   sharedRedisMockEval,
@@ -39,6 +40,9 @@ const {
   UserDataIntegrityError,
   UserRecordUsernameConflictError,
 } = await import("@/lib/server/user-data");
+
+const compareAlphabetically = (left: string, right: string) =>
+  left.localeCompare(right);
 
 function createPersistedUserRecord(
   overrides: Partial<
@@ -304,7 +308,7 @@ describe("user-data persistence", () => {
     const userScopedSetKeys = sharedRedisMockSet.mock.calls
       .map((call) => String(call[0]))
       .filter((key) => key.startsWith("user:5:") && !key.includes(":snapshot:"))
-      .sort();
+      .sort(compareAlphabetically);
 
     expect(userScopedSetKeys).toEqual([
       "user:5:activity",
@@ -1315,7 +1319,7 @@ describe("user-data persistence", () => {
 
   it("incrementally repairs missing stale-user index members when the registry outgrows the sorted set", async () => {
     sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
-      const key = String(args[0] ?? "");
+      const key = getStringValue(args[0]);
 
       if (key === "users:known-ids") {
         return ["9", "5", "7"];
@@ -1380,7 +1384,7 @@ describe("user-data persistence", () => {
     const trackedUserIds = [indexedUserId, ...repairedUserIds];
 
     sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
-      const key = String(args[0] ?? "");
+      const key = getStringValue(args[0]);
 
       if (key === "users:known-ids") {
         return trackedUserIds;
@@ -1438,9 +1442,11 @@ describe("user-data persistence", () => {
     });
 
     expect(repairedMembers).toHaveLength(repairedUserIds.length);
-    expect(repairedMembers).toContain(
-      repairedUserIds[repairedUserIds.length - 1],
-    );
+    const lastRepairedUserId = repairedUserIds.at(-1);
+    if (!lastRepairedUserId) {
+      throw new Error("Expected at least one repaired user id.");
+    }
+    expect(repairedMembers).toContain(lastRepairedUserId);
     expect(sharedRedisMockZrange).toHaveBeenNthCalledWith(
       1,
       "users:stale-by-updated-at",
