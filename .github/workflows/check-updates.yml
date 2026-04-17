@@ -105,7 +105,7 @@ jobs:
               printf '%s\n' "No dependency updates found."
             fi
             printf '%s\n' '```'
-            printf '%s\n' 'Automatic package.json updates now track the latest published versions. Major releases are still surfaced separately as report-only backlog.'
+            printf '%s\n' 'Automatic package.json updates track the latest published versions through the validated refresh path.'
           } >> "$GITHUB_STEP_SUMMARY"
 
           {
@@ -122,97 +122,6 @@ jobs:
             echo "[INFO] No package updates found"
             printf '%s\n' "has_manifest_updates=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Report major-version backlog
-        id: major-backlog
-        env:
-          UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
-        run: |
-          set -euo pipefail
-          export PACKAGE_JSON_PATH="$GITHUB_WORKSPACE/package.json"
-          export MAJOR_SUMMARY_PATH="$RUNNER_TEMP/major-update-backlog.md"
-
-          node <<'NODE'
-          const fs = require("node:fs");
-
-          const packageJson = JSON.parse(
-            fs.readFileSync(process.env.PACKAGE_JSON_PATH, "utf8"),
-          );
-          const latestUpdateInfo = JSON.parse(process.env.UPDATE_INFO || "{}");
-          const currentRanges = {
-            ...(packageJson.dependencies ?? {}),
-            ...(packageJson.devDependencies ?? {}),
-            ...(packageJson.optionalDependencies ?? {}),
-            ...(packageJson.peerDependencies ?? {}),
-          };
-          const parseMajor = (value) => {
-            const match = String(value ?? "").match(/(\d+)(?:\.\d+)?(?:\.\d+)?/);
-            return match ? Number.parseInt(match[1], 10) : null;
-          };
-
-          const majorBacklogEntries = Object.entries(latestUpdateInfo)
-            .map(([packageName, latestCandidate]) => {
-              const currentRange = currentRanges[packageName];
-              if (!currentRange) {
-                return null;
-              }
-
-              const currentMajor = parseMajor(currentRange);
-              const latestMajor = parseMajor(latestCandidate);
-              if (currentMajor === null || latestMajor === null || latestMajor <= currentMajor) {
-                return null;
-              }
-
-              return [
-                packageName,
-                {
-                  currentRange,
-                  latestCandidate,
-                },
-              ];
-            })
-            .filter(Boolean)
-            .sort(([leftName], [rightName]) => leftName.localeCompare(rightName));
-
-          const summaryLines =
-            majorBacklogEntries.length === 0
-              ? ["No report-only major version backlog detected."]
-              : [
-                  "| Package | Current range | Latest candidate |",
-                  "| --- | --- | --- |",
-                  ...majorBacklogEntries.map(
-                    ([packageName, versionInfo]) =>
-                      `| \`${packageName}\` | \`${versionInfo.currentRange}\` | \`${versionInfo.latestCandidate}\` |`,
-                  ),
-                ];
-
-          const serializedBacklog = JSON.stringify(
-            Object.fromEntries(majorBacklogEntries),
-          );
-          fs.writeFileSync(
-            process.env.MAJOR_SUMMARY_PATH,
-            `${summaryLines.join("\n")}\n`,
-          );
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `major_info<<EOF\n${serializedBacklog}\nEOF\n`,
-          );
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `major_count=${majorBacklogEntries.length}\n`,
-          );
-          fs.appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `major_summary<<EOF\n${summaryLines.join("\n")}\nEOF\n`,
-          );
-          NODE
-
-          {
-            printf '%s\n' '### Major-version backlog (report only)'
-            cat "$MAJOR_SUMMARY_PATH"
-            printf '%s\n' ''
-            printf '%s\n' 'These candidates are visible for planning only and are never auto-applied by this workflow.'
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report lockfile convergence hotspots
         id: convergence-report
@@ -468,7 +377,6 @@ jobs:
           CHANGE_KIND: ${{ steps.validate-update.outputs.change_kind }}
           GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
           HOTSPOT_SUMMARY: ${{ steps.convergence-report.outputs.hotspot_summary }}
-          MAJOR_SUMMARY: ${{ steps.major-backlog.outputs.major_summary }}
           UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
         run: |
           PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
@@ -491,12 +399,6 @@ jobs:
               printf '%s\n' "$UPDATE_INFO"
               printf '%s\n' '```'
             fi
-            printf '%s\n' '</details>'
-            printf '%s\n' ''
-            printf '%s\n' '<details>'
-            printf '%s\n' '<summary>Major-version backlog (report only)</summary>'
-            printf '%s\n' ''
-            printf '%s\n' "$MAJOR_SUMMARY"
             printf '%s\n' '</details>'
             printf '%s\n' ''
             printf '%s\n' '<details>'
