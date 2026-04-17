@@ -116,6 +116,15 @@ function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
   });
 }
 
+function trackTelemetryTaskIfNeeded(
+  task: Promise<void>,
+  shouldTrackPendingTaskForTests: boolean,
+): void {
+  if (shouldTrackPendingTaskForTests) {
+    trackPendingTelemetryTaskForTests(task);
+  }
+}
+
 function getRequestContextWaitUntil(): RequestContextWaitUntil | undefined {
   const requestContext = (
     globalThis as typeof globalThis & {
@@ -131,6 +140,62 @@ function createDeferredTelemetryTask(task: () => Promise<void>): Promise<void> {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
   }).then(task);
+}
+
+function runTelemetryTask(
+  task: () => Promise<void>,
+  shouldTrackPendingTaskForTests: boolean,
+): void {
+  const pendingTask = task();
+  trackTelemetryTaskIfNeeded(pendingTask, shouldTrackPendingTaskForTests);
+}
+
+function scheduleTelemetryTaskWithWaitUntil(
+  waitUntil: RequestContextWaitUntil,
+  task: () => Promise<void>,
+  options: {
+    endpoint: string;
+    request?: Request;
+    shouldTrackPendingTaskForTests: boolean;
+    taskName: string;
+  },
+): void {
+  let shouldRunDeferredTask = true;
+  const pendingTask = createDeferredTelemetryTask(async () => {
+    if (shouldRunDeferredTask) {
+      await task();
+    }
+  });
+
+  trackTelemetryTaskIfNeeded(
+    pendingTask,
+    options.shouldTrackPendingTaskForTests,
+  );
+
+  try {
+    waitUntil(pendingTask);
+  } catch (error) {
+    shouldRunDeferredTask = false;
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Falling back to immediate telemetry scheduling",
+      {
+        taskName: options.taskName,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options.request,
+    );
+
+    runTelemetryTask(task, options.shouldTrackPendingTaskForTests);
+  }
+}
+
+function buildAnalyticsLogContext(
+  context: Record<string, unknown>,
+  options?: AnalyticsIncrementOptions,
+): Record<string, unknown> {
+  return options?.logContext ? { ...options.logContext, ...context } : context;
 }
 
 export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
@@ -169,59 +234,22 @@ export function scheduleTelemetryTask(
   };
 
   if (!forceRequestContext && isTrackedUnitTestRuntime) {
-    const pendingTask = runTask();
-    if (shouldTrackPendingTaskForTests) {
-      trackPendingTelemetryTaskForTests(pendingTask);
-    }
+    runTelemetryTask(runTask, shouldTrackPendingTaskForTests);
     return;
   }
 
   const waitUntil = getRequestContextWaitUntil();
   if (waitUntil) {
-    let shouldRunDeferredTask = true;
-    const pendingTask = createDeferredTelemetryTask(async () => {
-      if (!shouldRunDeferredTask) {
-        return;
-      }
-
-      await runTask();
+    scheduleTelemetryTaskWithWaitUntil(waitUntil, runTask, {
+      endpoint,
+      request: options?.request,
+      shouldTrackPendingTaskForTests,
+      taskName,
     });
-
-    if (shouldTrackPendingTaskForTests) {
-      trackPendingTelemetryTaskForTests(pendingTask);
-    }
-
-    try {
-      waitUntil(pendingTask);
-      return;
-    } catch (error) {
-      shouldRunDeferredTask = false;
-      logPrivacySafe(
-        "warn",
-        endpoint,
-        "Falling back to immediate telemetry scheduling",
-        {
-          taskName,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        options?.request,
-      );
-
-      const fallbackTask = runTask();
-      if (shouldTrackPendingTaskForTests) {
-        trackPendingTelemetryTaskForTests(fallbackTask);
-        return;
-      }
-
-      return;
-    }
-  }
-
-  const pendingTask = runTask();
-  if (shouldTrackPendingTaskForTests) {
-    trackPendingTelemetryTaskForTests(pendingTask);
     return;
   }
+
+  runTelemetryTask(runTask, shouldTrackPendingTaskForTests);
 }
 
 /**
@@ -289,7 +317,7 @@ export function getAnalyticsLatencyBucket(durationMs: number): string {
     }
   }
 
-  return ANALYTICS_LATENCY_BUCKETS[ANALYTICS_LATENCY_BUCKETS.length - 1].label;
+  return ANALYTICS_LATENCY_BUCKETS.at(-1)?.label ?? "gte_5000ms";
 }
 
 export function buildLatencyBucketMetricKeys(
@@ -341,12 +369,14 @@ export async function incrementAnalytics(
       "warn",
       options?.endpoint ?? "Analytics",
       "Failed to increment analytics",
-      {
-        ...(options?.logContext ?? {}),
-        metric,
-        storageKey,
-        error: error instanceof Error ? error.message : String(error),
-      },
+      buildAnalyticsLogContext(
+        {
+          metric,
+          storageKey,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
       options?.request,
     );
   }
@@ -383,12 +413,14 @@ export async function incrementAnalyticsBatch(
       "warn",
       options?.endpoint ?? "Analytics",
       "Failed to increment analytics batch",
-      {
-        ...(options?.logContext ?? {}),
-        metricCount: metricList.length,
-        metricPreview: metricList.slice(0, 3).join(","),
-        error: error instanceof Error ? error.message : String(error),
-      },
+      buildAnalyticsLogContext(
+        {
+          metricCount: metricList.length,
+          metricPreview: metricList.slice(0, 3).join(","),
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
       options?.request,
     );
   }
@@ -438,21 +470,23 @@ export async function incrementAnalyticsBatchCounts(
       "warn",
       options?.endpoint ?? "Analytics",
       "Failed to increment analytics batch counts",
-      {
-        ...(options?.logContext ?? {}),
-        metricCount: metricCounts.reduce(
-          (total, entry) => total + entry.count,
-          0,
-        ),
-        metricPreview: metricCounts
-          .slice(0, 3)
-          .map(({ count, metric }) =>
-            count > 1 ? `${metric}×${String(count)}` : metric,
-          )
-          .join(","),
-        uniqueMetricCount: metricCounts.length,
-        error: error instanceof Error ? error.message : String(error),
-      },
+      buildAnalyticsLogContext(
+        {
+          metricCount: metricCounts.reduce(
+            (total, entry) => total + entry.count,
+            0,
+          ),
+          metricPreview: metricCounts
+            .slice(0, 3)
+            .map(({ count, metric }) =>
+              count > 1 ? `${metric}×${String(count)}` : metric,
+            )
+            .join(","),
+          uniqueMetricCount: metricCounts.length,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options,
+      ),
       options?.request,
     );
   }
@@ -538,29 +572,27 @@ export function scheduleDeferredAnalyticsBatch(
   });
 }
 
-function getPendingLowValueAnalyticsBatch(
+function syncPendingLowValueAnalyticsBatchContext(
+  batch: PendingLowValueAnalyticsBatch,
   options?: AnalyticsSchedulingOptions,
-): PendingLowValueAnalyticsBatch {
-  const batchKey = options?.endpoint ?? "Analytics";
-  const existingBatch = pendingLowValueAnalyticsBatches.get(batchKey);
-
-  if (existingBatch) {
-    if (!existingBatch.request && options?.request) {
-      existingBatch.request = options.request;
-    }
-
-    if (!existingBatch.logContext && options?.logContext) {
-      existingBatch.logContext = options.logContext;
-    }
-
-    if (!existingBatch.now && options?.now) {
-      existingBatch.now = options.now;
-    }
-
-    return existingBatch;
+): void {
+  if (!batch.request && options?.request) {
+    batch.request = options.request;
   }
 
-  const pendingBatch: PendingLowValueAnalyticsBatch = {
+  if (!batch.logContext && options?.logContext) {
+    batch.logContext = options.logContext;
+  }
+
+  if (!batch.now && options?.now) {
+    batch.now = options.now;
+  }
+}
+
+function createPendingLowValueAnalyticsBatch(
+  options?: AnalyticsSchedulingOptions,
+): PendingLowValueAnalyticsBatch {
+  return {
     endpoint: options?.endpoint ?? "Analytics",
     logContext: options?.logContext,
     metrics: new Map<string, number>(),
@@ -568,6 +600,20 @@ function getPendingLowValueAnalyticsBatch(
     request: options?.request,
     scheduled: false,
   };
+}
+
+function getPendingLowValueAnalyticsBatch(
+  options?: AnalyticsSchedulingOptions,
+): PendingLowValueAnalyticsBatch {
+  const batchKey = options?.endpoint ?? "Analytics";
+  const existingBatch = pendingLowValueAnalyticsBatches.get(batchKey);
+
+  if (existingBatch) {
+    syncPendingLowValueAnalyticsBatchContext(existingBatch, options);
+    return existingBatch;
+  }
+
+  const pendingBatch = createPendingLowValueAnalyticsBatch(options);
   pendingLowValueAnalyticsBatches.set(batchKey, pendingBatch);
   return pendingBatch;
 }

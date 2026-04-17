@@ -482,8 +482,11 @@ const RETRYABLE_ERROR_CATEGORIES = new Set<ErrorCategory>([
  * @source
  */
 export function categorizeByStatusCode(statusCode?: number): ErrorCategory {
-  if (!statusCode) return "unknown";
-  return STATUS_CODE_CATEGORIES[statusCode] || "server_error";
+  if (typeof statusCode === "number") {
+    return STATUS_CODE_CATEGORIES[statusCode] || "server_error";
+  }
+
+  return "unknown";
 }
 
 /**
@@ -503,8 +506,11 @@ export function isRetryableErrorCategory(category: ErrorCategory): boolean {
  * @source
  */
 export function isRetryableStatusCode(statusCode?: number): boolean {
-  if (!statusCode) return false;
-  return isRetryableErrorCategory(categorizeByStatusCode(statusCode));
+  if (typeof statusCode === "number") {
+    return isRetryableErrorCategory(categorizeByStatusCode(statusCode));
+  }
+
+  return false;
 }
 
 /**
@@ -686,21 +692,21 @@ export function getSafeErrorSummary(
     (suggestion) => suggestion.description.trim().length > 0,
   )?.description;
 
-  if (!primarySuggestion) {
-    return details.userMessage;
+  if (primarySuggestion) {
+    const normalizedUserMessage = details.userMessage.trim();
+    const normalizedSuggestion = primarySuggestion.trim();
+
+    if (
+      normalizedSuggestion
+        .toLowerCase()
+        .startsWith(normalizedUserMessage.toLowerCase())
+    ) {
+      return normalizedSuggestion;
+    }
+
+    const hasTerminalPunctuation = /[.!?]$/.test(normalizedUserMessage);
+    return `${normalizedUserMessage}${hasTerminalPunctuation ? "" : "."} ${normalizedSuggestion}`;
   }
 
-  const normalizedUserMessage = details.userMessage.trim();
-  const normalizedSuggestion = primarySuggestion.trim();
-
-  if (
-    normalizedSuggestion
-      .toLowerCase()
-      .startsWith(normalizedUserMessage.toLowerCase())
-  ) {
-    return normalizedSuggestion;
-  }
-
-  const hasTerminalPunctuation = /[.!?]$/.test(normalizedUserMessage);
-  return `${normalizedUserMessage}${hasTerminalPunctuation ? "" : "."} ${normalizedSuggestion}`;
+  return details.userMessage;
 }

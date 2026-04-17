@@ -505,6 +505,17 @@ export function getSearchLookupValidationError(
   return "Enter an AniList username, @handle, profile URL, copied /user/... slug, or numeric ID.";
 }
 
+function resolveInvalidSearchLookupReason(
+  structured: boolean,
+  preferredMode: SearchLookupMode,
+): "invalid" | "expectedUserId" {
+  if (structured) {
+    return "invalid";
+  }
+
+  return preferredMode === "userId" ? "expectedUserId" : "invalid";
+}
+
 export function normalizeSearchLookupInput(
   value: SearchParamValue,
   preferredMode: SearchLookupMode = DEFAULT_SEARCH_LOOKUP_MODE,
@@ -518,11 +529,7 @@ export function normalizeSearchLookupInput(
   if (!token) {
     return {
       ok: false,
-      reason: structured
-        ? "invalid"
-        : preferredMode === "userId"
-          ? "expectedUserId"
-          : "invalid",
+      reason: resolveInvalidSearchLookupReason(structured, preferredMode),
     };
   }
 

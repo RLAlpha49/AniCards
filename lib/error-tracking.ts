@@ -372,6 +372,11 @@ interface ClientErrorReportStorageHandle {
   storage: Storage;
 }
 
+type ClientErrorReportQueueStore = {
+  handle: ClientErrorReportStorageHandle;
+  state: ClientErrorReportQueueState;
+};
+
 interface QueuedClientErrorReport {
   attempts: number;
   body: string;
@@ -3125,6 +3130,100 @@ function recordNonRetryableClientErrorReportDeliveryOutcome(
   saveClientErrorReportQueueStore(store);
 }
 
+async function deliverPendingClientErrorReportOutcomes(
+  store: ClientErrorReportQueueStore,
+): Promise<void> {
+  const summaryReport = buildClientErrorReportDeliveryOutcomeSummaryReport(
+    store.state.pendingDurableOutcomes,
+  );
+
+  await deliverClientErrorReport(
+    buildClientErrorReportBody(summaryReport, {
+      queueState: store.state,
+      queued: false,
+      queueAttempts: 0,
+    }),
+    1,
+  );
+
+  clearDeliveredClientErrorReportPendingSignals(store.state);
+  saveClientErrorReportQueueStore(store);
+}
+
+function handlePendingClientErrorReportOutcomeFlushFailure(
+  store: ClientErrorReportQueueStore,
+  error: unknown,
+): void {
+  const deliveryError = toClientErrorReportDeliveryError(error);
+
+  if (deliveryError.statusCode === 429) {
+    store.state.stats.totalRateLimited += 1;
+  }
+
+  recordClientErrorReportPendingBreadcrumb(store.state.pendingBreadcrumbs, {
+    reason: "delivery_outcome_flush_failed",
+    timestamp: Date.now(),
+    ...(typeof deliveryError.statusCode === "number"
+      ? { statusCode: deliveryError.statusCode }
+      : {}),
+    storage: store.state.stats.storage,
+  });
+
+  if (deliveryError.retryable) {
+    openClientErrorReportQueueCircuitBreaker(deliveryError, store.state);
+  }
+
+  saveClientErrorReportQueueStore(store);
+
+  if (process.env.NODE_ENV === "development") {
+    console.error(
+      "[ErrorTracking] Failed to flush pending client error report delivery outcomes.",
+      error,
+    );
+  }
+}
+
+async function processQueuedClientErrorReportForFlush(
+  store: ClientErrorReportQueueStore,
+  queuedReport: QueuedClientErrorReport,
+  index: number,
+): Promise<{
+  remainingReports: QueuedClientErrorReport[];
+  shouldStop: boolean;
+}> {
+  if (shouldDeferQueuedClientErrorReport(queuedReport)) {
+    return {
+      remainingReports: [queuedReport],
+      shouldStop: false,
+    };
+  }
+
+  const replayResult = await replayQueuedClientErrorReport(store, queuedReport);
+  const remainingReports = replayResult.nextQueuedReport
+    ? [replayResult.nextQueuedReport]
+    : [];
+
+  if (!replayResult.deliveryError?.retryable) {
+    return {
+      remainingReports,
+      shouldStop: false,
+    };
+  }
+
+  openClientErrorReportQueueCircuitBreaker(
+    replayResult.deliveryError,
+    store.state,
+  );
+
+  return {
+    remainingReports: [
+      ...remainingReports,
+      ...store.state.reports.slice(index + 1),
+    ],
+    shouldStop: true,
+  };
+}
+
 async function flushPendingClientErrorReportOutcomes(): Promise<void> {
   if (
     isFlushingPendingClientErrorReportOutcomes ||
@@ -3151,49 +3250,9 @@ async function flushPendingClientErrorReportOutcomes(): Promise<void> {
   isFlushingPendingClientErrorReportOutcomes = true;
 
   try {
-    const summaryReport = buildClientErrorReportDeliveryOutcomeSummaryReport(
-      store.state.pendingDurableOutcomes,
-    );
-
-    await deliverClientErrorReport(
-      buildClientErrorReportBody(summaryReport, {
-        queueState: store.state,
-        queued: false,
-        queueAttempts: 0,
-      }),
-      1,
-    );
-
-    clearDeliveredClientErrorReportPendingSignals(store.state);
-    saveClientErrorReportQueueStore(store);
+    await deliverPendingClientErrorReportOutcomes(store);
   } catch (error) {
-    const deliveryError = toClientErrorReportDeliveryError(error);
-
-    if (deliveryError.statusCode === 429) {
-      store.state.stats.totalRateLimited += 1;
-    }
-
-    recordClientErrorReportPendingBreadcrumb(store.state.pendingBreadcrumbs, {
-      reason: "delivery_outcome_flush_failed",
-      timestamp: Date.now(),
-      ...(typeof deliveryError.statusCode === "number"
-        ? { statusCode: deliveryError.statusCode }
-        : {}),
-      storage: store.state.stats.storage,
-    });
-
-    if (deliveryError.retryable) {
-      openClientErrorReportQueueCircuitBreaker(deliveryError, store.state);
-    }
-
-    saveClientErrorReportQueueStore(store);
-
-    if (process.env.NODE_ENV === "development") {
-      console.error(
-        "[ErrorTracking] Failed to flush pending client error report delivery outcomes.",
-        error,
-      );
-    }
+    handlePendingClientErrorReportOutcomeFlushFailure(store, error);
   } finally {
     isFlushingPendingClientErrorReportOutcomes = false;
   }
@@ -3229,26 +3288,14 @@ async function flushQueuedClientErrorReports(): Promise<void> {
     const remainingReports: QueuedClientErrorReport[] = [];
 
     for (const [index, queuedReport] of store.state.reports.entries()) {
-      if (shouldDeferQueuedClientErrorReport(queuedReport)) {
-        remainingReports.push(queuedReport);
-        continue;
-      }
-
-      const replayResult = await replayQueuedClientErrorReport(
+      const replayStep = await processQueuedClientErrorReportForFlush(
         store,
         queuedReport,
+        index,
       );
+      remainingReports.push(...replayStep.remainingReports);
 
-      if (replayResult.nextQueuedReport) {
-        remainingReports.push(replayResult.nextQueuedReport);
-      }
-
-      if (replayResult.deliveryError?.retryable) {
-        openClientErrorReportQueueCircuitBreaker(
-          replayResult.deliveryError,
-          store.state,
-        );
-        remainingReports.push(...store.state.reports.slice(index + 1));
+      if (replayStep.shouldStop) {
         break;
       }
     }
@@ -3404,6 +3451,95 @@ export async function getErrorReportBufferSnapshot(): Promise<ErrorReportBufferS
   );
 }
 
+function saveClientErrorReportQueueStoreIfPresent(
+  queueStore: ClientErrorReportQueueStore | null | undefined,
+): void {
+  if (queueStore) {
+    saveClientErrorReportQueueStore(queueStore);
+  }
+}
+
+function queueStructuredErrorReportWithCooldown(
+  report: StructuredErrorReport,
+  clientReport: {
+    body: string;
+    requestId?: string;
+  },
+  queueStore: ClientErrorReportQueueStore | null,
+  breakerCooldownUntil: number,
+): void {
+  recordClientErrorReportPendingBreadcrumbForState(queueStore?.state, {
+    reason: "queue_breaker_immediate_suppressed",
+    timestamp: Date.now(),
+    ...(typeof clientErrorReportQueueCircuitBreakerState.lastStatusCode ===
+    "number"
+      ? {
+          statusCode: clientErrorReportQueueCircuitBreakerState.lastStatusCode,
+        }
+      : {}),
+    ...(queueStore ? { storage: queueStore.state.stats.storage } : {}),
+  });
+
+  saveClientErrorReportQueueStoreIfPresent(queueStore);
+
+  enqueueQueuedClientErrorReport({
+    ...clientReport,
+    triage: buildClientErrorReportQueueTriage(report),
+    nextAttemptAt: breakerCooldownUntil,
+  });
+}
+
+async function finalizePostedStructuredErrorReport(
+  queueStore: ClientErrorReportQueueStore | null,
+): Promise<void> {
+  clearDeliveredClientErrorReportPendingSignals(queueStore?.state);
+  saveClientErrorReportQueueStoreIfPresent(queueStore);
+  await flushQueuedClientErrorReports();
+  await flushPendingClientErrorReportOutcomes();
+}
+
+function handleStructuredErrorReportDeliveryFailure(
+  report: StructuredErrorReport,
+  clientReport: {
+    body: string;
+    requestId?: string;
+  },
+  queueStore: ClientErrorReportQueueStore | null,
+  error: unknown,
+): void {
+  const deliveryError = toClientErrorReportDeliveryError(error);
+
+  if (deliveryError.statusCode === 429) {
+    incrementClientErrorReportRateLimitedCount();
+  }
+
+  if (deliveryError.retryable) {
+    openClientErrorReportQueueCircuitBreaker(deliveryError, queueStore?.state);
+    saveClientErrorReportQueueStoreIfPresent(queueStore);
+    enqueueQueuedClientErrorReport({
+      ...clientReport,
+      triage: buildClientErrorReportQueueTriage(report),
+      ...(typeof deliveryError.retryAfterMs === "number"
+        ? {
+            nextAttemptAt: getQueuedClientErrorReportNextAttemptAt({
+              attempts: 0,
+              retryAfterMs: deliveryError.retryAfterMs,
+            }),
+          }
+        : {}),
+    });
+  } else {
+    recordNonRetryableClientErrorReportDeliveryOutcome(report, deliveryError);
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.error(
+      "[ErrorTracking] Failed to deliver client error report; queued for retry.",
+      error,
+    );
+  }
+}
+
 async function postStructuredErrorReport(
   report: StructuredErrorReport,
 ): Promise<void> {
@@ -3418,82 +3554,25 @@ async function postStructuredErrorReport(
     getClientErrorReportQueueCircuitBreakerCooldownUntil();
 
   if (typeof breakerCooldownUntil === "number") {
-    recordClientErrorReportPendingBreadcrumbForState(queueStore?.state, {
-      reason: "queue_breaker_immediate_suppressed",
-      timestamp: Date.now(),
-      ...(typeof clientErrorReportQueueCircuitBreakerState.lastStatusCode ===
-      "number"
-        ? {
-            statusCode:
-              clientErrorReportQueueCircuitBreakerState.lastStatusCode,
-          }
-        : {}),
-      ...(queueStore ? { storage: queueStore.state.stats.storage } : {}),
-    });
-
-    if (queueStore) {
-      saveClientErrorReportQueueStore(queueStore);
-    }
-
-    enqueueQueuedClientErrorReport({
-      ...clientReport,
-      triage: buildClientErrorReportQueueTriage(report),
-      nextAttemptAt: breakerCooldownUntil,
-    });
+    queueStructuredErrorReportWithCooldown(
+      report,
+      clientReport,
+      queueStore,
+      breakerCooldownUntil,
+    );
     return;
   }
 
   try {
     await deliverClientErrorReport(clientReport);
-
-    clearDeliveredClientErrorReportPendingSignals(queueStore?.state);
-    if (queueStore) {
-      saveClientErrorReportQueueStore(queueStore);
-    }
-
-    await flushQueuedClientErrorReports();
-    await flushPendingClientErrorReportOutcomes();
+    await finalizePostedStructuredErrorReport(queueStore);
   } catch (error) {
-    const deliveryError = toClientErrorReportDeliveryError(error);
-
-    if (deliveryError.statusCode === 429) {
-      incrementClientErrorReportRateLimitedCount();
-    }
-
-    if (deliveryError.retryable) {
-      openClientErrorReportQueueCircuitBreaker(
-        deliveryError,
-        queueStore?.state,
-      );
-
-      if (queueStore) {
-        saveClientErrorReportQueueStore(queueStore);
-      }
-    }
-
-    if (deliveryError.retryable) {
-      enqueueQueuedClientErrorReport({
-        ...clientReport,
-        triage: buildClientErrorReportQueueTriage(report),
-        ...(typeof deliveryError.retryAfterMs === "number"
-          ? {
-              nextAttemptAt: getQueuedClientErrorReportNextAttemptAt({
-                attempts: 0,
-                retryAfterMs: deliveryError.retryAfterMs,
-              }),
-            }
-          : {}),
-      });
-    } else {
-      recordNonRetryableClientErrorReportDeliveryOutcome(report, deliveryError);
-    }
-
-    if (process.env.NODE_ENV === "development") {
-      console.error(
-        "[ErrorTracking] Failed to deliver client error report; queued for retry.",
-        error,
-      );
-    }
+    handleStructuredErrorReportDeliveryFailure(
+      report,
+      clientReport,
+      queueStore,
+      error,
+    );
   }
 }
 

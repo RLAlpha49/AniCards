@@ -134,6 +134,17 @@ function collapseStackWhitespace(value: string): string {
   return normalized;
 }
 
+function stringifyPlainObjectForLogString(value: object): string | undefined {
+  try {
+    const serialized = JSON.stringify(value);
+    return typeof serialized === "string" && serialized.length > 2
+      ? serialized
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function coerceUnknownToLogString(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null) return "null";
@@ -169,10 +180,32 @@ function coerceUnknownToLogString(value: unknown): string {
       return `[${constructorName}]`;
     }
 
-    return "[Object]";
+    return stringifyPlainObjectForLogString(value) ?? "[Object]";
   }
 
   return String(value);
+}
+
+function isRouteOrPathMetadataKey(normalizedKey: string): boolean {
+  return (
+    normalizedKey === "route" ||
+    normalizedKey === "path" ||
+    normalizedKey.endsWith("_route") ||
+    normalizedKey.endsWith("_path")
+  );
+}
+
+function sanitizeRouteOrPathLogValue(
+  value: unknown,
+  maxLength: number,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return (
+    sanitizeErrorReportRoute(value) ?? sanitizeErrorReportText(value, maxLength)
+  );
 }
 
 export function redactIp(ip: string): string {
@@ -379,6 +412,14 @@ export function sanitizePrivacySafeLogValue(
   options?: SanitizePrivacySafeLogValueOptions,
 ): ErrorReportMetadataValue | undefined {
   const normalizedKey = normalizeMetadataKey(key.trim());
+
+  if (isRouteOrPathMetadataKey(normalizedKey)) {
+    return sanitizeRouteOrPathLogValue(
+      value,
+      options?.maxLength ?? DEFAULT_LOG_TEXT_MAX_LENGTH,
+    );
+  }
+
   const normalizedValue = coerceUnknownToLogString(value);
 
   if (normalizedKey.includes("ip")) {
@@ -395,21 +436,6 @@ export function sanitizePrivacySafeLogValue(
 
   if (normalizedKey === "request_id") {
     return sanitizeOptionalText(normalizedValue, 120);
-  }
-
-  if (
-    normalizedKey === "route" ||
-    normalizedKey === "path" ||
-    normalizedKey.endsWith("_route") ||
-    normalizedKey.endsWith("_path")
-  ) {
-    return (
-      sanitizeErrorReportRoute(normalizedValue) ??
-      sanitizeErrorReportText(
-        normalizedValue,
-        options?.maxLength ?? DEFAULT_LOG_TEXT_MAX_LENGTH,
-      )
-    );
   }
 
   if (normalizedKey.includes("stack")) {
