@@ -63,6 +63,10 @@ function createConfigs(): Record<string, CardEditorConfig> {
   };
 }
 
+function getClipboardWriteMock() {
+  return globalThis.navigator.clipboard.writeText;
+}
+
 describe("share-utils", () => {
   beforeEach(async () => {
     resetHappyDom("https://anicards.test/editor");
@@ -227,8 +231,7 @@ describe("share-utils", () => {
 
   it("copies resolved absolute URLs, skips invalid ones, and logs bad inputs", async () => {
     const { copyShareableCardUrlsToClipboard } = await importRealShareUtils();
-    const clipboardWrite = globalThis.navigator.clipboard
-      .writeText as ReturnType<typeof mock>;
+    const clipboardWrite = getClipboardWriteMock();
     const consoleError = mock(() => undefined);
     console.error = consoleError;
 
@@ -265,8 +268,7 @@ describe("share-utils", () => {
 
   it("supports AniList formatting and throws when every card URL is invalid", async () => {
     const { copyShareableCardUrlsToClipboard } = await importRealShareUtils();
-    const clipboardWrite = globalThis.navigator.clipboard
-      .writeText as ReturnType<typeof mock>;
+    const clipboardWrite = getClipboardWriteMock();
     const consoleError = mock(() => undefined);
     console.error = consoleError;
 

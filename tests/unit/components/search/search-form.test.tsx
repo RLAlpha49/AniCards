@@ -21,10 +21,7 @@ import {
 const routerPush = mock((href: string) => Promise.resolve(href));
 const routerReplace = mock((href: string) => Promise.resolve(href));
 const historyReplaceState = mock(
-  (...args: [unknown, string, (string | URL | null)?]) => {
-    void args;
-    return undefined;
-  },
+  (_state: unknown, _title: string, _url?: string | URL | null) => undefined,
 );
 const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
 const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
@@ -72,6 +69,22 @@ function getNextNavigationState(): NextNavigationState {
     routerReplace: () => Promise.resolve(undefined),
     searchParams: new URLSearchParams(),
   };
+}
+
+function getRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  if (input instanceof Request) {
+    return input.url;
+  }
+
+  throw new TypeError("Expected fetch input to be a string, URL, or Request.");
 }
 
 type MotionDivProps = ComponentProps<"div"> & {
@@ -745,7 +758,9 @@ describe("SearchForm", () => {
 
   it("upgrades valid lookups to a confirmed canonical editor route in the shell", async () => {
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      if (String(input) === "/api/get-user?view=bootstrap&username=Alpha49") {
+      const requestUrl = getRequestUrl(input);
+
+      if (requestUrl === "/api/get-user?view=bootstrap&username=Alpha49") {
         return new Response(
           JSON.stringify({
             avatarUrl: "https://example.com/avatar.png",
@@ -761,9 +776,7 @@ describe("SearchForm", () => {
         );
       }
 
-      throw new Error(
-        `Unexpected fetch request in shell test: ${String(input)}`,
-      );
+      throw new Error(`Unexpected fetch request in shell test: ${requestUrl}`);
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -803,7 +816,9 @@ describe("SearchForm", () => {
 
   it("keeps the direct editor fallback when the bootstrap lookup is missing", async () => {
     const fetchMock = mock(async (input: RequestInfo | URL) => {
-      if (String(input) === "/api/get-user?view=bootstrap&userId=542244") {
+      const requestUrl = getRequestUrl(input);
+
+      if (requestUrl === "/api/get-user?view=bootstrap&userId=542244") {
         return new Response(JSON.stringify({ error: "User not found" }), {
           headers: {
             "Content-Type": "application/json",
@@ -813,7 +828,7 @@ describe("SearchForm", () => {
       }
 
       throw new Error(
-        `Unexpected fetch request in shell fallback test: ${String(input)}`,
+        `Unexpected fetch request in shell fallback test: ${requestUrl}`,
       );
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;

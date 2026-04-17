@@ -201,6 +201,7 @@ function LightweightImageWithPlaceholder({
   } satisfies React.CSSProperties;
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const hasError = failedSrc === src;
+  const showPlaceholder = hasError === false;
 
   return (
     <div
@@ -208,7 +209,7 @@ function LightweightImageWithPlaceholder({
       style={containerStyle}
       data-image-state={hasError ? "error" : "lightweight"}
     >
-      {!hasError ? (
+      {showPlaceholder ? (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 bg-[hsl(var(--foreground)/0.02)]"

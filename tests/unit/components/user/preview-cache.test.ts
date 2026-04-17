@@ -29,6 +29,18 @@ const {
 
 type MockPreviewResponse = Pick<Response, "ok" | "blob">;
 
+function getPreviewRequestUrl(input: string | URL | Request): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  return input.url;
+}
+
 function createPreviewResponse(seed: string): MockPreviewResponse {
   return {
     ok: true,
@@ -61,12 +73,7 @@ beforeEach(() => {
   revokeObjectURL.mockReset();
 
   fetchMock.mockImplementation(async (input) => {
-    const url =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+    const url = getPreviewRequestUrl(input);
     return createPreviewResponse(url) as Response;
   });
   createObjectURL.mockImplementation(
@@ -130,12 +137,7 @@ describe("preview-cache", () => {
     >();
 
     fetchMock.mockImplementation((input) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+      const url = getPreviewRequestUrl(input);
       startedUrls.push(url);
 
       let deferred = deferredByUrl.get(url);

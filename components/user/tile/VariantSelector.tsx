@@ -37,6 +37,20 @@ interface VariantSelectorProps {
   preferTapInfoDisclosure?: boolean;
 }
 
+function getEffectiveVariant(
+  currentVariant: string | undefined,
+  variations: readonly Variant[],
+): string {
+  if (
+    currentVariant &&
+    variations.some((variation) => variation.id === currentVariant)
+  ) {
+    return currentVariant;
+  }
+
+  return variations[0].id;
+}
+
 export const VariantSelector = memo(function VariantSelector({
   variations,
   currentVariant,
@@ -51,10 +65,7 @@ export const VariantSelector = memo(function VariantSelector({
 
   if (!variations || variations.length <= 1) return null;
 
-  const effectiveVariant =
-    currentVariant && variations.some((v) => v.id === currentVariant)
-      ? currentVariant
-      : variations[0].id;
+  const effectiveVariant = getEffectiveVariant(currentVariant, variations);
 
   const selectedTooltip = getVariantTooltip?.(effectiveVariant) ?? null;
   const infoButton = selectedTooltip ? (

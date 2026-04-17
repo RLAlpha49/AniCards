@@ -94,14 +94,20 @@ const CATEGORY_NUMBERS: Record<string, string> = {
   "Advanced Analytics": "06",
 };
 
+function CardTypeIconDisplay({
+  iconKey,
+}: Readonly<{ iconKey: ExampleIconKey }>) {
+  const CardTypeIcon = CARD_TYPE_ICONS[iconKey] ?? BarChart2;
+
+  return <CardTypeIcon className="size-3.5 shrink-0 text-gold/40" />;
+}
+
 export function CategorySection({
   category,
   cardTypes,
   isFirstCategory,
   previewColorPreset,
 }: Readonly<CategorySectionProps>) {
-  if (cardTypes.length === 0) return null;
-
   const CategoryIcon = CATEGORY_ICONS[category] || BarChart2;
   const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
   const cardTypeSignature = useMemo(
@@ -124,6 +130,10 @@ export function CategorySection({
     0,
     cardTypes.length - visibleCardTypeCount,
   );
+
+  if (cardTypes.length === 0) {
+    return null;
+  }
 
   useEffect(() => {
     setVisibleCardTypeCount(getInitialVisibleCardTypeCount(cardTypes.length));
@@ -193,14 +203,7 @@ export function CategorySection({
             {/* Card type header with line */}
             <div className="mb-6 flex items-center gap-4">
               <div className="flex items-center gap-2.5">
-                {(() => {
-                  const CardTypeIcon =
-                    CARD_TYPE_ICONS[cardType.iconKey] || BarChart2;
-
-                  return (
-                    <CardTypeIcon className="size-3.5 shrink-0 text-gold/40" />
-                  );
-                })()}
+                <CardTypeIconDisplay iconKey={cardType.iconKey} />
                 <h3 className="text-sm font-semibold tracking-wide text-foreground/80">
                   {cardType.title}
                 </h3>

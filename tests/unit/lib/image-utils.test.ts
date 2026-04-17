@@ -14,6 +14,9 @@ const {
   imageDataUrlCache,
 } = await import("@/lib/image-utils");
 
+const compareAlphabetically = (left: string, right: string) =>
+  left.localeCompare(right);
+
 function createSizedDataUrl(targetBytes: number): string {
   const prefix = "data:image/png;base64,";
   const prefixBytes = Buffer.byteLength(prefix, "utf8");
@@ -482,7 +485,7 @@ describe("image-utils shared asset cache", () => {
 
     const fetchedUrls = fetchMock.mock.calls
       .map((call) => call[0] as string)
-      .sort();
+      .sort(compareAlphabetically);
 
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(fetchedUrls).toEqual(
@@ -492,7 +495,7 @@ describe("image-utils shared asset cache", () => {
         mangaTwoUrl,
         characterOneUrl,
         staffOneUrl,
-      ].sort(),
+      ].sort(compareAlphabetically),
     );
 
     expect(result.anime?.nodes?.[0]?.coverImage?.large).toMatch(

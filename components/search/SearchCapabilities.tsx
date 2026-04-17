@@ -69,6 +69,46 @@ function buildStarterStyleTemplate(
   };
 }
 
+function getQueuedStyleMessage(
+  pendingTemplateName: string | null | undefined,
+): string {
+  if (pendingTemplateName) {
+    return `${pendingTemplateName} is already queued and will apply the moment the editor opens.`;
+  }
+
+  return "Queue one of the starter looks on the right, then search above or reopen your last editor to carry it forward.";
+}
+
+function renderResumeLastEditorButtonContent(params: {
+  hasLastEditor: boolean;
+  isBusy: boolean;
+}) {
+  if (params.isBusy) {
+    return (
+      <>
+        <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+        Opening editor…
+      </>
+    );
+  }
+
+  if (params.hasLastEditor) {
+    return (
+      <>
+        Resume last editor
+        <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+      </>
+    );
+  }
+
+  return (
+    <>
+      Focus search form
+      <Search className="ml-2 size-4" aria-hidden="true" />
+    </>
+  );
+}
+
 export function SearchCapabilities() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -145,6 +185,11 @@ export function SearchCapabilities() {
   const hasLastEditor = Boolean(continuityState.lastSuccessfulUserRoute?.href);
   const pendingTemplateName =
     continuityState.pendingTemplateApply?.templateName;
+  const queuedStyleMessage = getQueuedStyleMessage(pendingTemplateName);
+  const resumeLastEditorButtonContent = renderResumeLastEditorButtonContent({
+    hasLastEditor,
+    isBusy: busyActionId === "resume-last-editor",
+  });
 
   return (
     <section className="px-6 py-20 sm:px-12 md:py-28">
@@ -217,9 +262,7 @@ export function SearchCapabilities() {
               ) : null}
 
               <p className="mt-3 text-xs/relaxed text-foreground/45">
-                {pendingTemplateName
-                  ? `${pendingTemplateName} is already queued and will apply the moment the editor opens.`
-                  : "Queue one of the starter looks on the right, then search above or reopen your last editor to carry it forward."}
+                {queuedStyleMessage}
               </p>
             </div>
           </div>
@@ -236,25 +279,7 @@ export function SearchCapabilities() {
                 imperial-btn min-h-11 imperial-btn-fill px-4 text-xs tracking-[0.15em] uppercase
               "
             >
-              {busyActionId === "resume-last-editor" ? (
-                <>
-                  <Loader2
-                    className="mr-2 size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                  Opening editor…
-                </>
-              ) : hasLastEditor ? (
-                <>
-                  Resume last editor
-                  <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-                </>
-              ) : (
-                <>
-                  Focus search form
-                  <Search className="ml-2 size-4" aria-hidden="true" />
-                </>
-              )}
+              {resumeLastEditorButtonContent}
             </Button>
 
             <Button

@@ -59,7 +59,7 @@ export const PROJECT_CATALOG: readonly Project[] = [
   },
 ];
 
-export const FEATURED_PROJECT = PROJECT_CATALOG[0]!;
+export const FEATURED_PROJECT = PROJECT_CATALOG[0];
 
 export const PROJECTS = PROJECT_CATALOG.slice(1);
 
