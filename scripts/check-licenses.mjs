@@ -137,6 +137,25 @@ function normalizeScanScopes(value) {
   };
 }
 
+function buildScannerArgs(scanAllInstalledDependencies) {
+  const baseArgs = ["--excludePrivatePackages", "--json"];
+
+  if (scanAllInstalledDependencies) {
+    return baseArgs;
+  }
+
+  return ["--production", ...baseArgs];
+}
+
+function getOptionalStringProperty(value, propertyName) {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const propertyValue = value[propertyName];
+  return typeof propertyValue === "string" ? propertyValue : undefined;
+}
+
 function tryParseSpdxExpression(expression) {
   if (
     typeof expression !== "string" ||
@@ -222,16 +241,18 @@ function analyzeLicenseExpression(expression, denyPolicy) {
   const matchedDeniedSubstrings = denyPolicy.deniedLicenseSubstrings.filter(
     (token) => uppercaseExpression.includes(token),
   );
+  let parseStatus = "empty";
+
+  if (typeof parseSpdxExpression !== "function") {
+    parseStatus = "unavailable";
+  } else if (parsedExpression) {
+    parseStatus = "parsed";
+  } else if (normalizedExpression.length > 0) {
+    parseStatus = "unparsed";
+  }
 
   return {
-    parseStatus:
-      typeof parseSpdxExpression !== "function"
-        ? "unavailable"
-        : parsedExpression
-          ? "parsed"
-          : normalizedExpression.length > 0
-            ? "unparsed"
-            : "empty",
+    parseStatus,
     spdxLicenseIds,
     matchedDeniedSpdxLicenses,
     matchedDeniedSubstrings,
@@ -260,6 +281,103 @@ function licenseExpressionIncludesLicense(expression, selectedLicense) {
   return expression
     .toUpperCase()
     .includes(normalizedSelectedLicense.toUpperCase());
+}
+
+function collectPackageSelectionViolations(options) {
+  const { licenseAnalysis, licenseExpression, packageSelection } = options;
+  const violations = [];
+
+  if (packageSelection) {
+    if (
+      typeof packageSelection.observedLicenseExpression === "string" &&
+      packageSelection.observedLicenseExpression !== licenseExpression
+    ) {
+      violations.push(
+        `Observed license expression changed from ${packageSelection.observedLicenseExpression} to ${licenseExpression || "<empty>"}.`,
+      );
+    }
+
+    if (
+      typeof packageSelection.selectedLicense !== "string" ||
+      packageSelection.selectedLicense.trim().length === 0
+    ) {
+      violations.push("Selected license must be a non-empty string.");
+    } else if (
+      !licenseExpressionIncludesLicense(
+        licenseExpression,
+        packageSelection.selectedLicense,
+      )
+    ) {
+      violations.push(
+        `Selected license ${packageSelection.selectedLicense} is not present in the observed expression ${licenseExpression || "<empty>"}.`,
+      );
+    }
+  }
+
+  if (packageSelection == null && licenseAnalysis.isDenied) {
+    violations.push(
+      `Denied SPDX or substring policy requires an explicit package review selection: ${licenseExpression || "<empty>"}.`,
+    );
+  }
+
+  return violations;
+}
+
+function getPackageEntryStatus(violations, packageSelection) {
+  if (violations.length > 0) {
+    return "violation";
+  }
+
+  if (packageSelection) {
+    return "allowed-by-policy";
+  }
+
+  return "allowed";
+}
+
+function buildPackageEntry(packageSpec, metadata, options) {
+  const packageSelection = options.packageLicenseSelections[packageSpec];
+  const licenseExpression = normalizeLicenseExpression(
+    metadata?.licenses ?? metadata?.license,
+  );
+  const licenseAnalysis = analyzeLicenseExpression(
+    licenseExpression,
+    options.deniedLicensePolicy,
+  );
+  const selectedLicenseAnalysis = packageSelection
+    ? analyzeSelectedLicense(
+        packageSelection.selectedLicense,
+        options.deniedLicensePolicy,
+      )
+    : null;
+  const violations = collectPackageSelectionViolations({
+    licenseAnalysis,
+    licenseExpression,
+    packageSelection,
+  });
+  const { name, version } = splitPackageSpec(packageSpec);
+
+  return {
+    packageSpec,
+    name,
+    version,
+    licenseExpression,
+    repository: getOptionalStringProperty(metadata, "repository"),
+    path: getOptionalStringProperty(metadata, "path"),
+    policySelection: packageSelection ?? null,
+    spdxAnalysis: {
+      parseStatus: licenseAnalysis.parseStatus,
+      licenseIds: licenseAnalysis.spdxLicenseIds,
+      deniedMatches: {
+        spdxLicenses: licenseAnalysis.matchedDeniedSpdxLicenses,
+        substrings: licenseAnalysis.matchedDeniedSubstrings,
+      },
+    },
+    usesDeniedLicenseException:
+      Boolean(packageSelection) && Boolean(selectedLicenseAnalysis?.isDenied),
+    status: getPackageEntryStatus(violations, packageSelection),
+    violations,
+  };
 }
 
 if (!existsSync(policyPath)) {
@@ -298,11 +416,7 @@ const packageLicenseSelections =
     ? policy.packageLicenseSelections
     : {};
 const scanAllInstalledDependencies = scanScopes.development === true;
-const scannerArgs = [
-  ...(scanAllInstalledDependencies ? [] : ["--production"]),
-  "--excludePrivatePackages",
-  "--json",
-];
+const scannerArgs = buildScannerArgs(scanAllInstalledDependencies);
 const deniedLicensePolicy = {
   deniedLicenseSubstrings,
   deniedSpdxLicenseIds,
@@ -345,91 +459,11 @@ if (scanResult.status !== 0) {
 const scanOutputText = scanResult.stdout?.trim() || "{}";
 const scanOutput = JSON.parse(scanOutputText);
 const packageEntries = Object.entries(scanOutput).map(
-  ([packageSpec, metadata]) => {
-    const packageSelection = packageLicenseSelections[packageSpec];
-    const licenseExpression = normalizeLicenseExpression(
-      metadata?.licenses ?? metadata?.license,
-    );
-    const licenseAnalysis = analyzeLicenseExpression(
-      licenseExpression,
+  ([packageSpec, metadata]) =>
+    buildPackageEntry(packageSpec, metadata, {
       deniedLicensePolicy,
-    );
-    const violations = [];
-    const selectedLicenseAnalysis = packageSelection
-      ? analyzeSelectedLicense(
-          packageSelection.selectedLicense,
-          deniedLicensePolicy,
-        )
-      : null;
-
-    if (packageSelection) {
-      if (
-        typeof packageSelection.observedLicenseExpression === "string" &&
-        packageSelection.observedLicenseExpression !== licenseExpression
-      ) {
-        violations.push(
-          `Observed license expression changed from ${packageSelection.observedLicenseExpression} to ${licenseExpression || "<empty>"}.`,
-        );
-      }
-
-      if (
-        typeof packageSelection.selectedLicense !== "string" ||
-        packageSelection.selectedLicense.trim().length === 0
-      ) {
-        violations.push("Selected license must be a non-empty string.");
-      } else if (
-        !licenseExpressionIncludesLicense(
-          licenseExpression,
-          packageSelection.selectedLicense,
-        )
-      ) {
-        violations.push(
-          `Selected license ${packageSelection.selectedLicense} is not present in the observed expression ${licenseExpression || "<empty>"}.`,
-        );
-      }
-    }
-
-    if (licenseAnalysis.isDenied && !packageSelection) {
-      violations.push(
-        `Denied SPDX or substring policy requires an explicit package review selection: ${licenseExpression || "<empty>"}.`,
-      );
-    }
-
-    const { name, version } = splitPackageSpec(packageSpec);
-
-    return {
-      packageSpec,
-      name,
-      version,
-      licenseExpression,
-      repository:
-        metadata && typeof metadata.repository === "string"
-          ? metadata.repository
-          : undefined,
-      path:
-        metadata && typeof metadata.path === "string"
-          ? metadata.path
-          : undefined,
-      policySelection: packageSelection ?? null,
-      spdxAnalysis: {
-        parseStatus: licenseAnalysis.parseStatus,
-        licenseIds: licenseAnalysis.spdxLicenseIds,
-        deniedMatches: {
-          spdxLicenses: licenseAnalysis.matchedDeniedSpdxLicenses,
-          substrings: licenseAnalysis.matchedDeniedSubstrings,
-        },
-      },
-      usesDeniedLicenseException:
-        Boolean(packageSelection) && Boolean(selectedLicenseAnalysis?.isDenied),
-      status:
-        violations.length > 0
-          ? "violation"
-          : packageSelection
-            ? "allowed-by-policy"
-            : "allowed",
-      violations,
-    };
-  },
+      packageLicenseSelections,
+    }),
 );
 
 mkdirSync(reportDir, { recursive: true });
