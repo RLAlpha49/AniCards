@@ -387,7 +387,7 @@ export async function GET(request: Request) {
     return jsonWithCors(userData, request);
   } catch (error) {
     return handleError(
-      error as Error,
+      error,
       USER_API_ENDPOINT,
       startTime,
       USER_API_FAILED_METRIC,
@@ -410,7 +410,7 @@ export function OPTIONS(request: Request) {
     headers: {
       ...headers,
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
     },
   });
 }

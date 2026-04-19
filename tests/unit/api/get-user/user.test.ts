@@ -777,7 +777,6 @@ describe("User API OPTIONS Endpoint", () => {
       const res = OPTIONS(req);
       const methods = res.headers.get("Access-Control-Allow-Methods");
       expect(methods).toContain("GET");
-      expect(methods).toContain("HEAD");
       expect(methods).toContain("OPTIONS");
     });
 

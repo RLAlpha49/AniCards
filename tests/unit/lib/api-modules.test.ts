@@ -99,7 +99,6 @@ function createStreamingJsonRequest(options: {
     duplex: "half",
   } as RequestInit & { duplex: "half" });
 }
-
 function decodeBase64UrlJson<T>(value: string): T {
   const padded = value
     .replaceAll("-", "+")
@@ -381,38 +380,6 @@ describe("api module hardening", () => {
     });
   });
 
-  it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior outside production", async () => {
-    const observedIncrements = captureSharedRedisIncrCalls();
-    const limiter = {
-      limit: mock().mockResolvedValue({
-        success: true,
-        reason: "timeout",
-        limit: 10,
-        remaining: 9,
-        reset: Date.now() + 5_000,
-        pending: Promise.resolve(),
-      }),
-    } as never;
-
-    try {
-      const response = await checkRateLimit(
-        new Request("http://localhost/api/test"),
-        { ip: "127.0.0.1" },
-        "Test API",
-        "test_api",
-        limiter,
-      );
-
-      await flushScheduledTelemetryTasksForTests();
-
-      expect(response).toBeNull();
-      expect(observedIncrements.calls.map((call) => String(call[0]))).toContain(
-        "analytics:test_api:rate_limit_timeouts",
-      );
-    } finally {
-      observedIncrements.release();
-    }
-  });
   it("accepts custom trusted IP headers only when an explicit provenance rule is configured", () => {
     process.env = {
       ...process.env,
@@ -554,6 +521,38 @@ describe("api module hardening", () => {
     });
   });
 
+  it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior outside production", async () => {
+    const observedIncrements = captureSharedRedisIncrCalls();
+    const limiter = {
+      limit: mock().mockResolvedValue({
+        success: true,
+        reason: "timeout",
+        limit: 10,
+        remaining: 9,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      }),
+    } as never;
+
+    try {
+      const response = await checkRateLimit(
+        new Request("http://localhost/api/test"),
+        { ip: "127.0.0.1" },
+        "Test API",
+        "test_api",
+        limiter,
+      );
+
+      await flushScheduledTelemetryTasksForTests();
+
+      expect(response).toBeNull();
+      expect(observedIncrements.calls.map((call) => String(call[0]))).toContain(
+        "analytics:test_api:rate_limit_timeouts",
+      );
+    } finally {
+      observedIncrements.release();
+    }
+  });
   it("fails closed on rate-limit timeouts in production", async () => {
     const observedIncrements = captureSharedRedisIncrCalls();
 
@@ -680,7 +679,6 @@ describe("api module hardening", () => {
       "analytics:test_api:failed_requests:reason:payload_too_large",
     );
   });
-
   it("records reason-coded metrics for invalid JSON payloads", async () => {
     const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
       new Request("http://localhost/api/test", {
@@ -1139,6 +1137,26 @@ describe("api module hardening", () => {
     expect(body.status).toBe(500);
   });
 
+  it("normalizes non-Error throws before shared handling", async () => {
+    const response = handleError(
+      "upstash redis connection refused",
+      "Test API",
+      Date.now() - 25,
+      "analytics:test_api:failed_requests",
+      "Fallback error",
+      new Request("http://localhost/api/test"),
+      {
+        redisUnavailableMessage: "Card data is temporarily unavailable",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toBe("Card data is temporarily unavailable");
+    expect(body.category).toBe("server_error");
+    expect(body.retryable).toBe(true);
+    expect(body.status).toBe(503);
+  });
   it("sanitizes long stack frames without relying on backtracking regexes", () => {
     const request = createApiRequest();
     const error = new Error("private integrity detail");
@@ -1380,6 +1398,39 @@ describe("api module hardening", () => {
     });
   });
 
+  it("partitions unverified public-read fallbacks into derived anonymous buckets", async () => {
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 12,
+      remaining: 11,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await checkRateLimit(
+      new Request("http://localhost/api/test?userId=123", {
+        headers: {
+          origin: "http://localhost",
+          "user-agent": "AniCardsTest/AnonymousPublicRead",
+        },
+      }),
+      {
+        ip: "unknown",
+        reason: "missing_trusted_header",
+        verified: false,
+      },
+      "Test API",
+      "test_api",
+      { limit } as never,
+      { allowUnverifiedFallback: true },
+    );
+
+    expect(response).toBeNull();
+
+    const derivedBucketKey = String(limit.mock.calls[0]?.[0]);
+    expect(derivedBucketKey).toMatch(/^anonymous:test_api:[A-Za-z0-9_-]+$/);
+    expect(derivedBucketKey).not.toBe("anonymous:test_api");
+  });
   it("returns a 429 response with rate-limit headers and forwarded request-id propagation", async () => {
     const reset = Date.now() + 5_000;
     const limit = mock().mockResolvedValue({
@@ -1471,40 +1522,6 @@ describe("api module hardening", () => {
       ...process.env,
       NODE_ENV: "production",
     };
-
-    it("partitions unverified public-read fallbacks into derived anonymous buckets", async () => {
-      const limit = mock().mockResolvedValue({
-        success: true,
-        limit: 12,
-        remaining: 11,
-        reset: Date.now() + 5_000,
-        pending: Promise.resolve(),
-      });
-
-      const response = await checkRateLimit(
-        new Request("http://localhost/api/test?userId=123", {
-          headers: {
-            origin: "http://localhost",
-            "user-agent": "AniCardsTest/AnonymousPublicRead",
-          },
-        }),
-        {
-          ip: "unknown",
-          reason: "missing_trusted_header",
-          verified: false,
-        },
-        "Test API",
-        "test_api",
-        { limit } as never,
-        { allowUnverifiedFallback: true },
-      );
-
-      expect(response).toBeNull();
-
-      const derivedBucketKey = String(limit.mock.calls[0]?.[0]);
-      expect(derivedBucketKey).toMatch(/^anonymous:test_api:[A-Za-z0-9_-]+$/);
-      expect(derivedBucketKey).not.toBe("anonymous:test_api");
-    });
 
     const limit = mock().mockResolvedValue({
       success: true,

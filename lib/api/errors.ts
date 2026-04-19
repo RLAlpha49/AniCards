@@ -9,6 +9,7 @@ import {
   scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 import {
+  ERROR_CATEGORIES,
   type ErrorCategory,
   getErrorDetails,
   type RecoverySuggestion,
@@ -28,6 +29,7 @@ export interface ApiError {
 export type ApiErrorResponsePayload = ApiError & Record<string, unknown>;
 
 interface SafeStructuredApiError extends Error {
+  cause?: unknown;
   statusCode?: number;
   status?: number;
   publicMessage?: string;
@@ -44,24 +46,155 @@ interface HandledApiErrorDetails {
   recoverySuggestions?: RecoverySuggestion[];
 }
 
-function getCandidateErrorStatus(error: Error): number {
-  const candidate = (error as SafeStructuredApiError).statusCode;
+const ERROR_CATEGORY_SET = new Set<ErrorCategory>(ERROR_CATEGORIES);
+
+function hasNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isErrorCategoryValue(value: unknown): value is ErrorCategory {
+  return (
+    typeof value === "string" && ERROR_CATEGORY_SET.has(value as ErrorCategory)
+  );
+}
+
+function isRecoverySuggestionValue(
+  value: unknown,
+): value is RecoverySuggestion {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const suggestion = value as Partial<RecoverySuggestion>;
+
+  return (
+    hasNonEmptyString(suggestion.title) &&
+    hasNonEmptyString(suggestion.description) &&
+    (suggestion.actionLabel === undefined ||
+      hasNonEmptyString(suggestion.actionLabel)) &&
+    (suggestion.actionUrl === undefined ||
+      hasNonEmptyString(suggestion.actionUrl))
+  );
+}
+
+function coerceStructuredStatus(value: unknown): number | undefined {
   if (
-    typeof candidate === "number" &&
-    Number.isInteger(candidate) &&
-    candidate >= 400 &&
-    candidate <= 599
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 400 ||
+    value > 599
   ) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function describeUnknownThrownValue(error: unknown): string {
+  if (error === null) {
+    return "null";
+  }
+
+  switch (typeof error) {
+    case "undefined":
+      return "undefined";
+    case "string":
+      return error;
+    case "number":
+    case "boolean":
+    case "bigint":
+      return String(error);
+    case "symbol":
+      return error.description ? `Symbol(${error.description})` : "symbol";
+    default:
+      return "object";
+  }
+}
+
+function resolveUnknownErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    hasNonEmptyString((error as { message?: unknown }).message)
+  ) {
+    return (error as { message: string }).message.trim();
+  }
+
+  if (hasNonEmptyString(error)) {
+    return error.trim();
+  }
+
+  return `Non-Error thrown: ${describeUnknownThrownValue(error)}`;
+}
+
+export function normalizeUnknownError(error: unknown): SafeStructuredApiError {
+  if (error instanceof Error) {
+    return error as SafeStructuredApiError;
+  }
+
+  const structuredError =
+    typeof error === "object" && error !== null
+      ? (error as Partial<SafeStructuredApiError>)
+      : undefined;
+  const normalizedError = new Error(resolveUnknownErrorMessage(error), {
+    cause: structuredError?.cause ?? error,
+  }) as SafeStructuredApiError;
+
+  normalizedError.name = hasNonEmptyString(structuredError?.name)
+    ? structuredError.name.trim()
+    : "NonErrorThrown";
+
+  if (hasNonEmptyString(structuredError?.publicMessage)) {
+    normalizedError.publicMessage = structuredError.publicMessage.trim();
+  }
+
+  const statusCode = coerceStructuredStatus(structuredError?.statusCode);
+  if (statusCode !== undefined) {
+    normalizedError.statusCode = statusCode;
+  }
+
+  const status = coerceStructuredStatus(structuredError?.status);
+  if (status !== undefined) {
+    normalizedError.status = status;
+  }
+
+  if (isErrorCategoryValue(structuredError?.category)) {
+    normalizedError.category = structuredError.category;
+  }
+
+  if (typeof structuredError?.retryable === "boolean") {
+    normalizedError.retryable = structuredError.retryable;
+  }
+
+  if (Array.isArray(structuredError?.recoverySuggestions)) {
+    const recoverySuggestions = structuredError.recoverySuggestions.filter(
+      isRecoverySuggestionValue,
+    );
+
+    if (recoverySuggestions.length > 0) {
+      normalizedError.recoverySuggestions = recoverySuggestions;
+    }
+  }
+
+  if (hasNonEmptyString(structuredError?.stack)) {
+    normalizedError.stack = structuredError.stack.trim();
+  }
+
+  return normalizedError;
+}
+
+function getCandidateErrorStatus(error: Error): number {
+  const candidate = coerceStructuredStatus(
+    (error as SafeStructuredApiError).statusCode,
+  );
+  if (candidate !== undefined) {
     return candidate;
   }
 
-  const alternateCandidate = (error as SafeStructuredApiError).status;
-  if (
-    typeof alternateCandidate === "number" &&
-    Number.isInteger(alternateCandidate) &&
-    alternateCandidate >= 400 &&
-    alternateCandidate <= 599
-  ) {
+  const alternateCandidate = coerceStructuredStatus(
+    (error as SafeStructuredApiError).status,
+  );
+  if (alternateCandidate !== undefined) {
     return alternateCandidate;
   }
 
@@ -94,18 +227,25 @@ function looksLikeRedisTransportFailure(message: string): boolean {
 }
 
 export function isRedisBackplaneUnavailable(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
+  const normalizedError = normalizeUnknownError(error);
 
-  if (looksLikeRedisTransportFailure(`${error.name} ${error.message}`)) {
+  if (
+    looksLikeRedisTransportFailure(
+      `${normalizedError.name} ${normalizedError.message}`,
+    )
+  ) {
     return true;
   }
 
-  const cause = (error as { cause?: unknown }).cause;
-  return cause instanceof Error
-    ? looksLikeRedisTransportFailure(`${cause.name} ${cause.message}`)
-    : false;
+  const cause = normalizedError.cause;
+  if (cause === undefined) {
+    return false;
+  }
+
+  const normalizedCause = normalizeUnknownError(cause);
+  return looksLikeRedisTransportFailure(
+    `${normalizedCause.name} ${normalizedCause.message}`,
+  );
 }
 
 function resolveHandledApiErrorDetails(
@@ -226,7 +366,7 @@ export function payloadTooLargeResponse(
 }
 
 export function handleError(
-  error: Error,
+  error: unknown,
   endpoint: string,
   startTime: number,
   analyticsMetric: string,
@@ -237,12 +377,13 @@ export function handleError(
     logContext?: Record<string, unknown>;
   },
 ): NextResponse<ApiError> {
+  const normalizedError = normalizeUnknownError(error);
   const duration = Date.now() - startTime;
   const logContext = options?.logContext;
   const logPayload: Record<string, unknown> = {
     durationMs: duration,
-    error: error.message,
-    ...(error.stack ? { stack: error.stack } : {}),
+    error: normalizedError.message,
+    ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
   };
 
   if (logContext) {
@@ -273,7 +414,7 @@ export function handleError(
   }
 
   const handledError = resolveHandledApiErrorDetails(
-    error,
+    normalizedError,
     errorMessage,
     options,
   );

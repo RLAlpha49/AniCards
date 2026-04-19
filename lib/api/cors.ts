@@ -75,7 +75,7 @@ export function apiJsonHeaders(request?: Request): Record<string, string> {
   const allowedOrigin = getAllowedApiOrigin(request);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS, POST",
+    "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
     "Access-Control-Expose-Headers":
       "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
     Vary: "Origin",

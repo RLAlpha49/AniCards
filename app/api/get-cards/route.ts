@@ -190,10 +190,9 @@ export async function GET(request: Request) {
 
     trackCardsApiMetric(CARDS_API_SUCCESS_METRIC, request);
     return jsonWithCors(cardData, request);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleError(
-      error as Error,
+      error,
       endpoint,
       startTime,
       CARDS_API_FAILED_METRIC,
@@ -213,7 +212,7 @@ export function OPTIONS(request: Request) {
     headers: {
       ...headers,
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
     },
   });
 }

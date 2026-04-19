@@ -107,6 +107,14 @@ paths:
           description: >-
             Unwrapped AniList GraphQL `data` payload for the approved
             `GetUserId` or `GetUserStats` operation.
+          headers:
+            Set-Cookie:
+              description: >-
+                Present only for successful `GetUserStats` responses. Refreshes
+                the stronger stats-bound protected-write grant for the resolved
+                AniList user.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -136,35 +144,55 @@ paths:
                     category: "invalid_data"
                     retryable: false
                     status: 400
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 unsupportedOperation:
                   value:
                     error: "Unsupported AniList operation"
                     category: "invalid_data"
                     retryable: false
                     status: 400
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidUserName:
                   value:
                     error: "Invalid AniList username"
                     category: "invalid_data"
                     retryable: false
                     status: 400
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidUserId:
                   value:
                     error: "Invalid AniList userId"
                     category: "invalid_data"
                     retryable: false
                     status: 400
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 upstreamRejected:
                   value:
                     error: "HTTP error! status: 400 - Invalid query"
                     category: "invalid_data"
                     retryable: false
                     status: 400
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
         "413":
           description: "JSON request body exceeded the 32768-byte AniList proxy limit"
           content:
@@ -178,7 +206,11 @@ paths:
                     category: "invalid_data"
                     retryable: false
                     status: 413
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                     maxBytes: 32768
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
@@ -204,14 +236,22 @@ paths:
                     category: "rate_limited"
                     retryable: true
                     status: 429
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Wait and retry"
+                        description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
+                      - title: "Try a different user"
+                        description: "You can search for another AniList user in the meantime"
                 upstream:
                   value:
                     error: "HTTP error! status: 429 - Too Many Requests (Retry-After: 60)"
                     category: "rate_limited"
                     retryable: true
                     status: 429
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Wait and retry"
+                        description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
+                      - title: "Try a different user"
+                        description: "You can search for another AniList user in the meantime"
         "500":
           description: >-
             AniList returned a GraphQL error payload or the route hit an
@@ -227,13 +267,33 @@ paths:
                     category: "server_error"
                     retryable: true
                     status: 500
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 graphQlError:
                   value:
                     error: "User not found"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 upstream:
                   value:
                     error: "HTTP error! status: 500 - Internal Server Error"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "502":
           description: "AniList transport failure before any upstream response was received"
           content:
@@ -247,7 +307,11 @@ paths:
                     category: "server_error"
                     retryable: true
                     status: 502
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "503":
           description: >-
             Missing server-side request-guard configuration, unverifiable
@@ -266,28 +330,44 @@ paths:
                     category: "server_error"
                     retryable: true
                     status: 503
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 missingRequestProofSecret:
                   value:
                     error: "Server misconfigured"
                     category: "server_error"
                     retryable: true
                     status: 503
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 unverifiedClientIp:
                   value:
                     error: "Client IP could not be verified"
                     category: "server_error"
                     retryable: true
                     status: 503
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 circuitOpen:
                   value:
                     error: "AniList GraphQL circuit breaker is open (Retry-After: 30)"
                     category: "server_error"
                     retryable: true
                     status: 503
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "504":
           description: "Timed out while waiting for AniList to respond"
           content:
@@ -301,7 +381,11 @@ paths:
                     category: "timeout"
                     retryable: true
                     status: 504
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Try again"
+                        description: "The request took longer than expected. Please retry with a potentially smaller username or card selection."
+                      - title: "Simplify selection"
+                        description: "Try generating fewer cards at once to speed up the process"
     options:
       operationId: "preflightAniList"
       tags:
@@ -732,10 +816,10 @@ paths:
         omits internal request metadata such as redacted IP buckets and record
         timestamps. The exposed `recordMeta.snapshot` identifier is limited to a
         stable token plus revision and does not include `updatedAt` or
-        `committedAt`. Successful reads also refresh a lighter per-user
-        `stored_user` protected write grant for the same user. That grant is
-        sufficient for `/api/store-cards` but does not carry the stats hash
-        required by `/api/store-users`.
+        `committedAt`. Public reads intentionally do not refresh protected-write
+        grants on their own; browsers instead rely on the stronger
+        `/api/anilist` `GetUserStats` grant or the lighter `stored_user` grant
+        refreshed by successful stored-write responses.
       parameters:
         - in: query
           name: userId
@@ -974,6 +1058,13 @@ paths:
       responses:
         "200":
           description: "Card configuration stored successfully"
+          headers:
+            Set-Cookie:
+              description: >-
+                Refreshes the lighter per-user `stored_user` protected-write
+                grant for the same AniList user.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -1107,8 +1198,8 @@ paths:
         production it requires same-origin requests, a verified client IP, the
         shared request-proof cookie, and a short-lived per-user protected write
         grant minted by `/api/anilist` `GetUserStats` for the same user. The
-        lighter `stored_user` grant refreshed by `/api/get-user` or successful
-        stored writes is not sufficient on its own because this route verifies
+        lighter `stored_user` grant refreshed by successful stored writes is not
+        sufficient on its own because this route verifies
         a stats hash against the submitted `stats` payload. On success the
         response refreshes the lighter `stored_user` grant used by
         `/api/store-cards`. The server only persists the bound AniList snapshot
@@ -1190,6 +1281,13 @@ paths:
       responses:
         "200":
           description: "User record stored successfully"
+          headers:
+            Set-Cookie:
+              description: >-
+                Refreshes the lighter per-user `stored_user` protected-write
+                grant for the same AniList user.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -1536,18 +1634,52 @@ paths:
                     recoverySuggestions:
                       - title: "Check your input"
                         description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 missingUrl:
                   value:
                     error: "Missing svgUrl or svgContent parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidUrl:
                   value:
                     error: "Invalid URL format"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidFormat:
                   value:
                     error: "Invalid format parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidResponseType:
                   value:
                     error: "Invalid responseType parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "403":
@@ -1560,9 +1692,25 @@ paths:
                 forbidden:
                   value:
                     error: "Unauthorized or unsafe domain/protocol"
+                    category: "forbidden"
+                    retryable: false
+                    status: 403
+                    recoverySuggestions:
+                      - title: "Go back to the previous step"
+                        description: "This action may only work when you start from the original page or protected request flow."
+                      - title: "Reload from a safe entry point"
+                        description: "Open the page again through normal navigation instead of a stale, copied, or shared link."
                 redirectBlocked:
                   value:
                     error: "SVG redirects are not allowed"
+                    category: "forbidden"
+                    retryable: false
+                    status: 403
+                    recoverySuggestions:
+                      - title: "Go back to the previous step"
+                        description: "This action may only work when you start from the original page or protected request flow."
+                      - title: "Reload from a safe entry point"
+                        description: "Open the page again through normal navigation instead of a stale, copied, or shared link."
         "404":
           description: "Allow-listed upstream SVG was not found"
           content:
@@ -1573,6 +1721,16 @@ paths:
                 missingUpstream:
                   value:
                     error: "Failed to fetch SVG"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions:
+                      - title: "Check the username"
+                        description: "Verify that the AniList username is spelled correctly and exists on AniList.co"
+                        actionUrl: "https://anilist.co"
+                        actionLabel: "Visit AniList"
+                      - title: "Try again"
+                        description: "If you believe the username exists, wait a moment and try again"
         "413":
           description: "JSON request body exceeded 1250000 bytes, inline/fetched SVG exceeded 1000000 bytes, or rasterized output exceeded dimension/pixel limits"
           content:
@@ -1586,14 +1744,34 @@ paths:
                     category: "invalid_data"
                     retryable: false
                     status: 413
-                    recoverySuggestions: []
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                     maxBytes: 1250000
                 responseTooLarge:
                   value:
                     error: "SVG response too large"
+                    category: "server_error"
+                    retryable: true
+                    status: 413
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 rasterTooLarge:
                   value:
                     error: "SVG rasterization exceeds pixel limits"
+                    category: "server_error"
+                    retryable: true
+                    status: 413
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "415":
           description: "Fetched or inline content was not valid SVG markup"
           content:
@@ -1604,9 +1782,25 @@ paths:
                 invalidInline:
                   value:
                     error: "Provided content is not a valid SVG"
+                    category: "server_error"
+                    retryable: true
+                    status: 415
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
                 invalidFetched:
                   value:
                     error: "Fetched content is not a valid SVG"
+                    category: "server_error"
+                    retryable: true
+                    status: 415
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "500":
@@ -1619,6 +1813,14 @@ paths:
                 conversionFailure:
                   value:
                     error: "Conversion failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "502":
           description: "Transient transport failure while fetching the upstream SVG"
           content:
@@ -1629,6 +1831,14 @@ paths:
                 upstreamTransport:
                   value:
                     error: "Failed to fetch SVG"
+                    category: "server_error"
+                    retryable: true
+                    status: 502
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "503":
           description: "Allow-listed upstream SVG source was temporarily unavailable"
           content:
@@ -1639,6 +1849,14 @@ paths:
                 upstreamUnavailable:
                   value:
                     error: "Failed to fetch SVG"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions:
+                      - title: "Try again later"
+                        description: "The server is experiencing issues. Please try again in a moment."
+                      - title: "Contact support"
+                        description: "If the problem persists, please contact our support team"
         "504":
           description: "Timed out while fetching the upstream SVG"
           content:
@@ -1649,6 +1867,14 @@ paths:
                 upstreamTimeout:
                   value:
                     error: "SVG fetch timed out"
+                    category: "timeout"
+                    retryable: true
+                    status: 504
+                    recoverySuggestions:
+                      - title: "Try again"
+                        description: "The request took longer than expected. Please retry with a potentially smaller username or card selection."
+                      - title: "Simplify selection"
+                        description: "Try generating fewer cards at once to speed up the process"
     options:
       operationId: "preflightConvertSvg"
       tags:
@@ -2163,11 +2389,11 @@ components:
       schema:
         type: string
       example: "Content-Type"
-    AccessControlAllowMethodsGetHeadOptions:
+    AccessControlAllowMethodsGetOptions:
       description: "Allowed HTTP methods for this endpoint"
       schema:
         type: string
-      example: "GET, HEAD, OPTIONS"
+      example: "GET, OPTIONS"
     AccessControlAllowMethodsPostOptions:
       description: "Allowed HTTP methods for this endpoint"
       schema:
@@ -2197,6 +2423,11 @@ components:
       schema:
         type: string
       example: "req_01HZQK8F8Y6Z8A2R3M4N5P6Q7R"
+    PreviewMediaRobotsTag:
+      description: "Always-on crawl directive for generated preview SVG and PNG media responses"
+      schema:
+        type: string
+      example: "noindex, noimageindex, noarchive"
 
   responses:
     UnauthorizedJson:
@@ -2253,7 +2484,7 @@ components:
         Access-Control-Allow-Headers:
           $ref: "#/components/headers/AccessControlAllowHeadersContentType"
         Access-Control-Allow-Methods:
-          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+          $ref: "#/components/headers/AccessControlAllowMethodsGetOptions"
         Access-Control-Expose-Headers:
           $ref: "#/components/headers/AccessControlExposeHeadersJsonApi"
         Vary:
@@ -2301,11 +2532,13 @@ components:
         Access-Control-Allow-Headers:
           $ref: "#/components/headers/AccessControlAllowHeadersContentType"
         Access-Control-Allow-Methods:
-          $ref: "#/components/headers/AccessControlAllowMethodsGetHeadOptions"
+          $ref: "#/components/headers/AccessControlAllowMethodsGetOptions"
         Access-Control-Expose-Headers:
           $ref: "#/components/headers/AccessControlExposeHeadersCardSvg"
         Vary:
           $ref: "#/components/headers/HeaderVaryOrigin"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
 
@@ -2382,6 +2615,8 @@ components:
           $ref: "#/components/headers/CardBorderRadius"
         X-Cache-Source:
           $ref: "#/components/headers/CardCacheSource"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2408,6 +2643,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2431,6 +2668,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2462,6 +2701,8 @@ components:
           $ref: "#/components/headers/RateLimitRemaining"
         X-RateLimit-Reset:
           $ref: "#/components/headers/RateLimitReset"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2485,6 +2726,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2510,6 +2753,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2541,6 +2786,8 @@ components:
           $ref: "#/components/headers/CardBorderRadius"
         X-Cache-Source:
           $ref: "#/components/headers/CardCacheSource"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2560,6 +2807,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2579,6 +2828,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2606,6 +2857,8 @@ components:
           $ref: "#/components/headers/RateLimitRemaining"
         X-RateLimit-Reset:
           $ref: "#/components/headers/RateLimitReset"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2625,6 +2878,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
@@ -2644,6 +2899,8 @@ components:
           $ref: "#/components/headers/CardSharedCacheControl"
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        X-Robots-Tag:
+          $ref: "#/components/headers/PreviewMediaRobotsTag"
         X-Request-Id:
           $ref: "#/components/headers/RequestId"
       content:
