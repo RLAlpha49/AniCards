@@ -1,7 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-const DEVELOPMENT_PROTECTED_WRITE_GRANT_SECRET =
-  "anicards-dev-write-grant-secret";
+import {
+  hasConfiguredRootApiSecret,
+  resolvePurposeScopedSigningSecret,
+} from "@/lib/api/local-runtime";
 
 const PROTECTED_WRITE_GRANT_VERSION = 1;
 
@@ -53,22 +55,11 @@ function isProduction(): boolean {
 }
 
 function getProtectedWriteGrantSecret(): string | null {
-  const configuredSecret = process.env.API_SECRET_TOKEN?.trim();
-  if (configuredSecret) {
-    return configuredSecret;
-  }
-
-  if (!isProduction()) {
-    return DEVELOPMENT_PROTECTED_WRITE_GRANT_SECRET;
-  }
-
-  return null;
+  return resolvePurposeScopedSigningSecret("protected-write-grant");
 }
 
 export function isProtectedWriteGrantEnforced(): boolean {
-  return !(
-    process.env.NODE_ENV === "test" && !process.env.API_SECRET_TOKEN?.trim()
-  );
+  return !(process.env.NODE_ENV === "test" && !hasConfiguredRootApiSecret());
 }
 
 function normalizeUsername(value: unknown): string | undefined {

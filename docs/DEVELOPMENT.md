@@ -49,19 +49,19 @@ Copy-Item .env.example .env.local
 
 The template in [`.env.example`](../.env.example) is grouped by concern. Match the setup to your work — no reason to fill in everything.
 
-| Concern                                | Variables                                                            | Required for                                                               |
-| -------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Local app URLs                         | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` | All local runs                                                             |
-| AniList upstream access                | `ANILIST_TOKEN`                                                      | Full API work that calls AniList-backed routes                             |
-| Redis-backed storage and rate limiting | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`                 | Stored user or card flows, shared rate limiting, cron, and reporting paths |
-| Redis latency diagnostics              | `UPSTASH_REDIS_LATENCY_LOGGING=true`                                 | Optional local-only Upstash latency logging while debugging Redis behavior |
-| Analytics                              | `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`                                    | Optional local analytics wiring                                            |
-| SVG and CORS tuning                    | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`                                | Optional local card or embed testing                                       |
-| Cron protection                        | `CRON_SECRET`                                                        | Operator or cron endpoint testing; required outside local dev              |
-| Protected route request proof          | `API_SECRET_TOKEN`                                                   | Prod deploys and parity testing of protected proxy/write routes            |
-| Trusted proxy/client IP headers        | `TRUSTED_CLIENT_IP_HEADERS`                                          | Non-default proxy/CDN setups                                               |
-| Local cron escape hatch                | `ALLOW_UNSECURED_CRON_IN_DEV=true`                                   | Optional local-only testing without cron auth                              |
-| Upstream degradation toggle            | `ANILIST_UPSTREAM_DEGRADED_MODE=true`                                | Optional local resilience testing                                          |
+| Concern                                | Variables                                                            | Required for                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Local app URLs                         | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` | All local runs                                                                    |
+| AniList upstream access                | `ANILIST_TOKEN`                                                      | Full API work that calls AniList-backed routes                                    |
+| Redis-backed storage and rate limiting | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`                 | Stored user or card flows, shared rate limiting, cron, and reporting paths        |
+| Redis latency diagnostics              | `UPSTASH_REDIS_LATENCY_LOGGING=true`                                 | Optional local-only Upstash latency logging while debugging Redis behavior        |
+| Analytics                              | `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID`                                    | Optional local analytics wiring                                                   |
+| SVG and CORS tuning                    | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN`                                | Optional local card or embed testing                                              |
+| Cron protection                        | `CRON_SECRET`                                                        | Operator or cron endpoint testing; required outside local dev                     |
+| Protected route request proof          | `API_SECRET_TOKEN`, `ALLOW_INSECURE_LOCALHOST_SECRETS=true`          | Prod deploys and localhost-only fallback testing for protected proxy/write routes |
+| Trusted proxy/client IP headers        | `TRUSTED_CLIENT_IP_HEADERS`, `TRUSTED_CLIENT_IP_HEADER_PROVENANCE`   | Non-default proxy/CDN setups                                                      |
+| Local cron escape hatch                | `ALLOW_UNSECURED_CRON_IN_DEV=true`                                   | Optional local-only testing without cron auth                                     |
+| Upstream degradation toggle            | `ANILIST_UPSTREAM_DEGRADED_MODE=true`                                | Optional local resilience testing                                                 |
 
 Boolean env toggles in this repository use literal `true` / `false` values. `1` / `0` are ignored by the shared env parser.
 
@@ -75,8 +75,8 @@ Fill in the AniList token, Upstash Redis credentials, and whichever cron setting
 
 ### Protected routes and proxy-aware flows
 
-- `API_SECRET_TOKEN` signs the short-lived request-proof cookie used by `/api/anilist`, `/api/store-users`, `/api/store-cards`, and `/api/convert`. Production must set it. Local development falls back to an internal dev secret, but adding a real value to `.env.local` is the easiest way to get production-parity behavior when you need to debug request-proof failures.
-- `TRUSTED_CLIENT_IP_HEADERS` is only needed when your proxy/CDN does not use the built-in trusted headers (`x-vercel-forwarded-for` on Vercel and `cf-connecting-ip` on Cloudflare). Leave it blank on those defaults; otherwise set a comma-separated list of lowercase header names that carry the real client IP.
+- `API_SECRET_TOKEN` is the root signing secret for the short-lived request-proof cookie and protected-write grants used by `/api/anilist`, `/api/store-users`, `/api/store-cards`, and `/api/convert`. Production must set it. Local development only falls back to the built-in insecure localhost secret when `ALLOW_INSECURE_LOCALHOST_SECRETS=true` **and** the configured public AniCards URLs stay on loopback hosts such as `http://localhost:3000`.
+- `TRUSTED_CLIENT_IP_HEADERS` is only needed when your proxy/CDN adds custom client-IP headers beyond the built-in trusted defaults (`x-vercel-forwarded-for` on Vercel and `cf-connecting-ip` on Cloudflare). Custom headers must also declare header-specific provenance via `TRUSTED_CLIENT_IP_HEADER_PROVENANCE`, for example `x-real-ip=x-proxy-signature|x-proxy-id`.
 
 ## Start the dev server
 

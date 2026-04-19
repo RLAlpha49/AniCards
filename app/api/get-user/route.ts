@@ -12,7 +12,6 @@ import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
 import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { parseStrictPositiveInteger } from "@/lib/api/primitives";
-import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write-grants";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
@@ -281,7 +280,6 @@ export async function GET(request: Request) {
     {
       skipSameOrigin: true,
       unverifiedRateLimitFallback: {
-        bucketKey: "anonymous:user_api",
         limiter: anonymousRatelimit,
       },
     },
@@ -384,23 +382,9 @@ export async function GET(request: Request) {
     );
     trackUserApiSuccess(request, duration);
 
-    const protectedWriteGrantHeader =
-      await createProtectedWriteGrantCookieHeader({
-        source: "stored_user",
-        userId: numericUserId,
-        username: canonicalUsername,
-      });
-
-    return jsonWithCors(
-      userData,
-      request,
-      undefined,
-      protectedWriteGrantHeader
-        ? {
-            "Set-Cookie": protectedWriteGrantHeader,
-          }
-        : undefined,
-    );
+    // Public stored-user reads intentionally remain account-free and do not
+    // mint protected-write grants for the resolved subject.
+    return jsonWithCors(userData, request);
   } catch (error) {
     return handleError(
       error as Error,

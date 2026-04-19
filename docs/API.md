@@ -44,16 +44,16 @@ In production, both routes expect the full browser-only chain to be present:
 
 Those grants are intentionally route-specific:
 
-- `/api/store-users` needs the stronger stats-bound grant minted by `/api/anilist` when it returns `GetUserStats` for the same user. The lighter `stored_user` grant refreshed by `/api/get-user`, `/api/store-users`, or `/api/store-cards` is not enough on its own because `/api/store-users` verifies the submitted `stats` payload against the grant's stats hash.
+- `/api/store-users` needs the stronger stats-bound grant minted by `/api/anilist` when it returns `GetUserStats` for the same user. The lighter `stored_user` grant refreshed by successful `/api/store-users` or `/api/store-cards` responses is not enough on its own because `/api/store-users` verifies the submitted `stats` payload against the grant's stats hash.
 - `/api/store-cards` accepts either that strong `GetUserStats` grant or the lighter `stored_user` grant for the same user.
 
-Successful `/api/get-user`, `/api/store-users`, and `/api/store-cards` responses refresh the lighter `stored_user` grant. Successful `/api/anilist` `GetUserStats` responses refresh the stronger stats-bound grant.
+Successful `/api/store-users` and `/api/store-cards` responses refresh the lighter `stored_user` grant. Successful `/api/anilist` `GetUserStats` responses refresh the stronger stats-bound grant. Public `/api/get-user` reads stay account-free and **do not** mint write authority on their own.
 
 One extra gotcha for `/api/store-users`: the server only persists the bound AniList snapshot that was just approved for that browser/user flow. A client can still send `username` in the JSON body for compatibility, but the authoritative username comes from the bound snapshot/write grant, not from whatever the browser claims in that field.
 
 ## Editor contract quick map
 
-- `/api/get-user?view=bootstrap` confirms the canonical profile target and refreshes the lighter `stored_user` grant used by the card-save path.
+- `/api/get-user?view=bootstrap` confirms the canonical profile target, but it stays a public read and does not refresh protected-write grants by itself.
 - `/api/get-cards` returns a **sparse** persisted cards record: explicit `cards`, optional compact `cardOrder`, the cards record `updatedAt`, and optional `version`, `schemaVersion`, and `userSnapshot` metadata. The `cards` array is **not** the full ordering source; preserve `cardOrder` on round-trip.
 - Once a stored record already exists, both write routes expect the latest `ifMatchUpdatedAt`. `/api/store-users` can also take `ifMatchRevision` and `ifMatchSnapshotToken`; `/api/store-cards` can use the same tokens to pin the save to a specific stored user snapshot.
 - `/api/store-users` validates the submitted AniList `stats` payload against the current `GetUserStats` grant and returns a new `updatedAt`, `revision`, and `snapshotToken` for the stored user snapshot.

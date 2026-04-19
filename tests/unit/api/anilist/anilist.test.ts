@@ -118,6 +118,7 @@ describe("AniList API Route", () => {
 
   it("simulates a 429 test response only in development", async () => {
     setEnvironment("development");
+    process.env.ALLOW_INSECURE_LOCALHOST_SECRETS = "true";
     const requestProofCookie = await createRequestProofCookie();
 
     const response = await POST(

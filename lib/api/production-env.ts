@@ -75,7 +75,8 @@ const REQUIRED_PRODUCTION_ENV_REQUIREMENTS = [
   },
   {
     name: "API_SECRET_TOKEN",
-    description: "request-proof signing for protected write routes",
+    description:
+      "purpose-scoped request-proof and protected-write grant signing",
   },
 ] as const satisfies readonly ProductionEnvRequirement[];
 

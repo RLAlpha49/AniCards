@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
@@ -7,6 +9,11 @@ import {
   handleError,
   invalidJsonResponse,
 } from "@/lib/api/errors";
+import { derivePurposeScopedSecret } from "@/lib/api/local-runtime";
+import {
+  createProtectedWriteGrantCookie,
+  verifyProtectedWriteGrantToken,
+} from "@/lib/api/protected-write-grants";
 import {
   checkRateLimit,
   createRateLimiter,
@@ -373,6 +380,146 @@ describe("api module hardening", () => {
     } finally {
       observedIncrements.release();
     }
+  });
+  it("accepts custom trusted IP headers only when an explicit provenance rule is configured", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      TRUSTED_CLIENT_IP_HEADERS: "x-real-ip",
+      TRUSTED_CLIENT_IP_HEADER_PROVENANCE:
+        "x-real-ip=x-proxy-signature|x-proxy-id",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-real-ip": "198.51.100.24",
+          "x-proxy-signature": "sig-123",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: true,
+      ip: "198.51.100.24",
+      source: "x-real-ip",
+    });
+  });
+
+  it("preserves built-in trusted IP header defaults when custom headers are added", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      TRUSTED_CLIENT_IP_HEADERS: "x-real-ip",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "198.51.100.25",
+          "x-vercel-id": "cle1::built-in",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: true,
+      ip: "198.51.100.25",
+      source: "x-vercel-forwarded-for",
+    });
+  });
+
+  it("requires an explicit opt-in before using insecure localhost signing fallbacks in development", async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "development",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      NEXT_PUBLIC_API_URL: "http://localhost:3000",
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+    };
+    delete process.env.API_SECRET_TOKEN;
+    delete process.env.ALLOW_INSECURE_LOCALHOST_SECRETS;
+
+    expect(
+      await createRequestProofToken({
+        ip: "127.0.0.1",
+        userAgent: "AniCardsTest/LocalFallback",
+      }),
+    ).toBeNull();
+
+    process.env.ALLOW_INSECURE_LOCALHOST_SECRETS = "true";
+
+    expect(
+      await createRequestProofToken({
+        ip: "127.0.0.1",
+        userAgent: "AniCardsTest/LocalFallback",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("fails closed for non-local development runtimes when trusted headers are unavailable", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "development",
+      NEXT_PUBLIC_APP_URL: "https://preview.example",
+      NEXT_PUBLIC_API_URL: "https://preview.example",
+      NEXT_PUBLIC_SITE_URL: "https://preview.example",
+      ALLOW_INSECURE_LOCALHOST_SECRETS: "true",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test"),
+    );
+
+    expect(result).toEqual({
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "missing_trusted_header",
+    });
+  });
+
+  it("derives request-proof and protected-write signatures from purpose-scoped subkeys", async () => {
+    process.env.API_SECRET_TOKEN = "test-root-secret";
+
+    const requestProofToken = await createRequestProofToken({
+      ip: "127.0.0.1",
+      userAgent: "AniCardsTest/PurposeScopedSecrets",
+    });
+    const protectedWriteCookie = await createProtectedWriteGrantCookie({
+      source: "stored_user",
+      userId: 123,
+      username: "ScopedUser",
+    });
+
+    expect(requestProofToken).toBeTruthy();
+    expect(protectedWriteCookie).not.toBeNull();
+
+    const [requestProofPayloadSegment, requestProofSignatureSegment] =
+      String(requestProofToken).split(".");
+    const [grantPayloadSegment, grantSignatureSegment] = String(
+      protectedWriteCookie?.value,
+    ).split(".");
+
+    expect(requestProofSignatureSegment).not.toBe(
+      createHmac("sha256", "test-root-secret")
+        .update(String(requestProofPayloadSegment))
+        .digest("base64url"),
+    );
+    expect(grantSignatureSegment).not.toBe(
+      createHmac("sha256", "test-root-secret")
+        .update(String(grantPayloadSegment))
+        .digest("base64url"),
+    );
+
+    await expect(
+      verifyProtectedWriteGrantToken(String(requestProofToken), {
+        expectedUserId: 123,
+      }),
+    ).resolves.toMatchObject({
+      valid: false,
+      reason: "invalid_signature",
+    });
   });
 
   it("fails closed on rate-limit timeouts in production", async () => {
@@ -1254,6 +1401,40 @@ describe("api module hardening", () => {
       NODE_ENV: "production",
     };
 
+    it("partitions unverified public-read fallbacks into derived anonymous buckets", async () => {
+      const limit = mock().mockResolvedValue({
+        success: true,
+        limit: 12,
+        remaining: 11,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      });
+
+      const response = await checkRateLimit(
+        new Request("http://localhost/api/test?userId=123", {
+          headers: {
+            origin: "http://localhost",
+            "user-agent": "AniCardsTest/AnonymousPublicRead",
+          },
+        }),
+        {
+          ip: "unknown",
+          reason: "missing_trusted_header",
+          verified: false,
+        },
+        "Test API",
+        "test_api",
+        { limit } as never,
+        { allowUnverifiedFallback: true },
+      );
+
+      expect(response).toBeNull();
+
+      const derivedBucketKey = String(limit.mock.calls[0]?.[0]);
+      expect(derivedBucketKey).toMatch(/^anonymous:test_api:[A-Za-z0-9_-]+$/);
+      expect(derivedBucketKey).not.toBe("anonymous:test_api");
+    });
+
     const limit = mock().mockResolvedValue({
       success: true,
       limit: 20,
@@ -1564,7 +1745,10 @@ describe("api module hardening", () => {
     const userAgent = "AniCardsTest/ReadableProof";
     const token = await createReadableRequestProofToken({
       ip: clientIp,
-      secret: "test-request-proof-secret",
+      secret: derivePurposeScopedSecret(
+        "test-request-proof-secret",
+        "request-proof",
+      ),
       userAgent,
     });
 

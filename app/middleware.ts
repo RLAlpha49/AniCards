@@ -161,9 +161,20 @@ async function maybeRefreshRequestProof(
     ip: clientIp.ip,
     userAgent: request.headers.get("user-agent"),
   });
-  if (proofCookie) {
-    response.cookies.set(proofCookie);
+  if (!proofCookie) {
+    if (existingProofCookie) {
+      response.cookies.set({
+        name: REQUEST_PROOF_COOKIE_NAME,
+        value: "",
+        maxAge: 0,
+        path: "/",
+      });
+    }
+
+    return;
   }
+
+  response.cookies.set(proofCookie);
 }
 
 /**

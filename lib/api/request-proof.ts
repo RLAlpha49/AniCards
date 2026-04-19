@@ -1,3 +1,9 @@
+import {
+  canUseLocalhostSecurityFallbacks,
+  hasConfiguredRootApiSecret,
+  resolvePurposeScopedSigningSecret,
+} from "@/lib/api/local-runtime";
+
 const DEFAULT_TRUSTED_CLIENT_IP_HEADERS = [
   "x-vercel-forwarded-for",
   "cf-connecting-ip",
@@ -10,10 +16,8 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
   (typeof DEFAULT_TRUSTED_CLIENT_IP_HEADERS)[number],
   readonly string[]
 >;
-const DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS =
-  collectTrustedProxyProvenanceHeaders();
-
-const DEVELOPMENT_REQUEST_PROOF_SECRET = "anicards-dev-request-proof-secret";
+const TRUSTED_CLIENT_IP_HEADER_PROVENANCE_ENV =
+  "TRUSTED_CLIENT_IP_HEADER_PROVENANCE";
 const REQUEST_PROOF_VERSION = 1;
 const REQUEST_PROOF_USER_AGENT_MAX_LENGTH = 240;
 
@@ -81,18 +85,68 @@ function normalizeHeaderName(value: string): string | null {
   return /^[a-z0-9-]+$/.test(normalized) ? normalized : null;
 }
 
-function collectTrustedProxyProvenanceHeaders(): string[] {
-  const provenanceHeaders = new Set<string>();
+function parseTrustedClientIpHeaderList(
+  rawConfigured: string | undefined,
+): string[] {
+  return (rawConfigured ?? "")
+    .split(",")
+    .map((value) => normalizeHeaderName(value))
+    .filter((value): value is string => value !== null);
+}
 
-  for (const headers of Object.values(
-    DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS,
-  )) {
-    for (const header of headers) {
-      provenanceHeaders.add(header);
-    }
+function parseConfiguredTrustedClientIpProvenanceMap(): Map<
+  string,
+  readonly string[]
+> {
+  const rawConfigured =
+    process.env[TRUSTED_CLIENT_IP_HEADER_PROVENANCE_ENV]?.trim();
+  const provenanceMap = new Map<string, readonly string[]>();
+
+  if (!rawConfigured) {
+    return provenanceMap;
   }
 
-  return Array.from(provenanceHeaders);
+  for (const rawEntry of rawConfigured.split(",")) {
+    const [rawHeaderName, rawProvenanceHeaders, ...rest] = rawEntry.split("=");
+    if (!rawHeaderName || !rawProvenanceHeaders || rest.length > 0) {
+      continue;
+    }
+
+    const headerName = normalizeHeaderName(rawHeaderName);
+    if (!headerName) {
+      continue;
+    }
+
+    const provenanceHeaders = rawProvenanceHeaders
+      .split("|")
+      .map((value) => normalizeHeaderName(value))
+      .filter((value): value is string => value !== null);
+    if (provenanceHeaders.length === 0) {
+      continue;
+    }
+
+    const existingHeaders = provenanceMap.get(headerName) ?? [];
+    provenanceMap.set(
+      headerName,
+      Array.from(new Set([...existingHeaders, ...provenanceHeaders])),
+    );
+  }
+
+  return provenanceMap;
+}
+
+function getTrustedClientIpProvenanceHeaders(
+  headerName: string,
+): readonly string[] | null {
+  const builtInProvenanceHeaders =
+    DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS[
+      headerName as keyof typeof DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS
+    ];
+  if (builtInProvenanceHeaders && builtInProvenanceHeaders.length > 0) {
+    return builtInProvenanceHeaders;
+  }
+
+  return parseConfiguredTrustedClientIpProvenanceMap().get(headerName) ?? null;
 }
 
 function resolveVerifiedClientIpFailureReason(options: {
@@ -109,19 +163,13 @@ function resolveVerifiedClientIpFailureReason(options: {
 }
 
 export function getTrustedClientIpHeaderNames(): string[] {
-  const rawConfigured = process.env.TRUSTED_CLIENT_IP_HEADERS?.trim();
-  if (!rawConfigured) {
-    return [...DEFAULT_TRUSTED_CLIENT_IP_HEADERS];
-  }
+  const configured = parseTrustedClientIpHeaderList(
+    process.env.TRUSTED_CLIENT_IP_HEADERS?.trim(),
+  );
 
-  const configured = rawConfigured
-    .split(",")
-    .map((value) => normalizeHeaderName(value))
-    .filter((value): value is string => value !== null);
-
-  return configured.length > 0
-    ? Array.from(new Set(configured))
-    : [...DEFAULT_TRUSTED_CLIENT_IP_HEADERS];
+  return Array.from(
+    new Set([...DEFAULT_TRUSTED_CLIENT_IP_HEADERS, ...configured]),
+  );
 }
 
 function extractFirstForwardedToken(value: string): string {
@@ -180,16 +228,12 @@ function hasTrustedProxyProvenance(
   request: Pick<Request, "headers">,
   headerName: string,
 ): boolean {
-  if (!isProduction()) {
+  if (canUseLocalhostSecurityFallbacks()) {
     return true;
   }
 
-  const provenanceHeaders =
-    DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS[
-      headerName as keyof typeof DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS
-    ] ?? DEFAULT_TRUSTED_PROXY_PROVENANCE_HEADERS;
-
-  if (!provenanceHeaders) {
+  const provenanceHeaders = getTrustedClientIpProvenanceHeaders(headerName);
+  if (!provenanceHeaders || provenanceHeaders.length === 0) {
     return false;
   }
 
@@ -203,17 +247,17 @@ export function resolveVerifiedClientIp(
   request?: Pick<Request, "headers">,
 ): VerifiedClientIpResult {
   if (!request) {
-    return isProduction()
+    return canUseLocalhostSecurityFallbacks()
       ? {
+          verified: true,
+          ip: "127.0.0.1",
+          source: "development_fallback",
+        }
+      : {
           verified: false,
           ip: null,
           source: null,
           reason: "missing_trusted_header",
-        }
-      : {
-          verified: true,
-          ip: "127.0.0.1",
-          source: "development_fallback",
         };
   }
 
@@ -240,7 +284,7 @@ export function resolveVerifiedClientIp(
     }
   }
 
-  if (!isProduction()) {
+  if (canUseLocalhostSecurityFallbacks()) {
     return {
       verified: true,
       ip: "127.0.0.1",
@@ -260,22 +304,11 @@ export function resolveVerifiedClientIp(
 }
 
 function getRequestProofSecret(): string | null {
-  const configuredSecret = process.env.API_SECRET_TOKEN?.trim();
-  if (configuredSecret) {
-    return configuredSecret;
-  }
-
-  if (!isProduction()) {
-    return DEVELOPMENT_REQUEST_PROOF_SECRET;
-  }
-
-  return null;
+  return resolvePurposeScopedSigningSecret("request-proof");
 }
 
 export function isRequestProofEnforced(): boolean {
-  return !(
-    process.env.NODE_ENV === "test" && !process.env.API_SECRET_TOKEN?.trim()
-  );
+  return !(process.env.NODE_ENV === "test" && !hasConfiguredRootApiSecret());
 }
 
 function normalizeUserAgent(value: string | null | undefined): string {

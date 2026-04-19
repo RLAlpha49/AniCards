@@ -58,7 +58,6 @@ export async function GET(request: Request) {
     {
       skipSameOrigin: true,
       unverifiedRateLimitFallback: {
-        bucketKey: "anonymous:cards_api",
         limiter: anonymousRatelimit,
       },
     },

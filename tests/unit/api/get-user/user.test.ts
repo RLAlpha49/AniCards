@@ -616,15 +616,12 @@ describe("User API GET Endpoint", () => {
       expect(res.headers.get("Content-Type")).toBe("application/json");
     });
 
-    it("should issue a protected write grant cookie on successful reads", async () => {
+    it("should not issue a protected write grant cookie on successful public reads", async () => {
       mockStoredParts();
 
       const res = await callGet("userId=123");
 
-      expect(res.headers.get("Set-Cookie")).toContain(
-        "anicards_write_grant_123=",
-      );
-      expect(res.headers.get("Set-Cookie")).toContain("HttpOnly");
+      expect(res.headers.get("Set-Cookie")).toBeNull();
     });
 
     it("should include Vary: Origin header for CORS cache control", async () => {

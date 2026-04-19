@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { Ratelimit } from "@upstash/ratelimit";
 import type { Redis } from "@upstash/redis";
 import type { NextResponse } from "next/server";
@@ -7,6 +9,7 @@ import { readBooleanEnv, readPositiveIntegerEnv } from "@/lib/api/config";
 import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
+  getRequestProofCookie,
   resolveVerifiedClientIp,
   type VerifiedClientIpResult,
 } from "@/lib/api/request-proof";
@@ -84,6 +87,64 @@ export function createRateLimitIdentity(
 
 export function getRateLimitIdentity(request?: Request): RateLimitIdentity {
   return createRateLimitIdentity(resolveVerifiedClientIp(request));
+}
+
+function normalizeUnverifiedFingerprintValue(
+  value: string | null | undefined,
+  maxLength: number,
+): string | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.slice(0, maxLength);
+}
+
+function buildUnverifiedRateLimitBucketKey(
+  request: Request | undefined,
+  endpointKey: string,
+): string {
+  if (!request) {
+    return `anonymous:${endpointKey}`;
+  }
+
+  const requestProofCookie = getRequestProofCookie(request)?.trim();
+  const fingerprintSource = (() => {
+    if (requestProofCookie) {
+      return `request-proof:${requestProofCookie}`;
+    }
+
+    let host = normalizeUnverifiedFingerprintValue(
+      request.headers.get("host"),
+      160,
+    );
+    let pathname = "/";
+
+    try {
+      const parsedUrl = new URL(request.url);
+      host ??= normalizeUnverifiedFingerprintValue(parsedUrl.host, 160);
+      pathname = parsedUrl.pathname;
+    } catch {
+      // Fall back to the existing header-derived values when URL parsing fails.
+    }
+
+    return [
+      `host:${host ?? "missing"}`,
+      `origin:${normalizeUnverifiedFingerprintValue(request.headers.get("origin"), 160) ?? "missing"}`,
+      `ua:${normalizeUnverifiedFingerprintValue(request.headers.get("user-agent"), 160) ?? "missing"}`,
+      `lang:${normalizeUnverifiedFingerprintValue(request.headers.get("accept-language"), 64) ?? "missing"}`,
+      `site:${normalizeUnverifiedFingerprintValue(request.headers.get("sec-fetch-site"), 32) ?? "missing"}`,
+      `path:${pathname}`,
+    ].join("|");
+  })();
+
+  const fingerprintHash = createHash("sha256")
+    .update(fingerprintSource)
+    .digest("base64url")
+    .slice(0, 24);
+
+  return `anonymous:${endpointKey}:${fingerprintHash}`;
 }
 
 type RateLimiterRuntimeState =
@@ -350,7 +411,9 @@ function resolveRateLimitRequest(
   }
 
   if (identity.verified === false && options?.allowUnverifiedFallback) {
-    ip = options.unverifiedFallbackKey ?? `anonymous:${endpointKey}`;
+    ip =
+      options.unverifiedFallbackKey ??
+      buildUnverifiedRateLimitBucketKey(request, endpointKey);
     effectiveLimiter = options.unverifiedFallbackLimiter ?? effectiveLimiter;
 
     logPrivacySafe(
