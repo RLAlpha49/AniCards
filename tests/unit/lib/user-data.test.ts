@@ -25,6 +25,7 @@ import {
 } from "@/tests/unit/__setup__";
 
 const {
+  createMaintainerUserDataExport,
   USER_RECORD_SCHEMA_VERSION,
   deleteUserRecord,
   fetchUserDataParts,
@@ -1168,8 +1169,12 @@ describe("user-data persistence", () => {
     const auditCalls = sharedRedisMockRpush.mock.calls.filter(
       ([key]) => key === "telemetry:user-lifecycle-audit:v1",
     );
+    const evidenceCalls = sharedRedisMockRpush.mock.calls.filter(
+      ([key]) => key === "telemetry:privacy-rights-evidence:v1",
+    );
 
     expect(auditCalls).toHaveLength(2);
+    expect(evidenceCalls).toHaveLength(2);
     expect(
       parseRequiredJson(
         auditCalls[0]?.[1],
@@ -1190,12 +1195,36 @@ describe("user-data persistence", () => {
       triggerSource: "privacy_request_delete",
       userId: "55",
     });
+    expect(
+      parseRequiredJson(
+        evidenceCalls[0]?.[1],
+        "Expected privacy intake evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_manual_workflow",
+      requestType: "delete",
+      stage: "intake",
+      userId: "55",
+    });
+    expect(
+      parseRequiredJson(
+        evidenceCalls[1]?.[1],
+        "Expected privacy fulfillment evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_manual_workflow",
+      requestType: "delete",
+      stage: "fulfillment",
+      userId: "55",
+    });
   });
 
   it("prunes expired lifecycle audit entries before appending the next event", async () => {
     const now = Date.now();
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
+    sharedRedisMockSet.mockResolvedValueOnce(true);
+
+    sharedRedisMockLrange.mockImplementationOnce(async () => [
       JSON.stringify({
         action: "save",
         timestamp: new Date(now - 120_000).toISOString(),
@@ -1210,6 +1239,10 @@ describe("user-data persistence", () => {
         triggerSource: "user_data_fetch",
         userId: "recent-user",
       }),
+      getRequiredString(
+        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
+        "Expected delete audit payload to be appended before pruning.",
+      ),
     ]);
 
     await deleteUserRecord("5");
@@ -1221,10 +1254,10 @@ describe("user-data persistence", () => {
     expect(sharedRedisMockDel).toHaveBeenCalledWith(
       "telemetry:user-lifecycle-audit:v1",
     );
-    expect(auditCalls).toHaveLength(2);
+    expect(auditCalls).toHaveLength(3);
     expect(
       parseRequiredJson(
-        auditCalls[0]?.[1],
+        auditCalls[1]?.[1],
         "Expected retained audit payload to be a string.",
       ),
     ).toMatchObject({
@@ -1241,6 +1274,111 @@ describe("user-data persistence", () => {
       triggerSource: "user_data_delete",
       userId: "5",
     });
+  });
+
+  it("builds a maintainer-only export bundle with stored cards and privacy-rights evidence", async () => {
+    const record = createPersistedUserRecord({
+      userId: "21",
+      username: "ExportUser",
+    });
+    const parts = splitUserRecord(record) as Record<string, unknown>;
+
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:21:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "21",
+            revision: 4,
+            updatedAt: record.updatedAt,
+            username: "ExportUser",
+          }),
+        );
+      }
+
+      if (key === "cards:21") {
+        return Promise.resolve(
+          JSON.stringify({
+            userId: 21,
+            cards: [{ cardName: "animeStats", titleColor: "#111111" }],
+            updatedAt: "2026-03-27T00:00:09.000Z",
+            userSnapshot: {
+              token: "snapshot-21",
+              revision: 4,
+              updatedAt: record.updatedAt,
+              committedAt: "2026-03-27T00:00:03.000Z",
+            },
+          }),
+        );
+      }
+
+      if (key === "cards:21:meta") {
+        return Promise.resolve(
+          JSON.stringify({
+            userId: 21,
+            updatedAt: "2026-03-27T00:00:09.000Z",
+            version: 3,
+          }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map((key) => {
+        const partMatch =
+          /^user:21:(meta|activity|favourites|statistics|pages|planning|current|rewatched|completed|aggregates)$/.exec(
+            key,
+          );
+
+        if (!partMatch) {
+          return null;
+        }
+
+        return JSON.stringify(parts[partMatch[1]]);
+      }),
+    );
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        actor: "maintainer_alpha",
+        requestType: "export",
+        stage: "intake",
+        timestamp: "2026-03-27T00:00:10.000Z",
+        expiresAt: "2027-04-01T00:00:10.000Z",
+        userId: "21",
+      }),
+    ]);
+
+    const exportBundle = await createMaintainerUserDataExport({
+      userId: "21",
+    });
+
+    expect(exportBundle.userId).toBe("21");
+    expect(exportBundle.userState).toMatchObject({
+      revision: 4,
+      updatedAt: record.updatedAt,
+      username: "ExportUser",
+    });
+    expect(exportBundle.userRecord).toMatchObject({
+      userId: "21",
+      username: "ExportUser",
+      requestMetadata: record.requestMetadata,
+    });
+    expect(exportBundle.cardsRecord.parsed).toMatchObject({
+      userId: 21,
+      updatedAt: "2026-03-27T00:00:09.000Z",
+    });
+    expect(exportBundle.cardsMeta.parsed).toMatchObject({
+      userId: 21,
+      version: 3,
+    });
+    expect(exportBundle.privacyRightsEvidence).toEqual([
+      expect.objectContaining({
+        actor: "maintainer_alpha",
+        requestType: "export",
+        stage: "intake",
+        userId: "21",
+      }),
+    ]);
   });
 
   it("deletes the persisted normalized username index when alias tracking is missing", async () => {

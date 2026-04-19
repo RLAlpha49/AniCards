@@ -86,6 +86,15 @@ const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
 const USER_LIFECYCLE_AUDIT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
 const USER_LIFECYCLE_AUDIT_RETENTION_MS =
   USER_LIFECYCLE_AUDIT_RETENTION_SECONDS * 1000;
+const USER_LIFECYCLE_AUDIT_PRUNE_LEASE_KEY = `${USER_LIFECYCLE_AUDIT_KEY}:prune-lease`;
+const USER_LIFECYCLE_AUDIT_PRUNE_INTERVAL_SECONDS = 60 * 60;
+const USER_PRIVACY_RIGHTS_EVIDENCE_KEY = "telemetry:privacy-rights-evidence:v1";
+const MAX_USER_PRIVACY_RIGHTS_EVIDENCE_EVENTS = 250;
+const USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS = 400 * 24 * 60 * 60;
+const USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_MS =
+  USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS * 1000;
+const USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_LEASE_KEY = `${USER_PRIVACY_RIGHTS_EVIDENCE_KEY}:prune-lease`;
+const USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_INTERVAL_SECONDS = 24 * 60 * 60;
 const USER_REFRESH_INDEX_REPAIR_BATCH_SIZE = 25;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 const USER_BOUNDED_SECTIONS = [
@@ -217,6 +226,30 @@ interface UserLifecycleAuditEntry {
   timestamp: string;
   triggerSource: UserLifecycleAuditTriggerSource;
   userId: string;
+}
+
+export interface PrivacyRightsEvidenceEntry {
+  actor: string;
+  expiresAt?: string;
+  requestType: PrivacyRightsAuditRequestType;
+  stage: PrivacyRightsAuditStage;
+  timestamp: string;
+  userId: string;
+}
+
+export interface MaintainerUserDataExportArtifact {
+  parsed: unknown | null;
+  raw: string | null;
+}
+
+export interface MaintainerUserDataExportPackage {
+  cardsMeta: MaintainerUserDataExportArtifact;
+  cardsRecord: MaintainerUserDataExportArtifact;
+  exportedAt: string;
+  privacyRightsEvidence: PrivacyRightsEvidenceEntry[];
+  userId: string;
+  userRecord: ReconstructedUserRecord | null;
+  userState: PersistedUserState | null;
 }
 
 export class UserDataIntegrityError extends Error {
@@ -863,6 +896,96 @@ type StoredUserLifecycleAuditEntry = {
   serialized: string;
 };
 
+type StoredPrivacyRightsEvidenceEntry = {
+  entry: PrivacyRightsEvidenceEntry;
+  serialized: string;
+};
+
+function sanitizePrivacyRightsAuditActor(value: string | undefined): string {
+  if (typeof value !== "string") {
+    return "maintainer_manual_workflow";
+  }
+
+  const normalized = value.trim().slice(0, 120);
+  return normalized.length > 0 ? normalized : "maintainer_manual_workflow";
+}
+
+function parsePrivacyRightsEvidenceEntry(
+  value: unknown,
+): PrivacyRightsEvidenceEntry | undefined {
+  let parsedValue = value;
+
+  if (typeof parsedValue === "string") {
+    try {
+      parsedValue = JSON.parse(parsedValue) as unknown;
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (!isObject(parsedValue)) {
+    return undefined;
+  }
+
+  if (
+    typeof parsedValue.actor !== "string" ||
+    typeof parsedValue.requestType !== "string" ||
+    typeof parsedValue.stage !== "string" ||
+    typeof parsedValue.timestamp !== "string" ||
+    typeof parsedValue.userId !== "string" ||
+    (parsedValue.expiresAt !== undefined &&
+      typeof parsedValue.expiresAt !== "string")
+  ) {
+    return undefined;
+  }
+
+  return {
+    actor: sanitizePrivacyRightsAuditActor(parsedValue.actor),
+    expiresAt:
+      typeof parsedValue.expiresAt === "string"
+        ? parsedValue.expiresAt
+        : undefined,
+    requestType: parsedValue.requestType as PrivacyRightsAuditRequestType,
+    stage: parsedValue.stage as PrivacyRightsAuditStage,
+    timestamp: parsedValue.timestamp,
+    userId: parsedValue.userId,
+  };
+}
+
+function toStoredPrivacyRightsEvidenceEntry(
+  value: unknown,
+): StoredPrivacyRightsEvidenceEntry | undefined {
+  const entry = parsePrivacyRightsEvidenceEntry(value);
+  if (!entry) {
+    return undefined;
+  }
+
+  return {
+    entry,
+    serialized: typeof value === "string" ? value : JSON.stringify(entry),
+  };
+}
+
+function isPrivacyRightsEvidenceEntryWithinRetentionWindow(
+  entry: PrivacyRightsEvidenceEntry,
+  now = Date.now(),
+): boolean {
+  const expiresAtMs = parseLifecycleAuditTimestamp(entry.expiresAt);
+  return expiresAtMs === null ? true : expiresAtMs > now;
+}
+
+async function tryAcquireMaintenanceLease(
+  key: string,
+  intervalSeconds: number,
+): Promise<boolean> {
+  const result = await redisClient.set(key, new Date().toISOString(), {
+    nx: true,
+    ex: intervalSeconds,
+  });
+
+  return Boolean(result);
+}
+
 function toStoredUserLifecycleAuditEntry(
   value: unknown,
 ): StoredUserLifecycleAuditEntry | undefined {
@@ -951,9 +1074,86 @@ async function pruneUserLifecycleAuditEntries(): Promise<void> {
   }
 }
 
+function shouldRewritePrivacyRightsEvidenceEntries(
+  currentEntries: unknown[],
+  nextEntries: StoredPrivacyRightsEvidenceEntry[],
+): boolean {
+  const serializedCurrentEntries = currentEntries.map((entry) =>
+    typeof entry === "string" ? entry : JSON.stringify(entry),
+  );
+
+  return (
+    serializedCurrentEntries.length !== nextEntries.length ||
+    serializedCurrentEntries.some(
+      (entry, index) => entry !== nextEntries[index]?.serialized,
+    )
+  );
+}
+
+async function rewritePrivacyRightsEvidenceEntries(
+  entries: StoredPrivacyRightsEvidenceEntry[],
+): Promise<void> {
+  await redisClient.del(USER_PRIVACY_RIGHTS_EVIDENCE_KEY);
+
+  for (const entry of entries) {
+    await redisClient.rpush(USER_PRIVACY_RIGHTS_EVIDENCE_KEY, entry.serialized);
+  }
+
+  if (entries.length > 0) {
+    await redisClient.expire(
+      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+      USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS,
+    );
+  }
+}
+
+function collectRetainedPrivacyRightsEvidenceEntries(
+  currentEntries: unknown[],
+  now: number,
+): StoredPrivacyRightsEvidenceEntry[] {
+  const retainedEntries: StoredPrivacyRightsEvidenceEntry[] = [];
+
+  currentEntries.forEach((value) => {
+    const parsedEntry = toStoredPrivacyRightsEvidenceEntry(value);
+    if (!parsedEntry) {
+      return;
+    }
+
+    if (
+      isPrivacyRightsEvidenceEntryWithinRetentionWindow(parsedEntry.entry, now)
+    ) {
+      retainedEntries.push(parsedEntry);
+    }
+  });
+
+  return retainedEntries;
+}
+
+async function prunePrivacyRightsEvidenceEntries(): Promise<void> {
+  const rawEntries = await redisClient.lrange(
+    USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+    0,
+    -1,
+  );
+  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  const now = Date.now();
+  const nextEntries = collectRetainedPrivacyRightsEvidenceEntries(
+    currentEntries,
+    now,
+  ).slice(-MAX_USER_PRIVACY_RIGHTS_EVIDENCE_EVENTS);
+
+  if (shouldRewritePrivacyRightsEvidenceEntries(currentEntries, nextEntries)) {
+    await rewritePrivacyRightsEvidenceEntries(nextEntries);
+  } else if (nextEntries.length > 0) {
+    await redisClient.expire(
+      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+      USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS,
+    );
+  }
+}
+
 async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
   try {
-    await pruneUserLifecycleAuditEntries();
     await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, JSON.stringify(entry));
     await redisClient.ltrim(
       USER_LIFECYCLE_AUDIT_KEY,
@@ -964,6 +1164,15 @@ async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
       USER_LIFECYCLE_AUDIT_KEY,
       USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
     );
+
+    if (
+      await tryAcquireMaintenanceLease(
+        USER_LIFECYCLE_AUDIT_PRUNE_LEASE_KEY,
+        USER_LIFECYCLE_AUDIT_PRUNE_INTERVAL_SECONDS,
+      )
+    ) {
+      await pruneUserLifecycleAuditEntries();
+    }
   } catch (error) {
     logPrivacySafe(
       "warn",
@@ -995,6 +1204,92 @@ async function auditUserLifecycleEvent(options: {
   });
 }
 
+async function appendPrivacyRightsEvidenceEntry(
+  entry: PrivacyRightsEvidenceEntry,
+): Promise<void> {
+  try {
+    await redisClient.rpush(
+      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+      JSON.stringify(entry),
+    );
+    await redisClient.ltrim(
+      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+      -MAX_USER_PRIVACY_RIGHTS_EVIDENCE_EVENTS,
+      -1,
+    );
+    await redisClient.expire(
+      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+      USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS,
+    );
+
+    if (
+      await tryAcquireMaintenanceLease(
+        USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_LEASE_KEY,
+        USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_INTERVAL_SECONDS,
+      )
+    ) {
+      await prunePrivacyRightsEvidenceEntries();
+    }
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Failed to persist privacy-rights evidence entry",
+      {
+        actor: entry.actor,
+        error: error instanceof Error ? error.message : String(error),
+        requestType: entry.requestType,
+        stage: entry.stage,
+        userId: entry.userId,
+      },
+    );
+  }
+}
+
+async function auditManualPrivacyRightsEvent(options: {
+  actor: string;
+  requestType: PrivacyRightsAuditRequestType;
+  stage: PrivacyRightsAuditStage;
+  userId: string | number;
+}): Promise<void> {
+  const userId = String(options.userId);
+  const timestamp = new Date().toISOString();
+
+  await Promise.all([
+    appendUserLifecycleAuditEntry({
+      action: PRIVACY_RIGHTS_AUDIT_ACTION_BY_STAGE[options.stage],
+      expiresAt: new Date(
+        Date.now() + USER_LIFECYCLE_AUDIT_RETENTION_MS,
+      ).toISOString(),
+      timestamp,
+      triggerSource: PRIVACY_RIGHTS_TRIGGER_SOURCE_BY_TYPE[options.requestType],
+      userId,
+    }),
+    appendPrivacyRightsEvidenceEntry({
+      actor: options.actor,
+      expiresAt: new Date(
+        Date.now() + USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_MS,
+      ).toISOString(),
+      requestType: options.requestType,
+      stage: options.stage,
+      timestamp,
+      userId,
+    }),
+  ]);
+}
+
+function scheduleManualPrivacyRightsAuditEvent(options: {
+  actor: string;
+  requestType: PrivacyRightsAuditRequestType;
+  stage: PrivacyRightsAuditStage;
+  userId: string | number;
+}): void {
+  scheduleTelemetryTask(() => auditManualPrivacyRightsEvent(options), {
+    endpoint: "User Data",
+    taskName: `privacy-rights-audit:${options.requestType}:${options.stage}`,
+  });
+}
+
 function scheduleUserLifecycleAuditEvent(options: {
   action: UserLifecycleAuditAction;
   triggerSource: UserLifecycleAuditTriggerSource;
@@ -1011,23 +1306,125 @@ function scheduleUserLifecycleAuditEvent(options: {
  * contact-based privacy-rights workflow without introducing a self-serve API.
  */
 export async function recordManualPrivacyRightsAuditEvent(options: {
+  actor?: string;
   awaitAudit?: boolean;
   requestType: PrivacyRightsAuditRequestType;
   stage: PrivacyRightsAuditStage;
   userId: string | number;
 }): Promise<void> {
   const auditOptions = {
-    action: PRIVACY_RIGHTS_AUDIT_ACTION_BY_STAGE[options.stage],
-    triggerSource: PRIVACY_RIGHTS_TRIGGER_SOURCE_BY_TYPE[options.requestType],
+    actor: sanitizePrivacyRightsAuditActor(options.actor),
+    requestType: options.requestType,
+    stage: options.stage,
     userId: options.userId,
   };
 
   if (options.awaitAudit === false) {
-    scheduleUserLifecycleAuditEvent(auditOptions);
+    scheduleManualPrivacyRightsAuditEvent(auditOptions);
     return;
   }
 
-  await auditUserLifecycleEvent(auditOptions);
+  await auditManualPrivacyRightsEvent(auditOptions);
+}
+
+function parseMaintainerExportArtifact(
+  raw: unknown,
+  context: string,
+): MaintainerUserDataExportArtifact {
+  if (typeof raw !== "string" || raw.length === 0) {
+    return {
+      parsed: null,
+      raw: null,
+    };
+  }
+
+  try {
+    return {
+      parsed: safeParse<unknown>(raw, context),
+      raw,
+    };
+  } catch {
+    return {
+      parsed: null,
+      raw,
+    };
+  }
+}
+
+async function listPrivacyRightsEvidenceForUser(
+  userId: string,
+): Promise<PrivacyRightsEvidenceEntry[]> {
+  const rawEntries = await redisClient.lrange(
+    USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+    0,
+    -1,
+  );
+  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  const now = Date.now();
+
+  return currentEntries
+    .map((value) => toStoredPrivacyRightsEvidenceEntry(value))
+    .filter(
+      (entry): entry is StoredPrivacyRightsEvidenceEntry =>
+        entry !== undefined &&
+        entry.entry.userId === userId &&
+        isPrivacyRightsEvidenceEntryWithinRetentionWindow(entry.entry, now),
+    )
+    .map((entry) => entry.entry);
+}
+
+/**
+ * Builds a maintainer-only export bundle for the current stored user snapshot,
+ * stored cards payload, and privacy-rights evidence without exposing any new
+ * public endpoint surface.
+ */
+export async function createMaintainerUserDataExport(options: {
+  actor?: string;
+  includePrivacyRightsEvidence?: boolean;
+  recordStage?: PrivacyRightsAuditStage;
+  requestType?: PrivacyRightsAuditRequestType;
+  userId: string | number;
+}): Promise<MaintainerUserDataExportPackage> {
+  const userId = String(options.userId);
+
+  if (options.recordStage) {
+    await recordManualPrivacyRightsAuditEvent({
+      actor: options.actor,
+      requestType: options.requestType ?? "export",
+      stage: options.recordStage,
+      userId,
+    });
+  }
+
+  const [cardsMetaRaw, cardsRecordRaw, userReadResult, privacyRightsEvidence] =
+    await Promise.all([
+      redisClient.get(getCardsRecordMetaKey(userId)),
+      redisClient.get(getCardsRecordKey(userId)),
+      fetchUserDataSnapshot(userId, [...ALL_USER_DATA_PARTS], {
+        audit: false,
+      }),
+      options.includePrivacyRightsEvidence === false
+        ? Promise.resolve([])
+        : listPrivacyRightsEvidenceForUser(userId),
+    ]);
+
+  return {
+    cardsMeta: parseMaintainerExportArtifact(
+      cardsMetaRaw,
+      `maintainer-export:cards-meta:${userId}`,
+    ),
+    cardsRecord: parseMaintainerExportArtifact(
+      cardsRecordRaw,
+      `maintainer-export:cards-record:${userId}`,
+    ),
+    exportedAt: new Date().toISOString(),
+    privacyRightsEvidence,
+    userId,
+    userRecord: userReadResult.parts.meta
+      ? reconstructUserRecord(userReadResult.parts)
+      : null,
+    userState: userReadResult.state,
+  };
 }
 
 function logIntegrityFailure(
