@@ -78,20 +78,11 @@ function getRequestPathname(request: Pick<Request, "url">): string {
   }
 }
 
-function getRequestRoute(
-  request: Pick<Request, "url"> & Partial<Pick<NextRequest, "nextUrl">>,
-): string {
-  const nextUrl = request.nextUrl;
-
-  if (nextUrl) {
-    return `${nextUrl.pathname}${nextUrl.search}`;
-  }
-
+function getRequestSearch(request: Pick<Request, "url">): string {
   try {
-    const parsedUrl = new URL(request.url);
-    return `${parsedUrl.pathname}${parsedUrl.search}`;
+    return new URL(request.url).search;
   } catch {
-    return "/";
+    return "";
   }
 }
 
@@ -203,17 +194,22 @@ async function maybeRefreshRequestProof(
 export async function middleware(request: NextRequest) {
   const requestId = getOrCreateRequestId();
   const pathname = getRequestPathname(request);
+  const search = getRequestSearch(request);
   const isDocumentNavigationRequest = isDocumentRequest(request, pathname);
   const nonce = isDocumentNavigationRequest ? generateNonce() : undefined;
   const isDevelopment = process.env.NODE_ENV === "development";
   const allowInlineStyleAttributes = shouldAllowInlineStyleAttributes(pathname);
-  const requestRoute = getRequestRoute(request);
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.delete(REQUEST_ID_HEADER);
   forwardedHeaders.delete(INTERNAL_REQUEST_ID_HEADER);
+  forwardedHeaders.delete("x-request-route");
+  forwardedHeaders.delete("x-request-search");
   forwardedHeaders.set(INTERNAL_REQUEST_ID_HEADER, requestId);
-  forwardedHeaders.set("x-request-route", requestRoute);
+  forwardedHeaders.set("x-request-route", pathname);
+  if (search) {
+    forwardedHeaders.set("x-request-search", search);
+  }
 
   const cspHeader = nonce
     ? buildCSPHeader(nonce, {

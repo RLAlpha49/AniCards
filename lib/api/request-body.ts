@@ -2,8 +2,8 @@
 //
 // Reads JSON bodies at the API boundary with consistent size enforcement, telemetry,
 // and privacy-safe logging. It fails early on oversized `Content-Length` headers and
-// double-checks the actual UTF-8 body size so callers stay protected when clients omit
-// or lie about the header.
+// then enforces the same byte ceiling while streaming the body so callers stay
+// protected when clients omit or lie about the header.
 //
 // Centralizing this keeps every route handler aligned on malformed-body behavior.
 
@@ -64,8 +64,120 @@ function readContentLengthHeader(request: Request): number | undefined {
   return parsed;
 }
 
-function getUtf8ByteLength(value: string): number {
-  return new TextEncoder().encode(value).length;
+async function cancelRequestBodyReader(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    // Best-effort only. The request is already being rejected.
+  }
+}
+
+async function readRequestBodyTextWithinLimit(
+  request: Request,
+  options: {
+    contentLength?: number;
+    endpointKey: string;
+    endpointName: string;
+    maxBytes: number;
+  },
+): Promise<
+  | { success: true; rawBody: string }
+  | {
+      success: false;
+      errorResponse: NextResponse<ApiError & Record<string, unknown>>;
+    }
+> {
+  if (!request.body) {
+    return {
+      success: true,
+      rawBody: "",
+    };
+  }
+
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = request.body.getReader();
+  } catch {
+    scheduleFailedRequestMetric(request, {
+      endpointKey: options.endpointKey,
+      endpointName: options.endpointName,
+      reasonCode: "invalid_json",
+    });
+
+    return {
+      success: false,
+      errorResponse: invalidJsonResponse(request),
+    };
+  }
+
+  const decoder = new TextDecoder();
+  const bodyParts: string[] = [];
+  let actualBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        bodyParts.push(decoder.decode());
+        break;
+      }
+
+      actualBytes += value.byteLength;
+      if (actualBytes > options.maxBytes) {
+        logPrivacySafe(
+          "warn",
+          options.endpointName,
+          "Rejected request body larger than configured limit while streaming body.",
+          {
+            contentLength: options.contentLength,
+            actualBytes,
+            maxBytes: options.maxBytes,
+            maxSize: formatBytes(options.maxBytes),
+          },
+          request,
+        );
+
+        scheduleFailedRequestMetric(request, {
+          endpointKey: options.endpointKey,
+          endpointName: options.endpointName,
+          reasonCode: "payload_too_large",
+        });
+
+        await cancelRequestBodyReader(reader);
+
+        return {
+          success: false,
+          errorResponse: payloadTooLargeResponse(request, {
+            maxBytes: options.maxBytes,
+          }),
+        };
+      }
+
+      bodyParts.push(decoder.decode(value, { stream: true }));
+    }
+  } catch {
+    await cancelRequestBodyReader(reader);
+
+    scheduleFailedRequestMetric(request, {
+      endpointKey: options.endpointKey,
+      endpointName: options.endpointName,
+      reasonCode: "invalid_json",
+    });
+
+    return {
+      success: false,
+      errorResponse: invalidJsonResponse(request),
+    };
+  } finally {
+    reader.releaseLock();
+  }
+
+  return {
+    success: true,
+    rawBody: bodyParts.join(""),
+  };
 }
 
 /**
@@ -81,9 +193,9 @@ export type ReadJsonRequestBodyResult<T> =
 /**
  * Parses a JSON request body while enforcing a byte limit.
  *
- * The parser checks `Content-Length` first for a cheap reject, then measures the
- * actual UTF-8 payload after reading so oversized bodies cannot bypass the limit
- * by omitting or understating the header.
+ * The parser checks `Content-Length` first for a cheap reject, then enforces the
+ * same ceiling while streaming the request body so oversized payloads cannot
+ * bypass the limit by omitting or understating the header.
  */
 export async function readJsonRequestBody<T>(
   request: Request,
@@ -122,51 +234,20 @@ export async function readJsonRequestBody<T>(
     };
   }
 
-  let rawBody: string;
-  try {
-    rawBody = await request.text();
-  } catch {
-    scheduleFailedRequestMetric(request, {
-      ...options,
-      reasonCode: "invalid_json",
-    });
-
-    return {
-      success: false,
-      errorResponse: invalidJsonResponse(request),
-    };
-  }
-
-  const actualBytes = getUtf8ByteLength(rawBody);
-  if (actualBytes > maxBytes) {
-    logPrivacySafe(
-      "warn",
-      options.endpointName,
-      "Rejected request body larger than configured limit after reading body.",
-      {
-        contentLength,
-        actualBytes,
-        maxBytes,
-        maxSize: formatBytes(maxBytes),
-      },
-      request,
-    );
-
-    scheduleFailedRequestMetric(request, {
-      ...options,
-      reasonCode: "payload_too_large",
-    });
-
-    return {
-      success: false,
-      errorResponse: payloadTooLargeResponse(request, { maxBytes }),
-    };
+  const rawBodyResult = await readRequestBodyTextWithinLimit(request, {
+    contentLength,
+    endpointKey: options.endpointKey,
+    endpointName: options.endpointName,
+    maxBytes,
+  });
+  if (!rawBodyResult.success) {
+    return rawBodyResult;
   }
 
   try {
     return {
       success: true,
-      data: JSON.parse(rawBody) as T,
+      data: JSON.parse(rawBodyResult.rawBody) as T,
     };
   } catch {
     scheduleFailedRequestMetric(request, {

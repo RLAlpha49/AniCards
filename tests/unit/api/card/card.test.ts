@@ -3320,12 +3320,11 @@ describe("Card SVG Route", () => {
       expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
     });
 
-    it("should allow GET, HEAD, OPTIONS methods", () => {
+    it("should allow GET and OPTIONS methods", () => {
       const req = new Request(baseUrl, { method: "OPTIONS" });
       const res = OPTIONS(req);
 
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("GET");
-      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("HEAD");
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain(
         "OPTIONS",
       );

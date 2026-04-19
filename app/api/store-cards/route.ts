@@ -2153,7 +2153,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
   } catch (error) {
     return handleError(
-      error as Error,
+      error,
       endpoint,
       startTime,
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),

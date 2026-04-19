@@ -68,6 +68,38 @@ function createApiRequest(headers?: Record<string, string>): Request {
   });
 }
 
+function createStreamingJsonRequest(options: {
+  chunks: Uint8Array[];
+  headers?: Record<string, string>;
+  onCancel?: () => void;
+}): Request {
+  const pendingChunks = [...options.chunks];
+
+  return new Request("http://localhost/api/test", {
+    method: "POST",
+    headers: {
+      origin: "http://localhost",
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+    body: new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const nextChunk = pendingChunks.shift();
+        if (!nextChunk) {
+          controller.close();
+          return;
+        }
+
+        controller.enqueue(nextChunk);
+      },
+      cancel() {
+        options.onCancel?.();
+      },
+    }),
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
 function decodeBase64UrlJson<T>(value: string): T {
   const padded = value
     .replaceAll("-", "+")
@@ -605,6 +637,45 @@ describe("api module hardening", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
     );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests:reason:payload_too_large",
+    );
+  });
+
+  it("rejects oversized streamed JSON payloads and cancels the body reader when Content-Length is absent", async () => {
+    const encoder = new TextEncoder();
+    let didCancel = false;
+
+    const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+      createStreamingJsonRequest({
+        chunks: [
+          encoder.encode('{"payload":"'),
+          encoder.encode("x".repeat(300 * 1024)),
+          encoder.encode("y".repeat(300 * 1024)),
+          encoder.encode('"}'),
+        ],
+        onCancel: () => {
+          didCancel = true;
+        },
+      }),
+      {
+        endpointName: "Test API",
+        endpointKey: "test_api",
+      },
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(bodyResult.success).toBe(false);
+    if (bodyResult.success) {
+      throw new Error("Expected oversized streamed body to be rejected");
+    }
+
+    expect(bodyResult.errorResponse.status).toBe(413);
+    expect((await bodyResult.errorResponse.json()).error).toBe(
+      "Request body too large",
+    );
+    expect(didCancel).toBe(true);
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests:reason:payload_too_large",
     );

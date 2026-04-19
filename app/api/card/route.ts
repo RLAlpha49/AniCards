@@ -295,7 +295,7 @@ function svgHeaders(
       "Edge-Cache-Control": cachePolicy.edgeCacheControl,
       "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
       "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Methods": "GET, HEAD",
+      "Access-Control-Allow-Methods": "GET",
       "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
       Vary: "Origin",
       "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
@@ -336,7 +336,7 @@ function errorHeaders(
     "Edge-Cache-Control": CARD_NO_STORE_EDGE_CACHE_CONTROL,
     "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, HEAD",
+    "Access-Control-Allow-Methods": "GET",
     "Access-Control-Expose-Headers": [...new Set(exposeHeaders)].join(", "),
     Vary: "Origin",
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
@@ -1791,7 +1791,7 @@ export function OPTIONS(request: Request) {
     headers: withRequestIdHeaders(
       {
         "Access-Control-Allow-Origin": allowedOrigin,
-        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
         "X-Robots-Tag": PREVIEW_MEDIA_X_ROBOTS_TAG,
         "Access-Control-Expose-Headers":

@@ -1336,14 +1336,13 @@ export async function POST(request: NextRequest) {
     };
 
     return jsonWithCors(responseBody, request);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof ConvertRouteError) {
       return createConvertErrorResponse(error, request, endpoint);
     }
 
     return handleError(
-      error as Error,
+      error,
       endpoint,
       startTime,
       CONVERT_API_FAILED_METRIC,

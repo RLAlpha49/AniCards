@@ -380,8 +380,35 @@ function parseFallbackRequestUrl(candidate: string | null): URL | null {
   }
 }
 
+function normalizeFallbackSearch(candidate: string | null): string {
+  const normalizedCandidate = candidate?.trim() ?? "";
+  if (!normalizedCandidate) {
+    return "";
+  }
+
+  return normalizedCandidate.startsWith("?")
+    ? normalizedCandidate
+    : `?${normalizedCandidate}`;
+}
+
+function mergeFallbackSearch(url: URL, searchCandidate: string | null): URL {
+  if (url.search) {
+    return url;
+  }
+
+  const normalizedSearch = normalizeFallbackSearch(searchCandidate);
+  if (!normalizedSearch) {
+    return url;
+  }
+
+  const mergedUrl = new URL(url.toString());
+  mergedUrl.search = normalizedSearch;
+  return mergedUrl;
+}
+
 async function getLoadingFallbackRequestUrl(): Promise<URL | null> {
   const requestHeaders = await headers();
+  const requestSearch = requestHeaders.get("x-request-search");
 
   const routeCandidates = [
     requestHeaders.get("x-request-route"),
@@ -395,7 +422,7 @@ async function getLoadingFallbackRequestUrl(): Promise<URL | null> {
     const parsedUrl = parseFallbackRequestUrl(candidate);
 
     if (parsedUrl) {
-      return parsedUrl;
+      return mergeFallbackSearch(parsedUrl, requestSearch);
     }
   }
 

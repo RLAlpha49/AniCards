@@ -68,6 +68,37 @@ describe("App shell server coverage", () => {
     expect(setCookieHeader).toMatch(/SameSite=strict/i);
   });
 
+  it("forwards the pathname and search separately for loading fallbacks", async () => {
+    const request = new Request(
+      "http://localhost/search?query=Alpha49&mode=userId",
+      {
+        headers: {
+          accept: "text/html",
+          "user-agent": "bun-test",
+          "x-vercel-forwarded-for": "127.0.0.1",
+        },
+      },
+    ) as unknown as NextRequest;
+
+    const response = await proxy(request);
+
+    expect(response.headers.get("x-middleware-override-headers")).toContain(
+      "x-request-route",
+    );
+    expect(response.headers.get("x-middleware-override-headers")).toContain(
+      "x-request-search",
+    );
+    expect(response.headers.get("x-middleware-request-x-request-route")).toBe(
+      "/search",
+    );
+    expect(
+      response.headers.get("x-middleware-request-x-request-route"),
+    ).not.toContain("query=");
+    expect(response.headers.get("x-middleware-request-x-request-search")).toBe(
+      "?query=Alpha49&mode=userId",
+    );
+  });
+
   it("keeps the inline-style compatibility carve-out on exempt HTML routes", async () => {
     const request = new Request("http://localhost/examples", {
       headers: {
