@@ -20,6 +20,7 @@ import React, {
 } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { ColorValueSwatch } from "@/components/ui/ColorValueSwatch";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import {
@@ -28,7 +29,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
-import { gradientToCss } from "@/lib/colorUtils";
 import type {
   ColorValue,
   GradientDefinition,
@@ -958,14 +958,13 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
           shadow-sm
           dark:border-purple-900/50 dark:from-purple-950/20 dark:to-slate-900
         ">
-          <div
+          <ColorValueSwatch
             className="
               h-12 w-full overflow-hidden border border-slate-200/50 shadow-inner
               dark:border-slate-700/50
             "
-            style={{
-              background: gradient ? gradientToCss(gradient) : "#888888",
-            }}
+            cornerRadius={10}
+            value={gradient ?? "#888888"}
           />
 
           {gradient && (

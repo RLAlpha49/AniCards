@@ -17,10 +17,6 @@ import { generateSecureId } from "@/lib/utils";
 
 const REQUEST_ID_MIDDLEWARE_MATCHER =
   "/((?!_next/static|_next/image|favicon.ico|icon.ico|icon.svg).*)";
-const DOCUMENT_INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES = [
-  "/examples",
-  "/user",
-] as const;
 const DOCUMENT_FETCH_DESTINATIONS = new Set(["document", "iframe"]);
 
 function pathnameLooksLikeDocument(pathname: string): boolean {
@@ -84,16 +80,6 @@ function getRequestSearch(request: Pick<Request, "url">): string {
   } catch {
     return "";
   }
-}
-
-function shouldAllowInlineStyleAttributes(pathname: string): boolean {
-  if (pathname === "/") {
-    return true;
-  }
-
-  return DOCUMENT_INLINE_STYLE_COMPATIBILITY_ROUTE_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
 }
 
 /**
@@ -198,7 +184,6 @@ export async function middleware(request: NextRequest) {
   const isDocumentNavigationRequest = isDocumentRequest(request, pathname);
   const nonce = isDocumentNavigationRequest ? generateNonce() : undefined;
   const isDevelopment = process.env.NODE_ENV === "development";
-  const allowInlineStyleAttributes = shouldAllowInlineStyleAttributes(pathname);
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.delete(REQUEST_ID_HEADER);
@@ -206,8 +191,13 @@ export async function middleware(request: NextRequest) {
   forwardedHeaders.delete("x-request-route");
   forwardedHeaders.delete("x-request-search");
   forwardedHeaders.set(INTERNAL_REQUEST_ID_HEADER, requestId);
+  // Keep only the pathname so internal request metadata never duplicates raw
+  // search parameters into forwarded headers.
   forwardedHeaders.set("x-request-route", pathname);
   if (search) {
+    // Forward the raw search string separately so loading fallbacks can
+    // reconstruct query-aware document URLs without expanding x-request-route
+    // back to a full path+query value.
     forwardedHeaders.set("x-request-search", search);
   }
 
@@ -215,8 +205,7 @@ export async function middleware(request: NextRequest) {
     ? buildCSPHeader(nonce, {
         allowUnsafeEval: isDevelopment,
         allowUnsafeInlineStyles: isDevelopment,
-        allowUnsafeInlineStyleAttributes:
-          isDevelopment || allowInlineStyleAttributes,
+        allowUnsafeInlineStyleAttributes: isDevelopment,
       })
     : undefined;
 

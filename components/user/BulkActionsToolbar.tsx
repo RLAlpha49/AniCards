@@ -7,7 +7,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
-  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -227,14 +226,6 @@ export function BulkActionsToolbar({
     },
     [cardConfigs],
   );
-
-  const toolbarBottom = "calc(1.5rem + env(safe-area-inset-bottom))";
-  const toolbarGutter = "1rem";
-  const toolbarHostStyle: CSSProperties &
-    Record<"--safe-area-inline-padding", string> = {
-    bottom: toolbarBottom,
-    "--safe-area-inline-padding": toolbarGutter,
-  };
 
   const { selectedCards, skippedDisabledCards } = useMemo(() => {
     const { shareableCards, skippedDisabledCards: nextSkippedDisabledCards } =
@@ -499,9 +490,9 @@ export function BulkActionsToolbar({
     <div
       data-testid="bulk-actions-toolbar-host"
       className="
-        pointer-events-none fixed inset-x-0 z-50 flex justify-center safe-area-inline-padding
+        pointer-events-none fixed inset-x-0 bottom-safe-area-6 z-50 flex justify-center
+        safe-area-inline-padding-4
       "
-      style={toolbarHostStyle}
     >
       <AnimatePresence>
         {selectedCount > 0 && (

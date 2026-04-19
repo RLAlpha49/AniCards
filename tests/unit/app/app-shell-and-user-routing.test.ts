@@ -99,18 +99,29 @@ describe("App shell server coverage", () => {
     );
   });
 
-  it("keeps the inline-style compatibility carve-out on exempt HTML routes", async () => {
-    const request = new Request("http://localhost/examples", {
-      headers: {
-        "user-agent": "bun-test",
-        "x-vercel-forwarded-for": "127.0.0.1",
-      },
-    }) as unknown as NextRequest;
+  it("keeps strict CSP on home, examples, and user document routes", async () => {
+    const requestHeaders = {
+      "user-agent": "bun-test",
+      "x-vercel-forwarded-for": "127.0.0.1",
+    };
 
-    const response = await proxy(request);
-    const cspHeader = response.headers.get("content-security-policy");
+    const strictRoutes = [
+      "http://localhost/",
+      "http://localhost/examples",
+      "http://localhost/user",
+    ];
 
-    expect(cspHeader).toContain("style-src-attr 'unsafe-inline'");
+    for (const route of strictRoutes) {
+      const response = await proxy(
+        new Request(route, {
+          headers: requestHeaders,
+        }) as unknown as NextRequest,
+      );
+      const cspHeader = response.headers.get("content-security-policy");
+
+      expect(cspHeader).toBeTruthy();
+      expect(cspHeader).not.toContain("style-src-attr 'unsafe-inline'");
+    }
   });
 
   it("covers API routes in the proxy matcher so request IDs are injected consistently", () => {

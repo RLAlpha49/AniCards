@@ -16,7 +16,7 @@ export function UserPageLoadingSkeleton() {
             motion-safe:skel-reveal
             motion-reduce:animate-none
           "
-          style={{ animationDelay: "0ms" }}
+          data-skel-delay="0"
         >
           <div className="space-y-2">
             <div className="skel-bone h-9 w-56" aria-hidden="true" />
@@ -27,7 +27,7 @@ export function UserPageLoadingSkeleton() {
         {/* Toolbar strip */}
         <div
           className="mt-8 flex flex-wrap gap-3 motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "60ms" }}
+          data-skel-delay="60"
           aria-hidden="true"
         >
           <div className="skel-bone-rect h-9 w-24" />
@@ -43,7 +43,7 @@ export function UserPageLoadingSkeleton() {
             motion-safe:skel-reveal
             motion-reduce:animate-none
           "
-          style={{ animationDelay: "120ms" }}
+          data-skel-delay="120"
           aria-hidden="true"
         >
           <div className="skel-bone-rect h-10 w-full max-w-xs" />
@@ -61,14 +61,14 @@ export function UserPageLoadingSkeleton() {
             sm:grid-cols-2
             lg:grid-cols-3
           "
-          style={{ animationDelay: "200ms" }}
+          data-skel-delay="200"
           aria-hidden="true"
         >
           {Array.from({ length: 6 }, (_, i) => (
             <div
               key={i}
               className="skel-card h-44 motion-safe:skel-breathe motion-reduce:animate-none"
-              style={{ animationDelay: `${280 + i * 60}ms` }}
+              data-skel-delay={String(280 + i * 60)}
             />
           ))}
         </div>
@@ -76,7 +76,7 @@ export function UserPageLoadingSkeleton() {
         {/* Bottom action bar */}
         <div
           className="mt-10 flex gap-4 motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "640ms" }}
+          data-skel-delay="640"
           aria-hidden="true"
         >
           <div className="skel-bone-rect h-10 w-32" />

@@ -309,16 +309,13 @@ export function ExampleCard({
             <div className="
               pointer-events-none absolute inset-0 z-3 flex items-center justify-center
             ">
-              <motion.div
-                className="
-                  flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
-                  font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
-                  transition-all duration-400
-                  group-hover/card:opacity-100
-                  group-focus-visible/card:opacity-100
-                "
-                style={{ transitionDelay: "50ms" }}
-              >
+              <motion.div className="
+                flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
+                font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
+                transition-all [transition-delay:50ms] duration-400
+                group-hover/card:opacity-100
+                group-focus-visible/card:opacity-100
+              ">
                 <ExternalLink className="size-3" />
                 Open Full Size
               </motion.div>

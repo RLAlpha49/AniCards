@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { gradientToCss } from "@/lib/colorUtils";
+import { ColorValueSwatch } from "@/components/ui/ColorValueSwatch";
 import { animeStatsTemplate } from "@/lib/svg-templates/media-stats/anime-stats-template";
 import type { ColorValue } from "@/lib/types/card";
 import { stripTrustedSvgMarker, type TrustedSVG } from "@/lib/types/svg";
@@ -30,13 +30,6 @@ interface ColorPreviewCardProps {
   className?: string;
 }
 
-function colorValueToCss(value: ColorValue): string {
-  if (isGradient(value)) {
-    return gradientToCss(value);
-  }
-  return value;
-}
-
 const SWATCH_CONFIG = [
   { key: "title", label: "Title" },
   { key: "background", label: "Background" },
@@ -53,7 +46,7 @@ export function ColorPreviewCard({
   borderRadius = DEFAULT_CARD_BORDER_RADIUS,
   className,
 }: Readonly<ColorPreviewCardProps>) {
-  const previewSvg = useMemo<string>(() => {
+  const previewSvgUri = useMemo<string>(() => {
     const svg: TrustedSVG = animeStatsTemplate({
       username: "Preview",
       variant: "default",
@@ -67,7 +60,7 @@ export function ColorPreviewCard({
       },
       stats: SAMPLE_ANIME_STATS,
     });
-    return stripTrustedSvgMarker(svg);
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(stripTrustedSvgMarker(svg))}`;
   }, [
     titleColor,
     backgroundColor,
@@ -86,7 +79,7 @@ export function ColorPreviewCard({
     };
     return SWATCH_CONFIG.map(({ key, label }) => ({
       label,
-      css: colorValueToCss(colors[key]),
+      value: colors[key],
       gradient: isGradient(colors[key]),
     }));
   }, [titleColor, backgroundColor, textColor, circleColor]);
@@ -127,13 +120,15 @@ export function ColorPreviewCard({
           />
 
           {/* SVG container — GPU-composited, crisp text */}
-          <div
-            dangerouslySetInnerHTML={{ __html: previewSvg }}
+          <img
+            src={previewSvgUri}
+            alt="Live card color preview"
             className="
-              transform-[translateZ(0)] will-change-transform
-              [&>svg]:block [&>svg]:w-full [&>svg]:[-webkit-font-smoothing:antialiased]
-              [&>svg_text]:[text-rendering:optimizeLegibility]
+              block w-full transform-[translateZ(0)] [-webkit-font-smoothing:antialiased]
+              will-change-transform [text-rendering:optimizeLegibility]
             "
+            loading="lazy"
+            decoding="async"
           />
 
           {/* Bottom accent bar */}
@@ -146,11 +141,11 @@ export function ColorPreviewCard({
 
       {/* Color swatches */}
       <div className="flex flex-wrap justify-center gap-1.5">
-        {swatchData.map(({ label, css, gradient }) => (
+        {swatchData.map(({ label, value, gradient }) => (
           <ColorSwatch
             key={label}
             label={label}
-            color={css}
+            value={value}
             isGradient={gradient}
           />
         ))}
@@ -161,11 +156,11 @@ export function ColorPreviewCard({
 
 interface ColorSwatchProps {
   label: string;
-  color: string;
+  value: ColorValue;
   isGradient: boolean;
 }
 
-function ColorSwatch({ label, color, isGradient }: Readonly<ColorSwatchProps>) {
+function ColorSwatch({ label, value, isGradient }: Readonly<ColorSwatchProps>) {
   return (
     <div
       className={cn(
@@ -174,13 +169,14 @@ function ColorSwatch({ label, color, isGradient }: Readonly<ColorSwatchProps>) {
         "hover:border-gold/30 hover:bg-gold/5",
       )}
     >
-      <div
+      <ColorValueSwatch
         className={cn(
           "size-2.5 shrink-0 rounded-full shadow-sm",
           "ring-1 ring-black/10 dark:ring-white/10",
           isGradient && "ring-gold/40",
         )}
-        style={{ background: color }}
+        value={value}
+        shape="circle"
         title={isGradient ? `${label} (gradient)` : label}
       />
       <span className="text-[10px] font-medium tracking-wide text-muted-foreground/80">

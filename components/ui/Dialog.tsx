@@ -88,17 +88,10 @@ const DialogContent = React.forwardRef<
   ) => (
     <DialogPortal>
       <DialogOverlay />
-      <div
-        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
-        style={{
-          paddingTop: "max(0.5rem, calc(env(safe-area-inset-top) + 0.5rem))",
-          paddingRight:
-            "max(0.5rem, calc(env(safe-area-inset-right) + 0.5rem))",
-          paddingBottom:
-            "max(0.5rem, calc(env(safe-area-inset-bottom) + 0.5rem))",
-          paddingLeft: "max(0.5rem, calc(env(safe-area-inset-left) + 0.5rem))",
-        }}
-      >
+      <div className="
+        pointer-events-none fixed inset-0 z-50 flex items-center justify-center
+        safe-area-modal-padding
+      ">
         <DialogPrimitive.Content
           ref={ref}
           className={cn(

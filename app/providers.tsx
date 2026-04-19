@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes";
 import { type ReactNode, useEffect } from "react";
 
+import { CspNonceProvider } from "@/components/CspNonceContext";
 import { Toaster } from "@/components/ui/Toaster";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { flushClientErrorReportBacklog } from "@/lib/error-tracking";
@@ -36,16 +37,18 @@ export function Providers({
   }, []);
 
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableColorScheme
-      nonce={nonce}
-    >
-      <TooltipProvider delayDuration={200}>
-        {children}
-        <Toaster />
-      </TooltipProvider>
-    </ThemeProvider>
+    <CspNonceProvider nonce={nonce}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableColorScheme
+        nonce={nonce}
+      >
+        <TooltipProvider delayDuration={200}>
+          {children}
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
+    </CspNonceProvider>
   );
 }

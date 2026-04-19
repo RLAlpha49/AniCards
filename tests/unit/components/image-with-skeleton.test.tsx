@@ -131,7 +131,7 @@ describe("ImageWithSkeleton", () => {
 
     expect(wrapper?.dataset.imageState).toBe("loading");
     expect(wrapper?.getAttribute("aria-busy")).toBe("true");
-    expect(wrapper?.getAttribute("style")).toContain("aspect-ratio");
+    expect(wrapper?.getAttribute("style")).toBeNull();
     expect(image.getAttribute("width")).toBe("450");
     expect(image.getAttribute("height")).toBe("195");
     expect(image.getAttribute("loading")).toBe("eager");
@@ -191,7 +191,7 @@ describe("ImageWithSkeleton", () => {
     }
 
     expect(wrapper?.dataset.imageState).toBe("lightweight");
-    expect(wrapper?.getAttribute("style")).toContain("aspect-ratio");
+    expect(wrapper?.getAttribute("style")).toBeNull();
     expect(wrapper?.getAttribute("aria-busy")).toBeNull();
     expect(wrapper?.querySelector(".animate-pulse")).toBeNull();
 

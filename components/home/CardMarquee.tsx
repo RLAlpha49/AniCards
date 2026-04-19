@@ -50,7 +50,8 @@ function MarqueeGroup({
                 src={previewUrl}
                 alt=""
                 className="
-                  block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain
+                  block h-auto max-w-none rounded-lg! border border-[hsl(var(--gold)/0.12)]
+                  object-contain
                 "
                 width={card.width}
                 height={card.height}
@@ -106,10 +107,10 @@ function MarqueeRow({
     <div className="marquee-row" aria-hidden="true">
       <div
         className={`marquee-track ${reverse ? "marquee-reverse" : "marquee-forward"}`}
-        style={{
-          animationDuration: `${durationMs}ms`,
-          animationDelay: `-${Math.round(durationMs * 0.18 * (rowIndex + 1))}ms`,
-        }}
+        data-marquee-duration={String(durationMs)}
+        data-marquee-delay={String(
+          -Math.round(durationMs * 0.18 * (rowIndex + 1)),
+        )}
       >
         <MarqueeGroup
           cards={orderedCards}

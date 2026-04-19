@@ -19,10 +19,6 @@ const Select = SelectPrimitive.Root;
 const SelectValue = SelectPrimitive.Value;
 
 const SELECT_OVERLAY_COLLISION_PADDING = 12;
-const SELECT_OVERLAY_MAX_HEIGHT =
-  "min(24rem, calc(var(--shell-viewport-min-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem))";
-const SELECT_OVERLAY_MAX_WIDTH =
-  "calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem)";
 
 /**
  * Trigger used to open the select dropdown; wraps the native trigger.
@@ -117,7 +113,6 @@ const SelectContent = React.forwardRef<
       children,
       position = "popper",
       collisionPadding = SELECT_OVERLAY_COLLISION_PADDING,
-      style,
       ...props
     },
     ref,
@@ -145,15 +140,11 @@ const SelectContent = React.forwardRef<
               data-[side=right]:translate-x-1
               data-[side=top]:-translate-y-1
             `,
+          "safe-area-overlay-viewport",
           className,
         )}
         position={position}
         collisionPadding={collisionPadding}
-        style={{
-          maxHeight: SELECT_OVERLAY_MAX_HEIGHT,
-          maxWidth: SELECT_OVERLAY_MAX_WIDTH,
-          ...style,
-        }}
         {...props}
       >
         <SelectScrollUpButton />

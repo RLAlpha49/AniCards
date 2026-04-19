@@ -38,18 +38,17 @@ The directive list is defined in `lib/csp-config.ts`. Notable allowlists cover:
 
 - AniCards same-origin assets
 - AniList GraphQL
-- the explicitly configured Upstash REST origin (when present)
 - Google Analytics / Google Tag Manager
 - Vercel Analytics / Speed Insights
 - Google Fonts
 
+Document `connect-src` intentionally excludes Upstash Redis. The browser does not need direct egress to the Upstash REST origin; that integration stays server-side.
+
 ### Inline style attribute compatibility
 
-Production keeps `style-src-attr 'unsafe-inline'` limited to the current document routes that still rely on bounded inline style attributes for layout, animation timing, or generated background values:
+Production document routes now stay on the strict nonce-based policy without a route-specific `style-src-attr 'unsafe-inline'` carve-out.
 
-- `/`
-- `/examples`
-- `/user`
+The `/user` editor surfaces that previously relied on inline style attributes now use audited CSS utilities, SVG/data-URI previews, and nonce-bearing style blocks where runtime geometry still needs per-request values.
 
 Legacy media-style routes such as `/StatCards/[username]/[key].svg`, `/card.svg`, and `/card.png` no longer enter the document CSP path.
 

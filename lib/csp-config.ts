@@ -82,21 +82,6 @@ function normalizeCanonicalApiImageSourceOrigin(
   }
 }
 
-function normalizeConnectSourceOrigin(
-  urlString: string | undefined,
-): string | null {
-  if (!urlString) {
-    return null;
-  }
-
-  try {
-    const url = new URL(urlString);
-    return url.protocol === "https:" ? url.origin : null;
-  } catch {
-    return null;
-  }
-}
-
 export function getImageSrcAllowlist(
   options: {
     apiUrl?: string;
@@ -128,20 +113,12 @@ export function getImageSrcAllowlist(
 const IMAGE_SRC_ALLOWLIST = getImageSrcAllowlist();
 
 export function getConnectSrcAllowlist(
-  options: {
+  _options: {
     upstashRedisRestUrl?: string;
   } = {},
 ): string[] {
-  const upstashRedisRestUrl =
-    options.upstashRedisRestUrl ?? process.env.UPSTASH_REDIS_REST_URL;
-
-  return [
-    ...new Set(
-      [normalizeConnectSourceOrigin(upstashRedisRestUrl)].filter(
-        (origin): origin is string => Boolean(origin),
-      ),
-    ),
-  ];
+  void _options;
+  return [];
 }
 
 const CONNECT_SRC_ALLOWLIST = getConnectSrcAllowlist();
@@ -199,7 +176,8 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Connect sources - controls which URLs can be used for fetch, XHR, WebSocket
-   * Whitelists all external APIs and analytics services
+   * Whitelists reviewed browser-side APIs and analytics services only.
+   * Server-side integrations such as Upstash stay off the document CSP egress list.
    */
   connectSrc: [
     CSP_KEYWORDS.SELF,

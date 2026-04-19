@@ -20,14 +20,7 @@ export function CTASection({ createHref }: Readonly<CTASectionProps>) {
       </div>
 
       {/* Subtle dot pattern */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.02]"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, hsl(var(--foreground)) 0.5px, transparent 0.5px)",
-          backgroundSize: "20px 20px",
-        }}
-      />
+      <div className="pointer-events-none absolute inset-0 examples-dot-pattern opacity-[0.02]" />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}

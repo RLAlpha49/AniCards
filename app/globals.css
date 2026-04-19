@@ -244,6 +244,35 @@ button {
   );
 }
 
+@utility safe-area-modal-padding {
+  padding-top: max(0.5rem, calc(var(--safe-area-top) + 0.5rem));
+  padding-right: max(0.5rem, calc(var(--safe-area-right) + 0.5rem));
+  padding-bottom: max(0.5rem, calc(var(--safe-area-bottom) + 0.5rem));
+  padding-left: max(0.5rem, calc(var(--safe-area-left) + 0.5rem));
+}
+
+@utility safe-area-overlay-viewport {
+  max-height: min(
+    24rem,
+    calc(
+      var(--shell-viewport-min-height) - var(--safe-area-top) -
+        var(--safe-area-bottom) - 1rem
+    )
+  );
+  max-width: calc(
+    100vw - var(--safe-area-left) - var(--safe-area-right) - 1rem
+  );
+}
+
+@utility safe-area-inline-padding-4 {
+  padding-inline-start: calc(var(--safe-area-left) + 1rem);
+  padding-inline-end: calc(var(--safe-area-right) + 1rem);
+}
+
+@utility bottom-safe-area-6 {
+  bottom: calc(1.5rem + var(--safe-area-bottom));
+}
+
 @utility min-h-shell-viewport {
   min-height: var(--shell-viewport-min-height);
 }
@@ -325,6 +354,15 @@ button {
     hsl(var(--foreground)) 0.5px,
     transparent 0.5px
   );
+  background-size: 20px 20px;
+}
+
+@utility user-editor-diamond-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+@utility user-editor-diamond-pattern-compact {
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 0l10 10-10 10L0 10z' fill='none' stroke='%23c9a84c' stroke-opacity='0.04' stroke-width='0.5'/%3E%3C/svg%3E");
   background-size: 20px 20px;
 }
 
@@ -999,8 +1037,20 @@ button {
   animation-delay: 0ms;
 }
 
+[data-skel-delay="60"] {
+  animation-delay: 60ms;
+}
+
 [data-skel-delay="80"] {
   animation-delay: 80ms;
+}
+
+[data-skel-delay="640"] {
+  animation-delay: 640ms;
+}
+
+[data-skel-delay="580"] {
+  animation-delay: 580ms;
 }
 
 [data-skel-delay="120"] {
@@ -1047,12 +1097,20 @@ button {
   animation-delay: 360ms;
 }
 
+[data-skel-delay="380"] {
+  animation-delay: 380ms;
+}
+
 [data-skel-delay="400"] {
   animation-delay: 400ms;
 }
 
 [data-skel-delay="420"] {
   animation-delay: 420ms;
+}
+
+[data-skel-delay="440"] {
+  animation-delay: 440ms;
 }
 
 [data-skel-delay="460"] {
@@ -1067,8 +1125,16 @@ button {
   animation-delay: 500ms;
 }
 
+[data-skel-delay="520"] {
+  animation-delay: 520ms;
+}
+
 [data-skel-delay="540"] {
   animation-delay: 540ms;
+}
+
+[data-skel-delay="590"] {
+  animation-delay: 590ms;
 }
 
 [data-skel-delay="600"] {
@@ -1099,12 +1165,60 @@ button {
   animation-delay: 760ms;
 }
 
+[data-skel-delay="770"] {
+  animation-delay: 770ms;
+}
+
+[data-skel-delay="840"] {
+  animation-delay: 840ms;
+}
+
+[data-skel-delay="860"] {
+  animation-delay: 860ms;
+}
+
 [data-skel-delay="820"] {
   animation-delay: 820ms;
 }
 
+[data-skel-delay="920"] {
+  animation-delay: 920ms;
+}
+
+[data-skel-delay="950"] {
+  animation-delay: 950ms;
+}
+
 [data-skel-delay="900"] {
   animation-delay: 900ms;
+}
+
+[data-skel-delay="1000"] {
+  animation-delay: 1000ms;
+}
+
+[data-skel-delay="1100"] {
+  animation-delay: 1100ms;
+}
+
+[data-skel-delay="1200"] {
+  animation-delay: 1200ms;
+}
+
+[data-skel-delay="1280"] {
+  animation-delay: 1280ms;
+}
+
+[data-skel-delay="1380"] {
+  animation-delay: 1380ms;
+}
+
+[data-skel-delay="1480"] {
+  animation-delay: 1480ms;
+}
+
+[data-skel-delay="1600"] {
+  animation-delay: 1600ms;
 }
 
 [data-skel-delay="980"] {
@@ -1113,6 +1227,18 @@ button {
 
 [data-skel-delay="1060"] {
   animation-delay: 1060ms;
+}
+
+[data-marquee-duration="45000"] {
+  animation-duration: 45000ms;
+}
+
+[data-marquee-delay="-8100"] {
+  animation-delay: -8100ms;
+}
+
+[data-marquee-delay="-16200"] {
+  animation-delay: -16200ms;
 }
 
 [data-marquee-duration="78000"] {

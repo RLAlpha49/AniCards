@@ -27,6 +27,12 @@ interface HeroCard {
   z: number;
 }
 
+const HOME_HERO_CARD_LAYOUT_CLASSES = [
+  "top-[10%] left-[5%] z-[3] [rotate:-6deg] w-[clamp(200px,55%,320px)]",
+  "top-[22%] left-[23%] z-[2] [rotate:4deg] w-[clamp(200px,55%,320px)]",
+  "top-[34%] left-[41%] z-[1] [rotate:-2deg] w-[clamp(200px,55%,320px)]",
+] as const;
+
 export function HeroSection({
   cards,
   totalCardTypes,
@@ -177,14 +183,10 @@ export function HeroSection({
                 variants={cardFloat}
                 initial={false}
                 animate="visible"
-                className="absolute hero-card-float shadow-2xl shadow-black/20 dark:shadow-black/50"
-                style={{
-                  rotate: `${card.rotate}deg`,
-                  zIndex: card.z,
-                  top: `${10 + i * 12}%`,
-                  left: `${5 + i * 18}%`,
-                  width: "clamp(200px, 55%, 320px)",
-                }}
+                className={[
+                  "hero-card-float absolute shadow-2xl shadow-black/20 dark:shadow-black/50",
+                  HOME_HERO_CARD_LAYOUT_CLASSES[i],
+                ].join(" ")}
               >
                 <div className="overflow-hidden rounded-lg border-2 border-[hsl(var(--gold)/0.2)]">
                   {previewUrl ? (

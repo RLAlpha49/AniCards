@@ -12,6 +12,7 @@ import {
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { ColorValueSwatch } from "@/components/ui/ColorValueSwatch";
 import { Label } from "@/components/ui/Label";
 import { AnimatePresence, motion } from "@/components/ui/Motion";
 import {
@@ -21,7 +22,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
 import type { ColorValue } from "@/lib/types/card";
-import { cn, colorValueToString, isGradient } from "@/lib/utils";
+import { cn, colorValueToString } from "@/lib/utils";
 import {
   safeTrack,
   trackColorPresetSelection,
@@ -55,20 +56,6 @@ type PresetEntry = [string, { colors: ColorValue[]; mode: string }];
 /** Check if a preset contains any gradient colors. */
 function hasGradient(colors: ColorValue[]): boolean {
   return colors.some((color) => typeof color !== "string");
-}
-
-/** Convert a ColorValue to a CSS background style string. */
-function colorToCssBackground(color: ColorValue): string {
-  if (isGradient(color)) {
-    const stops = color.stops.map((s) => `${s.color} ${s.offset}%`).join(", ");
-    if (color.type === "radial") {
-      const cx = color.cx ?? 50;
-      const cy = color.cy ?? 50;
-      return `radial-gradient(circle at ${cx}% ${cy}%, ${stops})`;
-    }
-    return `linear-gradient(${color.angle ?? 0}deg, ${stops})`;
-  }
-  return color;
 }
 
 /** Convert an internal preset key into a user-friendly display label. */
@@ -497,12 +484,10 @@ function ColorPresetSelectorComponent({
                       ) : (
                         <div className="flex size-full">
                           {colors.map((color, i) => (
-                            <div
+                            <ColorValueSwatch
                               key={`${colorValueToString(color)}-${i}`}
                               className="h-full flex-1"
-                              style={{
-                                background: colorToCssBackground(color),
-                              }}
+                              value={color}
                             />
                           ))}
                         </div>

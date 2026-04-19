@@ -1,5 +1,21 @@
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 
+const EXAMPLES_LOADING_FILTER_PILL_WIDTH_CLASSES = [
+  "w-20",
+  "w-24",
+  "w-28",
+  "w-32",
+  "w-36",
+] as const;
+const EXAMPLES_LOADING_GALLERY_DELAYS = [
+  "500",
+  "590",
+  "680",
+  "770",
+  "860",
+  "950",
+] as const;
+
 function DiamondDivider() {
   return (
     <div
@@ -44,7 +60,7 @@ export default function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "0ms" }}
+              data-skel-delay="0"
             >
               <div
                 className="
@@ -71,7 +87,7 @@ export default function Loading() {
                     motion-reduce:animate-none
                     sm:h-14 sm:w-96
                   "
-                  style={{ animationDelay: "80ms" }}
+                  data-skel-delay="80"
                   aria-hidden="true"
                 />
                 <div
@@ -81,7 +97,7 @@ export default function Loading() {
                     motion-reduce:animate-none
                     sm:w-md
                   "
-                  style={{ animationDelay: "160ms" }}
+                  data-skel-delay="160"
                   aria-hidden="true"
                 />
                 <div
@@ -91,7 +107,7 @@ export default function Loading() {
                     motion-reduce:animate-none
                     sm:w-96
                   "
-                  style={{ animationDelay: "220ms" }}
+                  data-skel-delay="220"
                   aria-hidden="true"
                 />
               </div>
@@ -104,7 +120,7 @@ export default function Loading() {
                   motion-reduce:animate-none
                   lg:min-w-60 lg:justify-end
                 "
-                style={{ animationDelay: "280ms" }}
+                data-skel-delay="280"
                 aria-hidden="true"
               >
                 {Array.from({ length: 3 }, (_, i) => (
@@ -119,7 +135,7 @@ export default function Loading() {
             {/* Art-deco diamond divider */}
             <div
               className="py-6 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "340ms" }}
+              data-skel-delay="340"
             >
               <DiamondDivider />
             </div>
@@ -127,7 +143,7 @@ export default function Loading() {
             {/* Filter Bar */}
             <div
               className="skel-card p-5 motion-safe:skel-reveal motion-reduce:animate-none"
-              style={{ animationDelay: "400ms" }}
+              data-skel-delay="400"
               aria-hidden="true"
             >
               {/* Search input */}
@@ -138,8 +154,7 @@ export default function Loading() {
                 {Array.from({ length: 5 }, (_, i) => (
                   <div
                     key={i}
-                    className="skel-bone h-8"
-                    style={{ width: `${80 + i * 16}px` }}
+                    className={`skel-bone h-8 ${EXAMPLES_LOADING_FILTER_PILL_WIDTH_CLASSES[i]}`}
                   />
                 ))}
               </div>
@@ -155,7 +170,7 @@ export default function Loading() {
                     motion-safe:skel-reveal
                     motion-reduce:animate-none
                   "
-                  style={{ animationDelay: `${500 + i * 90}ms` }}
+                  data-skel-delay={EXAMPLES_LOADING_GALLERY_DELAYS[i]}
                   aria-hidden="true"
                 >
                   {/* Image placeholder */}

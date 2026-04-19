@@ -6,13 +6,6 @@ import * as React from "react";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
-const ALERT_DIALOG_SAFE_AREA_PADDING = {
-  paddingTop: "max(0.5rem, calc(env(safe-area-inset-top) + 0.5rem))",
-  paddingRight: "max(0.5rem, calc(env(safe-area-inset-right) + 0.5rem))",
-  paddingBottom: "max(0.5rem, calc(env(safe-area-inset-bottom) + 0.5rem))",
-  paddingLeft: "max(0.5rem, calc(env(safe-area-inset-left) + 0.5rem))",
-} satisfies React.CSSProperties;
-
 /**
  * AlertDialog root primitive providing modal state for confirmation dialogs.
  * @source
@@ -64,10 +57,10 @@ const AlertDialogContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPortal>
     <AlertDialogOverlay />
-    <div
-      className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
-      style={ALERT_DIALOG_SAFE_AREA_PADDING}
-    >
+    <div className="
+      pointer-events-none fixed inset-0 z-50 flex items-center justify-center
+      safe-area-modal-padding
+    ">
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(

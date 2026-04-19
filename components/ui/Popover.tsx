@@ -18,10 +18,6 @@ const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
 const POPOVER_COLLISION_PADDING = 12;
-const POPOVER_MAX_HEIGHT =
-  "min(24rem, calc(var(--shell-viewport-min-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem))";
-const POPOVER_MAX_WIDTH =
-  "calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 1rem)";
 
 /**
  * Content area for the popover. Accepts alignment and offset props to position the popover.
@@ -37,7 +33,6 @@ const PopoverContent = React.forwardRef<
       align = "center",
       sideOffset = 4,
       collisionPadding = POPOVER_COLLISION_PADDING,
-      style,
       ...props
     },
     ref,
@@ -60,13 +55,9 @@ const PopoverContent = React.forwardRef<
             data-[state=closed]:zoom-out-95
             data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
           `,
+          "safe-area-overlay-viewport",
           className,
         )}
-        style={{
-          maxHeight: POPOVER_MAX_HEIGHT,
-          maxWidth: POPOVER_MAX_WIDTH,
-          ...style,
-        }}
         {...props}
       />
     </PopoverPrimitive.Portal>

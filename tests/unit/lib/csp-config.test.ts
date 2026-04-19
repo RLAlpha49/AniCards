@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildCSPHeader,
   CSP_DIRECTIVES,
+  getConnectSrcAllowlist,
   getImageSrcAllowlist,
 } from "@/lib/csp-config";
 
@@ -101,5 +102,16 @@ describe("CSP header builder", () => {
     expect(
       allowlist.filter((origin) => origin === "http://api.localhost:3000"),
     ).toHaveLength(1);
+  });
+
+  it("keeps Upstash off the browser connect-src allowlist", () => {
+    expect(
+      getConnectSrcAllowlist({
+        upstashRedisRestUrl: "https://example.upstash.io",
+      }),
+    ).toEqual([]);
+    expect(CSP_DIRECTIVES.connectSrc).not.toContain(
+      "https://example.upstash.io",
+    );
   });
 });

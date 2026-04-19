@@ -4,6 +4,7 @@ import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils";
 
 /**
  * Props for ImageWithSkeleton component.
@@ -150,24 +151,17 @@ function getLoadedImageState(
   };
 }
 
-function getContainerStyle(
-  imageDimensions: ImageDimensions | null,
-  fallbackAspectRatio: number | undefined,
-  fixedDimensions: boolean,
-): React.CSSProperties {
-  if (fixedDimensions && imageDimensions) {
-    const style: React.CSSProperties = {
-      width: imageDimensions.width,
-      minWidth: imageDimensions.width,
-      maxWidth: imageDimensions.width,
-    };
-
-    if (fallbackAspectRatio) style.aspectRatio = fallbackAspectRatio;
-    return style;
-  }
-
-  if (fallbackAspectRatio) return { aspectRatio: fallbackAspectRatio };
-  return {};
+function getWrapperClassName(opts: {
+  containerClassName?: string;
+  fixedDimensions: boolean;
+  imageDimensions: ImageDimensions | null;
+}) {
+  return cn(
+    "relative overflow-hidden rounded-[4px]",
+    opts.fixedDimensions && opts.imageDimensions ? "inline-block" : "w-full",
+    !opts.imageDimensions && "aspect-video",
+    opts.containerClassName,
+  );
 }
 
 function ImageErrorFallback() {
@@ -192,21 +186,18 @@ function LightweightImageWithPlaceholder({
   fixedDimensions = false,
 }: Readonly<ImageWithSkeletonProps>) {
   const knownDimensions = getKnownDimensions(width, height);
-  const fallbackAspectRatio = knownDimensions
-    ? knownDimensions.width / knownDimensions.height
-    : 16 / 9;
-  const containerStyle = {
-    borderRadius: "4px",
-    ...getContainerStyle(knownDimensions, fallbackAspectRatio, fixedDimensions),
-  } satisfies React.CSSProperties;
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const hasError = failedSrc === src;
   const showPlaceholder = hasError === false;
+  const wrapperClassName = getWrapperClassName({
+    containerClassName,
+    fixedDimensions,
+    imageDimensions: knownDimensions,
+  });
 
   return (
     <div
-      className={`relative w-full overflow-hidden ${containerClassName ?? ""}`}
-      style={containerStyle}
+      className={wrapperClassName}
       data-image-state={hasError ? "error" : "lightweight"}
     >
       {showPlaceholder ? (
@@ -234,10 +225,14 @@ function LightweightImageWithPlaceholder({
       <img
         src={src}
         alt={alt}
-        className={`${className} ${hasError ? "opacity-0" : "opacity-100"}
-          transition-opacity duration-200
-        `}
-        style={{ borderRadius: "4px", ...style }}
+        className={cn(
+          fixedDimensions && knownDimensions ? "block h-auto max-w-none" : null,
+          "rounded-[4px]",
+          className,
+          hasError ? "opacity-0" : "opacity-100",
+          "transition-opacity duration-200",
+        )}
+        style={style}
         width={width}
         height={height}
         loading={loading}
@@ -312,18 +307,11 @@ function ManagedImageWithSkeleton({
         : { ...current, loadState: "error" },
     );
   };
-
-  const aspectRatio = imageDimensions
-    ? imageDimensions.width / imageDimensions.height
-    : undefined;
-
-  const fallbackAspectRatio = aspectRatio ?? 16 / 9;
-
-  const containerStyle = getContainerStyle(
-    imageDimensions,
-    fallbackAspectRatio,
+  const wrapperClassName = getWrapperClassName({
+    containerClassName,
     fixedDimensions,
-  );
+    imageDimensions,
+  });
 
   const showSkeleton =
     imageState.loadState === "loading" || imageState.loadState === "slow";
@@ -331,31 +319,27 @@ function ManagedImageWithSkeleton({
 
   return (
     <div
-      className={`relative w-full ${containerClassName ?? ""}`}
-      style={containerStyle}
+      className={wrapperClassName}
       data-image-state={imageState.loadState}
       aria-busy={
         imageState.loadState === "loading" || imageState.loadState === "slow"
       }
     >
       {showSkeleton && (
-        <Skeleton
-          className="absolute inset-0 size-full"
-          style={
-            fallbackAspectRatio
-              ? { aspectRatio: fallbackAspectRatio }
-              : undefined
-          }
-        />
+        <Skeleton className="absolute inset-0 size-full rounded-[4px]" />
       )}
       <img
         ref={imgRef}
         src={src}
         alt={alt}
-        className={`${className} ${showImage ? "opacity-100" : "opacity-0"}
-          transition-opacity duration-300
-        `}
-        style={{ borderRadius: "4px", ...style }}
+        className={cn(
+          fixedDimensions && imageDimensions ? "block h-auto max-w-none" : null,
+          "rounded-[4px]",
+          className,
+          showImage ? "opacity-100" : "opacity-0",
+          "transition-opacity duration-300",
+        )}
+        style={style}
         width={width}
         height={height}
         loading={loading}

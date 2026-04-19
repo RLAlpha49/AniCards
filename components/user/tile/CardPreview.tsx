@@ -10,11 +10,13 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 
+import { useCspNonce } from "@/components/CspNonceContext";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
@@ -72,6 +74,29 @@ function getDownloadA11yState(args: {
     };
   }
   return { downloadTitle: undefined, downloadDescrId: undefined };
+}
+
+function normalizeBorderRadiusValue(
+  borderRadiusValue: number | string | undefined,
+): string | null {
+  if (typeof borderRadiusValue === "number") {
+    if (!Number.isFinite(borderRadiusValue)) {
+      return null;
+    }
+
+    return `${Math.max(0, borderRadiusValue)}px`;
+  }
+
+  if (typeof borderRadiusValue !== "string") {
+    return null;
+  }
+
+  const trimmedValue = borderRadiusValue.trim();
+  if (!/^(?:\d+|\d*\.\d+)(?:px|rem|em|%)?$/.test(trimmedValue)) {
+    return null;
+  }
+
+  return trimmedValue;
 }
 
 function OpenInNewTabButton(
@@ -242,6 +267,8 @@ export const CardPreview = memo(function CardPreview({
   prefersCoarsePointer = false,
   fetchPriority = "visible",
 }: Readonly<CardPreviewProps>) {
+  const nonce = useCspNonce();
+  const previewRadiusScopeId = useId().replaceAll(":", "");
   const { downloadTitle, downloadDescrId } = getDownloadA11yState({
     previewUrl,
     isDownloading,
@@ -324,6 +351,17 @@ export const CardPreview = memo(function CardPreview({
     () => (openHrefBase ? withCacheBust(openHrefBase, lastRefreshToken) : null),
     [openHrefBase, lastRefreshToken],
   );
+  const normalizedBorderRadius = useMemo(
+    () => normalizeBorderRadiusValue(borderRadiusValue),
+    [borderRadiusValue],
+  );
+  const previewRadiusStyleText = useMemo(() => {
+    if (!normalizedBorderRadius) {
+      return "";
+    }
+
+    return `[data-card-preview-radius="${previewRadiusScopeId}"] [data-card-preview-image="true"] { border-radius: ${normalizedBorderRadius}; }`;
+  }, [normalizedBorderRadius, previewRadiusScopeId]);
 
   const handleRefresh = useCallback(() => {
     void (async () => {
@@ -383,6 +421,7 @@ export const CardPreview = memo(function CardPreview({
     if (resolvedSrc) {
       return (
         <img
+          data-card-preview-image="true"
           src={resolvedSrc}
           alt={`${label} preview`}
           loading="lazy"
@@ -398,7 +437,6 @@ export const CardPreview = memo(function CardPreview({
               group-hover/card-preview:brightness-[0.7]
             `,
           )}
-          style={{ borderRadius: borderRadiusValue }}
         />
       );
     }
@@ -588,7 +626,13 @@ export const CardPreview = memo(function CardPreview({
   };
 
   return (
-    <div className="bg-gold/3 dark:bg-gold/2">
+    <div
+      data-card-preview-radius={previewRadiusScopeId}
+      className="bg-gold/3 dark:bg-gold/2"
+    >
+      {previewRadiusStyleText ? (
+        <style nonce={nonce}>{previewRadiusStyleText}</style>
+      ) : null}
       <div
         ref={previewRootRef}
         data-tour="card-preview"

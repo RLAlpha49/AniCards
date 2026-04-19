@@ -28,9 +28,18 @@ import {
   useState,
 } from "react";
 
+import { useCspNonce } from "@/components/CspNonceContext";
 import { VirtualizedCardGrid } from "@/components/user/VirtualizedCardGrid";
 import { cn } from "@/lib/utils";
 
+function sanitizeDynamicCssValue(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+
+  const sanitizedValue = value.replace(/[{};]/g, "").trim();
+  return sanitizedValue.length > 0 ? sanitizedValue : null;
+}
 const VIRTUALIZATION_THRESHOLD = 18;
 
 export type CardTileDragHandleProps = {
@@ -105,6 +114,8 @@ function SortableCardItem<TCard extends { id: string }>({
   index: number;
   renderCard: NonNullable<CardCategorySectionProps<TCard>["renderCard"]>;
 }>) {
+  const nonce = useCspNonce();
+  const styleScopeId = useId().replaceAll(":", "");
   const {
     attributes,
     listeners,
@@ -115,17 +126,37 @@ function SortableCardItem<TCard extends { id: string }>({
     isDragging,
   } = useSortable({ id: card.id });
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const dynamicStyleText = useMemo(() => {
+    const declarations: string[] = [];
+    const transformValue = sanitizeDynamicCssValue(
+      CSS.Transform.toString(transform),
+    );
+    const transitionValue = sanitizeDynamicCssValue(transition);
+
+    if (transformValue) {
+      declarations.push(`transform: ${transformValue}`);
+    }
+
+    if (transitionValue) {
+      declarations.push(`transition: ${transitionValue}`);
+    }
+
+    if (declarations.length === 0) {
+      return "";
+    }
+
+    return `[data-sortable-style="${styleScopeId}"] { ${declarations.join("; ")}; }`;
+  }, [styleScopeId, transform, transition]);
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      data-sortable-style={styleScopeId}
       className={cn("min-w-0", isDragging && "z-10 opacity-70")}
     >
+      {dynamicStyleText ? (
+        <style nonce={nonce}>{dynamicStyleText}</style>
+      ) : null}
       {renderCard(card, index, {
         dragHandleProps: { attributes, listeners, setActivatorNodeRef },
         isDragging,

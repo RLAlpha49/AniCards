@@ -18,6 +18,16 @@ const DEFAULT_LOADING_NOSCRIPT_STYLES = `
   }
 `;
 
+const HOME_LOADING_BENTO_DELAYS = [
+  "600",
+  "680",
+  "760",
+  "840",
+  "920",
+  "1000",
+] as const;
+const HOME_LOADING_PROCESS_DELAYS = ["1280", "1380", "1480"] as const;
+
 type SearchNoscriptLookupResult = {
   ctaLabel: string;
   description: string;
@@ -542,7 +552,7 @@ export default async function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "0ms" }}
+              data-skel-delay="0"
               aria-hidden="true"
             >
               <div className="h-px w-8 bg-gold/20" />
@@ -558,7 +568,7 @@ export default async function Loading() {
                 motion-reduce:animate-none
                 sm:h-14 sm:w-104
               "
-              style={{ animationDelay: "80ms" }}
+              data-skel-delay="80"
               aria-hidden="true"
             />
 
@@ -570,7 +580,7 @@ export default async function Loading() {
                 motion-reduce:animate-none
                 sm:w-96
               "
-              style={{ animationDelay: "160ms" }}
+              data-skel-delay="160"
               aria-hidden="true"
             />
 
@@ -582,7 +592,7 @@ export default async function Loading() {
                 motion-reduce:animate-none
                 sm:w-72
               "
-              style={{ animationDelay: "220ms" }}
+              data-skel-delay="220"
               aria-hidden="true"
             />
 
@@ -593,7 +603,7 @@ export default async function Loading() {
                 motion-safe:skel-reveal
                 motion-reduce:animate-none
               "
-              style={{ animationDelay: "300ms" }}
+              data-skel-delay="300"
               aria-hidden="true"
             />
           </div>
@@ -606,7 +616,7 @@ export default async function Loading() {
             motion-safe:skel-reveal
             motion-reduce:animate-none
           "
-          style={{ animationDelay: "380ms" }}
+          data-skel-delay="380"
         >
           <DiamondDivider />
         </div>
@@ -622,7 +632,7 @@ export default async function Loading() {
               motion-safe:skel-reveal
               motion-reduce:animate-none
             "
-            style={{ animationDelay: "440ms" }}
+            data-skel-delay="440"
           >
             {Array.from({ length: 4 }, (_, i) => (
               <div
@@ -640,7 +650,7 @@ export default async function Loading() {
             motion-safe:skel-reveal
             motion-reduce:animate-none
           "
-          style={{ animationDelay: "520ms" }}
+          data-skel-delay="520"
         >
           <DiamondDivider />
         </div>
@@ -656,7 +666,7 @@ export default async function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${600 + i * 80}ms` }}
+                data-skel-delay={HOME_LOADING_BENTO_DELAYS[i]}
               >
                 <div className="skel-bone-rect size-10" />
                 <div className="skel-bone h-3.5 w-28" />
@@ -672,7 +682,7 @@ export default async function Loading() {
         {/* Stats Ribbon */}
         <section
           className="relative z-10 px-4 py-10 motion-safe:skel-reveal motion-reduce:animate-none"
-          style={{ animationDelay: "1100ms" }}
+          data-skel-delay="1100"
           aria-hidden="true"
         >
           <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-10">
@@ -694,7 +704,7 @@ export default async function Loading() {
               motion-safe:skel-reveal
               motion-reduce:animate-none
             "
-            style={{ animationDelay: "1200ms" }}
+            data-skel-delay="1200"
           />
           <div className="mx-auto grid max-w-4xl gap-6 sm:grid-cols-3">
             {Array.from({ length: 3 }, (_, i) => (
@@ -705,7 +715,7 @@ export default async function Loading() {
                   motion-safe:skel-reveal
                   motion-reduce:animate-none
                 "
-                style={{ animationDelay: `${1280 + i * 100}ms` }}
+                data-skel-delay={HOME_LOADING_PROCESS_DELAYS[i]}
               >
                 <div className="
                   flex size-12 items-center justify-center border border-gold/15 bg-gold/4
@@ -726,7 +736,7 @@ export default async function Loading() {
             motion-safe:skel-reveal
             motion-reduce:animate-none
           "
-          style={{ animationDelay: "1600ms" }}
+          data-skel-delay="1600"
           aria-hidden="true"
         >
           <div className="skel-bone h-6 w-60 max-w-full sm:w-72" />

@@ -10,6 +10,33 @@ interface CardPreviewPlaceholderProps {
   fixedDimensions?: boolean;
 }
 
+function getPlaceholderViewport(opts: {
+  aspectRatio?: number;
+  width?: number;
+  height?: number;
+}) {
+  if (opts.width && opts.height) {
+    return {
+      height: opts.height,
+      width: opts.width,
+    };
+  }
+
+  const resolvedAspectRatio =
+    opts.aspectRatio ??
+    (opts.width && opts.height ? opts.width / opts.height : 16 / 9);
+  const viewportWidth = 1000;
+  const viewportHeight = Math.max(
+    1,
+    Math.round(viewportWidth / resolvedAspectRatio),
+  );
+
+  return {
+    height: viewportHeight,
+    width: viewportWidth,
+  };
+}
+
 export function CardPreviewPlaceholder({
   className,
   aspectRatio,
@@ -17,29 +44,39 @@ export function CardPreviewPlaceholder({
   height,
   fixedDimensions = false,
 }: Readonly<CardPreviewPlaceholderProps>) {
-  const resolvedAspectRatio =
-    aspectRatio ?? (width && height ? width / height : 16 / 9);
-  const style: React.CSSProperties = {
-    ...(resolvedAspectRatio ? { aspectRatio: resolvedAspectRatio } : {}),
-    ...(fixedDimensions && width
-      ? {
-          width,
-          minWidth: width,
-          maxWidth: width,
-        }
-      : {}),
-    ...(fixedDimensions && height ? { height } : {}),
-  };
+  const viewport = getPlaceholderViewport({
+    aspectRatio,
+    width,
+    height,
+  });
 
   return (
     <div
       aria-hidden="true"
       className={cn(
-        "relative overflow-hidden bg-[hsl(var(--foreground)/0.02)]",
+        "relative overflow-hidden rounded-[4px] bg-[hsl(var(--foreground)/0.02)]",
+        fixedDimensions ? "inline-block" : "w-full",
         className,
       )}
-      style={style}
     >
+      <svg
+        aria-hidden="true"
+        role="presentation"
+        className={cn(
+          "block",
+          fixedDimensions ? "h-auto max-w-none" : "h-auto w-full",
+        )}
+        width={fixedDimensions ? viewport.width : undefined}
+        height={fixedDimensions ? viewport.height : undefined}
+        viewBox={`0 0 ${viewport.width} ${viewport.height}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <rect
+          width={viewport.width}
+          height={viewport.height}
+          fill="transparent"
+        />
+      </svg>
       <div className="
         absolute inset-0
         bg-[linear-gradient(135deg,hsl(var(--gold)/0.08),transparent_42%,hsl(var(--foreground)/0.04))]

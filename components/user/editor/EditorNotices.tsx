@@ -10,24 +10,61 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/Button";
-import { gradientToCss } from "@/lib/colorUtils";
+import { ColorValueSwatch } from "@/components/ui/ColorValueSwatch";
 import type { EditorStarterStyle } from "@/lib/user-page-starters";
+import { escapeForXml, processColorsForSVG } from "@/lib/utils";
 
 import { DraftRestoreNotice } from "./DraftRestoreNotice";
 import { SaveConflictNotice } from "./SaveConflictNotice";
 
 type StarterPreviewColor = EditorStarterStyle["snapshot"]["colors"][number];
 
-function starterColorToCss(value: StarterPreviewColor): string {
-  return typeof value === "string" ? value : gradientToCss(value);
-}
-
 function starterColorToSolid(value: StarterPreviewColor): string {
   return typeof value === "string"
     ? value
     : (value.stops[0]?.color ?? "#d5a944");
+}
+
+function buildStarterStylePreviewDataUri(
+  starterStyle: EditorStarterStyle,
+): string {
+  const [titleColor, backgroundColor, textColor, accentColor] =
+    starterStyle.snapshot.colors;
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor,
+      backgroundColor,
+      textColor,
+      accentColor,
+    },
+    ["titleColor", "backgroundColor", "textColor", "accentColor"],
+  );
+  const accentSolid = starterColorToSolid(accentColor);
+  const bars = [0.55, 0.8, 0.65, 0.95]
+    .map((scale, index) => {
+      const height = Math.round(42 * scale * 100) / 100;
+      const y = Math.round((78 - height) * 100) / 100;
+      const x = 18 + index * 34;
+
+      return `<rect x="${x}" y="${y}" width="26" height="${height}" rx="3" fill="${index % 2 === 0 ? resolvedColors.accentColor : resolvedColors.textColor}" fill-opacity="${index % 2 === 0 ? "0.85" : "0.38"}" />`;
+    })
+    .join("");
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 92" fill="none">
+      <defs>${gradientDefs}</defs>
+      <rect x="0.5" y="0.5" width="179" height="91" rx="8" fill="${resolvedColors.backgroundColor}" stroke="${escapeForXml(accentSolid)}" stroke-opacity="0.12" />
+      <line x1="0" y1="24.5" x2="180" y2="24.5" stroke="${escapeForXml(accentSolid)}" stroke-opacity="0.2" />
+      <text x="12" y="16" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="${resolvedColors.titleColor}">AniCards preview</text>
+      <circle cx="166" cy="12" r="5" fill="${resolvedColors.accentColor}" />
+      ${bars}
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function StarterStyleCard({
@@ -37,8 +74,10 @@ function StarterStyleCard({
   starterStyle: EditorStarterStyle;
   onApply: (starterStyle: EditorStarterStyle) => void;
 }>) {
-  const [titleColor, backgroundColor, textColor, accentColor] =
-    starterStyle.snapshot.colors;
+  const starterPreviewSrc = useMemo(
+    () => buildStarterStylePreviewDataUri(starterStyle),
+    [starterStyle],
+  );
 
   return (
     <button
@@ -82,52 +121,24 @@ function StarterStyleCard({
         <div className="mt-3 border border-gold/15 bg-background/70 p-2 dark:border-gold/10">
           <div
             className="overflow-hidden border border-gold/10"
-            style={{ background: starterColorToCss(backgroundColor) }}
             aria-hidden="true"
           >
-            <div
-              className="flex items-center justify-between border-b px-2 py-1"
-              style={{ borderColor: `${starterColorToSolid(accentColor)}33` }}
-            >
-              <span
-                className="truncate text-[10px] font-semibold"
-                style={{ color: starterColorToSolid(titleColor) }}
-              >
-                AniCards preview
-              </span>
-              <span
-                className="size-2 rounded-full"
-                style={{ background: starterColorToCss(accentColor) }}
-              />
-            </div>
-
-            <div className="p-2">
-              <div className="flex items-end gap-1.5">
-                {[0.55, 0.8, 0.65, 0.95].map((scale, index) => (
-                  <span
-                    key={`${starterStyle.id}-bar-${index}`}
-                    className="h-7 flex-1 rounded-sm"
-                    style={{
-                      background:
-                        index % 2 === 0
-                          ? starterColorToCss(accentColor)
-                          : starterColorToCss(textColor),
-                      opacity: index % 2 === 0 ? 0.85 : 0.38,
-                      transform: `scaleY(${scale})`,
-                      transformOrigin: "bottom",
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
+            <img
+              src={starterPreviewSrc}
+              alt=""
+              className="block w-full"
+              loading="lazy"
+              decoding="async"
+            />
           </div>
 
           <div className="mt-2 flex gap-1.5" aria-hidden="true">
             {starterStyle.snapshot.colors.map((color, index) => (
-              <span
+              <ColorValueSwatch
                 key={`${starterStyle.id}-swatch-${index}`}
                 className="h-2 flex-1 rounded-full"
-                style={{ background: starterColorToCss(color) }}
+                cornerRadius={50}
+                value={color}
               />
             ))}
           </div>

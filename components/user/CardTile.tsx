@@ -351,14 +351,7 @@ function ExpandedPreviewDialog({
                 className="border-b-0 bg-gold/2 px-6 py-3 dark:bg-gold/2"
               />
 
-              <div
-                className="relative p-4 sm:p-6"
-                style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 0l10 10-10 10L0 10z' fill='none' stroke='%23c9a84c' stroke-opacity='0.04' stroke-width='0.5'/%3E%3C/svg%3E\")",
-                  backgroundSize: "20px 20px",
-                }}
-              >
+              <div className="relative user-editor-diamond-pattern-compact p-4 sm:p-6">
                 <div className="border border-gold/10 p-3 sm:p-5">
                   <div
                     className={cn(
