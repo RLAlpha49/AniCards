@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -33,6 +34,68 @@ const parseSpdxExpression = loadSpdxExpressionParser();
 
 function readJsonFile(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
+}
+
+function escapeMarkdownTableCell(value) {
+  return String(value ?? "")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
+function appendWorkflowSummary(report, reportPathRelative, violatingEntries) {
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (typeof summaryPath !== "string" || summaryPath.trim().length === 0) {
+    return;
+  }
+
+  const reviewedSelections = report.packages
+    .filter((entry) => entry.policySelection)
+    .sort((left, right) => left.packageSpec.localeCompare(right.packageSpec));
+  const summaryLines = [
+    "## Dependency license policy",
+    "",
+    `- Scan scope: \`${escapeMarkdownTableCell(report.scanner.scope)}\``,
+    `- Packages checked: ${report.summary.totalPackages}`,
+    `- Explicit policy selections: ${report.summary.explicitSelections}`,
+    `- Reviewed denied-license exceptions: ${report.summary.reviewedDeniedLicenseExceptions}`,
+    `- Violations: ${report.summary.violations}`,
+    `- Machine-readable report: \`${escapeMarkdownTableCell(reportPathRelative)}\``,
+  ];
+
+  if (reviewedSelections.length > 0) {
+    summaryLines.push(
+      "",
+      "<details>",
+      "<summary>Reviewed package license selections</summary>",
+      "",
+      "| Package | Selected license | Reason |",
+      "| --- | --- | --- |",
+      ...reviewedSelections.map(
+        (entry) =>
+          `| \`${escapeMarkdownTableCell(entry.packageSpec)}\` | \`${escapeMarkdownTableCell(entry.policySelection?.selectedLicense ?? "")}\` | ${escapeMarkdownTableCell(entry.policySelection?.reason ?? "")} |`,
+      ),
+      "</details>",
+    );
+  }
+
+  if (violatingEntries.length > 0) {
+    summaryLines.push(
+      "",
+      "<details>",
+      "<summary>Policy violations</summary>",
+      "",
+      ...violatingEntries.flatMap((entry) =>
+        entry.violations.map(
+          (violation) =>
+            `- \`${escapeMarkdownTableCell(entry.packageSpec)}\`: ${escapeMarkdownTableCell(violation)}`,
+        ),
+      ),
+      "</details>",
+    );
+  }
+
+  appendFileSync(summaryPath, `${summaryLines.join("\n")}\n`);
 }
 
 function loadSpdxExpressionParser() {
@@ -498,11 +561,14 @@ const report = {
   packages: packageEntries,
 };
 
+const reportPathRelative = relative(rootDir, reportPath);
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 
 const violatingEntries = packageEntries.filter(
   (entry) => entry.violations.length > 0,
 );
+appendWorkflowSummary(report, reportPathRelative, violatingEntries);
+
 if (violatingEntries.length > 0) {
   console.error("Dependency license policy violations detected:");
   for (const entry of violatingEntries) {
@@ -510,7 +576,7 @@ if (violatingEntries.length > 0) {
       console.error(`- ${entry.packageSpec}: ${violation}`);
     }
   }
-  console.error(`Machine-readable report: ${relative(rootDir, reportPath)}`);
+  console.error(`Machine-readable report: ${reportPathRelative}`);
   process.exit(1);
 }
 
@@ -518,6 +584,6 @@ console.log(
   [
     `Checked ${packageEntries.length} ${scanAllInstalledDependencies ? "production and development" : "production"} dependency licenses.`,
     `${report.summary.explicitSelections} explicit policy selection(s) verified.`,
-    `Report written to ${relative(rootDir, reportPath)}.`,
+    `Report written to ${reportPathRelative}.`,
   ].join(" "),
 );

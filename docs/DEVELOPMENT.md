@@ -124,7 +124,7 @@ For most changes, this sequence covers the common local pass:
 3. `bun run typecheck`
 4. `bun run lint:check`
 
-CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests, while the security workflow publishes a CycloneDX SBOM artifact from `bun run generate:sbom`.
+CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests. CI keeps lint read-only via `bun run lint:check` and only spins up the heavier lint/typecheck/build/Playwright lanes when code-bearing, config, or dependency files change. `bun run check:licenses` still runs as a dedicated policy gate, and its `.artifacts/licenses/license-policy-report.json` output is now summarized in the workflow run and uploaded as an artifact in CI, dependency-review, security-audit, and validated dependency-refresh lanes. Scheduled security audits still run the full baseline and publish a CycloneDX SBOM artifact from `bun run generate:sbom`.
 
 ## Husky hooks
 

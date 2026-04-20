@@ -14,10 +14,95 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Change Classification
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      app_validation: ${{ steps.classify.outputs.app_validation }}
+      dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
+      workflow_files: ${{ steps.classify.outputs.workflow_files }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          workflow_files=false
+          app_validation=false
+          dependency_policy=false
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          else
+            base_sha="${BEFORE_SHA}"
+          fi
+
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            echo "[INFO] Unable to resolve a diff base; running change-gated lanes conservatively."
+            workflow_files=true
+            app_validation=true
+            dependency_policy=true
+          else
+            mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
+
+            for file in "${changed_files[@]}"; do
+              case "$file" in
+                .github/workflows/*|.github/actions/*)
+                  workflow_files=true
+                  ;;
+              esac
+
+              case "$file" in
+                app/*|components/*|hooks/*|lib/*|public/*|tests/*|package.json|bun.lock|next.config.ts|playwright.config.ts|proxy.ts|eslint.config.mjs|postcss.config.mjs|tsconfig.json|bunfig.toml|next-env.d.ts)
+                  app_validation=true
+                  ;;
+              esac
+
+              case "$file" in
+                dependency-license-policy.json|scripts/check-licenses.mjs|package.json|bun.lock|.github/workflows/check-updates.yml|.github/workflows/ci.yml|.github/workflows/dependency-review.yml|.github/workflows/security-audits.yml)
+                  dependency_policy=true
+                  ;;
+              esac
+            done
+
+            printf '%s\n' "Compared $base_sha -> $GITHUB_SHA across ${#changed_files[@]} changed file(s)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          {
+            printf '%s\n' "workflow_files=$workflow_files"
+            printf '%s\n' "app_validation=$app_validation"
+            printf '%s\n' "dependency_policy=$dependency_policy"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            printf '%s\n' "## Change-gated lanes"
+            printf '%s\n' ''
+            printf '%s\n' "- Workflow lint: \`$workflow_files\`"
+            printf '%s\n' "- App validation lanes (lint/typecheck/unused/build/tests): \`$app_validation\`"
+            printf '%s\n' "- Dependency license policy lane: \`$dependency_policy\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   workflow-lint:
     name: Workflow Lint
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.workflow_files == 'true' }}
 
     steps:
       - name: Checkout code
@@ -30,6 +115,8 @@ jobs:
     name: Dependency Policy
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.dependency_policy == 'true' }}
 
     steps:
       - name: Checkout code
@@ -43,10 +130,21 @@ jobs:
       - name: Enforce dependency license policy
         run: bun run check:licenses
 
+      - name: Upload dependency license policy report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-license-policy-report
+          path: .artifacts/licenses/license-policy-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   lint:
     name: Lint
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
 
     steps:
       - name: Checkout code
@@ -58,12 +156,14 @@ jobs:
           bun-version: latest
 
       - name: Run lint
-        run: bun run lint
+        run: bun run lint:check
 
   typecheck:
     name: Type Check
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
 
     steps:
       - name: Checkout code
@@ -81,6 +181,8 @@ jobs:
     name: Unused Code Check
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
 
     steps:
       - name: Checkout code
@@ -98,6 +200,8 @@ jobs:
     name: Build
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
 
     steps:
       - name: Checkout code
@@ -140,6 +244,8 @@ jobs:
     name: Unit Tests
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
 
     steps:
       - name: Checkout code
@@ -230,7 +336,8 @@ jobs:
     name: E2E Chromium
     timeout-minutes: 25
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
     permissions:
       actions: read
       contents: read
@@ -291,7 +398,8 @@ jobs:
     name: E2E Mobile Chrome
     timeout-minutes: 25
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
     permissions:
       actions: read
       contents: read
@@ -352,7 +460,8 @@ jobs:
     name: E2E Firefox Routes
     timeout-minutes: 25
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
     permissions:
       actions: read
       contents: read
@@ -413,7 +522,8 @@ jobs:
     name: E2E Firefox Smoke
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.app_validation == 'true' }}
     permissions:
       actions: read
       contents: read

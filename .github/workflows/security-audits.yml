@@ -18,10 +18,89 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Change Classification
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      codeql: ${{ steps.classify.outputs.codeql }}
+      dependency_audit: ${{ steps.classify.outputs.dependency_audit }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          codeql=false
+          dependency_audit=false
+
+          if [ "$EVENT_NAME" = "schedule" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            codeql=true
+            dependency_audit=true
+          else
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              base_sha="${PR_BASE_SHA}"
+            else
+              base_sha="${BEFORE_SHA}"
+            fi
+
+            if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+              echo "[INFO] Unable to resolve a diff base; running security lanes conservatively."
+              codeql=true
+              dependency_audit=true
+            else
+              mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
+
+              for file in "${changed_files[@]}"; do
+                case "$file" in
+                  app/*|components/*|hooks/*|lib/*|scripts/*|tests/*|package.json|bun.lock|next.config.ts|playwright.config.ts|proxy.ts|eslint.config.mjs|postcss.config.mjs|tsconfig.json|bunfig.toml|next-env.d.ts)
+                    codeql=true
+                    ;;
+                esac
+
+                case "$file" in
+                  dependency-license-policy.json|scripts/check-licenses.mjs|package.json|bun.lock|.github/workflows/check-updates.yml|.github/workflows/ci.yml|.github/workflows/dependency-review.yml|.github/workflows/security-audits.yml)
+                    dependency_audit=true
+                    ;;
+                esac
+              done
+
+              printf '%s\n' "Compared $base_sha -> $GITHUB_SHA across ${#changed_files[@]} changed file(s)." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          {
+            printf '%s\n' "codeql=$codeql"
+            printf '%s\n' "dependency_audit=$dependency_audit"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            printf '%s\n' "## Change-gated security lanes"
+            printf '%s\n' ''
+            printf '%s\n' "- CodeQL analysis lane: \`$codeql\`"
+            printf '%s\n' "- Dependency audit lane (license policy, SBOM, bun audit): \`$dependency_audit\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   codeql-analysis:
     name: CodeQL Analysis
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.codeql == 'true' }}
     permissions:
       actions: read
       contents: read
@@ -39,11 +118,13 @@ jobs:
           languages: ${{ matrix.language }}
 
       - name: Setup Bun dependencies
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
-      - name: Run Bun typecheck and build for CodeQL
+      - name: Run Bun typecheck and build for scheduled security baseline
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         env:
           NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
           NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
@@ -63,6 +144,8 @@ jobs:
     name: Bun Audit & SBOM
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.dependency_audit == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -71,6 +154,9 @@ jobs:
         uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
+
+      - name: Enforce dependency license policy
+        run: bun run check:licenses
 
       - name: Generate CycloneDX SBOM
         run: bun run generate:sbom
@@ -84,6 +170,16 @@ jobs:
         with:
           name: cyclonedx-sbom
           path: .artifacts/sbom
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload dependency license policy report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-license-policy-report
+          path: .artifacts/licenses/license-policy-report.json
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14

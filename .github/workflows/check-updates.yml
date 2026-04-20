@@ -309,7 +309,12 @@ jobs:
 
           printf '%s\n' "$change_summary" >> "$GITHUB_STEP_SUMMARY"
 
-          bun run validate:ci
+          bun run lint:check
+          bun run typecheck
+          bun run test:unit
+          bun run validate:production-env
+          bun run build
+          bun run check:licenses
 
           git add package.json bun.lock
           if git diff --cached --quiet; then
@@ -325,6 +330,16 @@ jobs:
             printf '%s\n' "has_changes=true"
             printf '%s\n' "change_kind=$change_kind"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Upload dependency license policy report
+        if: ${{ always() && steps.automation-mode.outputs.should_apply == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-license-policy-report
+          path: .artifacts/licenses/license-policy-report.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Close stale dependency PR when refresh is clean
         if: ${{ steps.automation-mode.outputs.should_apply == 'true' && steps.validate-update.outputs.has_changes == 'false' }}

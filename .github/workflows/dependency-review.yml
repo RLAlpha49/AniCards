@@ -12,6 +12,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Change Classification
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: classify
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          dependency_policy=false
+          base_sha="${PR_BASE_SHA}"
+
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            echo "[INFO] Unable to resolve a diff base; running dependency policy lane conservatively."
+            dependency_policy=true
+          else
+            mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
+
+            for file in "${changed_files[@]}"; do
+              case "$file" in
+                dependency-license-policy.json|scripts/check-licenses.mjs|package.json|bun.lock|.github/workflows/check-updates.yml|.github/workflows/ci.yml|.github/workflows/dependency-review.yml|.github/workflows/security-audits.yml)
+                  dependency_policy=true
+                  ;;
+              esac
+            done
+
+            printf '%s\n' "Compared $base_sha -> $GITHUB_SHA across ${#changed_files[@]} changed file(s)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          printf '%s\n' "dependency_policy=$dependency_policy" >> "$GITHUB_OUTPUT"
+
+          {
+            printf '%s\n' "## Dependency-focused license policy lane"
+            printf '%s\n' ''
+            printf '%s\n' "- Dependency license policy enforcement: \`$dependency_policy\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   dependency-review:
     name: Dependency Review
     timeout-minutes: 10
@@ -28,3 +80,32 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
+
+  dependency-license-policy:
+    name: Dependency License Policy
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.dependency_policy == 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Enforce dependency license policy
+        run: bun run check:licenses
+
+      - name: Upload dependency license policy report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-license-policy-report
+          path: .artifacts/licenses/license-policy-report.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
