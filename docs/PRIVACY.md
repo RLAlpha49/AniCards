@@ -220,6 +220,18 @@ Rules:
 - maximum retained lifecycle audit entries: **250**
 - maximum retained age: **14 days**
 
+### Privacy-rights evidence ledger
+
+Manual privacy-rights handling also keeps a separate, narrower maintainer-only
+evidence ledger for intake / fulfillment tracking.
+
+Rules:
+
+- maximum retained privacy-rights evidence entries: **250**
+- maximum retained age: **~400 days**
+- stored fields are intentionally narrow: actor/workflow label, request type,
+  stage, timestamp, and user ID
+
 ### Aggregate counters
 
 Analytics counters are stored as monthly bucket keys under `analytics:*:month:YYYY-MM`.
@@ -260,14 +272,19 @@ There is currently no public self-serve API for exporting or deleting server-sid
 What actually exists today:
 
 - maintainers have a server-side delete primitive in `lib/server/user-data.ts`
+- maintainers have an internal `createMaintainerUserDataExport()` helper in
+  `lib/server/user-data.ts` that assembles the current stored user snapshot,
+  saved card payload, and recorded privacy-rights evidence into a reviewable
+  maintainer-only export package
 - the UI includes local settings export/import helpers for editor settings JSON
 - those local exports are not the same as deleting or exporting server-side user snapshots
 
 Until a self-serve flow exists, deletion and export requests require manual maintainer handling. The repo's contact address is `contact@alpha49.com`.
 
-The server-side lifecycle audit model now supports dedicated privacy-rights
-intake and fulfillment events for that manual workflow, so maintainers can
-record when a contact-based request was received and when it was completed.
+The server-side privacy workflow now supports dedicated privacy-rights intake
+and fulfillment evidence for that manual process, so maintainers can record
+when a contact-based request was received and when it was completed without
+mixing that longer-lived evidence into the short-lived lifecycle audit list.
 
 ## Related docs
 

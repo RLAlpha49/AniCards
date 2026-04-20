@@ -72,9 +72,14 @@ const sections = [
           "Server-side structured error reports age out after 14 days, the live buffer stays capped at 250 retained entries, and the cron-facing rolling error aggregate stays inside that same 14-day window.",
       },
       {
-        label: "Audit logs",
+        label: "Lifecycle audit",
         detail:
-          "Server-side lifecycle audit entries — including manual privacy-rights intake and fulfillment events when maintainers record them — age out after 14 days, and the live list stays capped at 250 entries.",
+          "Server-side lifecycle audit entries age out after 14 days, and the live list stays capped at 250 entries.",
+      },
+      {
+        label: "Privacy-rights evidence",
+        detail:
+          "A separate maintainer-only privacy-rights evidence ledger keeps narrow intake / fulfillment records for up to ~400 days and stays capped at 250 entries.",
       },
       {
         label: "Failure counters",
@@ -90,7 +95,8 @@ const sections = [
     lead: "Manual for now — reach out anytime.",
     paragraphs: [
       "There is no public self-serve export or deletion flow yet. For manual requests, email contact@alpha49.com and we'll handle it directly.",
-      "That workflow stays contact-based on purpose. On the server side, the lifecycle audit model now supports dedicated intake and fulfillment events for those manual privacy-rights requests instead of pretending there is a self-serve portal hiding somewhere.",
+      "That workflow stays contact-based on purpose. On the server side, maintainers can record dedicated intake and fulfillment evidence for those manual privacy-rights requests instead of pretending there is a self-serve portal hiding somewhere.",
+      "Manual export handling also has an internal helper that assembles the current stored user snapshot, saved card payload, and recorded privacy-rights evidence into a reviewable maintainer-only package before fulfillment.",
     ],
   },
 ] as const;
