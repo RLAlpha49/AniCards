@@ -30,7 +30,7 @@ import {
   embedMediaListCoverImages,
   fetchImageAsDataUrl,
 } from "@/lib/image-utils";
-import { initializeServerPretext } from "@/lib/pretext/server";
+import * as serverPretext from "@/lib/pretext/server";
 import { generateStaticRenderStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   AnimeStats as TemplateAnimeStats,
@@ -83,6 +83,11 @@ function createLazyLoader<T>(loader: () => Promise<T>): () => Promise<T> {
     return modulePromise;
   };
 }
+
+// Kick off the native text-layout imports as soon as the card generator module
+// loads so cold-start dependency work can overlap route setup, while the actual
+// runtime-ready gate stays inside initializeServerPretext().
+serverPretext.warmServerPretextModules?.();
 
 const loadActivityStatsTemplates = createLazyLoader(async () => {
   const [
@@ -589,7 +594,7 @@ async function generateCardSvg(
     );
   }
 
-  await initializeServerPretext();
+  await serverPretext.initializeServerPretext();
 
   const [baseCardType] = cardConfig.cardName.split("-");
   const normalizedVariant = normalizeVariant(String(variant), baseCardType);
@@ -1299,7 +1304,6 @@ async function generateProfileOverviewCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { profileOverviewTemplate } = await loadProfileOverviewTemplateModule();
   const user = userRecord.stats?.User;
 
   if (!user?.statistics) {
@@ -1308,7 +1312,10 @@ async function generateProfileOverviewCard(
 
   const avatarUrl = user.avatar?.large || user.avatar?.medium;
   // fetchImageAsDataUrl already enforces the AniList/CDN allowlist, timeout, and cache-first fallback, so a null result simply degrades to the template's non-image avatar path.
-  const avatarDataUrl = avatarUrl ? await fetchImageAsDataUrl(avatarUrl) : null;
+  const [{ profileOverviewTemplate }, avatarDataUrl] = await Promise.all([
+    loadProfileOverviewTemplateModule(),
+    avatarUrl ? fetchImageAsDataUrl(avatarUrl) : Promise.resolve(null),
+  ]);
 
   return profileOverviewTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1632,10 +1639,8 @@ async function generateCurrentlyWatchingReadingCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
-  const { currentlyWatchingReadingTemplate } =
-    await loadCurrentlyWatchingReadingTemplateModule();
-
   const typedVariant = variant as CurrentlyWatchingReadingVariant;
+  const templatePromise = loadCurrentlyWatchingReadingTemplateModule();
 
   const allAnimeCurrent = extractMediaListEntries(
     userRecord.stats?.animeCurrent,
@@ -1664,11 +1669,15 @@ async function generateCurrentlyWatchingReadingCard(
   const animeDisplay = animeCurrent.slice(0, animeLimit + animeExtra);
   const mangaDisplay = mangaCurrent.slice(0, mangaLimit + mangaExtra);
 
-  // These cover-image embedders are already bounded and fail open to placeholders, so run both media groups in parallel and keep rendering even if one side is slow or partially unavailable.
-  const [embeddedAnime, embeddedManga] = await Promise.all([
-    embedMediaListCoverImages(animeDisplay),
-    embedMediaListCoverImages(mangaDisplay),
-  ]);
+  // The template module and cover-image embedders are independent, and the
+  // embedders already fail open to placeholders, so overlap them to reduce
+  // cold-render latency without changing fallback behavior.
+  const [{ currentlyWatchingReadingTemplate }, embeddedAnime, embeddedManga] =
+    await Promise.all([
+      templatePromise,
+      embedMediaListCoverImages(animeDisplay),
+      embedMediaListCoverImages(mangaDisplay),
+    ]);
 
   return currentlyWatchingReadingTemplate({
     username: userRecord.username ?? userRecord.userId,

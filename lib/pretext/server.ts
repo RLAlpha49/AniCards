@@ -17,9 +17,30 @@ type MutableGlobalScope = typeof globalThis & {
   OffscreenCanvas?: typeof OffscreenCanvas;
 };
 
+type CanvasModule = typeof import("@napi-rs/canvas");
+type PretextModule = typeof import("@chenglou/pretext");
+
+interface ServerPretextModules {
+  canvasModule: CanvasModule;
+  pretextModule: PretextModule;
+}
+
+let warmupPromise: Promise<ServerPretextModules> | null = null;
 let initializationPromise: Promise<boolean> | null = null;
 let installedOffscreenCanvasShim = false;
 let previousOffscreenCanvas: typeof OffscreenCanvas | null | undefined;
+
+function loadServerPretextModules(): Promise<ServerPretextModules> {
+  warmupPromise ??= Promise.all([
+    import("@napi-rs/canvas"),
+    import("@chenglou/pretext"),
+  ]).then(([canvasModule, pretextModule]) => ({
+    canvasModule,
+    pretextModule,
+  }));
+
+  return warmupPromise;
+}
 
 function restoreOffscreenCanvasShim(): void {
   if (!installedOffscreenCanvasShim) {
@@ -76,13 +97,34 @@ function installOffscreenCanvasShim(createCanvasImpl: CreateCanvasFn): void {
 }
 
 /**
+ * Starts the heavy server-side Pretext dependencies in the background.
+ *
+ * This intentionally does not install the canvas shim or register the runtime;
+ * `initializeServerPretext()` remains the single place that flips the runtime
+ * into a ready state and handles initialization failures.
+ */
+export function warmServerPretextModules(): void {
+  if (
+    typeof document !== "undefined" ||
+    isPretextRuntimeReady() ||
+    initializationPromise
+  ) {
+    return;
+  }
+
+  void loadServerPretextModules().catch(() => {});
+}
+
+/**
  * Initializes the server-side Pretext runtime and reports whether it is ready.
  *
  * This function is idempotent: it exits early when the runtime is already
  * ready, caches the in-flight initialization promise, and returns `false`
  * when called in a browser environment. On the server it installs the
  * OffscreenCanvas shim, registers the Pretext runtime, and resolves to `true`
- * when setup succeeds. If initialization fails, the error is logged with
+ * when setup succeeds. Warm-up helpers may preload the heavy module imports,
+ * but runtime registration still happens here so request paths keep the same
+ * failure semantics. If initialization fails, the error is logged with
  * `logPrivacySafe`, the runtime is reset, and the function resolves to `false`
  * instead of throwing. That failed result stays cached until process restart
  * or `resetServerPretextForTests()` so request paths do not keep retrying the
@@ -99,10 +141,8 @@ export async function initializeServerPretext(): Promise<boolean> {
 
   initializationPromise ??= (async () => {
     try {
-      const canvasModule = await import("@napi-rs/canvas");
+      const { canvasModule, pretextModule } = await loadServerPretextModules();
       installOffscreenCanvasShim(canvasModule.createCanvas);
-
-      const pretextModule = await import("@chenglou/pretext");
       registerPretextRuntime({
         layout: pretextModule.layout,
         prepareWithSegments: pretextModule.prepareWithSegments,
@@ -150,6 +190,7 @@ export async function initializeServerPretext(): Promise<boolean> {
  * reset both the lazy initialization promise and the runtime caches.
  */
 export function resetServerPretextForTests(): void {
+  warmupPromise = null;
   initializationPromise = null;
   resetPretextRuntimeForTests();
   restoreOffscreenCanvasShim();
