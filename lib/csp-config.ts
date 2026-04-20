@@ -112,12 +112,7 @@ export function getImageSrcAllowlist(
 
 const IMAGE_SRC_ALLOWLIST = getImageSrcAllowlist();
 
-export function getConnectSrcAllowlist(
-  _options: {
-    upstashRedisRestUrl?: string;
-  } = {},
-): string[] {
-  void _options;
+export function getConnectSrcAllowlist(): string[] {
   return [];
 }
 

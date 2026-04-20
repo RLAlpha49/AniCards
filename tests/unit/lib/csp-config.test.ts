@@ -105,11 +105,7 @@ describe("CSP header builder", () => {
   });
 
   it("keeps Upstash off the browser connect-src allowlist", () => {
-    expect(
-      getConnectSrcAllowlist({
-        upstashRedisRestUrl: "https://example.upstash.io",
-      }),
-    ).toEqual([]);
+    expect(getConnectSrcAllowlist()).toEqual([]);
     expect(CSP_DIRECTIVES.connectSrc).not.toContain(
       "https://example.upstash.io",
     );
