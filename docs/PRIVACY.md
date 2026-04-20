@@ -90,6 +90,23 @@ That outbound payload is intentionally limited to:
 Detailed retained or evicted triage samples are not included in this outbound
 webhook payload.
 
+To avoid replaying the same operator alert over and over during a continuing
+incident, the cron also keeps a short-lived duplicate-suppression fingerprint
+for roughly **2 hours**. Stored analytics history records the final
+alert-delivery state after that webhook step finishes.
+
+### Operator telemetry state
+
+AniCards also stores a small amount of server-side operator telemetry state
+used by `/api/cron/analytics-reporting`:
+
+- the current telemetry write-health snapshot, including degradation and
+  failure-streak state
+- the most recent scheduled refresh-batch summary from `/api/cron`
+
+These keys are operational state only; they are not end-user profile or card
+content.
+
 ### Structured error reports
 
 The app supports structured error reporting through `/api/error-reports`.
@@ -200,9 +217,17 @@ Rules:
 
 - maximum stored reports: **50**
 - maximum retained age per stored report: **14 days**
-- persisted report history keeps aggregate observability envelopes and compact
-  rolling error-count summaries only; detailed retained/evicted triage snapshots
-  are not kept in the long-lived report history
+- the immediate POST response includes a transient flat `raw_data` snapshot,
+  but persisted report history and the read-only GET endpoint do **not** store
+  or return that `raw_data` payload
+- persisted report history keeps `summary`, `generatedAt`, and `reportMeta`
+  only
+- persisted observability history includes aggregate error-buffer envelopes,
+  compact retained/evicted triage summaries, rolling error-count summaries,
+  telemetry write-health state, the latest refresh-batch summary, and the final
+  error-alert delivery result
+- the GET history path is read-only and does not prune or rewrite the stored
+  analytics report list while serving operator history
 
 ### Structured error report retention
 

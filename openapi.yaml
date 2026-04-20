@@ -1972,11 +1972,13 @@ paths:
       description: >-
         Returns recent stored analytics reports from the bounded
         `analytics:reports` Redis list. Reports are returned newest first. The
-        `limit` query is capped by the server-side retention policy. The list
-        retains at most 50 generated reports for up to 14 days, and persisted
-        observability history keeps aggregate error-buffer envelopes plus
-        compact rolling-window counts rather than detailed retained/evicted
-        triage snapshots.
+        `limit` query is capped by the server-side retention policy. This GET
+        path is read-only and does not prune or rewrite the stored list while
+        serving history. The list retains at most 50 generated reports for up
+        to 14 days. Persisted history omits the transient `raw_data` payload
+        and instead keeps the grouped `summary`, `generatedAt`, and
+        `reportMeta` envelope with the final alert-delivery outcome plus any
+        request/operation IDs captured during report generation.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
         - in: query
@@ -2006,13 +2008,24 @@ paths:
                     reports:
                       - summary:
                           visits: 250
-                        raw_data:
-                          analytics:visits: 250
+                          observability:
+                            telemetry:
+                              degraded: false
+                              currentFailureStreak: 0
+                              pendingFailureCount: 0
+                        reportMeta:
+                          durationMs: 10
+                          alertDelivery:
+                            attempted: false
+                            delivered: false
                         generatedAt: "2026-03-22T10:30:00.000Z"
                       - summary:
                           visits: 100
-                        raw_data:
-                          analytics:visits: 100
+                        reportMeta:
+                          durationMs: 15
+                          alertDelivery:
+                            attempted: false
+                            delivered: false
                         generatedAt: "2026-03-21T10:30:00.000Z"
                     count: 2
                     retentionLimit: 50
@@ -2055,17 +2068,21 @@ paths:
       summary: "Generate and persist an analytics report"
       description: >-
         Collects all `analytics:*` Redis keys except `analytics:reports`, groups
-        them into a nested summary object, persists the latest report to the
-        bounded `analytics:reports` Redis list before any webhook side effects,
-        and returns it. Stored report history is capped at 50 entries and 14
-        days, retaining aggregate error-buffer envelopes and compact rolling
-        error counts while omitting detailed retained/evicted triage snapshots
-        from the long-lived history. Browser Google Analytics collection in the
-        web app is consent-gated, but this endpoint reads already-persisted
-        server-side operational counters and reports regardless of that browser
-        toggle. When `ERROR_ALERT_WEBHOOK_URL` is configured, the cron can also
-        send a minimized outbound alert payload containing counts, rates,
-        reasons, and optional request IDs to the configured HTTPS webhook.
+        them into a nested summary object, computes observability overlays, and
+        returns a transient response that still includes the flat `raw_data`
+        snapshot. The persisted `analytics:reports` history is written only
+        after the final alert-delivery state is known, so stored history and
+        the returned `reportMeta.alertDelivery` agree. Stored report history is
+        capped at 50 entries and 14 days, omits `raw_data`, and retains grouped
+        observability summaries including compact retained/evicted triage,
+        telemetry write-health state, and the latest refresh-batch summary.
+        Browser Google Analytics collection in the web app is consent-gated,
+        but this endpoint reads already-persisted server-side operational
+        counters and reports regardless of that browser toggle. When
+        `ERROR_ALERT_WEBHOOK_URL` is configured, the cron can also send a
+        minimized outbound alert payload containing counts, rates, reasons, and
+        optional request IDs to the configured HTTPS webhook, with duplicate
+        alert suppression backed by a short-lived fingerprint state key.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
@@ -2077,7 +2094,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AnalyticsReport"
+                $ref: "#/components/schemas/AnalyticsReportResponse"
               examples:
                 report:
                   value:
@@ -2085,9 +2102,19 @@ paths:
                       visits: 100
                       anilist_api:
                         successful_requests: 200
+                      observability:
+                        telemetry:
+                          degraded: false
+                          currentFailureStreak: 0
+                          pendingFailureCount: 0
                     raw_data:
                       analytics:visits: 100
                       analytics:anilist_api:successful_requests: 200
+                    reportMeta:
+                      durationMs: 42
+                      alertDelivery:
+                        attempted: false
+                        delivered: false
                     generatedAt: "2026-03-21T10:30:00.000Z"
         "401":
           $ref: "#/components/responses/CronUnauthorizedJson"
@@ -4495,22 +4522,97 @@ components:
       required:
         - userId
 
-    AnalyticsReport:
+    AnalyticsSummary:
+      type: object
+      additionalProperties: true
+      description: >-
+        Grouped analytics report summary. Exact nested keys vary with the
+        enabled server-side instrumentation.
+
+    AnalyticsRawData:
+      type: object
+      additionalProperties: true
+      description: >-
+        Flat analytics key/value snapshot returned only by the transient POST
+        response for `/api/cron/analytics-reporting`.
+
+    AnalyticsAlertDelivery:
+      type: object
+      additionalProperties: false
+      properties:
+        attempted:
+          type: boolean
+        delivered:
+          type: boolean
+        destinationHost:
+          type: string
+        failure:
+          type: string
+        fingerprint:
+          type: string
+        skippedReason:
+          type: string
+        statusCode:
+          type: integer
+          minimum: 100
+          maximum: 599
+        suppressedUntil:
+          type: string
+          format: date-time
+      required:
+        - attempted
+        - delivered
+
+    AnalyticsReportMeta:
+      type: object
+      additionalProperties: false
+      properties:
+        alertDelivery:
+          $ref: "#/components/schemas/AnalyticsAlertDelivery"
+        durationMs:
+          type: integer
+          minimum: 0
+        operationId:
+          type: string
+        requestId:
+          type: string
+      required:
+        - alertDelivery
+        - durationMs
+
+    AnalyticsReportResponse:
       type: object
       additionalProperties: false
       properties:
         summary:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/AnalyticsSummary"
         raw_data:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/AnalyticsRawData"
+        reportMeta:
+          $ref: "#/components/schemas/AnalyticsReportMeta"
         generatedAt:
           type: string
           format: date-time
       required:
         - summary
         - raw_data
+        - reportMeta
+        - generatedAt
+
+    StoredAnalyticsReport:
+      type: object
+      additionalProperties: false
+      properties:
+        summary:
+          $ref: "#/components/schemas/AnalyticsSummary"
+        reportMeta:
+          $ref: "#/components/schemas/AnalyticsReportMeta"
+        generatedAt:
+          type: string
+          format: date-time
+      required:
+        - summary
+        - reportMeta
         - generatedAt
 
     AnalyticsReportList:
@@ -4520,7 +4622,7 @@ components:
         reports:
           type: array
           items:
-            $ref: "#/components/schemas/AnalyticsReport"
+            $ref: "#/components/schemas/StoredAnalyticsReport"
         count:
           type: integer
           minimum: 0

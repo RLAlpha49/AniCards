@@ -10,8 +10,13 @@ import {
   buildAnalyticsMetricKey,
   buildFailedRequestMetricKeys,
   buildLatencyBucketMetricKeys,
+  type CronRefreshBatchTelemetrySnapshot,
+  isExcludedAnalyticsReportStateKey,
+  readCronRefreshBatchTelemetrySnapshot,
+  readTelemetryWriteHealthSnapshot,
   scheduleAnalyticsBatch,
   scheduleLowValueAnalyticsBatch,
+  type TelemetryWriteHealthSnapshot,
 } from "@/lib/api/telemetry";
 import {
   authorizeCronRequest,
@@ -41,20 +46,34 @@ type AnalyticsSummary = Record<
   AnalyticsMetricGroup | AnalyticsMetricValue
 >;
 
+interface AnalyticsReportMeta {
+  alertDelivery: ErrorSpikeAlertDelivery;
+  durationMs: number;
+  operationId?: string;
+  requestId?: string;
+}
+
 type ErrorSpikeAlertComparisonWindow =
   | "report_interval"
   | "rolling_24h"
   | "unavailable";
 
-interface AnalyticsReport {
+interface AnalyticsReportResponse {
   generatedAt: string;
   raw_data: AnalyticsData;
+  reportMeta: AnalyticsReportMeta;
+  summary: AnalyticsSummary;
+}
+
+interface StoredAnalyticsReport {
+  generatedAt: string;
+  reportMeta: AnalyticsReportMeta;
   summary: AnalyticsSummary;
 }
 
 interface AnalyticsReportListResponse {
   count: number;
-  reports: AnalyticsReport[];
+  reports: StoredAnalyticsReport[];
   retentionLimit: number;
 }
 
@@ -65,8 +84,10 @@ interface ErrorSpikeAlertDelivery {
   delivered: boolean;
   destinationHost?: string;
   failure?: string;
+  fingerprint?: string;
   skippedReason?: string;
   statusCode?: number;
+  suppressedUntil?: string;
 }
 
 interface ErrorSpikeAlertSummary {
@@ -90,6 +111,7 @@ const ANALYTICS_REPORT_RETENTION_MS = ANALYTICS_REPORT_RETENTION_SECONDS * 1000;
 const DEFAULT_ERROR_SPIKE_MIN_NEW_REPORTS = 25;
 const ERROR_ALERT_TIMEOUT_MS = 4_000;
 const ERROR_ALERT_WEBHOOK_ENV_NAME = "ERROR_ALERT_WEBHOOK_URL";
+const ERROR_ALERT_SUPPRESSION_TTL_SECONDS = 2 * 60 * 60;
 
 /**
  * Validates the cron secret header and returns an error response on failure.
@@ -121,6 +143,7 @@ async function fetchAnalyticsData(
       (key) =>
         key !== ANALYTICS_REPORTING_INDEX_KEY && key !== ANALYTICS_REPORTS_KEY,
     )
+    .filter((key) => !isExcludedAnalyticsReportStateKey(key))
     .sort();
 
   if (analyticsKeys.length === 0) {
@@ -251,17 +274,172 @@ function parseErrorSpikeThreshold(): number {
   return parsed;
 }
 
-function createEmptyErrorReportBufferSnapshot(): ErrorReportBufferSnapshot {
+type ErrorReportBufferReadResult =
+  | {
+      degraded: false;
+      snapshot: ErrorReportBufferSnapshot;
+    }
+  | {
+      degraded: true;
+      failure: string;
+    };
+
+function buildUnavailableErrorSpikeAlertSummary(options: {
+  skippedReason: string;
+  webhookConfigured: boolean;
+}): ErrorSpikeAlertSummary {
   return {
-    capacity: 250,
-    retained: 0,
-    totalCaptured: 0,
-    totalDropped: 0,
-    cumulativeSaturationRate: 0,
-    rollingWindow: createEmptyErrorReportRollingWindowSnapshot(),
-    retainedTriage: createEmptyErrorReportTriageSummary(),
-    evictedTriage: createEmptyErrorReportTriageSummary(),
+    webhookConfigured: options.webhookConfigured,
+    baselineAvailable: false,
+    comparisonWindow: "unavailable",
+    triggered: false,
+    reasons: [],
+    minNewReportsThreshold: parseErrorSpikeThreshold(),
+    newCapturedSinceLastReport: null,
+    newDroppedSinceLastReport: null,
+    intervalSaturationRate: null,
+    delivery: {
+      attempted: false,
+      delivered: false,
+      skippedReason: options.skippedReason,
+    },
   };
+}
+
+function buildAnalyticsReportMeta(options: {
+  alertDelivery: ErrorSpikeAlertDelivery;
+  durationMs: number;
+  operationId?: string;
+  requestId?: string;
+}): AnalyticsReportMeta {
+  return {
+    alertDelivery: options.alertDelivery,
+    durationMs: Math.max(0, Math.trunc(options.durationMs)),
+    ...(options.operationId ? { operationId: options.operationId } : {}),
+    ...(options.requestId ? { requestId: options.requestId } : {}),
+  };
+}
+
+function hashString(value: string): string {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function buildErrorSpikeAlertFingerprint(options: {
+  snapshot: ErrorReportBufferSnapshot;
+  summary: ErrorSpikeAlertSummary;
+}): string {
+  return `alert_${hashString(
+    JSON.stringify({
+      comparisonWindow: options.summary.comparisonWindow,
+      cumulativeDropped: options.snapshot.totalDropped,
+      cumulativeRetained: options.snapshot.retained,
+      cumulativeTotalCaptured: options.snapshot.totalCaptured,
+      intervalCaptured: options.summary.newCapturedSinceLastReport,
+      intervalDropped: options.summary.newDroppedSinceLastReport,
+      reasons: [...options.summary.reasons].sort(),
+      rollingWindowEnd: options.snapshot.rollingWindow.windowEnd,
+    }),
+  )}`;
+}
+
+function buildErrorAlertSuppressionKey(fingerprint: string): string {
+  return `analytics:error-alert:fingerprint:${fingerprint}`;
+}
+
+function parseStoredErrorAlertSuppression(
+  value: unknown,
+): { suppressedUntil?: string } | null {
+  let parsedValue = value;
+
+  if (typeof parsedValue === "string") {
+    try {
+      parsedValue = JSON.parse(parsedValue) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isPlainObject(parsedValue)) {
+    return null;
+  }
+
+  const suppressedUntil =
+    typeof parsedValue.suppressedUntil === "string" &&
+    Number.isFinite(Date.parse(parsedValue.suppressedUntil))
+      ? parsedValue.suppressedUntil
+      : undefined;
+
+  return suppressedUntil ? { suppressedUntil } : null;
+}
+
+async function readErrorAlertSuppressionState(
+  redisClient: UpstashRedis,
+  fingerprint: string,
+  options: {
+    endpoint: string;
+    request: Request;
+  },
+): Promise<{ suppressedUntil?: string } | null> {
+  try {
+    return parseStoredErrorAlertSuppression(
+      await redisClient.get(buildErrorAlertSuppressionKey(fingerprint)),
+    );
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Failed to read error alert suppression state; continuing without duplicate suppression",
+      {
+        fingerprint,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options.request,
+    );
+    return null;
+  }
+}
+
+async function persistErrorAlertSuppressionState(
+  redisClient: UpstashRedis,
+  fingerprint: string,
+  options: {
+    endpoint: string;
+    request: Request;
+  },
+): Promise<{ suppressedUntil: string } | null> {
+  const suppressedUntil = new Date(
+    Date.now() + ERROR_ALERT_SUPPRESSION_TTL_SECONDS * 1000,
+  ).toISOString();
+
+  try {
+    await redisClient.set(
+      buildErrorAlertSuppressionKey(fingerprint),
+      JSON.stringify({ suppressedUntil }),
+      {
+        ex: ERROR_ALERT_SUPPRESSION_TTL_SECONDS,
+      },
+    );
+    return { suppressedUntil };
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Failed to persist error alert suppression fingerprint",
+      {
+        fingerprint,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options.request,
+    );
+    return null;
+  }
 }
 
 function createEmptyErrorReportRollingWindowSnapshot(): ErrorReportRollingWindowSnapshot {
@@ -579,6 +757,117 @@ function toStoredErrorReportBufferMetricGroup(
     rollingWindow: toErrorReportRollingWindowMetricGroup(
       snapshot.rollingWindow,
     ),
+    retainedTriage: toStoredErrorReportTriageMetricGroup(
+      snapshot.retainedTriage,
+    ),
+    evictedTriage: toStoredErrorReportTriageMetricGroup(snapshot.evictedTriage),
+  };
+}
+
+function toStoredErrorReportTriageSampleMetricGroup(
+  sample: ErrorReportTriageSample,
+): AnalyticsMetricGroup {
+  return {
+    id: sample.id,
+    timestamp: sample.timestamp,
+    source: sample.source,
+    userAction: sample.userAction,
+    category: sample.category,
+    retryable: sample.retryable,
+    errorName: sample.errorName,
+    technicalMessage: sample.technicalMessage,
+    ...(sample.requestId ? { requestId: sample.requestId } : {}),
+    ...(sample.digest ? { digest: sample.digest } : {}),
+    ...(sample.route ? { route: sample.route } : {}),
+    ...(typeof sample.statusCode === "number"
+      ? { statusCode: sample.statusCode }
+      : {}),
+  };
+}
+
+function toStoredErrorReportBreakdownBucketMetricGroup(
+  bucket: ErrorReportBreakdownBucket,
+): AnalyticsMetricGroup {
+  return {
+    value: bucket.value,
+    reports: bucket.reports,
+    latest: toStoredErrorReportTriageSampleMetricGroup(bucket.latest),
+  };
+}
+
+function toStoredErrorReportTriageMetricGroup(
+  summary: ErrorReportTriageSummary & {
+    updatedAt?: number;
+  },
+): AnalyticsMetricGroup {
+  return {
+    totalReports: summary.totalReports,
+    topRoutes: summary.topRoutes.map((bucket) =>
+      toStoredErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topCategories: summary.topCategories.map((bucket) =>
+      toStoredErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topSources: summary.topSources.map((bucket) =>
+      toStoredErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topUserActions: summary.topUserActions.map((bucket) =>
+      toStoredErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    recentReports: summary.recentReports.map((sample) =>
+      toStoredErrorReportTriageSampleMetricGroup(sample),
+    ),
+    ...(typeof summary.updatedAt === "number"
+      ? { updatedAt: summary.updatedAt }
+      : {}),
+  };
+}
+
+function toDegradedErrorReportBufferMetricGroup(
+  reason: string,
+): AnalyticsMetricGroup {
+  return {
+    degraded: true,
+    failure: reason,
+    state: "degraded",
+  };
+}
+
+function toTelemetryWriteHealthMetricGroup(
+  snapshot: TelemetryWriteHealthSnapshot,
+): AnalyticsMetricGroup {
+  return {
+    degraded: snapshot.degraded,
+    currentFailureStreak: snapshot.currentFailureStreak,
+    pendingFailureCount: snapshot.pendingFailureCount,
+    ...(snapshot.lastFailureAt
+      ? { lastFailureAt: snapshot.lastFailureAt }
+      : {}),
+    ...(snapshot.lastFailureKind
+      ? { lastFailureKind: snapshot.lastFailureKind }
+      : {}),
+    ...(snapshot.lastRecoveryAt
+      ? { lastRecoveryAt: snapshot.lastRecoveryAt }
+      : {}),
+  };
+}
+
+function toCronRefreshBatchMetricGroup(
+  snapshot: CronRefreshBatchTelemetrySnapshot,
+): AnalyticsMetricGroup {
+  return {
+    completedAt: snapshot.completedAt,
+    batchSize: snapshot.batchSize,
+    configuredBatchSize: snapshot.configuredBatchSize,
+    dailyCapacity: snapshot.dailyCapacity,
+    estimatedSweepHours: snapshot.estimatedSweepHours,
+    failedUpdates: snapshot.failedUpdates,
+    note: snapshot.note,
+    removedUsers: snapshot.removedUsers,
+    schedule: snapshot.schedule,
+    successfulUpdates: snapshot.successfulUpdates,
+    totalUsers: snapshot.totalUsers,
+    withinDailyBudget: snapshot.withinDailyBudget,
   };
 }
 
@@ -668,11 +957,15 @@ function toErrorSpikeAlertDeliveryMetricGroup(
       ? { destinationHost: delivery.destinationHost }
       : {}),
     ...(delivery.failure ? { failure: delivery.failure } : {}),
+    ...(delivery.fingerprint ? { fingerprint: delivery.fingerprint } : {}),
     ...(delivery.skippedReason
       ? { skippedReason: delivery.skippedReason }
       : {}),
     ...(typeof delivery.statusCode === "number"
       ? { statusCode: delivery.statusCode }
+      : {}),
+    ...(delivery.suppressedUntil
+      ? { suppressedUntil: delivery.suppressedUntil }
       : {}),
   };
 }
@@ -847,6 +1140,68 @@ async function sendErrorSpikeAlert(options: {
   }
 }
 
+async function finalizeErrorSpikeAlertDelivery(options: {
+  endpoint: string;
+  operationId?: string;
+  request: Request;
+  requestId?: string;
+  snapshot: ErrorReportBufferSnapshot;
+  summary: ErrorSpikeAlertSummary;
+  webhook: { url: string; destinationHost: string };
+}): Promise<ErrorSpikeAlertDelivery> {
+  const fingerprint = buildErrorSpikeAlertFingerprint({
+    snapshot: options.snapshot,
+    summary: options.summary,
+  });
+  const existingSuppression = await readErrorAlertSuppressionState(
+    redisClient,
+    fingerprint,
+    {
+      endpoint: options.endpoint,
+      request: options.request,
+    },
+  );
+
+  if (existingSuppression) {
+    return {
+      attempted: false,
+      delivered: false,
+      destinationHost: options.webhook.destinationHost,
+      fingerprint,
+      skippedReason: "duplicate_suppressed",
+      ...(existingSuppression.suppressedUntil
+        ? { suppressedUntil: existingSuppression.suppressedUntil }
+        : {}),
+    };
+  }
+
+  const delivery = await sendErrorSpikeAlert(options);
+  const deliveredWithFingerprint: ErrorSpikeAlertDelivery = {
+    ...delivery,
+    fingerprint,
+  };
+
+  if (!delivery.delivered) {
+    return deliveredWithFingerprint;
+  }
+
+  const persistedSuppression = await persistErrorAlertSuppressionState(
+    redisClient,
+    fingerprint,
+    {
+      endpoint: options.endpoint,
+      request: options.request,
+    },
+  );
+
+  return {
+    ...deliveredWithFingerprint,
+    ...(persistedSuppression?.suppressedUntil
+      ? { suppressedUntil: persistedSuppression.suppressedUntil }
+      : {}),
+  };
+}
+
 function trackAnalyticsReportingOutcome(
   request: Request,
   durationMs: number,
@@ -887,7 +1242,7 @@ function trackAnalyticsReportingOutcome(
 async function readLatestStoredReportBaseline(
   request: Request,
   endpoint: string,
-): Promise<AnalyticsReport | null> {
+): Promise<StoredAnalyticsReport | null> {
   try {
     const [latestReport] = await fetchStoredReports(redisClient, 1);
     return latestReport ?? null;
@@ -908,20 +1263,26 @@ async function readLatestStoredReportBaseline(
 async function readErrorReportBufferSnapshotWithFallback(
   request: Request,
   endpoint: string,
-): Promise<ErrorReportBufferSnapshot> {
+): Promise<ErrorReportBufferReadResult> {
   try {
-    return await getErrorReportBufferSnapshot();
+    return {
+      degraded: false,
+      snapshot: await getErrorReportBufferSnapshot(),
+    };
   } catch (error) {
     logPrivacySafe(
       "warn",
       endpoint,
-      "Failed to read error-report buffer saturation counters; continuing with an empty snapshot",
+      "Failed to read error-report buffer saturation counters; continuing with a degraded observability signal",
       {
         error: error instanceof Error ? error.message : String(error),
       },
       request,
     );
-    return createEmptyErrorReportBufferSnapshot();
+    return {
+      degraded: true,
+      failure: "error_report_buffer_unavailable",
+    };
   }
 }
 
@@ -931,12 +1292,16 @@ async function readErrorReportBufferSnapshotWithFallback(
 async function fetchStoredReports(
   redisClient: UpstashRedis,
   limit: number,
-): Promise<AnalyticsReport[]> {
-  const storedReports = await pruneStoredAnalyticsReports(redisClient, {
-    persistPrune: true,
-  });
+): Promise<StoredAnalyticsReport[]> {
+  const rawEntries = await redisClient.lrange(ANALYTICS_REPORTS_KEY, 0, -1);
+  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  const now = Date.now();
 
-  return storedReports
+  return currentEntries
+    .map((entry, index) => toStoredAnalyticsReportEntry(entry, index))
+    .filter((entry) =>
+      isAnalyticsReportWithinRetentionWindow(entry.report, now),
+    )
     .slice(-limit)
     .map((entry) => entry.report)
     .reverse();
@@ -945,26 +1310,136 @@ async function fetchStoredReports(
 /**
  * Parses a persisted analytics report from the Redis list.
  */
-function parseStoredReport(value: unknown, index: number): AnalyticsReport {
-  if (typeof value === "string") {
-    return safeParse<AnalyticsReport>(
-      value,
-      `${ANALYTICS_REPORTS_KEY}[${index}]`,
+function parseStoredAlertDelivery(
+  value: unknown,
+): ErrorSpikeAlertDelivery | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.attempted !== "boolean" ||
+    typeof value.delivered !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    attempted: value.attempted,
+    delivered: value.delivered,
+    ...(typeof value.destinationHost === "string"
+      ? { destinationHost: value.destinationHost }
+      : {}),
+    ...(typeof value.failure === "string" ? { failure: value.failure } : {}),
+    ...(typeof value.fingerprint === "string"
+      ? { fingerprint: value.fingerprint }
+      : {}),
+    ...(typeof value.skippedReason === "string"
+      ? { skippedReason: value.skippedReason }
+      : {}),
+    ...(typeof value.statusCode === "number"
+      ? { statusCode: value.statusCode }
+      : {}),
+    ...(typeof value.suppressedUntil === "string"
+      ? { suppressedUntil: value.suppressedUntil }
+      : {}),
+  };
+}
+
+function extractLegacyAlertDelivery(
+  summary: AnalyticsSummary,
+): ErrorSpikeAlertDelivery {
+  const observability = summary.observability;
+  if (!isPlainObject(observability)) {
+    return {
+      attempted: false,
+      delivered: false,
+    };
+  }
+
+  const alerts = observability.alerts;
+  if (!isPlainObject(alerts)) {
+    return {
+      attempted: false,
+      delivered: false,
+    };
+  }
+
+  return (
+    parseStoredAlertDelivery(alerts.delivery) ?? {
+      attempted: false,
+      delivered: false,
+    }
+  );
+}
+
+function parseStoredReportMeta(
+  value: unknown,
+  summary: AnalyticsSummary,
+): AnalyticsReportMeta {
+  if (!isPlainObject(value)) {
+    return {
+      alertDelivery: extractLegacyAlertDelivery(summary),
+      durationMs: 0,
+    };
+  }
+
+  const durationMs = parseFiniteNumber(value.durationMs);
+
+  return {
+    alertDelivery:
+      parseStoredAlertDelivery(value.alertDelivery) ??
+      extractLegacyAlertDelivery(summary),
+    durationMs: durationMs === null ? 0 : Math.max(0, Math.trunc(durationMs)),
+    ...(typeof value.operationId === "string" && value.operationId.length > 0
+      ? { operationId: value.operationId }
+      : {}),
+    ...(typeof value.requestId === "string" && value.requestId.length > 0
+      ? { requestId: value.requestId }
+      : {}),
+  };
+}
+
+function parseStoredReport(
+  value: unknown,
+  index: number,
+): StoredAnalyticsReport {
+  const parsedValue =
+    typeof value === "string"
+      ? safeParse<Record<string, unknown>>(
+          value,
+          `${ANALYTICS_REPORTS_KEY}[${index}]`,
+        )
+      : (value as Record<string, unknown>);
+
+  if (
+    !isPlainObject(parsedValue) ||
+    typeof parsedValue.generatedAt !== "string" ||
+    !isPlainObject(parsedValue.summary)
+  ) {
+    throw new TypeError(
+      `Invalid stored analytics report at ${ANALYTICS_REPORTS_KEY}[${index}]`,
     );
   }
 
-  return value as AnalyticsReport;
+  const summary = parsedValue.summary as AnalyticsSummary;
+
+  return {
+    generatedAt: parsedValue.generatedAt,
+    reportMeta: parseStoredReportMeta(parsedValue.reportMeta, summary),
+    summary,
+  };
 }
 
 type StoredAnalyticsReportEntry = {
-  report: AnalyticsReport;
+  report: StoredAnalyticsReport;
   serialized: string;
 };
 
 function toStoredAnalyticsReportEntry(
   value: unknown,
   index: number,
-): StoredAnalyticsReportEntry | undefined {
+): StoredAnalyticsReportEntry {
   const report = parseStoredReport(value, index);
 
   return {
@@ -974,7 +1449,7 @@ function toStoredAnalyticsReportEntry(
 }
 
 function isAnalyticsReportWithinRetentionWindow(
-  report: AnalyticsReport,
+  report: StoredAnalyticsReport,
   now = Date.now(),
 ): boolean {
   const generatedAtMs = parseTimestampMs(report.generatedAt);
@@ -987,82 +1462,40 @@ function isAnalyticsReportWithinRetentionWindow(
   );
 }
 
-function shouldRewriteStoredAnalyticsReportList(
-  currentEntries: unknown[],
-  nextEntries: StoredAnalyticsReportEntry[],
-): boolean {
-  const serializedCurrentEntries = currentEntries.map((entry) =>
-    typeof entry === "string" ? entry : JSON.stringify(entry),
-  );
-
-  return (
-    serializedCurrentEntries.length !== nextEntries.length ||
-    serializedCurrentEntries.some(
-      (entry, index) => entry !== nextEntries[index]?.serialized,
-    )
-  );
-}
-
-async function rewriteStoredAnalyticsReportList(
+async function trimExpiredStoredAnalyticsReportHead(
   redisClient: UpstashRedis,
-  entries: StoredAnalyticsReportEntry[],
 ): Promise<void> {
-  await redisClient.del(ANALYTICS_REPORTS_KEY);
+  while (true) {
+    const rawEntries = await redisClient.lrange(ANALYTICS_REPORTS_KEY, 0, 15);
+    const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
 
-  for (const entry of entries) {
-    await redisClient.rpush(ANALYTICS_REPORTS_KEY, entry.serialized);
-  }
-
-  if (entries.length > 0) {
-    await redisClient.expire(
-      ANALYTICS_REPORTS_KEY,
-      ANALYTICS_REPORT_RETENTION_SECONDS,
-    );
-  }
-}
-
-function collectRetainedAnalyticsReportEntries(
-  currentEntries: unknown[],
-  now: number,
-): StoredAnalyticsReportEntry[] {
-  const retainedEntries: StoredAnalyticsReportEntry[] = [];
-
-  currentEntries.forEach((entry, index) => {
-    const parsedEntry = toStoredAnalyticsReportEntry(entry, index);
-    if (!parsedEntry) {
+    if (currentEntries.length === 0) {
       return;
     }
 
-    if (isAnalyticsReportWithinRetentionWindow(parsedEntry.report, now)) {
-      retainedEntries.push(parsedEntry);
+    const now = Date.now();
+    let trimCount = 0;
+
+    for (const [index, entry] of currentEntries.entries()) {
+      const parsedEntry = toStoredAnalyticsReportEntry(entry, index);
+      if (!isAnalyticsReportWithinRetentionWindow(parsedEntry.report, now)) {
+        trimCount += 1;
+        continue;
+      }
+
+      break;
     }
-  });
 
-  return retainedEntries;
-}
+    if (trimCount === 0) {
+      return;
+    }
 
-async function pruneStoredAnalyticsReports(
-  redisClient: UpstashRedis,
-  options?: {
-    persistPrune?: boolean;
-  },
-): Promise<StoredAnalyticsReportEntry[]> {
-  const rawEntries = await redisClient.lrange(ANALYTICS_REPORTS_KEY, 0, -1);
-  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
-  const now = Date.now();
-  const nextEntries = collectRetainedAnalyticsReportEntries(
-    currentEntries,
-    now,
-  ).slice(-MAX_STORED_ANALYTICS_REPORTS);
+    await redisClient.ltrim(ANALYTICS_REPORTS_KEY, trimCount, -1);
 
-  if (
-    options?.persistPrune &&
-    shouldRewriteStoredAnalyticsReportList(currentEntries, nextEntries)
-  ) {
-    await rewriteStoredAnalyticsReportList(redisClient, nextEntries);
+    if (trimCount < currentEntries.length) {
+      return;
+    }
   }
-
-  return nextEntries;
 }
 
 /**
@@ -1098,19 +1531,34 @@ function parseRequestedReportLimit(request: Request): number | null {
 function buildAnalyticsReport(
   summary: AnalyticsSummary,
   analyticsData: AnalyticsData,
+  reportMeta: AnalyticsReportMeta,
   generatedAt = new Date().toISOString(),
-): AnalyticsReport {
+): AnalyticsReportResponse {
   return {
     summary,
     raw_data: analyticsData,
+    reportMeta,
+    generatedAt,
+  };
+}
+
+function buildStoredAnalyticsReport(
+  summary: AnalyticsSummary,
+  reportMeta: AnalyticsReportMeta,
+  generatedAt: string,
+): StoredAnalyticsReport {
+  return {
+    summary,
+    reportMeta,
     generatedAt,
   };
 }
 
 async function createAndSaveReport(
   redisClient: UpstashRedis,
-  report: AnalyticsReport,
+  report: StoredAnalyticsReport,
 ): Promise<void> {
+  await trimExpiredStoredAnalyticsReportHead(redisClient);
   await redisClient.rpush(ANALYTICS_REPORTS_KEY, JSON.stringify(report));
   await redisClient.ltrim(
     ANALYTICS_REPORTS_KEY,
@@ -1121,7 +1569,6 @@ async function createAndSaveReport(
     ANALYTICS_REPORTS_KEY,
     ANALYTICS_REPORT_RETENTION_SECONDS,
   );
-  await pruneStoredAnalyticsReports(redisClient, { persistPrune: true });
 }
 
 /**
@@ -1242,30 +1689,81 @@ export async function POST(request: Request) {
 
     const summary = groupAnalyticsData(analyticsData);
 
-    const errorReportSnapshot = await readErrorReportBufferSnapshotWithFallback(
-      request,
-      endpoint,
-    );
-    const previousErrorReportSnapshot = getPreviousErrorReportBufferSnapshot(
-      latestStoredReport?.summary,
-    );
+    const errorReportReadResult =
+      await readErrorReportBufferSnapshotWithFallback(request, endpoint);
+    const telemetryWriteHealthSnapshot =
+      await readTelemetryWriteHealthSnapshot();
+    const refreshBatchSnapshot = await readCronRefreshBatchTelemetrySnapshot();
     const configuredWebhook = getConfiguredAlertWebhook(endpoint, request);
 
-    let alertSummary = buildErrorSpikeAlertSummary({
-      current: errorReportSnapshot,
-      previous: previousErrorReportSnapshot,
-      previousReportGeneratedAt: latestStoredReport?.generatedAt,
-      webhookConfigured: configuredWebhook !== null,
-    });
+    let alertSummary: ErrorSpikeAlertSummary;
+    let errorReportSummary: AnalyticsMetricGroup;
+    let storedErrorReportSummary: AnalyticsMetricGroup;
+
+    if (errorReportReadResult.degraded) {
+      alertSummary = buildUnavailableErrorSpikeAlertSummary({
+        skippedReason: errorReportReadResult.failure,
+        webhookConfigured: configuredWebhook !== null,
+      });
+      errorReportSummary = toDegradedErrorReportBufferMetricGroup(
+        errorReportReadResult.failure,
+      );
+      storedErrorReportSummary = toDegradedErrorReportBufferMetricGroup(
+        errorReportReadResult.failure,
+      );
+    } else {
+      const previousErrorReportSnapshot = getPreviousErrorReportBufferSnapshot(
+        latestStoredReport?.summary,
+      );
+      const errorReportSnapshot = errorReportReadResult.snapshot;
+
+      alertSummary = buildErrorSpikeAlertSummary({
+        current: errorReportSnapshot,
+        previous: previousErrorReportSnapshot,
+        previousReportGeneratedAt: latestStoredReport?.generatedAt,
+        webhookConfigured: configuredWebhook !== null,
+      });
+
+      if (alertSummary.triggered && configuredWebhook) {
+        alertSummary = {
+          ...alertSummary,
+          delivery: await finalizeErrorSpikeAlertDelivery({
+            endpoint,
+            operationId,
+            request,
+            requestId,
+            summary: alertSummary,
+            snapshot: errorReportSnapshot,
+            webhook: configuredWebhook,
+          }),
+        };
+      }
+
+      errorReportSummary = toErrorReportBufferMetricGroup(errorReportSnapshot);
+      storedErrorReportSummary =
+        toStoredErrorReportBufferMetricGroup(errorReportSnapshot);
+    }
 
     const observabilitySummary: AnalyticsMetricGroup = {
-      errorReports: toErrorReportBufferMetricGroup(errorReportSnapshot),
+      errorReports: errorReportSummary,
       alerts: toErrorSpikeAlertMetricGroup(alertSummary),
+      telemetry: toTelemetryWriteHealthMetricGroup(
+        telemetryWriteHealthSnapshot,
+      ),
+      ...(refreshBatchSnapshot
+        ? { refreshBatch: toCronRefreshBatchMetricGroup(refreshBatchSnapshot) }
+        : {}),
     };
 
     const storedObservabilitySummary: AnalyticsMetricGroup = {
-      errorReports: toStoredErrorReportBufferMetricGroup(errorReportSnapshot),
+      errorReports: storedErrorReportSummary,
       alerts: toErrorSpikeAlertMetricGroup(alertSummary),
+      telemetry: toTelemetryWriteHealthMetricGroup(
+        telemetryWriteHealthSnapshot,
+      ),
+      ...(refreshBatchSnapshot
+        ? { refreshBatch: toCronRefreshBatchMetricGroup(refreshBatchSnapshot) }
+        : {}),
     };
 
     const reportSummary: AnalyticsSummary = {
@@ -1277,39 +1775,28 @@ export async function POST(request: Request) {
       observability: storedObservabilitySummary,
     };
 
-    const report = buildAnalyticsReport(reportSummary, analyticsData);
-    const storedReport = buildAnalyticsReport(
-      storedReportSummary,
+    const duration = Date.now() - startTime;
+    const reportMeta = buildAnalyticsReportMeta({
+      alertDelivery: alertSummary.delivery,
+      durationMs: duration,
+      operationId,
+      requestId,
+    });
+    const generatedAt = new Date().toISOString();
+    const report = buildAnalyticsReport(
+      reportSummary,
       analyticsData,
-      report.generatedAt,
+      reportMeta,
+      generatedAt,
+    );
+    const storedReport = buildStoredAnalyticsReport(
+      storedReportSummary,
+      reportMeta,
+      generatedAt,
     );
 
     await createAndSaveReport(redisClient, storedReport);
 
-    if (alertSummary.triggered && configuredWebhook) {
-      alertSummary = {
-        ...alertSummary,
-        delivery: await sendErrorSpikeAlert({
-          endpoint,
-          operationId,
-          request,
-          requestId,
-          summary: alertSummary,
-          snapshot: errorReportSnapshot,
-          webhook: configuredWebhook,
-        }),
-      };
-
-      report.summary = {
-        ...report.summary,
-        observability: {
-          errorReports: toErrorReportBufferMetricGroup(errorReportSnapshot),
-          alerts: toErrorSpikeAlertMetricGroup(alertSummary),
-        },
-      };
-    }
-
-    const duration = Date.now() - startTime;
     logPrivacySafe(
       "log",
       endpoint,

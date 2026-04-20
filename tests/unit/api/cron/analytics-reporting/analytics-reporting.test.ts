@@ -75,18 +75,67 @@ function createRollingWindowCounterValues(options?: {
   return values;
 }
 
+function mockAnalyticsReportingLrange(options?: {
+  errorReports?: unknown[];
+  storedReports?: unknown[];
+}) {
+  sharedRedisMockLrange.mockImplementation(async (key: string) => {
+    if (key === "analytics:reports") {
+      return options?.storedReports ?? [];
+    }
+
+    if (key === "telemetry:error-reports:v1") {
+      return options?.errorReports ?? [];
+    }
+
+    return [];
+  });
+}
+
+function mockAnalyticsReportingGet(options?: {
+  alertSuppression?: {
+    suppressedUntil?: string;
+  } | null;
+  evictedSummary?: unknown;
+  refreshBatchSnapshot?: unknown;
+  telemetryWriteHealth?: unknown;
+}) {
+  sharedRedisMockGet.mockImplementation((key: string) => {
+    if (key === "telemetry:error-reports:v1:evicted-summary") {
+      return Promise.resolve(options?.evictedSummary ?? null);
+    }
+
+    if (key === "analytics:telemetry:write_health") {
+      return Promise.resolve(options?.telemetryWriteHealth ?? null);
+    }
+
+    if (key === "analytics:cron_job:refresh_batch_last_run") {
+      return Promise.resolve(options?.refreshBatchSnapshot ?? null);
+    }
+
+    if (key.startsWith("analytics:error-alert:fingerprint:")) {
+      return Promise.resolve(
+        options?.alertSuppression
+          ? JSON.stringify(options.alertSuppression)
+          : null,
+      );
+    }
+
+    return Promise.resolve(null);
+  });
+}
+
 function setupAnalyticsData(values: Record<string, string | null>) {
   const keys = Object.keys(values).sort(compareAlphabetically);
   const dataKeys = keys.filter((key) => key !== "analytics:reports");
-  sharedRedisMockLrange.mockResolvedValueOnce([]);
-  sharedRedisMockLrange.mockResolvedValueOnce([]);
+  mockAnalyticsReportingLrange();
   sharedRedisMockSmembers.mockResolvedValueOnce(keys);
   sharedRedisMockMget.mockResolvedValueOnce(
     dataKeys.map((key) => values[key] ?? null),
   );
   sharedRedisMockMget.mockResolvedValueOnce([null, null]);
   sharedRedisMockMget.mockResolvedValueOnce(createRollingWindowCounterValues());
-  sharedRedisMockGet.mockResolvedValueOnce(null);
+  mockAnalyticsReportingGet();
   sharedRedisMockRpush.mockResolvedValueOnce(1);
   sharedRedisMockLtrim.mockResolvedValueOnce("OK");
   sharedRedisMockExpire.mockResolvedValueOnce(1);
@@ -123,6 +172,7 @@ async function expectSuccessfulReport(response: Response) {
   expect(report).toHaveProperty("summary");
   expect(report).toHaveProperty("raw_data");
   expect(report).toHaveProperty("generatedAt");
+  expect(report).toHaveProperty("reportMeta");
   return report;
 }
 
@@ -308,15 +358,14 @@ describe("Analytics & Reporting Cron API", () => {
   });
 
   it("surfaces error-report ring-buffer saturation metrics in the cron summary", async () => {
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    mockAnalyticsReportingLrange();
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
     sharedRedisMockMget.mockResolvedValueOnce(
       createRollingWindowCounterValues(),
     );
-    sharedRedisMockGet.mockResolvedValueOnce(null);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockResolvedValueOnce("OK");
     sharedRedisMockExpire.mockResolvedValueOnce(1);
@@ -383,41 +432,42 @@ describe("Analytics & Reporting Cron API", () => {
   });
 
   it("adds retained and evicted top-N error breakdowns to cron observability summaries", async () => {
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        id: "rep-retained-1",
-        timestamp: 1_710_000_100_000,
-        source: "react_error_boundary",
-        userAction: "render_component_tree",
-        category: "network_error",
-        retryable: true,
-        technicalMessage: "Segment render failed after retry",
-        errorName: "Error",
-        route: "/user/Alex",
-        requestId: "req-retained-12345",
-        digest: "digest-retained-1",
-      }),
-      JSON.stringify({
-        id: "rep-retained-2",
-        timestamp: 1_710_000_200_000,
-        source: "client_hook",
-        userAction: "bootstrap_user_page",
-        category: "server_error",
-        retryable: false,
-        technicalMessage: "Bootstrap payload missing required shape",
-        errorName: "TypeError",
-        route: "/user/Alex?tab=cards",
-      }),
-    ]);
+    mockAnalyticsReportingLrange({
+      errorReports: [
+        JSON.stringify({
+          id: "rep-retained-1",
+          timestamp: 1_710_000_100_000,
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          category: "network_error",
+          retryable: true,
+          technicalMessage: "Segment render failed after retry",
+          errorName: "Error",
+          route: "/user/Alex",
+          requestId: "req-retained-12345",
+          digest: "digest-retained-1",
+        }),
+        JSON.stringify({
+          id: "rep-retained-2",
+          timestamp: 1_710_000_200_000,
+          source: "client_hook",
+          userAction: "bootstrap_user_page",
+          category: "server_error",
+          retryable: false,
+          technicalMessage: "Bootstrap payload missing required shape",
+          errorName: "TypeError",
+          route: "/user/Alex?tab=cards",
+        }),
+      ],
+    });
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
     sharedRedisMockMget.mockResolvedValueOnce(
       createRollingWindowCounterValues(),
     );
-    sharedRedisMockGet.mockResolvedValueOnce(
-      JSON.stringify({
+    mockAnalyticsReportingGet({
+      evictedSummary: JSON.stringify({
         totalReports: 4,
         updatedAt: 1_710_000_300_000,
         routes: {
@@ -496,7 +546,7 @@ describe("Analytics & Reporting Cron API", () => {
           },
         ],
       }),
-    );
+    });
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockResolvedValueOnce("OK");
     sharedRedisMockExpire.mockResolvedValueOnce(1);
@@ -540,6 +590,48 @@ describe("Analytics & Reporting Cron API", () => {
     });
   });
 
+  it("surfaces explicit degraded observability when the error-report buffer cannot be read", async () => {
+    mockAnalyticsReportingLrange({
+      storedReports: [],
+    });
+    sharedRedisMockLrange.mockImplementation(async (key: string) => {
+      if (key === "analytics:reports") {
+        return [];
+      }
+
+      if (key === "telemetry:error-reports:v1") {
+        throw new Error("buffer unavailable");
+      }
+
+      return [];
+    });
+    mockAnalyticsReportingGet();
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+    sharedRedisMockExpire.mockResolvedValueOnce(1);
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(report.summary.observability).toMatchObject({
+      errorReports: {
+        degraded: true,
+        failure: "error_report_buffer_unavailable",
+        state: "degraded",
+      },
+      alerts: {
+        delivery: {
+          attempted: false,
+          delivered: false,
+          skippedReason: "error_report_buffer_unavailable",
+        },
+      },
+    });
+  });
+
   it("sends a webhook alert for error spikes and saturation without blocking report creation", async () => {
     process.env.ERROR_ALERT_WEBHOOK_URL =
       "https://hooks.example.test/services/error-spikes";
@@ -555,23 +647,26 @@ describe("Analytics & Reporting Cron API", () => {
       writable: true,
     });
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        summary: {
-          observability: {
-            errorReports: {
-              capacity: 250,
-              retained: 5,
-              totalCaptured: 5,
-              totalDropped: 0,
-              cumulativeSaturationRate: 0,
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: {
+            observability: {
+              errorReports: {
+                capacity: 250,
+                retained: 5,
+                totalCaptured: 5,
+                totalDropped: 0,
+                cumulativeSaturationRate: 0,
+              },
             },
           },
-        },
-        raw_data: {},
-        generatedAt: recentGeneratedAt,
-      }),
-    ]);
+          raw_data: {},
+          generatedAt: recentGeneratedAt,
+        }),
+      ],
+    });
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
@@ -606,8 +701,15 @@ describe("Analytics & Reporting Cron API", () => {
         attempted: true,
         delivered: true,
         destinationHost: "hooks.example.test",
+        fingerprint: expect.any(String),
         statusCode: 204,
+        suppressedUntil: expect.any(String),
       },
+    });
+    expect(report.reportMeta.alertDelivery).toMatchObject({
+      attempted: true,
+      delivered: true,
+      fingerprint: expect.any(String),
     });
   });
 
@@ -626,23 +728,26 @@ describe("Analytics & Reporting Cron API", () => {
       writable: true,
     });
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        summary: {
-          observability: {
-            errorReports: {
-              capacity: 250,
-              retained: 5,
-              totalCaptured: 5,
-              totalDropped: 0,
-              cumulativeSaturationRate: 0,
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: {
+            observability: {
+              errorReports: {
+                capacity: 250,
+                retained: 5,
+                totalCaptured: 5,
+                totalDropped: 0,
+                cumulativeSaturationRate: 0,
+              },
             },
           },
-        },
-        raw_data: {},
-        generatedAt: recentGeneratedAt,
-      }),
-    ]);
+          raw_data: {},
+          generatedAt: recentGeneratedAt,
+        }),
+      ],
+    });
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
@@ -691,23 +796,26 @@ describe("Analytics & Reporting Cron API", () => {
       writable: true,
     });
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        summary: {
-          observability: {
-            errorReports: {
-              capacity: 250,
-              retained: 5,
-              totalCaptured: 5,
-              totalDropped: 0,
-              cumulativeSaturationRate: 0,
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: {
+            observability: {
+              errorReports: {
+                capacity: 250,
+                retained: 5,
+                totalCaptured: 5,
+                totalDropped: 0,
+                cumulativeSaturationRate: 0,
+              },
             },
           },
-        },
-        raw_data: {},
-        generatedAt: recentGeneratedAt,
-      }),
-    ]);
+          raw_data: {},
+          generatedAt: recentGeneratedAt,
+        }),
+      ],
+    });
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
@@ -751,23 +859,26 @@ describe("Analytics & Reporting Cron API", () => {
       writable: true,
     });
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        summary: {
-          observability: {
-            errorReports: {
-              capacity: 250,
-              retained: 0,
-              totalCaptured: 0,
-              totalDropped: 0,
-              cumulativeSaturationRate: 0,
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: {
+            observability: {
+              errorReports: {
+                capacity: 250,
+                retained: 0,
+                totalCaptured: 0,
+                totalDropped: 0,
+                cumulativeSaturationRate: 0,
+              },
             },
           },
-        },
-        raw_data: {},
-        generatedAt: recentGeneratedAt,
-      }),
-    ]);
+          raw_data: {},
+          generatedAt: recentGeneratedAt,
+        }),
+      ],
+    });
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["30", "1"]);
@@ -787,10 +898,75 @@ describe("Analytics & Reporting Cron API", () => {
       delivered: false,
       destinationHost: "hooks.example.test",
       failure: "webhook_request_failed",
+      fingerprint: expect.any(String),
     });
     expect(report.summary.observability.alerts.comparisonWindow).toBe(
       "report_interval",
     );
+  });
+
+  it("suppresses duplicate webhook alerts across runs and exposes the suppression state in history", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const recentGeneratedAt = new Date(
+      Date.now() - 60 * 60 * 1000,
+    ).toISOString();
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: {
+            observability: {
+              errorReports: {
+                capacity: 250,
+                retained: 5,
+                totalCaptured: 5,
+                totalDropped: 0,
+                cumulativeSaturationRate: 0,
+              },
+            },
+          },
+          raw_data: {},
+          generatedAt: recentGeneratedAt,
+        }),
+      ],
+    });
+    mockAnalyticsReportingGet({
+      alertSuppression: {
+        suppressedUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+    });
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
+    sharedRedisMockMget.mockResolvedValueOnce(
+      createRollingWindowCounterValues(),
+    );
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+    sharedRedisMockExpire.mockResolvedValueOnce(1);
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(report.summary.observability.alerts.delivery).toMatchObject({
+      attempted: false,
+      delivered: false,
+      destinationHost: "hooks.example.test",
+      fingerprint: expect.any(String),
+      skippedReason: "duplicate_suppressed",
+      suppressedUntil: expect.any(String),
+    });
   });
 
   it("falls back to the rolling 24-hour error window when no fresh report baseline exists", async () => {
@@ -805,15 +981,14 @@ describe("Analytics & Reporting Cron API", () => {
       writable: true,
     });
 
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    mockAnalyticsReportingLrange();
+    mockAnalyticsReportingGet();
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
     sharedRedisMockMget.mockResolvedValueOnce(
       createRollingWindowCounterValues({ captured: 28, dropped: 2 }),
     );
-    sharedRedisMockGet.mockResolvedValueOnce(null);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockResolvedValueOnce("OK");
     sharedRedisMockExpire.mockResolvedValueOnce(1);
@@ -837,7 +1012,9 @@ describe("Analytics & Reporting Cron API", () => {
         attempted: true,
         delivered: true,
         destinationHost: "hooks.example.test",
+        fingerprint: expect.any(String),
         statusCode: 202,
+        suppressedUntil: expect.any(String),
       },
     });
   });
@@ -879,26 +1056,27 @@ describe("Analytics & Reporting Cron API", () => {
   });
 
   it("stores only aggregate error-buffer history in persisted analytics reports and applies a 14-day TTL", async () => {
-    sharedRedisMockLrange.mockResolvedValueOnce([]);
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        id: "rep-retained-1",
-        timestamp: 1_710_000_100_000,
-        source: "react_error_boundary",
-        userAction: "render_component_tree",
-        category: "network_error",
-        retryable: true,
-        technicalMessage: "Segment render failed after retry",
-        errorName: "Error",
-      }),
-    ]);
+    mockAnalyticsReportingLrange({
+      errorReports: [
+        JSON.stringify({
+          id: "rep-retained-1",
+          timestamp: 1_710_000_100_000,
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          category: "network_error",
+          retryable: true,
+          technicalMessage: "Segment render failed after retry",
+          errorName: "Error",
+        }),
+      ],
+    });
     sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
     sharedRedisMockMget.mockResolvedValueOnce(
       createRollingWindowCounterValues({ captured: 6, dropped: 1 }),
     );
-    sharedRedisMockGet.mockResolvedValueOnce(null);
+    mockAnalyticsReportingGet();
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockResolvedValueOnce("OK");
     sharedRedisMockExpire.mockResolvedValueOnce(1);
@@ -912,6 +1090,11 @@ describe("Analytics & Reporting Cron API", () => {
     expect(storedReportCall).toBeDefined();
 
     const storedReport = parseJsonString<{
+      raw_data?: Record<string, unknown>;
+      reportMeta?: {
+        alertDelivery?: Record<string, unknown>;
+        durationMs?: number;
+      };
       summary?: {
         observability?: {
           errorReports?: Record<string, unknown>;
@@ -932,13 +1115,18 @@ describe("Analytics & Reporting Cron API", () => {
         totalDropped: 1,
         saturationRate: 0.1667,
       },
+      retainedTriage: {
+        totalReports: 1,
+      },
+      evictedTriage: {
+        totalReports: 0,
+      },
     });
-    expect(
-      storedReport.summary?.observability?.errorReports,
-    ).not.toHaveProperty("retainedTriage");
-    expect(
-      storedReport.summary?.observability?.errorReports,
-    ).not.toHaveProperty("evictedTriage");
+    expect(storedReport.raw_data).toBeUndefined();
+    expect(storedReport.reportMeta).toMatchObject({
+      durationMs: expect.any(Number),
+      alertDelivery: expect.any(Object),
+    });
     expect(sharedRedisMockExpire).toHaveBeenCalledWith(
       "analytics:reports",
       14 * 24 * 60 * 60,
@@ -953,25 +1141,40 @@ describe("Analytics & Reporting Cron API", () => {
       Date.now() - 24 * 60 * 60 * 1000,
     ).toISOString();
 
-    sharedRedisMockLrange.mockResolvedValueOnce([
-      JSON.stringify({
-        summary: { visits: 10 },
-        raw_data: { "analytics:visits": 10 },
-        generatedAt: new Date(
-          Date.now() - 15 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      }),
-      JSON.stringify({
-        summary: { visits: 100 },
-        raw_data: { "analytics:visits": 100 },
-        generatedAt: olderRecentGeneratedAt,
-      }),
-      JSON.stringify({
-        summary: { visits: 250 },
-        raw_data: { "analytics:visits": 250 },
-        generatedAt: latestGeneratedAt,
-      }),
-    ]);
+    mockAnalyticsReportingLrange({
+      storedReports: [
+        JSON.stringify({
+          summary: { visits: 10 },
+          raw_data: { "analytics:visits": 10 },
+          generatedAt: new Date(
+            Date.now() - 15 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        }),
+        JSON.stringify({
+          summary: { visits: 100 },
+          raw_data: { "analytics:visits": 100 },
+          reportMeta: {
+            alertDelivery: {
+              attempted: false,
+              delivered: false,
+            },
+            durationMs: 15,
+          },
+          generatedAt: olderRecentGeneratedAt,
+        }),
+        JSON.stringify({
+          summary: { visits: 250 },
+          reportMeta: {
+            alertDelivery: {
+              attempted: false,
+              delivered: false,
+            },
+            durationMs: 10,
+          },
+          generatedAt: latestGeneratedAt,
+        }),
+      ],
+    });
 
     const payload = await expectSuccessfulReportList(
       await GET(
@@ -986,12 +1189,24 @@ describe("Analytics & Reporting Cron API", () => {
       reports: [
         {
           summary: { visits: 250 },
-          raw_data: { "analytics:visits": 250 },
+          reportMeta: {
+            alertDelivery: {
+              attempted: false,
+              delivered: false,
+            },
+            durationMs: 10,
+          },
           generatedAt: latestGeneratedAt,
         },
         {
           summary: { visits: 100 },
-          raw_data: { "analytics:visits": 100 },
+          reportMeta: {
+            alertDelivery: {
+              attempted: false,
+              delivered: false,
+            },
+            durationMs: 15,
+          },
           generatedAt: olderRecentGeneratedAt,
         },
       ],
@@ -1003,6 +1218,7 @@ describe("Analytics & Reporting Cron API", () => {
       0,
       -1,
     );
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
   });
 
   it("rejects invalid GET limits and reports read failures", async () => {
