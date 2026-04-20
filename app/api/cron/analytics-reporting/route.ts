@@ -79,6 +79,11 @@ interface AnalyticsReportListResponse {
 
 type ErrorSpikeAlertReason = "error_spike" | "ring_buffer_saturation";
 
+const ERROR_SPIKE_ALERT_REASON_ORDER = {
+  error_spike: 0,
+  ring_buffer_saturation: 1,
+} as const satisfies Record<ErrorSpikeAlertReason, number>;
+
 interface ErrorSpikeAlertDelivery {
   attempted: boolean;
   delivered: boolean;
@@ -323,9 +328,15 @@ function buildAnalyticsReportMeta(options: {
 function hashString(value: string): string {
   let hash = 2166136261;
 
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) {
+      break;
+    }
+
+    hash ^= codePoint;
     hash = Math.imul(hash, 16777619);
+    index += codePoint > 0xffff ? 2 : 1;
   }
 
   return (hash >>> 0).toString(16).padStart(8, "0");
@@ -343,7 +354,11 @@ function buildErrorSpikeAlertFingerprint(options: {
       cumulativeTotalCaptured: options.snapshot.totalCaptured,
       intervalCaptured: options.summary.newCapturedSinceLastReport,
       intervalDropped: options.summary.newDroppedSinceLastReport,
-      reasons: [...options.summary.reasons].sort(),
+      reasons: [...options.summary.reasons].sort(
+        (left, right) =>
+          ERROR_SPIKE_ALERT_REASON_ORDER[left] -
+          ERROR_SPIKE_ALERT_REASON_ORDER[right],
+      ),
       rollingWindowEnd: options.snapshot.rollingWindow.windowEnd,
     }),
   )}`;
