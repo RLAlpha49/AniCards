@@ -445,6 +445,10 @@ export function getStatCardType(
   return statCardTypeById.get(cardId);
 }
 
+export function getStatCardTypeLabel(cardId: string): string | undefined {
+  return getStatCardType(cardId)?.label;
+}
+
 export function getCardVariations(
   cardId: string,
 ): readonly StatCardVariation[] {

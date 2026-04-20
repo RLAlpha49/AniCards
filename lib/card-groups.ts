@@ -1,4 +1,4 @@
-import { getCardVariations } from "@/lib/card-types";
+import { getCardVariations, getStatCardTypeLabel } from "@/lib/card-types";
 import type { ColorValue } from "@/lib/types/card";
 import { buildApiUrl, clampBorderRadius } from "@/lib/utils";
 
@@ -64,14 +64,12 @@ export type CardGroup = {
 
 type CardGroupDefinition = {
   cardType: string;
-  cardTitle: string;
   variationOrder?: readonly string[];
   extrasByVariation?: Partial<Record<string, Record<string, string>>>;
 };
 
 type CardGroupDefinitionEntry = readonly [
   cardType: CardGroupDefinition["cardType"],
-  cardTitle: CardGroupDefinition["cardTitle"],
   options?: Pick<CardGroupDefinition, "variationOrder" | "extrasByVariation">,
 ];
 
@@ -92,6 +90,8 @@ function createCardGroup(definition: CardGroupDefinition): CardGroup {
   const supportedVariationIds = getCardVariations(definition.cardType).map(
     (variation) => variation.id,
   );
+  const cardTitle =
+    getStatCardTypeLabel(definition.cardType) ?? definition.cardType;
 
   const orderedVariationIds = definition.variationOrder
     ? definition.variationOrder.filter((variationId, index, all) => {
@@ -109,7 +109,7 @@ function createCardGroup(definition: CardGroupDefinition): CardGroup {
 
   return {
     cardType: definition.cardType,
-    cardTitle: definition.cardTitle,
+    cardTitle,
     variations: orderedVariationIds.map((variationId) => {
       const extras = definition.extrasByVariation?.[variationId];
       return extras ? { variation: variationId, extras } : variationId;
@@ -119,81 +119,70 @@ function createCardGroup(definition: CardGroupDefinition): CardGroup {
 
 /** All grouped card metadata used to render examples and UI lists. @source */
 const CARD_GROUP_DEFINITIONS = [
-  [
-    "animeStats",
-    "Anime Statistics",
-    { variationOrder: DEFAULT_STATS_VARIATION_ORDER },
-  ],
-  [
-    "mangaStats",
-    "Manga Statistics",
-    { variationOrder: DEFAULT_STATS_VARIATION_ORDER },
-  ],
-  ["socialStats", "Social Statistics"],
-  ["socialMilestones", "Social Milestones"],
-  ["animeGenres", "Anime Genres"],
-  ["animeTags", "Anime Tags"],
-  ["animeVoiceActors", "Voice Actors"],
-  ["animeStudios", "Animation Studios"],
-  ["studioCollaboration", "Studio Collaboration"],
-  ["animeStaff", "Anime Staff"],
+  ["animeStats", { variationOrder: DEFAULT_STATS_VARIATION_ORDER }],
+  ["mangaStats", { variationOrder: DEFAULT_STATS_VARIATION_ORDER }],
+  ["socialStats"],
+  ["socialMilestones"],
+  ["animeGenres"],
+  ["animeTags"],
+  ["animeVoiceActors"],
+  ["animeStudios"],
+  ["studioCollaboration"],
+  ["animeStaff"],
   [
     "animeStatusDistribution",
-    "Anime Status Distribution",
     { extrasByVariation: STATUS_COLOR_VARIATION_EXTRAS },
   ],
-  ["animeFormatDistribution", "Anime Format Distribution"],
-  ["animeCountry", "Anime Country Distribution"],
-  ["animeSourceMaterialDistribution", "Anime Source Material Distribution"],
-  ["animeSeasonalPreference", "Anime Seasonal Preference"],
-  ["animeScoreDistribution", "Anime Score Distribution"],
-  ["animeYearDistribution", "Anime Year Distribution"],
-  ["animeEpisodeLengthPreferences", "Episode Length Preferences"],
-  ["animeGenreSynergy", "Genre Synergy"],
-  ["mangaGenres", "Manga Genres"],
-  ["mangaTags", "Manga Tags"],
-  ["mangaStaff", "Manga Staff"],
+  ["animeFormatDistribution"],
+  ["animeCountry"],
+  ["animeSourceMaterialDistribution"],
+  ["animeSeasonalPreference"],
+  ["animeScoreDistribution"],
+  ["animeYearDistribution"],
+  ["animeEpisodeLengthPreferences"],
+  ["animeGenreSynergy"],
+  ["mangaGenres"],
+  ["mangaTags"],
+  ["mangaStaff"],
   [
     "mangaStatusDistribution",
-    "Manga Status Distribution",
     { extrasByVariation: STATUS_COLOR_VARIATION_EXTRAS },
   ],
-  ["mangaFormatDistribution", "Manga Format Distribution"],
-  ["mangaCountry", "Manga Country Distribution"],
-  ["mangaScoreDistribution", "Manga Score Distribution"],
-  ["mangaYearDistribution", "Manga Year Distribution"],
-  ["profileOverview", "Profile Overview"],
-  ["favoritesSummary", "Favourites Summary"],
-  ["favoritesGrid", "Favourites Grid"],
-  ["recentActivitySummary", "Recent Activity Summary"],
-  ["activityStreaks", "Activity Streaks"],
-  ["topActivityDays", "Top Activity Days"],
-  ["statusCompletionOverview", "Status Completion Overview"],
-  ["milestones", "Consumption Milestones"],
-  ["personalRecords", "Personal Records"],
-  ["planningBacklog", "Planning Backlog"],
-  ["mostRewatched", "Most Rewatched/Reread"],
-  ["currentlyWatchingReading", "Currently Watching / Reading"],
-  ["animeMangaOverview", "Anime vs Manga Overview"],
-  ["scoreCompareAnimeManga", "Anime vs Manga Score Comparison"],
-  ["countryDiversity", "Country Diversity"],
-  ["genreDiversity", "Genre Diversity"],
-  ["formatPreferenceOverview", "Format Preference Overview"],
-  ["releaseEraPreference", "Release Era Preference"],
-  ["startYearMomentum", "Start-Year Momentum"],
-  ["lengthPreference", "Length Preference"],
-  ["tagCategoryDistribution", "Tag Category Distribution"],
-  ["tagDiversity", "Tag Diversity"],
-  ["seasonalViewingPatterns", "Seasonal Viewing Patterns"],
-  ["droppedMedia", "Dropped Media"],
-  ["reviewStats", "Review Statistics"],
+  ["mangaFormatDistribution"],
+  ["mangaCountry"],
+  ["mangaScoreDistribution"],
+  ["mangaYearDistribution"],
+  ["profileOverview"],
+  ["favoritesSummary"],
+  ["favoritesGrid"],
+  ["recentActivitySummary"],
+  ["activityStreaks"],
+  ["topActivityDays"],
+  ["statusCompletionOverview"],
+  ["milestones"],
+  ["personalRecords"],
+  ["planningBacklog"],
+  ["mostRewatched"],
+  ["currentlyWatchingReading"],
+  ["animeMangaOverview"],
+  ["scoreCompareAnimeManga"],
+  ["countryDiversity"],
+  ["genreDiversity"],
+  ["formatPreferenceOverview"],
+  ["releaseEraPreference"],
+  ["startYearMomentum"],
+  ["lengthPreference"],
+  ["tagCategoryDistribution"],
+  ["tagDiversity"],
+  ["seasonalViewingPatterns"],
+  ["droppedMedia"],
+  ["reviewStats"],
 ] as const satisfies readonly CardGroupDefinitionEntry[];
 
 export const CARD_GROUPS: CardGroup[] = CARD_GROUP_DEFINITIONS.map(
-  ([cardType, cardTitle, options]) =>
+  ([cardType, options]) =>
     createCardGroup({
       cardType,
-      cardTitle,
       ...options,
     }),
 );

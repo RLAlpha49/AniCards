@@ -25,7 +25,13 @@ export type ExampleIconKey =
 
 export interface CategoryInfo {
   name: ExampleCategory;
+  slug: string;
+  href: string;
+  description: string;
+  sectionDescription: string;
+  indexLabel: string;
   count: number;
+  variantCount: number;
 }
 
 export interface ExampleCardVariant {
@@ -38,6 +44,7 @@ export interface ExampleCardVariant {
 }
 
 export interface ExampleCardType {
+  id: string;
   title: string;
   description: string;
   variants: ExampleCardVariant[];
@@ -46,10 +53,13 @@ export interface ExampleCardType {
   searchText: string;
 }
 
-export interface ExamplesCatalogPayload {
+export interface ExamplesCatalogSummary {
   categories: readonly ExampleCategory[];
   categoryInfo: CategoryInfo[];
-  cardTypes: ExampleCardType[];
   totalCardTypes: number;
   totalVariants: number;
+}
+
+export interface ExamplesCatalogPayload extends ExamplesCatalogSummary {
+  cardTypes: ExampleCardType[];
 }

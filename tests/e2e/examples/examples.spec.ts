@@ -28,7 +28,7 @@ test.describe("Examples gallery", () => {
     const searchInput = page.getByLabel(/search gallery cards/i);
     const animeStatistics = page.getByRole("heading", {
       level: 3,
-      name: /anime statistics/i,
+      name: /anime stats/i,
     });
     const voiceActors = page.getByRole("heading", {
       level: 3,
@@ -62,7 +62,7 @@ test.describe("Examples gallery", () => {
     });
     const animeStatistics = page.getByRole("heading", {
       level: 3,
-      name: /anime statistics/i,
+      name: /anime stats/i,
     });
     const favouritesSummary = page.getByRole("heading", {
       level: 3,

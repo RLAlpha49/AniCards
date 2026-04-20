@@ -11,4 +11,5 @@ export type {
   ExampleCategory,
   ExampleIconKey,
   ExamplesCatalogPayload,
+  ExamplesCatalogSummary,
 } from "./types";

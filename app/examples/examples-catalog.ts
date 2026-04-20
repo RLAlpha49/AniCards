@@ -3,6 +3,7 @@ import type {
   ExampleCardVariant,
   ExampleCategory,
   ExamplesCatalogPayload,
+  ExamplesCatalogSummary,
 } from "@/components/examples";
 import { CARD_GROUPS, VARIATION_LABEL_MAP } from "@/lib/card-groups";
 import {
@@ -10,48 +11,26 @@ import {
   buildThemeSettingsSnapshots,
 } from "@/lib/card-preview";
 import { getPreviewCardDimensions } from "@/lib/card-preview-dimensions";
+import { getStatCardType } from "@/lib/card-types";
+import {
+  buildExamplesCollectionPath,
+  EXAMPLE_COLLECTIONS,
+  getExampleCollectionByCategory,
+  getExampleCollectionBySlug,
+} from "@/lib/examples-collections";
 
-const EXAMPLES_CATEGORIES = [
-  "Core Stats",
-  "Anime Deep Dive",
-  "Manga Deep Dive",
-  "Activity & Engagement",
-  "Library & Progress",
-  "Advanced Analytics",
-] as const satisfies readonly ExampleCategory[];
+const EXAMPLES_CATEGORIES = EXAMPLE_COLLECTIONS.map(
+  (collection) => collection.name,
+) as readonly ExampleCategory[];
 
-const EXAMPLES_COLLECTION_KEYWORDS: Record<ExampleCategory, readonly string[]> =
-  {
-    "Core Stats": ["headline stats", "profile summary", "overall overview"],
-    "Anime Deep Dive": [
-      "anime breakdown",
-      "watch history",
-      "genre and studio analysis",
-    ],
-    "Manga Deep Dive": ["manga breakdown", "reading history", "manga analysis"],
-    "Activity & Engagement": [
-      "activity history",
-      "social engagement",
-      "review activity",
-    ],
-    "Library & Progress": [
-      "library progress",
-      "favorites and backlog",
-      "watching now",
-      "reading now",
-    ],
-    "Advanced Analytics": [
-      "anime vs manga comparison",
-      "cross media comparison",
-      "diversity analysis",
-    ],
-  };
-
-type CardTypeMeta = Omit<ExampleCardType, "variants" | "searchText">;
+type CardTypeMeta = Omit<ExampleCardType, "variants" | "searchText"> & {
+  searchAliases?: readonly string[];
+};
 type CardTypeMetaEntry = readonly [
-  title: CardTypeMeta["title"],
+  id: CardTypeMeta["id"],
   description: CardTypeMeta["description"],
   iconKey: CardTypeMeta["iconKey"],
+  searchAliases?: readonly string[],
 ];
 
 function normalizeExamplesSearchText(value: string): string {
@@ -76,6 +55,7 @@ function buildCardTypeSearchText(
   variants: readonly ExampleCardVariant[],
 ): string {
   const searchableEntries = new Set<string>();
+  const collection = getExampleCollectionByCategory(cardType.category);
 
   const addSearchEntry = (value: string | undefined) => {
     if (!value) {
@@ -92,8 +72,13 @@ function buildCardTypeSearchText(
   addSearchEntry(cardType.title);
   addSearchEntry(cardType.description);
   addSearchEntry(cardType.category);
+  addSearchEntry(cardType.id);
 
-  for (const keyword of EXAMPLES_COLLECTION_KEYWORDS[cardType.category]) {
+  for (const alias of cardType.searchAliases ?? []) {
+    addSearchEntry(alias);
+  }
+
+  for (const keyword of collection.keywords) {
     addSearchEntry(keyword);
   }
 
@@ -110,292 +95,313 @@ function buildCardTypeMetadata(
   category: ExampleCategory,
   entries: readonly CardTypeMetaEntry[],
 ): CardTypeMeta[] {
-  return entries.map(([title, description, iconKey]) => ({
-    title,
-    description,
-    category,
-    iconKey,
-  }));
+  return entries.map(([id, description, iconKey, searchAliases]) => {
+    const canonicalCardType = getStatCardType(id);
+
+    if (!canonicalCardType) {
+      throw new Error(`Unknown example card type: ${id}`);
+    }
+
+    if (canonicalCardType.group !== category) {
+      throw new Error(
+        `Example card type ${id} is assigned to ${category}, but the canonical registry groups it under ${canonicalCardType.group}.`,
+      );
+    }
+
+    return {
+      id,
+      title: canonicalCardType.label,
+      description,
+      category,
+      iconKey,
+      searchAliases,
+    } satisfies CardTypeMeta;
+  });
 }
 
 const CARD_TYPE_METADATA: CardTypeMeta[] = [
   ...buildCardTypeMetadata("Core Stats", [
     [
-      "Anime Statistics",
+      "animeStats",
       "A wide-angle snapshot of your anime watching habits — pick the layout that suits you",
       "barChart2",
+      ["Anime Statistics"],
     ],
     [
-      "Manga Statistics",
+      "mangaStats",
       "Your manga reading stats at a glance, available in several visual formats",
       "bookOpen",
+      ["Manga Statistics"],
     ],
     [
-      "Social Statistics",
+      "socialStats",
       "How you show up in the community — thread activity, follows, and everything social",
       "users",
+      ["Social Statistics"],
     ],
     [
-      "Profile Overview",
+      "profileOverview",
       "Your avatar, banner, and headline numbers wrapped into one tidy card",
       "users",
     ],
     [
-      "Anime vs Manga Overview",
+      "animeMangaOverview",
       "Anime versus manga — a quick side-by-side of your two habits",
       "barChart2",
     ],
   ]),
   ...buildCardTypeMetadata("Anime Deep Dive", [
     [
-      "Anime Genres",
+      "animeGenres",
       "Which genres pull you in? This maps your anime taste with several chart styles",
       "pieChart",
     ],
     [
-      "Anime Tags",
+      "animeTags",
       "The tags that keep surfacing across your anime library",
       "pieChart",
     ],
     [
-      "Voice Actors",
+      "animeVoiceActors",
       "Voice actors you've heard more than anyone else in your lineup",
       "mic",
     ],
     [
-      "Animation Studios",
+      "animeStudios",
       "A studio-by-studio breakdown of where your anime comes from",
       "building2",
+      ["Animation Studios"],
     ],
     [
-      "Studio Collaboration",
+      "studioCollaboration",
       "Which studios team up most often in the shows you watch",
       "building2",
     ],
     [
-      "Anime Staff",
+      "animeStaff",
       "The directors, writers, and key staff behind the anime you gravitate toward",
       "users",
     ],
     [
-      "Anime Status Distribution",
+      "animeStatusDistribution",
       "Where things stand — watching, completed, dropped — with optional color coding",
       "trendingUp",
     ],
     [
-      "Anime Format Distribution",
+      "animeFormatDistribution",
       "TV series, movies, OVAs — see which formats dominate your watchlist",
       "pieChart",
     ],
     [
-      "Anime Source Material Distribution",
+      "animeSourceMaterialDistribution",
       "Adapted from manga? An original? Light novel? See where your anime originated",
       "pieChart",
     ],
     [
-      "Anime Seasonal Preference",
+      "animeSeasonalPreference",
       "Winter premieres or summer blockbusters — find out which season owns your list",
       "calendar",
     ],
     [
-      "Anime Country Distribution",
+      "animeCountry",
       "Where in the world your anime was produced — country by country",
       "pieChart",
+      ["Anime Country Distribution"],
     ],
     [
-      "Anime Score Distribution",
+      "animeScoreDistribution",
       "How your scores actually spread out across your anime list",
       "trendingUp",
     ],
     [
-      "Anime Year Distribution",
+      "animeYearDistribution",
       "A timeline of when the anime on your list first aired",
       "trendingUp",
     ],
     [
-      "Episode Length Preferences",
+      "animeEpisodeLengthPreferences",
       "Short-form bites or full-length episodes — see where your preferences land",
       "clock",
     ],
     [
-      "Genre Synergy",
+      "animeGenreSynergy",
       "The genre pairings that show up together most in your collection",
       "barChart2",
     ],
   ]),
   ...buildCardTypeMetadata("Manga Deep Dive", [
-    ["Manga Genres", "Which manga genres keep pulling you back in", "pieChart"],
+    ["mangaGenres", "Which manga genres keep pulling you back in", "pieChart"],
     [
-      "Manga Tags",
+      "mangaTags",
       "Recurring tags scattered across your manga shelves",
       "pieChart",
     ],
     [
-      "Manga Staff",
+      "mangaStaff",
       "The mangaka and staff who show up most across your reading list",
       "users",
     ],
     [
-      "Manga Status Distribution",
+      "mangaStatusDistribution",
       "Reading, finished, on hold — a snapshot of where each title sits",
       "trendingUp",
     ],
     [
-      "Manga Format Distribution",
+      "mangaFormatDistribution",
       "Manga proper, light novels, one-shots — your format split at a glance",
       "pieChart",
     ],
     [
-      "Manga Country Distribution",
+      "mangaCountry",
       "Country of origin for every manga in your collection",
       "pieChart",
     ],
     [
-      "Manga Score Distribution",
+      "mangaScoreDistribution",
       "How generous (or harsh) your manga scores really are",
       "trendingUp",
     ],
     [
-      "Manga Year Distribution",
+      "mangaYearDistribution",
       "When the manga on your list was first published, year by year",
       "trendingUp",
     ],
   ]),
   ...buildCardTypeMetadata("Activity & Engagement", [
     [
-      "Recent Activity Summary",
+      "recentActivitySummary",
       "A quick pulse check — sparklines and numbers from your latest activity",
       "activity",
     ],
     [
-      "Activity Streaks",
+      "activityStreaks",
       "Your current streak and your all-time best, side by side",
       "clock",
     ],
     [
-      "Top Activity Days",
+      "topActivityDays",
       "The days you went hardest — ranked by raw activity volume",
       "activity",
     ],
     [
-      "Social Milestones",
+      "socialMilestones",
       "Unlocked milestones and social achievements worth bragging about",
       "trendingUp",
     ],
     [
-      "Review Statistics",
+      "reviewStats",
       "How often you review, what you rate, and the scores you hand out",
       "barChart2",
     ],
     [
-      "Seasonal Viewing Patterns",
+      "seasonalViewingPatterns",
       "When do you actually watch? Spot your peak days and busiest months",
       "calendar",
     ],
   ]),
   ...buildCardTypeMetadata("Library & Progress", [
     [
-      "Favourites Summary",
+      "favoritesSummary",
       "Your top picks — favourite anime, manga, and characters — all on a single card",
       "heart",
     ],
     [
-      "Favourites Grid",
+      "favoritesGrid",
       "A flexible grid of favourites you can mix and match however you like",
       "layoutGrid",
     ],
     [
-      "Status Completion Overview",
+      "statusCompletionOverview",
       "Completion tally for anime and manga — view them together or split apart",
       "trendingUp",
     ],
     [
-      "Consumption Milestones",
+      "milestones",
       "The big landmarks in your anime and manga journey, worth celebrating",
       "calendar",
     ],
     [
-      "Personal Records",
+      "personalRecords",
       "Personal bests and the standout titles that earned them",
       "barChart2",
     ],
     [
-      "Planning Backlog",
+      "planningBacklog",
       "Everything still sitting in your plan-to-watch and plan-to-read pile",
       "clock",
     ],
     [
-      "Most Rewatched/Reread",
+      "mostRewatched",
       "The titles you keep coming back to — your most rewatched and reread",
       "activity",
     ],
     [
-      "Currently Watching / Reading",
+      "currentlyWatchingReading",
       "What's on your plate right now, with options to filter by anime or manga only",
       "clock",
     ],
     [
-      "Dropped Media",
+      "droppedMedia",
       "The ones that didn't make the cut — every title you've walked away from",
       "activity",
     ],
   ]),
   ...buildCardTypeMetadata("Advanced Analytics", [
     [
-      "Anime vs Manga Score Comparison",
+      "scoreCompareAnimeManga",
       "Do you score anime and manga the same way? This card settles the debate",
       "trendingUp",
     ],
     [
-      "Country Diversity",
+      "countryDiversity",
       "How worldly is your taste? Country diversity, anime vs manga",
       "pieChart",
     ],
     [
-      "Genre Diversity",
+      "genreDiversity",
       "Genre spread across both media — are you more adventurous with one than the other?",
       "pieChart",
     ],
     [
-      "Format Preference Overview",
+      "formatPreferenceOverview",
       "TV vs manga proper, movies vs one-shots — your format leanings compared",
       "pieChart",
     ],
     [
-      "Release Era Preference",
+      "releaseEraPreference",
       "Classic era fan or modern-day devotee? See where most of your picks land",
       "calendar",
     ],
     [
-      "Start-Year Momentum",
+      "startYearMomentum",
       "When did you start picking up new titles? Track the momentum year by year",
       "trendingUp",
     ],
     [
-      "Length Preference",
+      "lengthPreference",
       "Quick reads and binge-watches vs sprawling epics — see which side wins",
       "trendingUp",
     ],
     [
-      "Tag Category Distribution",
+      "tagCategoryDistribution",
       "How your tag preferences stack up when you put anime and manga next to each other",
       "pieChart",
     ],
     [
-      "Tag Diversity",
+      "tagDiversity",
       "Are your anime tags all over the map while manga stays niche? Find out",
       "pieChart",
     ],
   ]),
 ];
 
-const CARD_GROUPS_BY_TITLE = new Map(
-  CARD_GROUPS.map((cardGroup) => [cardGroup.cardTitle, cardGroup]),
+const CARD_GROUPS_BY_CARD_TYPE = new Map(
+  CARD_GROUPS.map((cardGroup) => [cardGroup.cardType, cardGroup]),
 );
 
 const EXAMPLES_CARD_TYPES: ExampleCardType[] = CARD_TYPE_METADATA.map(
   (cardType) => {
-    const group = CARD_GROUPS_BY_TITLE.get(cardType.title);
+    const group = CARD_GROUPS_BY_CARD_TYPE.get(cardType.id);
 
     if (!group) {
       return {
@@ -440,17 +446,30 @@ const EXAMPLES_CARD_TYPES: ExampleCardType[] = CARD_TYPE_METADATA.map(
   },
 );
 
-const CATEGORY_INFO = EXAMPLES_CATEGORIES.map((category) => ({
-  name: category,
-  count: EXAMPLES_CARD_TYPES.filter(
+const CATEGORY_INFO = EXAMPLES_CATEGORIES.map((category) => {
+  const collection = getExampleCollectionByCategory(category);
+  const categoryCardTypes = EXAMPLES_CARD_TYPES.filter(
     (cardType) => cardType.category === category,
-  ).length,
-}));
+  );
 
-const EXAMPLES_CATALOG: ExamplesCatalogPayload = {
+  return {
+    name: category,
+    slug: collection.slug,
+    href: buildExamplesCollectionPath(collection.slug),
+    description: collection.description,
+    sectionDescription: collection.sectionDescription,
+    indexLabel: collection.indexLabel,
+    count: categoryCardTypes.length,
+    variantCount: categoryCardTypes.reduce(
+      (sum, cardType) => sum + cardType.variants.length,
+      0,
+    ),
+  };
+});
+
+const EXAMPLES_CATALOG_SUMMARY: ExamplesCatalogSummary = {
   categories: EXAMPLES_CATEGORIES,
   categoryInfo: CATEGORY_INFO,
-  cardTypes: EXAMPLES_CARD_TYPES,
   totalCardTypes: EXAMPLES_CARD_TYPES.length,
   totalVariants: EXAMPLES_CARD_TYPES.reduce(
     (sum, cardType) => sum + cardType.variants.length,
@@ -458,6 +477,39 @@ const EXAMPLES_CATALOG: ExamplesCatalogPayload = {
   ),
 };
 
+const EXAMPLES_CATALOG: ExamplesCatalogPayload = {
+  ...EXAMPLES_CATALOG_SUMMARY,
+  cardTypes: EXAMPLES_CARD_TYPES,
+};
+
+export function getExamplesCatalogSummary(): ExamplesCatalogSummary {
+  return EXAMPLES_CATALOG_SUMMARY;
+}
+
 export function getExamplesCatalog(): ExamplesCatalogPayload {
   return EXAMPLES_CATALOG;
+}
+
+export function getExamplesCollectionCatalog(
+  slug: string,
+): ExamplesCatalogPayload | null {
+  const collection = getExampleCollectionBySlug(slug);
+
+  if (!collection) {
+    return null;
+  }
+
+  const cardTypes = EXAMPLES_CARD_TYPES.filter(
+    (cardType) => cardType.category === collection.name,
+  );
+
+  return {
+    ...EXAMPLES_CATALOG_SUMMARY,
+    cardTypes,
+    totalCardTypes: cardTypes.length,
+    totalVariants: cardTypes.reduce(
+      (sum, cardType) => sum + cardType.variants.length,
+      0,
+    ),
+  };
 }
