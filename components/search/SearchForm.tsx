@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import {
   EASE_OUT_EXPO,
   NO_MOTION_TRANSITION,
@@ -271,7 +272,7 @@ export function SearchForm({
   onLoadingChange,
 }: Readonly<SearchFormProps>) {
   const router = useRouter();
-  const prefersReducedMotion = useReducedMotion() ?? false;
+  const { prefersReducedMotion } = useMotionPreferences();
   const baseId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const previousRouteStateRef = useRef({

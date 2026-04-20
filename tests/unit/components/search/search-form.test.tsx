@@ -199,6 +199,19 @@ mock.module("@/components/marketing/SectionReveal", () => ({
   SectionReveal: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
 
+mock.module("@/hooks/useMotionPreferences", () => ({
+  useMotionPreferences: () => ({
+    prefersReducedMotion: false,
+    prefersReducedData: false,
+    prefersCoarsePointer: false,
+    prefersSimplifiedMotion: false,
+  }),
+}));
+
+mock.module("@/components/search/SearchCapabilities", () => ({
+  SearchCapabilities: () => <div data-testid="search-capabilities" />,
+}));
+
 mock.module("@/components/search/SearchHeroSection", () => ({
   SearchHeroSection: ({
     lastSuccessfulUserRoute,
