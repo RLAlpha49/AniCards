@@ -14,6 +14,13 @@ test.describe("Privacy disclosure", () => {
     const retentionSurface = usesMobileRetentionLayout
       ? mobileRetentionCards
       : desktopRetentionTable;
+    const desktopPublicCardTable = page.getByTestId(
+      "privacy-public-card-table",
+    );
+    const mobilePublicCardCards = page.getByTestId("privacy-public-card-cards");
+    const publicCardSurface = usesMobileRetentionLayout
+      ? mobilePublicCardCards
+      : desktopPublicCardTable;
 
     await expect(
       page.getByRole("heading", {
@@ -60,8 +67,12 @@ test.describe("Privacy disclosure", () => {
     await expect(
       page.getByText(/saved card configurations are publicly retrievable/i),
     ).toBeVisible();
+    await expect(publicCardSurface).toBeVisible();
+    if (usesMobileRetentionLayout) {
+      await expect(desktopPublicCardTable).toBeHidden();
+    }
     await expect(
-      page.getByTestId("privacy-public-card-table").getByText(/userSnapshot/i),
+      publicCardSurface.getByText(/userSnapshot/i).first(),
     ).toBeVisible();
     await expect(
       page.getByText(/server-side operational counters/i),

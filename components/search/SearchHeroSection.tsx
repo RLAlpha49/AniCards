@@ -446,22 +446,18 @@ export function SearchHeroSection({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <Button
-                  asChild
-                  size="sm"
+                <a
+                  href={lookupResult.href}
+                  data-testid="search-lookup-cta"
+                  onClick={handleLookupLinkClick}
                   className="
-                    imperial-btn min-h-11 imperial-btn-fill px-4 text-xs tracking-[0.15em] uppercase
+                    imperial-btn inline-flex min-h-11 imperial-btn-fill touch-manipulation-safe
+                    items-center justify-center gap-2 px-4 text-xs tracking-[0.15em] uppercase
                   "
                 >
-                  <a
-                    href={lookupResult.href}
-                    data-testid="search-lookup-cta"
-                    onClick={handleLookupLinkClick}
-                  >
-                    {lookupResult.ctaLabel}
-                    <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-                  </a>
-                </Button>
+                  {lookupResult.ctaLabel}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </a>
               </div>
             </div>
           </motion.div>

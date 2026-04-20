@@ -347,7 +347,6 @@ function StandardPrivacySection({
           <div
             data-testid="privacy-retention-table"
             aria-label="Retention limits table"
-            tabIndex={0}
             className="
               hidden overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
               md:block
@@ -606,7 +605,10 @@ export default async function PrivacyPage() {
                 <div className="mt-6 h-px w-full bg-gold/10" />
 
                 <div className="mt-8 space-y-4">
-                  <div className="space-y-4 md:hidden">
+                  <div
+                    data-testid="privacy-public-card-cards"
+                    className="space-y-4 md:hidden"
+                  >
                     {publicCardFieldRows.map((row) => (
                       <article
                         key={row.label}
@@ -737,7 +739,6 @@ export default async function PrivacyPage() {
                 <div
                   data-testid="privacy-vendor-matrix"
                   aria-label="Third-party vendor matrix"
-                  tabIndex={0}
                   className="
                     mt-8 overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
                   "
