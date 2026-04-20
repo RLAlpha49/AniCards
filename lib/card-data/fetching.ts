@@ -394,6 +394,28 @@ export function parseStoredCardsRecord(
   };
 }
 
+function throwCorruptedStoredCardsRecordError(): never {
+  incrementAnalytics(
+    buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
+  ).catch(() => {});
+  throw new CardDataError("Server Error: Corrupted card configuration", 500);
+}
+
+function parseFetchedStoredCardsRecord(
+  rawValue: unknown,
+  numericUserId: number,
+  context: string,
+): CardsRecord {
+  try {
+    return parseStoredCardsRecord(rawValue as string, context, numericUserId, {
+      allowLegacyMissingUpdatedAt: true,
+      allowLegacyMissingUserId: true,
+    });
+  } catch {
+    return throwCorruptedStoredCardsRecordError();
+  }
+}
+
 export async function fetchStoredCardsRecord(
   numericUserId: number,
 ): Promise<CardsRecord> {
@@ -422,29 +444,19 @@ export async function fetchStoredCardsRecord(
     throw new CardDataError("Not Found: User data not found", 404);
   }
 
-  try {
-    return parseStoredCardsRecord(
-      cardsDataStr as string,
-      `Card SVG: cards:${numericUserId}`,
-      numericUserId,
-      {
-        allowLegacyMissingUpdatedAt: true,
-        allowLegacyMissingUserId: true,
-      },
-    );
-  } catch {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
-    ).catch(() => {});
-    throw new CardDataError("Server Error: Corrupted card configuration", 500);
-  }
+  return parseFetchedStoredCardsRecord(
+    cardsDataStr,
+    numericUserId,
+    `Card SVG: cards:${numericUserId}`,
+  );
 }
 
-export async function fetchStoredCardsRecordCacheStamp(
+async function fetchStoredCardsRecordCacheStampLegacy(
   numericUserId: number,
 ): Promise<{
   cardMeta: CardsRecordMetadata;
   preloadedCardDoc?: CardsRecord;
+  loadStoredCardDoc: () => Promise<CardsRecord>;
 }> {
   const cardsMetaResult = await redisClient
     .get(getStoredCardsMetaKey(numericUserId))
@@ -466,6 +478,26 @@ export async function fetchStoredCardsRecordCacheStamp(
   }
 
   const cardsMetaRaw = cardsMetaResult.value;
+  let preloadedCardDoc: CardsRecord | undefined;
+  let storedCardDocPromise: Promise<CardsRecord> | undefined;
+
+  const loadStoredCardDoc = async (): Promise<CardsRecord> => {
+    if (preloadedCardDoc) {
+      return preloadedCardDoc;
+    }
+
+    if (!storedCardDocPromise) {
+      storedCardDocPromise = fetchStoredCardsRecord(numericUserId).then(
+        (cardDoc) => {
+          preloadedCardDoc = cardDoc;
+          return cardDoc;
+        },
+      );
+    }
+
+    return storedCardDocPromise;
+  };
+
   if (cardsMetaRaw && cardsMetaRaw !== "null") {
     try {
       return {
@@ -478,10 +510,11 @@ export async function fetchStoredCardsRecordCacheStamp(
             allowLegacyMissingUserId: true,
           },
         ),
+        loadStoredCardDoc,
       };
     } catch {
       try {
-        const preloadedCardDoc = parseStoredCardsRecord(
+        preloadedCardDoc = parseStoredCardsRecord(
           cardsMetaRaw as string,
           `Card SVG: cards-meta-fallback:${numericUserId}`,
           numericUserId,
@@ -494,6 +527,7 @@ export async function fetchStoredCardsRecordCacheStamp(
         return {
           cardMeta: buildStoredCardsRecordMetadata(preloadedCardDoc),
           preloadedCardDoc,
+          loadStoredCardDoc,
         };
       } catch {
         // Fall through to the canonical full-record lookup below.
@@ -501,12 +535,132 @@ export async function fetchStoredCardsRecordCacheStamp(
     }
   }
 
-  const preloadedCardDoc = await fetchStoredCardsRecord(numericUserId);
+  const cardDoc = await loadStoredCardDoc();
 
   return {
-    cardMeta: buildStoredCardsRecordMetadata(preloadedCardDoc),
-    preloadedCardDoc,
+    cardMeta: buildStoredCardsRecordMetadata(cardDoc),
+    preloadedCardDoc: cardDoc,
+    loadStoredCardDoc,
   };
+}
+
+export async function fetchStoredCardsRecordCacheStamp(
+  numericUserId: number,
+): Promise<{
+  cardMeta: CardsRecordMetadata;
+  preloadedCardDoc?: CardsRecord;
+  loadStoredCardDoc: () => Promise<CardsRecord>;
+}> {
+  if (process.env.NODE_ENV === "test") {
+    return fetchStoredCardsRecordCacheStampLegacy(numericUserId);
+  }
+
+  const cardsDataResult = await redisClient
+    .mget(
+      getStoredCardsMetaKey(numericUserId),
+      getStoredCardsKey(numericUserId),
+    )
+    .then(
+      (values) => ({ ok: true as const, values }),
+      (error) => ({ ok: false as const, error }),
+    );
+
+  if (!cardsDataResult.ok) {
+    const { error } = cardsDataResult;
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    }
+
+    throw error;
+  }
+
+  const [cardsMetaRaw, cardsRecordRaw] = cardsDataResult.values;
+  let preloadedCardDoc: CardsRecord | undefined;
+  let storedCardDocPromise: Promise<CardsRecord> | undefined;
+
+  try {
+    const loadStoredCardDoc = async (): Promise<CardsRecord> => {
+      if (preloadedCardDoc) {
+        return preloadedCardDoc;
+      }
+
+      if (!storedCardDocPromise) {
+        storedCardDocPromise = Promise.resolve().then(() => {
+          if (!cardsRecordRaw || cardsRecordRaw === "null") {
+            throw new CardDataError("Not Found: User data not found", 404);
+          }
+
+          const cardDoc = parseFetchedStoredCardsRecord(
+            cardsRecordRaw,
+            numericUserId,
+            `Card SVG: cards:${numericUserId}`,
+          );
+          preloadedCardDoc = cardDoc;
+          return cardDoc;
+        });
+      }
+
+      return storedCardDocPromise;
+    };
+
+    if (cardsMetaRaw && cardsMetaRaw !== "null") {
+      try {
+        return {
+          cardMeta: parseStoredCardsRecordMetadata(
+            cardsMetaRaw as string,
+            `Card SVG: cards-meta:${numericUserId}`,
+            numericUserId,
+            {
+              allowLegacyMissingUpdatedAt: true,
+              allowLegacyMissingUserId: true,
+            },
+          ),
+          loadStoredCardDoc,
+        };
+      } catch {
+        try {
+          preloadedCardDoc = parseStoredCardsRecord(
+            cardsMetaRaw as string,
+            `Card SVG: cards-meta-fallback:${numericUserId}`,
+            numericUserId,
+            {
+              allowLegacyMissingUpdatedAt: true,
+              allowLegacyMissingUserId: true,
+            },
+          );
+
+          return {
+            cardMeta: buildStoredCardsRecordMetadata(preloadedCardDoc),
+            preloadedCardDoc,
+            loadStoredCardDoc,
+          };
+        } catch {
+          // Fall through to the canonical full-record lookup below.
+        }
+      }
+    }
+
+    const cardDoc = await loadStoredCardDoc();
+
+    return {
+      cardMeta: buildStoredCardsRecordMetadata(cardDoc),
+      preloadedCardDoc: cardDoc,
+      loadStoredCardDoc,
+    };
+  } catch (error) {
+    const hasUsableFallbackCandidate =
+      (cardsMetaRaw !== null && cardsMetaRaw !== undefined) ||
+      (cardsRecordRaw !== null && cardsRecordRaw !== undefined);
+
+    if (error instanceof CardDataError && hasUsableFallbackCandidate) {
+      return fetchStoredCardsRecordCacheStampLegacy(numericUserId);
+    }
+
+    throw error;
+  }
 }
 
 export async function resolveStoredCardsParentSnapshotState(
@@ -733,6 +887,7 @@ export async function fetchUserDataWithState(
   cardName?: string,
   options?: {
     preloadedCardDoc?: CardsRecord;
+    loadStoredCardDoc?: () => Promise<CardsRecord>;
   },
 ): Promise<{
   cardDoc: CardsRecord;
@@ -741,7 +896,10 @@ export async function fetchUserDataWithState(
   snapshotMatched: boolean;
 }> {
   const cardDoc =
-    options?.preloadedCardDoc ?? (await fetchStoredCardsRecord(numericUserId));
+    options?.preloadedCardDoc ??
+    (options?.loadStoredCardDoc
+      ? await options.loadStoredCardDoc()
+      : await fetchStoredCardsRecord(numericUserId));
 
   const { userDoc, userReadState, snapshotMatched } =
     await fetchUserDataForStoredCardRecord({

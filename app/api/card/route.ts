@@ -968,8 +968,16 @@ function scheduleStaleCacheRevalidation(args: {
   effectiveUserId: number;
   cacheKey: string;
   preloadedCardDoc?: CardsRecord;
+  loadStoredCardDoc?: () => Promise<CardsRecord>;
 }): void {
-  const { request, params, effectiveUserId, cacheKey, preloadedCardDoc } = args;
+  const {
+    request,
+    params,
+    effectiveUserId,
+    cacheKey,
+    preloadedCardDoc,
+    loadStoredCardDoc,
+  } = args;
 
   if (!tryAcquireSvgRevalidationLock(cacheKey)) {
     logPrivacySafe(
@@ -1017,7 +1025,12 @@ function scheduleStaleCacheRevalidation(args: {
           effectiveUserId,
           Date.now(),
           cacheKey,
-          preloadedCardDoc ? { preloadedCardDoc } : undefined,
+          preloadedCardDoc || loadStoredCardDoc
+            ? {
+                ...(preloadedCardDoc ? { preloadedCardDoc } : {}),
+                ...(loadStoredCardDoc ? { loadStoredCardDoc } : {}),
+              }
+            : undefined,
         );
 
         logPrivacySafe(
@@ -1091,6 +1104,7 @@ function createInternalErrorResponse(request: Request): Response {
 type PreparedCardCacheContext = {
   cacheKey: string;
   preloadedCardDoc?: CardsRecord;
+  loadStoredCardDoc?: () => Promise<CardsRecord>;
 };
 
 async function prepareCardRenderCacheContext(
@@ -1118,6 +1132,7 @@ async function prepareCardRenderCacheContext(
   }
 
   let preloadedCardDoc: CardsRecord | undefined;
+  let loadStoredCardDoc: (() => Promise<CardsRecord>) | undefined;
   let preloadedCardMeta:
     | Pick<CardsRecordMetadata, "updatedAt" | "userSnapshot">
     | undefined;
@@ -1126,6 +1141,7 @@ async function prepareCardRenderCacheContext(
     const savedCardCacheStamp =
       await fetchStoredCardsRecordCacheStamp(effectiveUserId);
     preloadedCardDoc = savedCardCacheStamp.preloadedCardDoc;
+    loadStoredCardDoc = savedCardCacheStamp.loadStoredCardDoc;
     preloadedCardMeta = savedCardCacheStamp.cardMeta;
   } catch (error) {
     if (error instanceof CardDataError) {
@@ -1152,6 +1168,7 @@ async function prepareCardRenderCacheContext(
         )
       : generateCacheKey(effectiveUserId, params.cardType, cacheKeyParams),
     preloadedCardDoc,
+    loadStoredCardDoc,
   };
 }
 
@@ -1161,6 +1178,7 @@ async function tryServeCachedCardResponse(args: {
   effectiveUserId: number;
   cacheKey: string;
   preloadedCardDoc?: CardsRecord;
+  loadStoredCardDoc?: () => Promise<CardsRecord>;
   startTime: number;
   successCachePolicy: CardSuccessCachePolicy;
 }): Promise<Response | null> {
@@ -1170,6 +1188,7 @@ async function tryServeCachedCardResponse(args: {
     effectiveUserId,
     cacheKey,
     preloadedCardDoc,
+    loadStoredCardDoc,
     startTime,
     successCachePolicy,
   } = args;
@@ -1185,6 +1204,7 @@ async function tryServeCachedCardResponse(args: {
         effectiveUserId,
         cacheKey,
         preloadedCardDoc,
+        loadStoredCardDoc,
       });
 
       return createSuccessResponse(
@@ -1370,7 +1390,7 @@ export async function GET(request: Request) {
     return cacheContextResult.error;
   }
 
-  const { cacheKey, preloadedCardDoc } = cacheContextResult;
+  const { cacheKey, preloadedCardDoc, loadStoredCardDoc } = cacheContextResult;
 
   if (isManualRefresh) {
     logPrivacySafe(
@@ -1387,6 +1407,7 @@ export async function GET(request: Request) {
       effectiveUserId,
       cacheKey,
       preloadedCardDoc,
+      loadStoredCardDoc,
       startTime,
       successCachePolicy,
     });
@@ -1406,6 +1427,7 @@ export async function GET(request: Request) {
       manualRefresh: isManualRefresh,
       cachePolicy: successCachePolicy,
       preloadedCardDoc,
+      loadStoredCardDoc,
     },
   );
 }
@@ -1482,10 +1504,12 @@ async function loadSavedUserAndCardConfig(
   startTime: number,
   options?: {
     preloadedCardDoc?: CardsRecord;
+    loadStoredCardDoc?: () => Promise<CardsRecord>;
   },
 ): Promise<LoadedUserAndCardConfigResult> {
   const data = await fetchUserDataWithState(effectiveUserId, params.cardType, {
     preloadedCardDoc: options?.preloadedCardDoc,
+    loadStoredCardDoc: options?.loadStoredCardDoc,
   });
   const { cardDoc } = data;
   let userDoc = data.userDoc;
@@ -1591,6 +1615,7 @@ async function loadUserAndCardConfig(
   startTime: number,
   options?: {
     preloadedCardDoc?: CardsRecord;
+    loadStoredCardDoc?: () => Promise<CardsRecord>;
   },
 ): Promise<LoadedUserAndCardConfigResult> {
   if (needsDbCardConfig) {
@@ -1601,6 +1626,7 @@ async function loadUserAndCardConfig(
       startTime,
       {
         preloadedCardDoc: options?.preloadedCardDoc,
+        loadStoredCardDoc: options?.loadStoredCardDoc,
       },
     );
   }
@@ -1623,11 +1649,14 @@ async function generateCardResponse(
     manualRefresh?: boolean;
     cachePolicy?: CardSuccessCachePolicy;
     preloadedCardDoc?: CardsRecord;
+    loadStoredCardDoc?: () => Promise<CardsRecord>;
   },
 ): Promise<Response> {
   try {
     const needsDbCardConfig =
-      options?.preloadedCardDoc !== undefined || needsCardConfigFromDb(params);
+      options?.preloadedCardDoc !== undefined ||
+      options?.loadStoredCardDoc !== undefined ||
+      needsCardConfigFromDb(params);
     const loadResult = await loadUserAndCardConfig(
       needsDbCardConfig,
       params,
@@ -1636,6 +1665,7 @@ async function generateCardResponse(
       startTime,
       {
         preloadedCardDoc: options?.preloadedCardDoc,
+        loadStoredCardDoc: options?.loadStoredCardDoc,
       },
     );
     if ("error" in loadResult) {
