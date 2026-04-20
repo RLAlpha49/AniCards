@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,8 @@ import type { CategoryInfo } from "./types";
 interface CategoryNavigationProps {
   categories: CategoryInfo[];
   activeCategory: string | null;
-  onCategoryClick: (category: string | null) => void;
+  allHref?: string;
+  onCategoryClick?: (category: string | null) => void;
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -30,25 +32,27 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "Advanced Analytics": TrendingUp,
 };
 
-const CATEGORY_INDEX: Record<string, string> = {
-  "Core Stats": "01",
-  "Anime Deep Dive": "02",
-  "Manga Deep Dive": "03",
-  "Activity & Engagement": "04",
-  "Library & Progress": "05",
-  "Advanced Analytics": "06",
-};
-
 export function CategoryNavigation({
   categories,
   activeCategory,
+  allHref,
   onCategoryClick,
 }: Readonly<CategoryNavigationProps>) {
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
   const items = [
-    { name: "All", count: totalCount, key: null as string | null },
-    ...categories.map((c) => ({ ...c, key: c.name })),
+    {
+      name: "All",
+      count: totalCount,
+      key: null as string | null,
+      href: allHref,
+      indexLabel: undefined,
+    },
+    ...categories.map((category) => ({
+      ...category,
+      key: category.name,
+      href: category.href,
+    })),
   ];
 
   return (
@@ -79,27 +83,21 @@ export function CategoryNavigation({
               item.key === null
                 ? undefined
                 : CATEGORY_ICONS[item.key] || BarChart2;
-            const index = item.key ? CATEGORY_INDEX[item.key] : undefined;
-
-            return (
-              <button
-                type="button"
-                key={item.name}
-                aria-pressed={isActive}
-                onClick={() => onCategoryClick(item.key)}
-                className={cn(
-                  `
-                    relative z-10 flex items-center gap-2 rounded-sm px-3.5 py-3 text-xs font-medium
-                    whitespace-nowrap transition-all duration-300
-                    focus-visible:bg-gold/5 focus-visible:text-gold focus-visible:ring-2
-                    focus-visible:ring-gold/50 focus-visible:ring-offset-2
-                    focus-visible:ring-offset-background focus-visible:outline-none
-                  `,
-                  isActive
-                    ? "text-gold"
-                    : "text-foreground/30 hover:text-foreground/55",
-                )}
-              >
+            const index = item.key ? item.indexLabel : undefined;
+            const className = cn(
+              `
+                relative z-10 flex items-center gap-2 rounded-sm px-3.5 py-3 text-xs font-medium
+                whitespace-nowrap transition-all duration-300
+                focus-visible:bg-gold/5 focus-visible:text-gold focus-visible:ring-2
+                focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                focus-visible:ring-offset-background focus-visible:outline-none
+              `,
+              isActive
+                ? "text-gold"
+                : "text-foreground/30 hover:text-foreground/55",
+            );
+            const content = (
+              <>
                 {/* Numbered index for non-All items */}
                 {index && (
                   <span
@@ -130,6 +128,31 @@ export function CategoryNavigation({
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
+              </>
+            );
+
+            if (item.href && !onCategoryClick) {
+              return (
+                <Link
+                  key={item.key ?? item.name}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={className}
+                >
+                  {content}
+                </Link>
+              );
+            }
+
+            return (
+              <button
+                type="button"
+                key={item.key ?? item.name}
+                aria-pressed={isActive}
+                onClick={() => onCategoryClick?.(item.key)}
+                className={className}
+              >
+                {content}
               </button>
             );
           })}

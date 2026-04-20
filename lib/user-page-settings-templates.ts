@@ -15,12 +15,45 @@ export const PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY =
 export const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
   "anicards:last-successful-user-page-route:v1";
 
+export const RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY =
+  "anicards:recent-successful-user-page-routes:v1";
+
+export const EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY =
+  "anicards:examples-discovery-context:v1";
+
+type SearchLaunchSource = "examples" | "search-starter";
+type ExamplesDiscoveryRouteKind = "index" | "gallery" | "collection" | "legacy";
+
+export interface SearchLaunchDiscoveryContext {
+  source: "examples";
+  href: string;
+  routeKind: ExamplesDiscoveryRouteKind;
+  collectionName?: string;
+  collectionSlug?: string;
+  searchQuery?: string;
+  savedAt: number;
+}
+
+export type SearchLaunchDiscoveryContextInput = Omit<
+  SearchLaunchDiscoveryContext,
+  "savedAt"
+>;
+
+export interface PendingSettingsTemplateExampleContext {
+  cardTypeId: string;
+  cardTitle: string;
+  variantName: string;
+  themeLabel: string;
+}
+
 export interface PendingSettingsTemplateApply {
   templateId: string;
   templateName?: string;
   applyTo: "global";
-  source: "examples";
+  source: SearchLaunchSource;
   queuedAt: number;
+  exampleContext?: PendingSettingsTemplateExampleContext;
+  discoveryContext?: SearchLaunchDiscoveryContext;
 }
 
 export interface RememberedUserPageRoute {
@@ -33,6 +66,14 @@ export interface RememberedUserPageRoute {
 export interface SearchLaunchContinuityState {
   pendingTemplateApply: PendingSettingsTemplateApply | null;
   lastSuccessfulUserRoute: RememberedUserPageRoute | null;
+  recentSuccessfulUserRoutes: RememberedUserPageRoute[];
+  lastDiscoveryContext: SearchLaunchDiscoveryContext | null;
+}
+
+export interface QueueSettingsTemplateForEditorOptions {
+  source?: PendingSettingsTemplateApply["source"];
+  exampleContext?: PendingSettingsTemplateApply["exampleContext"];
+  discoveryContext?: SearchLaunchDiscoveryContextInput | null;
 }
 
 export type SettingsTemplatesStorageResult =
@@ -42,8 +83,18 @@ export type SettingsTemplatesStorageResult =
 const SETTINGS_TEMPLATES_STORAGE_ERROR =
   "Couldn't save template changes in this browser. Check storage permissions and try again.";
 
+const CONTINUITY_STORAGE_AREAS = ["sessionStorage", "localStorage"] as const;
+const MAX_RECENT_SUCCESSFUL_USER_PAGE_ROUTES = 4;
+
 const SEARCH_LAUNCH_CONTINUITY_EVENT =
   "anicards:search-launch-continuity-change";
+
+const SEARCH_LAUNCH_CONTINUITY_STORAGE_KEYS = [
+  PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+  LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
+  RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY,
+  EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY,
+] as const;
 
 function dispatchSearchLaunchContinuityChange(): void {
   if (globalThis.window === undefined) return;
@@ -59,18 +110,231 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeNonBlankString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function getContinuityStorage(
+  area: (typeof CONTINUITY_STORAGE_AREAS)[number],
+): Storage | null {
+  if (globalThis.window === undefined) {
+    return null;
+  }
+
+  try {
+    return globalThis.window[area];
+  } catch {
+    return null;
+  }
+}
+
+function readContinuityStorageValue(key: string): string | null {
+  for (const area of CONTINUITY_STORAGE_AREAS) {
+    const storage = getContinuityStorage(area);
+
+    if (!storage) {
+      continue;
+    }
+
+    try {
+      const raw = storage.getItem(key);
+
+      if (raw) {
+        return raw;
+      }
+    } catch {
+      // Ignore storage read failures and keep falling back.
+    }
+  }
+
+  return null;
+}
+
+function writeContinuityStorageValue(key: string, value: string): void {
+  for (const area of CONTINUITY_STORAGE_AREAS) {
+    const storage = getContinuityStorage(area);
+
+    if (!storage) {
+      continue;
+    }
+
+    try {
+      storage.setItem(key, value);
+    } catch {
+      // Ignore per-storage write failures.
+    }
+  }
+}
+
+function removeContinuityStorageValue(key: string): void {
+  for (const area of CONTINUITY_STORAGE_AREAS) {
+    const storage = getContinuityStorage(area);
+
+    if (!storage) {
+      continue;
+    }
+
+    try {
+      storage.removeItem(key);
+    } catch {
+      // Ignore per-storage removal failures.
+    }
+  }
+}
+
+function isSearchLaunchContinuityStorageKey(key: string | null): boolean {
+  if (key === null) {
+    return true;
+  }
+
+  return SEARCH_LAUNCH_CONTINUITY_STORAGE_KEYS.includes(
+    key as (typeof SEARCH_LAUNCH_CONTINUITY_STORAGE_KEYS)[number],
+  );
+}
+
+function parsePendingSettingsTemplateExampleContext(
+  value: unknown,
+): PendingSettingsTemplateExampleContext | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const cardTypeId = normalizeNonBlankString(value.cardTypeId);
+  const cardTitle = normalizeNonBlankString(value.cardTitle);
+  const variantName = normalizeNonBlankString(value.variantName);
+  const themeLabel = normalizeNonBlankString(value.themeLabel);
+
+  if (!cardTypeId || !cardTitle || !variantName || !themeLabel) {
+    return undefined;
+  }
+
+  return {
+    cardTypeId,
+    cardTitle,
+    variantName,
+    themeLabel,
+  };
+}
+
+function parseSearchLaunchDiscoveryContextValue(
+  value: unknown,
+): SearchLaunchDiscoveryContext | null {
+  if (!isPlainObject(value) || value.source !== "examples") {
+    return null;
+  }
+
+  const href = normalizeNonBlankString(value.href);
+  const routeKind = value.routeKind;
+  const savedAt = value.savedAt;
+
+  if (
+    !href ||
+    !href.startsWith("/examples") ||
+    (routeKind !== "index" &&
+      routeKind !== "gallery" &&
+      routeKind !== "collection" &&
+      routeKind !== "legacy") ||
+    typeof savedAt !== "number" ||
+    !Number.isFinite(savedAt)
+  ) {
+    return null;
+  }
+
+  return {
+    source: "examples",
+    href,
+    routeKind,
+    collectionName: normalizeNonBlankString(value.collectionName),
+    collectionSlug: normalizeNonBlankString(value.collectionSlug),
+    searchQuery: normalizeNonBlankString(value.searchQuery),
+    savedAt,
+  };
+}
+
+function parseSearchLaunchDiscoveryContext(
+  raw: string | null,
+): SearchLaunchDiscoveryContext | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return parseSearchLaunchDiscoveryContextValue(JSON.parse(raw) as unknown);
+  } catch {
+    return null;
+  }
+}
+
+function buildSearchLaunchDiscoveryContext(
+  input:
+    | SearchLaunchDiscoveryContextInput
+    | SearchLaunchDiscoveryContext
+    | null
+    | undefined,
+  savedAt = Date.now(),
+): SearchLaunchDiscoveryContext | null {
+  if (!input) {
+    return null;
+  }
+
+  const storedContext = parseSearchLaunchDiscoveryContextValue(input);
+
+  if (storedContext) {
+    return storedContext;
+  }
+
+  if (input.source !== "examples") {
+    return null;
+  }
+
+  const href = normalizeNonBlankString(input.href);
+
+  if (!href || !href.startsWith("/examples")) {
+    return null;
+  }
+
+  return {
+    source: "examples",
+    href,
+    routeKind: input.routeKind,
+    collectionName: normalizeNonBlankString(input.collectionName),
+    collectionSlug: normalizeNonBlankString(input.collectionSlug),
+    searchQuery: normalizeNonBlankString(input.searchQuery),
+    savedAt,
+  };
+}
+
 function parsePendingSettingsTemplateApply(
   raw: string | null,
 ): PendingSettingsTemplateApply | null {
   if (!raw) return null;
 
-  const parsed = JSON.parse(raw) as unknown;
-  if (!isPlainObject(parsed)) return null;
-  if (typeof parsed.templateId !== "string" || !parsed.templateId.trim()) {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
     return null;
   }
-  if (parsed.applyTo !== "global") return null;
-  if (parsed.source !== "examples") return null;
+
+  if (!isPlainObject(parsed)) {
+    return null;
+  }
+
+  const templateId = normalizeNonBlankString(parsed.templateId);
+
+  if (!templateId || parsed.applyTo !== "global") {
+    return null;
+  }
+
+  const source = parsed.source;
+
+  if (source !== "examples" && source !== "search-starter") {
+    return null;
+  }
+
   if (
     typeof parsed.queuedAt !== "number" ||
     !Number.isFinite(parsed.queuedAt)
@@ -79,12 +343,17 @@ function parsePendingSettingsTemplateApply(
   }
 
   return {
-    templateId: parsed.templateId,
-    templateName:
-      typeof parsed.templateName === "string" ? parsed.templateName : undefined,
+    templateId,
+    templateName: normalizeNonBlankString(parsed.templateName),
     applyTo: "global",
-    source: "examples",
+    source,
     queuedAt: parsed.queuedAt,
+    exampleContext: parsePendingSettingsTemplateExampleContext(
+      parsed.exampleContext,
+    ),
+    discoveryContext:
+      parseSearchLaunchDiscoveryContextValue(parsed.discoveryContext) ??
+      undefined,
   };
 }
 
@@ -100,19 +369,18 @@ function buildRememberedUserPageHref(params: {
   return `/user?${new URLSearchParams({ userId: params.userId }).toString()}`;
 }
 
-function parseRememberedUserPageRoute(
-  raw: string | null,
+function parseRememberedUserPageRouteValue(
+  value: unknown,
 ): RememberedUserPageRoute | null {
-  if (!raw) return null;
-
-  const parsed = JSON.parse(raw) as unknown;
-  if (!isPlainObject(parsed)) return null;
+  if (!isPlainObject(value)) {
+    return null;
+  }
 
   const userId = normalizePositiveIntegerString(
-    typeof parsed.userId === "string" ? parsed.userId : null,
+    typeof value.userId === "string" ? value.userId : null,
   );
-  const href = typeof parsed.href === "string" ? parsed.href.trim() : "";
-  const savedAt = parsed.savedAt;
+  const href = typeof value.href === "string" ? value.href.trim() : "";
+  const savedAt = value.savedAt;
 
   if (!userId || !href.startsWith("/user")) {
     return null;
@@ -126,11 +394,135 @@ function parseRememberedUserPageRoute(
     href,
     userId,
     username:
-      typeof parsed.username === "string" && parsed.username.trim().length > 0
-        ? parsed.username.trim()
+      typeof value.username === "string" && value.username.trim().length > 0
+        ? value.username.trim()
         : undefined,
     savedAt,
   };
+}
+
+function parseRememberedUserPageRoute(
+  raw: string | null,
+): RememberedUserPageRoute | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return parseRememberedUserPageRouteValue(JSON.parse(raw) as unknown);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRecentSuccessfulUserPageRoutes(
+  routes: readonly RememberedUserPageRoute[],
+): RememberedUserPageRoute[] {
+  const dedupedRoutes: RememberedUserPageRoute[] = [];
+  const seenUserIds = new Set<string>();
+
+  for (const route of [...routes].sort((a, b) => b.savedAt - a.savedAt)) {
+    if (seenUserIds.has(route.userId)) {
+      continue;
+    }
+
+    seenUserIds.add(route.userId);
+    dedupedRoutes.push(route);
+
+    if (dedupedRoutes.length >= MAX_RECENT_SUCCESSFUL_USER_PAGE_ROUTES) {
+      break;
+    }
+  }
+
+  return dedupedRoutes;
+}
+
+function parseRecentSuccessfulUserPageRoutes(
+  raw: string | null,
+): RememberedUserPageRoute[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return normalizeRecentSuccessfulUserPageRoutes(
+      parsed
+        .map((entry) => parseRememberedUserPageRouteValue(entry))
+        .filter((entry): entry is RememberedUserPageRoute => entry !== null),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function readLegacyLastSuccessfulUserPageRoute(): RememberedUserPageRoute | null {
+  return parseRememberedUserPageRoute(
+    readContinuityStorageValue(LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY),
+  );
+}
+
+export function getRememberedUserPageRouteLabel(
+  route: RememberedUserPageRoute,
+): string {
+  return route.username ? `@${route.username}` : `AniList user ${route.userId}`;
+}
+
+export function getExamplesDiscoveryContextLabel(
+  context:
+    | SearchLaunchDiscoveryContext
+    | SearchLaunchDiscoveryContextInput
+    | null
+    | undefined,
+): string {
+  if (!context) {
+    return "Examples";
+  }
+
+  let baseLabel = "Examples index";
+
+  if (context.routeKind === "gallery") {
+    baseLabel = "Full examples gallery";
+  } else if (context.routeKind === "collection") {
+    baseLabel = context.collectionName
+      ? `${context.collectionName} collection`
+      : "Examples collection";
+  } else if (context.routeKind === "legacy") {
+    baseLabel = context.collectionName
+      ? `${context.collectionName} gallery`
+      : "Examples gallery";
+  }
+
+  const searchQuery = normalizeNonBlankString(context.searchQuery);
+
+  return searchQuery ? `${baseLabel} · “${searchQuery}”` : baseLabel;
+}
+
+export function getExamplesDiscoveryContextReturnLabel(
+  context:
+    | SearchLaunchDiscoveryContext
+    | SearchLaunchDiscoveryContextInput
+    | null
+    | undefined,
+): string {
+  if (!context) {
+    return "Return to examples";
+  }
+
+  if (context.collectionName) {
+    return `Return to ${context.collectionName}`;
+  }
+
+  if (context.routeKind === "gallery") {
+    return "Return to full gallery";
+  }
+
+  return "Return to examples";
 }
 
 export function readSettingsTemplatesFromStorage(): SettingsTemplateV1[] {
@@ -226,7 +618,7 @@ export function queuePendingSettingsTemplateApply(
   if (globalThis.window === undefined) return;
 
   try {
-    globalThis.window.sessionStorage.setItem(
+    writeContinuityStorageValue(
       PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
       JSON.stringify(pending),
     );
@@ -236,28 +628,77 @@ export function queuePendingSettingsTemplateApply(
   }
 }
 
+export function rememberExamplesDiscoveryContext(
+  context:
+    | SearchLaunchDiscoveryContextInput
+    | SearchLaunchDiscoveryContext
+    | null
+    | undefined,
+): void {
+  if (globalThis.window === undefined) {
+    return;
+  }
+
+  const nextContext = buildSearchLaunchDiscoveryContext(context);
+
+  if (!nextContext) {
+    return;
+  }
+
+  try {
+    writeContinuityStorageValue(
+      EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY,
+      JSON.stringify(nextContext),
+    );
+    dispatchSearchLaunchContinuityChange();
+  } catch {
+    // Ignore continuity persistence failures.
+  }
+}
+
 export function queueSettingsTemplateForEditor(
   template: SettingsTemplateV1,
+  options: QueueSettingsTemplateForEditorOptions = {},
 ):
-  | { ok: true; template: SettingsTemplateV1; templates: SettingsTemplateV1[] }
+  | {
+      ok: true;
+      template: SettingsTemplateV1;
+      templates: SettingsTemplateV1[];
+      pendingTemplateApply: PendingSettingsTemplateApply;
+    }
   | { ok: false; error: string } {
   const persistResult = upsertSettingsTemplateInStorage(template);
   if (!persistResult.ok) {
     return persistResult;
   }
 
-  queuePendingSettingsTemplateApply({
+  const queuedAt = Date.now();
+  const discoveryContext = buildSearchLaunchDiscoveryContext(
+    options.discoveryContext,
+    queuedAt,
+  );
+
+  if (discoveryContext) {
+    rememberExamplesDiscoveryContext(discoveryContext);
+  }
+
+  const pendingTemplateApply: PendingSettingsTemplateApply = {
     templateId: template.id,
     templateName: template.name,
     applyTo: "global",
-    source: "examples",
-    queuedAt: Date.now(),
-  });
+    source: options.source ?? "examples",
+    queuedAt,
+    exampleContext: options.exampleContext,
+    discoveryContext: discoveryContext ?? undefined,
+  };
+
+  queuePendingSettingsTemplateApply(pendingTemplateApply);
 
   return {
     ok: true,
     template,
     templates: persistResult.templates,
+    pendingTemplateApply,
   };
 }
 
@@ -265,7 +706,7 @@ export function readPendingSettingsTemplateApply(): PendingSettingsTemplateApply
   if (globalThis.window === undefined) return null;
 
   try {
-    const raw = globalThis.window.sessionStorage.getItem(
+    const raw = readContinuityStorageValue(
       PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
     );
 
@@ -279,9 +720,7 @@ export function clearPendingSettingsTemplateApply(): void {
   if (globalThis.window === undefined) return;
 
   try {
-    globalThis.window.sessionStorage.removeItem(
-      PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
-    );
+    removeContinuityStorageValue(PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY);
     dispatchSearchLaunchContinuityChange();
   } catch {
     // Ignore session persistence failures.
@@ -292,14 +731,13 @@ export function consumePendingSettingsTemplateApply(): PendingSettingsTemplateAp
   if (globalThis.window === undefined) return null;
 
   try {
-    const raw = globalThis.window.sessionStorage.getItem(
+    const raw = readContinuityStorageValue(
       PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
     );
     if (!raw) return null;
 
-    globalThis.window.sessionStorage.removeItem(
-      PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
-    );
+    removeContinuityStorageValue(PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY);
+    dispatchSearchLaunchContinuityChange();
 
     return parsePendingSettingsTemplateApply(raw);
   } catch {
@@ -317,19 +755,28 @@ export function rememberLastSuccessfulUserPageRoute(params: {
   if (!normalizedUserId) return;
 
   const normalizedUsername = params.username?.trim() || undefined;
+  const nextRoute = {
+    href: buildRememberedUserPageHref({
+      userId: normalizedUserId,
+      username: normalizedUsername,
+    }),
+    userId: normalizedUserId,
+    username: normalizedUsername,
+    savedAt: Date.now(),
+  } satisfies RememberedUserPageRoute;
+  const nextRecentRoutes = normalizeRecentSuccessfulUserPageRoutes([
+    nextRoute,
+    ...readRecentSuccessfulUserPageRoutes(),
+  ]);
 
   try {
-    globalThis.window.sessionStorage.setItem(
+    writeContinuityStorageValue(
+      RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY,
+      JSON.stringify(nextRecentRoutes),
+    );
+    writeContinuityStorageValue(
       LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
-      JSON.stringify({
-        href: buildRememberedUserPageHref({
-          userId: normalizedUserId,
-          username: normalizedUsername,
-        }),
-        userId: normalizedUserId,
-        username: normalizedUsername,
-        savedAt: Date.now(),
-      } satisfies RememberedUserPageRoute),
+      JSON.stringify(nextRecentRoutes[0] ?? nextRoute),
     );
     dispatchSearchLaunchContinuityChange();
   } catch {
@@ -337,24 +784,48 @@ export function rememberLastSuccessfulUserPageRoute(params: {
   }
 }
 
+export function readRecentSuccessfulUserPageRoutes(): RememberedUserPageRoute[] {
+  if (globalThis.window === undefined) {
+    return [];
+  }
+
+  const recentRoutes = parseRecentSuccessfulUserPageRoutes(
+    readContinuityStorageValue(RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY),
+  );
+
+  if (recentRoutes.length > 0) {
+    return recentRoutes;
+  }
+
+  const legacyRoute = readLegacyLastSuccessfulUserPageRoute();
+
+  return legacyRoute ? [legacyRoute] : [];
+}
+
 export function readLastSuccessfulUserPageRoute(): RememberedUserPageRoute | null {
-  if (globalThis.window === undefined) return null;
+  const recentRoutes = readRecentSuccessfulUserPageRoutes();
 
-  try {
-    const raw = globalThis.window.sessionStorage.getItem(
-      LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
-    );
+  return recentRoutes[0] ?? readLegacyLastSuccessfulUserPageRoute();
+}
 
-    return parseRememberedUserPageRoute(raw);
-  } catch {
+export function readExamplesDiscoveryContext(): SearchLaunchDiscoveryContext | null {
+  if (globalThis.window === undefined) {
     return null;
   }
+
+  return parseSearchLaunchDiscoveryContext(
+    readContinuityStorageValue(EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY),
+  );
 }
 
 export function readSearchLaunchContinuityState(): SearchLaunchContinuityState {
+  const recentSuccessfulUserRoutes = readRecentSuccessfulUserPageRoutes();
+
   return {
     pendingTemplateApply: readPendingSettingsTemplateApply(),
-    lastSuccessfulUserRoute: readLastSuccessfulUserPageRoute(),
+    lastSuccessfulUserRoute: recentSuccessfulUserRoutes[0] ?? null,
+    recentSuccessfulUserRoutes,
+    lastDiscoveryContext: readExamplesDiscoveryContext(),
   };
 }
 
@@ -368,16 +839,25 @@ export function subscribeSearchLaunchContinuity(
   const handleChange = () => {
     onChange(readSearchLaunchContinuityState());
   };
+  const handleStorage = (event: StorageEvent) => {
+    if (!isSearchLaunchContinuityStorageKey(event.key)) {
+      return;
+    }
+
+    handleChange();
+  };
 
   globalThis.window.addEventListener(
     SEARCH_LAUNCH_CONTINUITY_EVENT,
     handleChange,
   );
+  globalThis.window.addEventListener("storage", handleStorage);
 
   return () => {
     globalThis.window.removeEventListener(
       SEARCH_LAUNCH_CONTINUITY_EVENT,
       handleChange,
     );
+    globalThis.window.removeEventListener("storage", handleStorage);
   };
 }

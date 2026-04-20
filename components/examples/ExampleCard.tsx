@@ -16,18 +16,20 @@ import {
 } from "@/lib/preview-theme";
 import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
 import {
-  queuePendingSettingsTemplateApply,
+  queueSettingsTemplateForEditor,
   readLastSuccessfulUserPageRoute,
-  upsertSettingsTemplateInStorage,
+  type SearchLaunchDiscoveryContextInput,
 } from "@/lib/user-page-settings-templates";
 import { cn, toCardApiHref } from "@/lib/utils";
 
 import type { ExampleCardVariant } from "./types";
 
 interface ExampleCardProps {
+  cardTypeId: string;
   variant: ExampleCardVariant;
   cardTypeTitle: string;
   previewColorPreset: PreviewColorPreset | null;
+  discoveryContext?: SearchLaunchDiscoveryContextInput;
   index?: number;
 }
 
@@ -47,14 +49,14 @@ function getSelectedSettingsSnapshot(
 }
 
 function buildButtonLabels(opts: {
-  isPreviewReady: boolean;
+  canCopyPreview: boolean;
   copied: boolean;
   queuedForEditor: boolean;
 }) {
-  let copy = "Preview is still loading";
+  let copy = "Copy unavailable";
   let editor = opts.queuedForEditor ? "Queued" : "Use in editor";
 
-  if (opts.isPreviewReady) {
+  if (opts.canCopyPreview) {
     copy = opts.copied ? "Copied!" : "Copy embed URL";
     editor = opts.queuedForEditor ? "Queued" : "Use in editor";
   }
@@ -66,48 +68,33 @@ function buildButtonLabels(opts: {
 }
 
 function buildExampleTemplateId(
-  cardTypeTitle: string,
+  cardTypeId: string,
   variantName: string,
   themeLabel: string,
 ): string {
   const slugify = (value: string): string => {
-    const trimmed = value.trim().toLowerCase();
-    let slug = "";
-    let pendingSeparator = false;
-
-    for (const char of trimmed) {
-      const code = char.codePointAt(0);
-      const isLowerAlphaNumeric =
-        code !== undefined &&
-        ((code >= 97 && code <= 122) || (code >= 48 && code <= 57));
-
-      if (isLowerAlphaNumeric) {
-        if (pendingSeparator && slug.length > 0) {
-          slug += "-";
-        }
-
-        pendingSeparator = false;
-        slug += char;
-      } else if (slug.length > 0) {
-        pendingSeparator = true;
-      }
-    }
-
-    return slug;
+    return value
+      .trim()
+      .replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-+|-+$/g, "");
   };
 
   return [
     "example",
-    slugify(cardTypeTitle),
+    slugify(cardTypeId),
     slugify(variantName),
     slugify(themeLabel),
   ].join(":");
 }
 
 export function ExampleCard({
+  cardTypeId,
   variant,
   cardTypeTitle,
   previewColorPreset,
+  discoveryContext,
   index = 0,
 }: Readonly<ExampleCardProps>) {
   const router = useRouter();
@@ -125,8 +112,12 @@ export function ExampleCard({
     previewColorPreset,
   );
   const isPreviewReady = previewUrl !== undefined;
+  const canCopyPreview =
+    isPreviewReady &&
+    typeof globalThis.navigator !== "undefined" &&
+    globalThis.navigator.clipboard !== undefined;
   const buttonLabels = buildButtonLabels({
-    isPreviewReady,
+    canCopyPreview,
     copied,
     queuedForEditor,
   });
@@ -156,18 +147,22 @@ export function ExampleCard({
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      if (!isPreviewReady || !navigator.clipboard || !previewHref) return;
+      if (!canCopyPreview || !previewHref) {
+        return;
+      }
 
       try {
-        await navigator.clipboard.writeText(
+        await globalThis.navigator.clipboard.writeText(
           new URL(previewHref, globalThis.window.location.origin).toString(),
         );
         setCopied(true);
-      } catch (error) {
-        console.error("Failed to copy:", error);
+      } catch {
+        toast.error("Couldn't copy preview URL", {
+          description: "Check clipboard permissions and try again.",
+        });
       }
     },
-    [isPreviewReady, previewHref],
+    [canCopyPreview, previewHref],
   );
 
   const handleUseInEditor = useCallback(
@@ -181,28 +176,30 @@ export function ExampleCard({
         previewColorPreset === DARK_PREVIEW_COLOR_PRESET ? "Dark" : "Light";
       const now = Date.now();
       const template: SettingsTemplateV1 = {
-        id: buildExampleTemplateId(cardTypeTitle, variant.name, themeLabel),
+        id: buildExampleTemplateId(cardTypeId, variant.name, themeLabel),
         name: `${cardTypeTitle} — ${variant.name} (${themeLabel})`,
         snapshot: selectedSettingsSnapshot,
         createdAt: now,
         updatedAt: now,
       };
 
-      const persistResult = upsertSettingsTemplateInStorage(template);
-      if (!persistResult.ok) {
+      const queueResult = queueSettingsTemplateForEditor(template, {
+        source: "examples",
+        exampleContext: {
+          cardTypeId,
+          cardTitle: cardTypeTitle,
+          variantName: variant.name,
+          themeLabel,
+        },
+        discoveryContext,
+      });
+
+      if (!queueResult.ok) {
         toast.error("Couldn't save this style", {
-          description: persistResult.error,
+          description: queueResult.error,
         });
         return;
       }
-
-      queuePendingSettingsTemplateApply({
-        templateId: template.id,
-        templateName: template.name,
-        applyTo: "global",
-        source: "examples",
-        queuedAt: now,
-      });
 
       const rememberedUserRoute = readLastSuccessfulUserPageRoute();
       const nextRoute = rememberedUserRoute?.href ?? "/search";
@@ -211,12 +208,16 @@ export function ExampleCard({
       toast.success("Style queued for your editor", {
         description: rememberedUserRoute
           ? "Jumping back into your last loaded editor so AniCards can apply it there."
-          : "Pick a user and AniCards will apply this example as a reusable template.",
+          : discoveryContext
+            ? "Pick a user next and AniCards will carry this queued look over without dropping your current examples context."
+            : "Pick a user and AniCards will apply this example as a reusable template.",
       });
       router.push(nextRoute);
     },
     [
+      cardTypeId,
       cardTypeTitle,
+      discoveryContext,
       previewColorPreset,
       router,
       selectedSettingsSnapshot,
@@ -378,7 +379,7 @@ export function ExampleCard({
                   : "text-foreground/15 hover:text-gold",
               )}
               aria-label={buttonLabels.copy}
-              disabled={!isPreviewReady}
+              disabled={!canCopyPreview}
             >
               {copied ? (
                 <Check className="size-3.5" />

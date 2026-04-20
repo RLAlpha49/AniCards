@@ -123,6 +123,34 @@ describe("structured data helpers", () => {
     expect(itemList.itemListElement[0]?.item.name).toBe("AniCards");
   });
 
+  it("models the examples index as a collection page with a concrete gallery inventory", () => {
+    const entries = generateStructuredData("examples", {
+      examples: {
+        routeKind: "index",
+      },
+    });
+    const types = entries.map((entry) => entry["@type"]);
+    const itemList = entries.find((entry) => entry["@type"] === "ItemList") as {
+      numberOfItems: number;
+      itemListElement: Array<{
+        item: {
+          name: string;
+          url: string;
+        };
+      }>;
+    };
+
+    expect(types).toContain("CollectionPage");
+    expect(types).toContain("ItemList");
+    expect(itemList.numberOfItems).toBeGreaterThan(20);
+    expect(
+      itemList.itemListElement.some(({ item }) => item.name === "Anime Stats"),
+    ).toBe(true);
+    expect(itemList.itemListElement[0]?.item.url).toContain(
+      "/examples/core-stats#example-card-type-anime-stats",
+    );
+  });
+
   it("uses route-aware contact schema instead of a generic webpage", () => {
     const entries = generateStructuredData("contact");
 
@@ -205,6 +233,65 @@ describe("structured data helpers", () => {
         item: resolveSiteUrl("/user/Alpha49"),
       },
     ]);
+  });
+
+  it("scopes example collection structured data to the canonical collection route", () => {
+    const entries = generateStructuredData("examples", {
+      canonical: "/examples/anime-deep-dive",
+      description: "Anime collection examples.",
+      keywords: ["anime deep dive"],
+      title: "Anime Deep Dive Examples",
+      examples: {
+        routeKind: "collection",
+        collectionSlug: "anime-deep-dive",
+      },
+    });
+    const breadcrumbEntry = entries.find(
+      (entry) => entry["@type"] === "BreadcrumbList",
+    ) as {
+      itemListElement: Array<{
+        name: string;
+        item: string;
+      }>;
+    };
+    const itemList = entries.find((entry) => entry["@type"] === "ItemList") as {
+      itemListElement: Array<{
+        item: {
+          name: string;
+          url: string;
+        };
+      }>;
+    };
+
+    expect(
+      breadcrumbEntry.itemListElement.map(({ item, name }) => ({ item, name })),
+    ).toEqual([
+      {
+        name: SITE_NAME,
+        item: resolveSiteUrl("/"),
+      },
+      {
+        name: "Examples",
+        item: resolveSiteUrl("/examples"),
+      },
+      {
+        name: "Anime Deep Dive",
+        item: resolveSiteUrl("/examples/anime-deep-dive"),
+      },
+    ]);
+    expect(
+      itemList.itemListElement.some(
+        ({ item }) => item.name === "Anime Voice Actors",
+      ),
+    ).toBe(true);
+    expect(
+      itemList.itemListElement.some(({ item }) => item.name === "Manga Genres"),
+    ).toBe(false);
+    expect(
+      itemList.itemListElement.every(({ item }) =>
+        item.url.startsWith(resolveSiteUrl("/examples/anime-deep-dive#")),
+      ),
+    ).toBe(true);
   });
 
   it("uses profile-oriented schema for canonical user profile routes", () => {

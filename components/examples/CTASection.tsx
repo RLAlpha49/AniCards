@@ -6,9 +6,13 @@ import Link from "next/link";
 
 interface CTASectionProps {
   createHref: string;
+  onCreateClick?: () => void;
 }
 
-export function CTASection({ createHref }: Readonly<CTASectionProps>) {
+export function CTASection({
+  createHref,
+  onCreateClick,
+}: Readonly<CTASectionProps>) {
   return (
     <section className="relative overflow-x-clip px-6 py-24 sm:px-12 lg:py-32">
       {/* Atmospheric glow */}
@@ -58,6 +62,7 @@ export function CTASection({ createHref }: Readonly<CTASectionProps>) {
 
         <Link
           href={createHref}
+          onClick={onCreateClick}
           className="group imperial-btn inline-flex imperial-btn-fill items-center"
         >
           Start Building

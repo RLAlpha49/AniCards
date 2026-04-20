@@ -1,4 +1,14 @@
+import {
+  getExamplesCatalog,
+  getExamplesCollectionCatalog,
+} from "@/app/examples/examples-catalog";
 import { PROJECT_CATALOG } from "@/components/projects/constants";
+import {
+  buildExamplesCollectionPath,
+  getExampleCardTypeAnchorId,
+  getExampleCollectionByCategory,
+  getExampleCollectionBySlug,
+} from "@/lib/examples-collections";
 import {
   getSearchPagePath,
   getUserProfilePath,
@@ -135,7 +145,7 @@ interface ItemList {
     "@type": "ListItem";
     position: number;
     item: {
-      "@type": "SoftwareApplication";
+      "@type": "CreativeWork" | "SoftwareApplication";
       name: string;
       description: string;
       url: string;
@@ -162,6 +172,10 @@ export interface StructuredDataOverrides {
   description?: string;
   canonical?: string;
   keywords?: string[];
+  examples?: {
+    routeKind?: "index" | "gallery" | "collection";
+    collectionSlug?: string;
+  };
   profile?: {
     username: string;
   };
@@ -182,6 +196,7 @@ const BREADCRUMB_SEGMENT_LABELS = {
   about: "About",
   contact: "Contact",
   examples: "Examples",
+  gallery: "Gallery",
   privacy: "Privacy",
   projects: "Projects",
   search: "Search",
@@ -356,12 +371,77 @@ function buildProjectsItemListEntry(canonicalUrl: string): ItemList {
   };
 }
 
+function buildExamplesItemListEntry(
+  canonicalUrl: string,
+  overrides: StructuredDataOverrides,
+): ItemList {
+  const routeKind = overrides.examples?.routeKind ?? "index";
+  const collectionSlug = overrides.examples?.collectionSlug;
+  const collection = collectionSlug
+    ? getExampleCollectionBySlug(collectionSlug)
+    : null;
+  const catalog =
+    routeKind === "collection" && collectionSlug
+      ? getExamplesCollectionCatalog(collectionSlug)
+      : getExamplesCatalog();
+
+  if (!catalog) {
+    throw new Error(
+      `Examples structured data requires a known collection slug, received: ${collectionSlug}`,
+    );
+  }
+
+  const itemListName = collection
+    ? `${collection.name} example cards`
+    : "AniCards example card gallery";
+  const itemListDescription = collection
+    ? `${collection.description} Card types and variants in the ${collection.name} AniCards collection.`
+    : "Browsable AniCards example card inventory spanning every public gallery collection.";
+
+  return {
+    "@type": "ItemList",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#examples-list`,
+    name: itemListName,
+    description: itemListDescription,
+    url: canonicalUrl,
+    numberOfItems: catalog.cardTypes.length,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: catalog.cardTypes.map((cardType, index) => {
+      const cardCollection = getExampleCollectionByCategory(cardType.category);
+      const cardTypeUrl = `${resolveSiteUrl(
+        buildExamplesCollectionPath(cardCollection.slug),
+      )}#${getExampleCardTypeAnchorId(cardType.title)}`;
+
+      return {
+        "@type": "ListItem" as const,
+        position: index + 1,
+        item: {
+          "@type": "CreativeWork",
+          name: cardType.title,
+          description: cardType.description,
+          url: cardTypeUrl,
+        },
+      };
+    }),
+  };
+}
+
 function getBreadcrumbLabel(segment: string): string {
-  return (
+  const knownLabel =
     BREADCRUMB_SEGMENT_LABELS[
       segment as keyof typeof BREADCRUMB_SEGMENT_LABELS
-    ] ?? decodeURIComponent(segment)
-  );
+    ];
+
+  if (knownLabel) {
+    return knownLabel;
+  }
+
+  return decodeURIComponent(segment)
+    .split(/[-_]+/g)
+    .filter(Boolean)
+    .map((word) => `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`)
+    .join(" ");
 }
 
 function buildBreadcrumbListEntry(
@@ -438,6 +518,7 @@ function buildPageEntry(
       break;
     case "examples":
       pageEntry.about = buildReference(entityIds.softwareApplication);
+      pageEntry.mainEntity = buildReference(`${canonicalUrl}#examples-list`);
       break;
     case "home":
       pageEntry.about = buildReference(entityIds.organization);
@@ -546,6 +627,10 @@ export const generateStructuredData = (
 
   if (pageType === "projects") {
     entries.push(buildProjectsItemListEntry(canonicalUrl));
+  }
+
+  if (pageType === "examples") {
+    entries.push(buildExamplesItemListEntry(canonicalUrl, overrides));
   }
 
   if (pageType === "user" && overrides.profile?.username) {

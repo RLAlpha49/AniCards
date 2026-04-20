@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getSitemapIndexEntries, type SitemapIndexEntry } from "@/lib/seo";
-import { listPublicUserProfileSitemapEntries } from "@/lib/server/user-data";
+import { getStaticSitemapEntries, type SitemapEntry } from "@/lib/seo";
 import { resolveSiteUrl } from "@/lib/site-config";
 
 export const dynamic = "force-dynamic";
@@ -18,33 +17,27 @@ function escapeXml(value: string): string {
     .replaceAll("'", "&apos;");
 }
 
-function renderSitemapIndexEntry(entry: SitemapIndexEntry): string {
+function renderSitemapEntry(entry: SitemapEntry): string {
   const lastmod = entry.lastmod
     ? `
       <lastmod>${escapeXml(entry.lastmod)}</lastmod>`
     : "";
 
   return `
-    <sitemap>
+    <url>
       <loc>${escapeXml(resolveSiteUrl(entry.path))}</loc>${lastmod}
-    </sitemap>`;
+      <changefreq>${entry.changefreq}</changefreq>
+      <priority>${entry.priority}</priority>
+    </url>`;
 }
 
-/**
- * Builds the sitemap index XML string covering the static and profile shards and returns it as a cacheable XML response.
- * @returns {Promise<NextResponse>} Sitemap index response consumed by crawlers.
- * @source
- */
 export async function GET() {
-  const profileEntries = await listPublicUserProfileSitemapEntries();
-  const sitemaps = getSitemapIndexEntries(profileEntries)
-    .map(renderSitemapIndexEntry)
-    .join("");
+  const urls = getStaticSitemapEntries().map(renderSitemapEntry).join("");
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-  <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    ${sitemaps}
-  </sitemapindex>`;
+  <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    ${urls}
+  </urlset>`;
 
   return new NextResponse(sitemap, {
     headers: {

@@ -4,6 +4,12 @@ import { PROJECTS_PAGE_SOCIAL_PREVIEW } from "@/components/projects/constants";
 import { normalizePositiveIntegerString } from "@/lib/api/primitives";
 import { DEFAULT_EXAMPLE_USER_ID } from "@/lib/card-groups";
 import {
+  buildExamplesCollectionPath,
+  EXAMPLE_COLLECTIONS,
+  EXAMPLES_GALLERY_PATH,
+  getExampleCollectionBySlug,
+} from "@/lib/examples-collections";
+import {
   buildCanonicalUrl,
   getSiteUrlObject,
   resolveSiteUrl,
@@ -60,6 +66,11 @@ export interface SitemapEntry {
   path: string;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
+  lastmod?: string;
+}
+
+export interface SitemapIndexEntry {
+  path: string;
   lastmod?: string;
 }
 
@@ -632,6 +643,76 @@ export function getSearchPageSEOConfig({
   };
 }
 
+export function getExamplesPageSEOConfig({
+  routeType = "index",
+  collectionSlug,
+  search,
+}: {
+  routeType?: "index" | "gallery" | "collection" | "legacy";
+  collectionSlug?: string | null;
+  search?: SearchParamValue;
+} = {}): SEOConfig {
+  const hasSearch = Boolean(getSearchParamValue(search));
+
+  if (routeType === "legacy") {
+    return {
+      ...seoConfigs.examples,
+      robots: NOINDEX_ROBOTS,
+    };
+  }
+
+  if (routeType === "gallery") {
+    return {
+      ...seoConfigs.examples,
+      title: "Full Gallery & Card Variants",
+      description:
+        "Browse every AniCards example collection, compare card variants side by side, and open the editor with a clearer sense of which layout fits your AniList profile.",
+      keywords: [
+        ...seoConfigs.examples.keywords,
+        "full card gallery",
+        "anilist card variants",
+        "stat card gallery",
+      ],
+      canonical: EXAMPLES_GALLERY_PATH,
+      ...(hasSearch
+        ? {
+            robots: NOINDEX_ROBOTS,
+          }
+        : {}),
+    };
+  }
+
+  if (routeType === "collection") {
+    const collection = getExampleCollectionBySlug(collectionSlug);
+
+    if (!collection) {
+      return {
+        ...seoConfigs.examples,
+        ...(hasSearch
+          ? {
+              robots: NOINDEX_ROBOTS,
+            }
+          : {}),
+      };
+    }
+
+    return {
+      ...seoConfigs.examples,
+      title: `${collection.name} Examples`,
+      description: `${collection.description} Browse ${collection.name.toLowerCase()} AniCards examples, compare card variants, and carry the layout direction you like into the editor.`,
+      keywords: [...seoConfigs.examples.keywords, ...collection.keywords],
+      canonical: buildExamplesCollectionPath(collection.slug),
+      ...(hasSearch
+        ? {
+            robots: NOINDEX_ROBOTS,
+          }
+        : {}),
+    };
+  }
+
+  return seoConfigs.examples;
+}
+
 /**
  * Generate a Next.js-compatible Metadata object from a lightweight
  * SEOConfig shape. This ensures Title, Description, OpenGraph and
@@ -857,55 +938,138 @@ export const USER_PROFILE_SITEMAP_ENTRY = {
 } as const satisfies Pick<SitemapEntry, "changefreq" | "priority">;
 
 type StaticSitemapEntryDef = {
-  seoKey: Exclude<SEOPageKey, "user">;
+  path: string;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
   lastmod?: string;
 };
 
+export const STATIC_SITEMAP_PATH = "/sitemap-static.xml";
+export const PROFILE_SITEMAP_PATH = "/sitemap-profiles.xml";
+
+const EXAMPLES_LASTMOD = "2026-04-20";
+const ABOUT_LASTMOD = "2026-04-20";
+
 const staticSitemapEntryDefs = [
   {
-    seoKey: "home",
+    path: "/",
     priority: 1,
     changefreq: "daily",
+    lastmod: "2026-04-12",
   },
   {
-    seoKey: "search",
+    path: "/search",
     priority: 0.9,
     changefreq: "weekly",
+    lastmod: "2026-04-15",
   },
   {
-    seoKey: "examples",
+    path: "/examples",
     priority: 0.85,
     changefreq: "weekly",
+    lastmod: EXAMPLES_LASTMOD,
   },
   {
-    seoKey: "projects",
+    path: EXAMPLES_GALLERY_PATH,
+    priority: 0.78,
+    changefreq: "weekly",
+    lastmod: EXAMPLES_LASTMOD,
+  },
+  ...EXAMPLE_COLLECTIONS.map((collection) => ({
+    path: buildExamplesCollectionPath(collection.slug),
+    priority: 0.72,
+    changefreq: "weekly" as const,
+    lastmod: EXAMPLES_LASTMOD,
+  })),
+  {
+    path: "/projects",
     priority: 0.6,
     changefreq: "monthly",
+    lastmod: "2026-03-30",
   },
   {
-    seoKey: "about",
+    path: "/about",
     priority: 0.65,
     changefreq: "monthly",
+    lastmod: ABOUT_LASTMOD,
   },
   {
-    seoKey: "privacy",
+    path: "/privacy",
     priority: 0.55,
     changefreq: "yearly",
+    lastmod: "2026-04-20",
   },
   {
-    seoKey: "contact",
+    path: "/contact",
     priority: 0.6,
     changefreq: "yearly",
+    lastmod: "2026-03-30",
   },
 ] as const satisfies readonly StaticSitemapEntryDef[];
 
 export function getStaticSitemapEntries(): SitemapEntry[] {
-  return staticSitemapEntryDefs.map((entry) => ({
-    ...entry,
-    path: seoConfigs[entry.seoKey].canonical ?? "/",
-  }));
+  return staticSitemapEntryDefs.map((entry) => ({ ...entry }));
+}
+
+export function getLatestLastmod(
+  entries: readonly {
+    lastmod?: string;
+  }[],
+): string | undefined {
+  let latestLastmod: {
+    value: string;
+    timestamp: number;
+  } | null = null;
+
+  for (const entry of entries) {
+    if (!entry.lastmod) {
+      continue;
+    }
+
+    const timestamp = Date.parse(entry.lastmod);
+
+    if (Number.isNaN(timestamp)) {
+      continue;
+    }
+
+    if (!latestLastmod || timestamp > latestLastmod.timestamp) {
+      latestLastmod = {
+        value: entry.lastmod,
+        timestamp,
+      };
+    }
+  }
+
+  return latestLastmod?.value;
+}
+
+export function getSitemapIndexEntries(
+  profileEntries: readonly {
+    lastmod?: string;
+  }[] = [],
+): SitemapIndexEntry[] {
+  const staticEntries = getStaticSitemapEntries();
+  const latestStaticLastmod = getLatestLastmod(staticEntries);
+  const latestProfileLastmod = getLatestLastmod(profileEntries);
+
+  return [
+    {
+      path: STATIC_SITEMAP_PATH,
+      ...(latestStaticLastmod
+        ? {
+            lastmod: latestStaticLastmod,
+          }
+        : {}),
+    },
+    {
+      path: PROFILE_SITEMAP_PATH,
+      ...(latestProfileLastmod
+        ? {
+            lastmod: latestProfileLastmod,
+          }
+        : {}),
+    },
+  ];
 }
 
 export function getUserProfilePath(username: string): string {

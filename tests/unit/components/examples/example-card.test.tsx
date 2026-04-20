@@ -16,6 +16,7 @@ import type { ComponentProps } from "react";
 import { LIGHT_PREVIEW_COLOR_PRESET } from "@/lib/preview-theme";
 import type { SettingsSnapshot } from "@/lib/user-page-settings-io";
 import {
+  EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY,
   LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
   PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
 } from "@/lib/user-page-settings-templates";
@@ -147,6 +148,26 @@ function blockLocalStorageWrites() {
   };
 }
 
+function installClipboardWriteMock(
+  implementation: (text: string) => Promise<void>,
+): () => void {
+  const originalClipboard = globalThis.navigator.clipboard;
+
+  Object.defineProperty(globalThis.navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: implementation,
+    },
+  });
+
+  return () => {
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    });
+  };
+}
+
 describe("ExampleCard", () => {
   beforeAll(async () => {
     ({ ExampleCard } = await import("@/components/examples/ExampleCard"));
@@ -174,6 +195,7 @@ describe("ExampleCard", () => {
     try {
       const view = render(
         <ExampleCard
+          cardTypeId="animeStats"
           variant={createVariant()}
           cardTypeTitle="Anime Stats"
           previewColorPreset={LIGHT_PREVIEW_COLOR_PRESET}
@@ -211,9 +233,17 @@ describe("ExampleCard", () => {
 
     const view = render(
       <ExampleCard
+        cardTypeId="animeStats"
         variant={createVariant()}
         cardTypeTitle="Anime Stats"
         previewColorPreset={LIGHT_PREVIEW_COLOR_PRESET}
+        discoveryContext={{
+          source: "examples",
+          href: "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+          routeKind: "legacy",
+          collectionName: "Anime Deep Dive",
+          searchQuery: "Voice Actors",
+        }}
       />,
     );
 
@@ -229,5 +259,68 @@ describe("ExampleCard", () => {
         PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
       ),
     ).not.toBeNull();
+
+    expect(
+      JSON.parse(
+        globalThis.window.sessionStorage.getItem(
+          PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+        ) ?? "null",
+      ),
+    ).toMatchObject({
+      templateId: "example:anime-stats:minimal:light",
+      templateName: "Anime Stats — Minimal (Light)",
+      source: "examples",
+      exampleContext: {
+        cardTypeId: "animeStats",
+        cardTitle: "Anime Stats",
+        variantName: "Minimal",
+        themeLabel: "Light",
+      },
+      discoveryContext: {
+        href: "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+        routeKind: "legacy",
+        collectionName: "Anime Deep Dive",
+        searchQuery: "Voice Actors",
+      },
+    });
+    expect(
+      JSON.parse(
+        globalThis.window.sessionStorage.getItem(
+          EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY,
+        ) ?? "null",
+      ),
+    ).toMatchObject({
+      href: "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+      routeKind: "legacy",
+      collectionName: "Anime Deep Dive",
+      searchQuery: "Voice Actors",
+    });
+  });
+
+  it("shows a visible toast when clipboard copy fails", async () => {
+    const restoreClipboard = installClipboardWriteMock(() =>
+      Promise.reject(new Error("clipboard blocked")),
+    );
+
+    try {
+      const view = render(
+        <ExampleCard
+          cardTypeId="animeStats"
+          variant={createVariant()}
+          cardTypeTitle="Anime Stats"
+          previewColorPreset={LIGHT_PREVIEW_COLOR_PRESET}
+        />,
+      );
+
+      fireEvent.click(view.getByRole("button", { name: /copy embed url/i }));
+
+      await Promise.resolve();
+
+      expect(toast.error).toHaveBeenCalledWith("Couldn't copy preview URL", {
+        description: "Check clipboard permissions and try again.",
+      });
+    } finally {
+      restoreClipboard();
+    }
   });
 });

@@ -16,18 +16,24 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { getExampleCardTypeAnchorId } from "@/lib/examples-collections";
 import type { PreviewColorPreset } from "@/lib/preview-theme";
+import type { SearchLaunchDiscoveryContextInput } from "@/lib/user-page-settings-templates";
 
 import { ExampleCard } from "./ExampleCard";
-import type { ExampleCardType, ExampleIconKey } from "./types";
+import type { CategoryInfo, ExampleCardType, ExampleIconKey } from "./types";
 
 interface CategorySectionProps {
   category: string;
+  categoryInfo: CategoryInfo;
   cardTypes: ExampleCardType[];
   isFirstCategory: boolean;
   previewColorPreset: PreviewColorPreset | null;
+  discoveryContext?: SearchLaunchDiscoveryContextInput;
+  showCollectionLink?: boolean;
 }
 
 const CARD_TYPE_CHUNK_THRESHOLD = 6;
@@ -43,7 +49,7 @@ function getInitialVisibleCardTypeCount(totalCardTypes: number): number {
 }
 
 function buildCardTypeSignature(cardTypes: readonly ExampleCardType[]): string {
-  return cardTypes.map((cardType) => cardType.title).join("|");
+  return cardTypes.map((cardType) => cardType.id).join("|");
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -70,30 +76,6 @@ const CARD_TYPE_ICONS: Record<ExampleIconKey, LucideIcon> = {
   users: Users,
 };
 
-const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  "Core Stats":
-    "The essentials — a bird's-eye view of your anime and manga footprint",
-  "Anime Deep Dive":
-    "Granular breakdowns covering your anime genres, studios, and viewing habits",
-  "Manga Deep Dive":
-    "A closer look at what you read, how you read, and which titles define your taste",
-  "Activity & Engagement":
-    "Tracking the rhythm of your daily engagement — streaks, milestones, and peak days",
-  "Library & Progress":
-    "Your favourites, your backlog, and the milestones that matter — all in one place",
-  "Advanced Analytics":
-    "Side-by-side anime-vs-manga comparisons and the deeper patterns most people miss",
-};
-
-const CATEGORY_NUMBERS: Record<string, string> = {
-  "Core Stats": "01",
-  "Anime Deep Dive": "02",
-  "Manga Deep Dive": "03",
-  "Activity & Engagement": "04",
-  "Library & Progress": "05",
-  "Advanced Analytics": "06",
-};
-
 function CardTypeIconDisplay({
   iconKey,
 }: Readonly<{ iconKey: ExampleIconKey }>) {
@@ -104,9 +86,12 @@ function CardTypeIconDisplay({
 
 export function CategorySection({
   category,
+  categoryInfo,
   cardTypes,
   isFirstCategory,
   previewColorPreset,
+  discoveryContext,
+  showCollectionLink = false,
 }: Readonly<CategorySectionProps>) {
   const CategoryIcon = CATEGORY_ICONS[category] || BarChart2;
   const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
@@ -121,7 +106,7 @@ export function CategorySection({
     (sum, ct) => sum + ct.variants.length,
     0,
   );
-  const sectionNumber = CATEGORY_NUMBERS[category] || "00";
+  const sectionNumber = categoryInfo.indexLabel;
   const visibleCardTypes = useMemo(
     () => cardTypes.slice(0, visibleCardTypeCount),
     [cardTypes, visibleCardTypeCount],
@@ -183,23 +168,40 @@ export function CategorySection({
             </div>
 
             <p className="ml-11 max-w-md font-body-serif text-sm/relaxed text-foreground/35">
-              {CATEGORY_DESCRIPTIONS[category]}
+              {categoryInfo.sectionDescription}
             </p>
           </div>
         </div>
 
-        <div className="mt-2 flex w-full justify-center">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs whitespace-nowrap text-foreground/20 tabular-nums">
             {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
             {totalVariants} variant{totalVariants === 1 ? "" : "s"}
           </span>
+          {showCollectionLink && (
+            <Link
+              href={categoryInfo.href}
+              className="
+                text-[0.65rem] font-semibold tracking-[0.18em] text-gold/80 uppercase
+                transition-colors
+                hover:text-gold
+                focus-visible:text-gold focus-visible:outline-none
+              "
+            >
+              Open collection page
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Card type groups */}
       <div className="space-y-20">
         {visibleCardTypes.map((cardType, typeIndex) => (
-          <div key={cardType.title}>
+          <div
+            key={cardType.id}
+            id={getExampleCardTypeAnchorId(cardType.id)}
+            className="scroll-mt-32"
+          >
             {/* Card type header with line */}
             <div className="mb-6 flex items-center gap-4">
               <div className="flex items-center gap-2.5">
@@ -226,9 +228,11 @@ export function CategorySection({
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}
+                  cardTypeId={cardType.id}
                   variant={variant}
                   cardTypeTitle={cardType.title}
                   previewColorPreset={previewColorPreset}
+                  discoveryContext={discoveryContext}
                   index={variantIndex}
                 />
               ))}

@@ -7,6 +7,7 @@ import {
   buildUserSocialPreviewImage,
   generateMetadata,
   getDefaultSocialPreviewImage,
+  getExamplesPageSEOConfig,
   getSearchLookupMode,
   getSearchPagePath,
   getSearchPagePrefillQuery,
@@ -155,6 +156,52 @@ describe("SEO metadata helpers", () => {
     expect(openGraph?.url).toBe(resolveSiteUrl("/about"));
     expect(openGraph?.images).toEqual([previewImage]);
     expect(robots?.index).toBe(true);
+  });
+
+  it("keeps /examples canonical while giving clean gallery and collection routes their own canonicals", () => {
+    const legacyMetadata = generateMetadata(
+      getExamplesPageSEOConfig({ routeType: "legacy" }),
+    );
+    const galleryMetadata = generateMetadata(
+      getExamplesPageSEOConfig({ routeType: "gallery" }),
+    );
+    const gallerySearchMetadata = generateMetadata(
+      getExamplesPageSEOConfig({
+        routeType: "gallery",
+        search: "Voice Actors",
+      }),
+    );
+    const collectionMetadata = generateMetadata(
+      getExamplesPageSEOConfig({
+        routeType: "collection",
+        collectionSlug: "anime-deep-dive",
+      }),
+    );
+    const collectionSearchMetadata = generateMetadata(
+      getExamplesPageSEOConfig({
+        routeType: "collection",
+        collectionSlug: "anime-deep-dive",
+        search: "Voice Actors",
+      }),
+    );
+
+    expect(legacyMetadata.alternates?.canonical).toBe("/examples");
+    expect(getRobotsMetadata(legacyMetadata)?.index).toBe(false);
+
+    expect(galleryMetadata.alternates?.canonical).toBe("/examples/gallery");
+    expect(getOpenGraphMetadata(galleryMetadata)?.url).toBe(
+      resolveSiteUrl("/examples/gallery"),
+    );
+    expect(getRobotsMetadata(galleryMetadata)?.index).toBe(true);
+    expect(getRobotsMetadata(gallerySearchMetadata)?.index).toBe(false);
+
+    expect(collectionMetadata.alternates?.canonical).toBe(
+      "/examples/anime-deep-dive",
+    );
+    expect(getOpenGraphMetadata(collectionMetadata)?.url).toBe(
+      resolveSiteUrl("/examples/anime-deep-dive"),
+    );
+    expect(getRobotsMetadata(collectionSearchMetadata)?.index).toBe(false);
   });
 
   it("assigns distinct route-specific preview images to the static marketing pages", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,29 +13,25 @@ import {
   CTASection,
   type ExampleCategory,
   type ExamplesCatalogPayload,
+  type ExamplesCatalogSummary,
   ExamplesHeroSection,
   SearchFilterBar,
 } from "@/components/examples";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
+import {
+  buildExamplesCollectionPath,
+  buildExamplesGalleryPath,
+  EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM,
+  EXAMPLES_SEARCH_QUERY_PARAM,
+  getExampleCollectionFromLegacyValue,
+} from "@/lib/examples-collections";
+import {
+  rememberExamplesDiscoveryContext,
+  type SearchLaunchDiscoveryContextInput,
+} from "@/lib/user-page-settings-templates";
 
 const SEARCH_PAGE_HREF = "/search";
-const SEARCH_QUERY_PARAM = "search";
-const CATEGORY_QUERY_PARAM = "category";
-const EXAMPLES_CATEGORY_DESCRIPTIONS: Record<ExampleCategory, string> = {
-  "Core Stats":
-    "Start with the headline cards that summarize anime, manga, social, and profile-level stats before you dive into the more obsessive breakdowns.",
-  "Anime Deep Dive":
-    "Open the anime collection when you want a denser read on genres, studios, voice actors, scores, seasons, and the patterns buried in your watch history.",
-  "Manga Deep Dive":
-    "This collection focuses on reading habits, format splits, staff patterns, score spread, and the recurring traits that shape a manga-heavy profile.",
-  "Activity & Engagement":
-    "Use these cards to zoom in on recency, streaks, milestones, reviews, and the pace of your public AniList activity over time.",
-  "Library & Progress":
-    "These layouts surface favourites, backlog pressure, current titles, milestone moments, and the broader shape of a working library.",
-  "Advanced Analytics":
-    "When you want the comparison layer, this collection pairs anime and manga habits side by side so long-term preferences become easier to spot.",
-};
 
 function normalizeExamplesSearchText(value: string): string {
   return value
@@ -47,16 +44,16 @@ function parseExampleCategory(
   category: string | null,
   categories: ReadonlySet<ExampleCategory>,
 ): ExampleCategory | null {
-  if (!category) {
+  const collection = getExampleCollectionFromLegacyValue(category);
+
+  if (!collection) {
     return null;
   }
 
-  return categories.has(category as ExampleCategory)
-    ? (category as ExampleCategory)
-    : null;
+  return categories.has(collection.name) ? collection.name : null;
 }
 
-function buildFilterQueryString(
+function buildLegacyFilterQueryString(
   searchParams: Pick<URLSearchParams, "toString">,
   searchQuery: string,
   activeCategory: ExampleCategory | null,
@@ -65,43 +62,150 @@ function buildFilterQueryString(
   const trimmedSearchQuery = searchQuery.trim();
 
   if (trimmedSearchQuery.length > 0) {
-    params.set(SEARCH_QUERY_PARAM, trimmedSearchQuery);
+    params.set(EXAMPLES_SEARCH_QUERY_PARAM, trimmedSearchQuery);
   } else {
-    params.delete(SEARCH_QUERY_PARAM);
+    params.delete(EXAMPLES_SEARCH_QUERY_PARAM);
   }
 
   if (activeCategory) {
-    params.set(CATEGORY_QUERY_PARAM, activeCategory);
+    params.set(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM, activeCategory);
   } else {
-    params.delete(CATEGORY_QUERY_PARAM);
+    params.delete(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM);
   }
 
   return params.toString();
 }
 
+function buildSearchQueryString(
+  searchParams: Pick<URLSearchParams, "toString">,
+  searchQuery: string,
+): string {
+  const params = new URLSearchParams(searchParams.toString());
+  const trimmedSearchQuery = searchQuery.trim();
+
+  if (trimmedSearchQuery.length > 0) {
+    params.set(EXAMPLES_SEARCH_QUERY_PARAM, trimmedSearchQuery);
+  } else {
+    params.delete(EXAMPLES_SEARCH_QUERY_PARAM);
+  }
+
+  params.delete(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM);
+
+  return params.toString();
+}
+
+function CollectionRouteHeader({
+  categoryCount,
+  collectionCount,
+  description,
+  fullGalleryHref,
+  title,
+  variantCount,
+}: Readonly<{
+  categoryCount: number;
+  collectionCount: number;
+  description: string;
+  fullGalleryHref: string;
+  title: string;
+  variantCount: number;
+}>) {
+  return (
+    <section className="relative px-6 pt-28 pb-16 sm:px-12 md:pt-32 md:pb-22">
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <div className="
+          mb-6 flex flex-wrap items-center gap-3 text-[0.65rem] font-semibold tracking-[0.25em]
+          text-gold/70 uppercase
+        ">
+          <span>Collection</span>
+          <span className="text-gold/30">•</span>
+          <Link href="/examples" className="transition-colors hover:text-gold">
+            Examples index
+          </Link>
+          <span className="text-gold/30">•</span>
+          <Link
+            href={fullGalleryHref}
+            className="transition-colors hover:text-gold"
+          >
+            Full gallery
+          </Link>
+        </div>
+
+        <h1 className="
+          font-display text-4xl leading-[1.05] font-black tracking-tight
+          sm:text-5xl
+          md:text-6xl
+          lg:text-7xl
+        ">
+          <span className="text-foreground">{title}</span>
+        </h1>
+
+        <p className="
+          mt-6 max-w-3xl font-body-serif text-base/relaxed text-foreground/45
+          sm:text-lg/relaxed
+        ">
+          {description}
+        </p>
+
+        <div className="mt-12 flex flex-wrap items-end gap-12 sm:gap-16">
+          {[
+            { value: collectionCount, label: "Card Types" },
+            { value: variantCount, label: "Total Variants" },
+            { value: categoryCount, label: "Collections" },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <p className="font-display text-3xl leading-none font-black text-gold sm:text-4xl">
+                {stat.value}
+              </p>
+              <p className="mt-1.5 text-[0.6rem] tracking-[0.2em] text-foreground/30 uppercase">
+                {stat.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 interface ExamplesPageClientProps {
-  catalog: ExamplesCatalogPayload;
+  summary: ExamplesCatalogSummary;
+  catalog?: ExamplesCatalogPayload;
+  routeKind: "index" | "gallery" | "collection" | "legacy";
+  activeCategory?: ExampleCategory | null;
 }
 
 export default function ExamplesPageClient({
+  summary,
   catalog,
+  routeKind,
+  activeCategory = null,
 }: Readonly<ExamplesPageClientProps>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
   const [hasMounted, setHasMounted] = useState(false);
+  const isIndexRoute = routeKind === "index";
+  const isLegacyRoute = routeKind === "legacy";
   const categorySet = useMemo(
-    () => new Set<ExampleCategory>(catalog.categories),
-    [catalog.categories],
+    () => new Set<ExampleCategory>(summary.categories),
+    [summary.categories],
   );
   const [searchQuery, setSearchQuery] = useState(
-    () => searchParams.get(SEARCH_QUERY_PARAM) ?? "",
+    () => searchParams.get(EXAMPLES_SEARCH_QUERY_PARAM) ?? "",
   );
-  const [activeCategory, setActiveCategory] = useState<ExampleCategory | null>(
-    () =>
-      parseExampleCategory(searchParams.get(CATEGORY_QUERY_PARAM), categorySet),
-  );
-  const [showAllCollections, setShowAllCollections] = useState(false);
+  const [legacyActiveCategory, setLegacyActiveCategory] =
+    useState<ExampleCategory | null>(() =>
+      isLegacyRoute
+        ? parseExampleCategory(
+            searchParams.get(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM),
+            categorySet,
+          )
+        : null,
+    );
   const previewColorPreset = usePreviewColorPreset();
+  const currentActiveCategory = isLegacyRoute
+    ? legacyActiveCategory
+    : activeCategory;
 
   useEffect(() => {
     setHasMounted(true);
@@ -122,28 +226,41 @@ export default function ExamplesPageClient({
   );
 
   useEffect(() => {
-    const nextSearchQuery = searchParams.get(SEARCH_QUERY_PARAM) ?? "";
-    const nextActiveCategory = parseExampleCategory(
-      searchParams.get(CATEGORY_QUERY_PARAM),
-      categorySet,
-    );
+    const nextSearchQuery = searchParams.get(EXAMPLES_SEARCH_QUERY_PARAM) ?? "";
 
     setSearchQuery((currentSearchQuery) =>
       currentSearchQuery === nextSearchQuery
         ? currentSearchQuery
         : nextSearchQuery,
     );
-    setActiveCategory((currentActiveCategory) =>
-      currentActiveCategory === nextActiveCategory
-        ? currentActiveCategory
+
+    if (!isLegacyRoute) {
+      setLegacyActiveCategory(null);
+
+      const normalizedQueryString = buildSearchQueryString(
+        searchParams,
+        nextSearchQuery,
+      );
+
+      if (normalizedQueryString !== searchParams.toString()) {
+        replaceQueryString(normalizedQueryString);
+      }
+
+      return;
+    }
+
+    const nextActiveCategory = parseExampleCategory(
+      searchParams.get(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM),
+      categorySet,
+    );
+
+    setLegacyActiveCategory((currentCategory) =>
+      currentCategory === nextActiveCategory
+        ? currentCategory
         : nextActiveCategory,
     );
 
-    if (nextSearchQuery.trim().length > 0 || nextActiveCategory !== null) {
-      setShowAllCollections(false);
-    }
-
-    const normalizedQueryString = buildFilterQueryString(
+    const normalizedQueryString = buildLegacyFilterQueryString(
       searchParams,
       nextSearchQuery,
       nextActiveCategory,
@@ -152,38 +269,55 @@ export default function ExamplesPageClient({
     if (normalizedQueryString !== searchParams.toString()) {
       replaceQueryString(normalizedQueryString);
     }
-  }, [categorySet, replaceQueryString, searchParams]);
+  }, [categorySet, isLegacyRoute, replaceQueryString, searchParams]);
 
   const handleSearchChange = useCallback(
     (value: string) => {
       setSearchQuery(value);
       replaceQueryString(
-        buildFilterQueryString(searchParams, value, activeCategory),
+        isLegacyRoute
+          ? buildLegacyFilterQueryString(
+              searchParams,
+              value,
+              currentActiveCategory,
+            )
+          : buildSearchQueryString(searchParams, value),
       );
     },
-    [activeCategory, replaceQueryString, searchParams],
+    [currentActiveCategory, isLegacyRoute, replaceQueryString, searchParams],
   );
 
   const handleCategoryChange = useCallback(
     (category: string | null) => {
+      if (!isLegacyRoute) {
+        return;
+      }
+
       const nextActiveCategory =
         category === null ? null : parseExampleCategory(category, categorySet);
 
-      setActiveCategory(nextActiveCategory);
-      setShowAllCollections(category === null);
+      setLegacyActiveCategory(nextActiveCategory);
       replaceQueryString(
-        buildFilterQueryString(searchParams, searchQuery, nextActiveCategory),
+        buildLegacyFilterQueryString(
+          searchParams,
+          searchQuery,
+          nextActiveCategory,
+        ),
       );
     },
-    [categorySet, replaceQueryString, searchParams, searchQuery],
+    [categorySet, isLegacyRoute, replaceQueryString, searchParams, searchQuery],
   );
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
-    setActiveCategory(null);
-    setShowAllCollections(false);
-    replaceQueryString(buildFilterQueryString(searchParams, "", null));
-  }, [replaceQueryString, searchParams]);
+    if (isLegacyRoute) {
+      setLegacyActiveCategory(null);
+      replaceQueryString(buildLegacyFilterQueryString(searchParams, "", null));
+      return;
+    }
+
+    replaceQueryString(buildSearchQueryString(searchParams, ""));
+  }, [isLegacyRoute, replaceQueryString, searchParams]);
 
   const normalizedSearchQuery = useMemo(
     () => normalizeExamplesSearchText(searchQuery),
@@ -191,6 +325,10 @@ export default function ExamplesPageClient({
   );
 
   const searchMatchedCardTypes = useMemo(() => {
+    if (!catalog) {
+      return [];
+    }
+
     if (normalizedSearchQuery.length === 0) {
       return catalog.cardTypes;
     }
@@ -198,61 +336,98 @@ export default function ExamplesPageClient({
     return catalog.cardTypes.filter((card) =>
       card.searchText.includes(normalizedSearchQuery),
     );
-  }, [catalog.cardTypes, normalizedSearchQuery]);
+  }, [catalog, normalizedSearchQuery]);
 
   const hasActiveFilters =
-    normalizedSearchQuery.length > 0 || activeCategory !== null;
+    normalizedSearchQuery.length > 0 ||
+    (isLegacyRoute && currentActiveCategory !== null);
 
   const filteredCardTypes = useMemo(() => {
-    if (!activeCategory) {
+    if (!currentActiveCategory) {
       return searchMatchedCardTypes;
     }
 
     return searchMatchedCardTypes.filter(
-      (card) => card.category === activeCategory,
+      (card) => card.category === currentActiveCategory,
     );
-  }, [activeCategory, searchMatchedCardTypes]);
+  }, [currentActiveCategory, searchMatchedCardTypes]);
 
-  const navigationCategoryInfo = useMemo(
-    () =>
-      catalog.categories.map((category) => ({
-        name: category,
-        count: searchMatchedCardTypes.filter(
-          (card) => card.category === category,
-        ).length,
-      })),
-    [catalog.categories, searchMatchedCardTypes],
-  );
+  const navigationCategoryInfo = useMemo(() => {
+    const searchParam =
+      normalizedSearchQuery.length > 0 ? searchQuery : undefined;
 
-  const categorySummaries = useMemo(
-    () =>
-      catalog.categories.map((category) => {
-        const categoryCardTypes = catalog.cardTypes.filter(
-          (card) => card.category === category,
-        );
-
-        return {
-          name: category,
-          description: EXAMPLES_CATEGORY_DESCRIPTIONS[category],
-          cardTypeCount: categoryCardTypes.length,
-          variantCount: categoryCardTypes.reduce(
-            (sum, cardType) => sum + cardType.variants.length,
-            0,
-          ),
-        };
+    return summary.categoryInfo.map((categoryInfo) => ({
+      ...categoryInfo,
+      href: buildExamplesCollectionPath(categoryInfo.slug, {
+        search: searchParam,
       }),
-    [catalog.cardTypes, catalog.categories],
+      count:
+        routeKind === "collection"
+          ? categoryInfo.count
+          : searchMatchedCardTypes.filter(
+              (card) => card.category === categoryInfo.name,
+            ).length,
+    }));
+  }, [
+    normalizedSearchQuery.length,
+    routeKind,
+    searchMatchedCardTypes,
+    searchQuery,
+    summary.categoryInfo,
+  ]);
+
+  const categoryInfoByName = useMemo(
+    () =>
+      new Map(
+        navigationCategoryInfo.map((category) => [category.name, category]),
+      ),
+    [navigationCategoryInfo],
   );
 
-  const shouldRenderExpandedGallery =
-    normalizedSearchQuery.length > 0 ||
-    activeCategory !== null ||
-    showAllCollections;
+  const currentCategoryInfo = currentActiveCategory
+    ? (categoryInfoByName.get(currentActiveCategory) ?? null)
+    : null;
+  const currentDiscoverySearchQuery = useMemo(() => {
+    const nextSearchQuery = new URLSearchParams(searchParamsString).get(
+      EXAMPLES_SEARCH_QUERY_PARAM,
+    );
+    const normalizedQuery = nextSearchQuery?.trim();
 
-  const shouldRenderCollectionChooser =
-    normalizedSearchQuery.length === 0 &&
-    activeCategory === null &&
-    showAllCollections === false;
+    return normalizedQuery ? normalizedQuery : undefined;
+  }, [searchParamsString]);
+  const currentDiscoveryContext = useMemo<SearchLaunchDiscoveryContextInput>(
+    () => ({
+      source: "examples",
+      href: `${pathname}${searchParamsString ? `?${searchParamsString}` : ""}`,
+      routeKind,
+      collectionName:
+        currentCategoryInfo?.name ?? currentActiveCategory ?? undefined,
+      collectionSlug: currentCategoryInfo?.slug,
+      searchQuery: currentDiscoverySearchQuery,
+    }),
+    [
+      currentActiveCategory,
+      currentCategoryInfo?.name,
+      currentCategoryInfo?.slug,
+      currentDiscoverySearchQuery,
+      pathname,
+      routeKind,
+      searchParamsString,
+    ],
+  );
+  const handleCreateClick = useCallback(() => {
+    rememberExamplesDiscoveryContext(currentDiscoveryContext);
+  }, [currentDiscoveryContext]);
+
+  const shouldRenderExpandedGallery = !isIndexRoute;
+  const shouldRenderCollectionChooser = isIndexRoute;
+  const galleryHref = useMemo(
+    () =>
+      buildExamplesGalleryPath({
+        search: normalizedSearchQuery.length > 0 ? searchQuery : undefined,
+      }),
+    [normalizedSearchQuery.length, searchQuery],
+  );
 
   const emptyStateDescription =
     normalizedSearchQuery.length > 0
@@ -287,11 +462,10 @@ export default function ExamplesPageClient({
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-          {categorySummaries.map((category, index) => (
-            <button
+          {summary.categoryInfo.map((category) => (
+            <Link
               key={category.name}
-              type="button"
-              onClick={() => handleCategoryChange(category.name)}
+              href={category.href}
               className="
                 group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left transition-all
                 duration-300
@@ -304,11 +478,10 @@ export default function ExamplesPageClient({
                 <span className="
                   font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
                 ">
-                  {String(index + 1).padStart(2, "0")}
+                  {category.indexLabel}
                 </span>
                 <span className="text-xs text-foreground/25 tabular-nums">
-                  {category.cardTypeCount} types · {category.variantCount}{" "}
-                  variants
+                  {category.count} types · {category.variantCount} variants
                 </span>
               </div>
               <h3 className="
@@ -325,14 +498,13 @@ export default function ExamplesPageClient({
               ">
                 Open collection
               </span>
-            </button>
+            </Link>
           ))}
         </div>
 
         <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowAllCollections(true)}
+          <Link
+            href={buildExamplesGalleryPath()}
             className="
               border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em] text-gold
               uppercase transition-colors
@@ -342,21 +514,24 @@ export default function ExamplesPageClient({
             "
           >
             Load the full gallery
-          </button>
+          </Link>
         </div>
       </section>
     );
-  } else if (activeCategory) {
+  } else if (currentCategoryInfo) {
     galleryContent = (
       <CategorySection
-        key={activeCategory}
-        category={activeCategory}
+        key={currentCategoryInfo.name}
+        category={currentCategoryInfo.name}
+        categoryInfo={currentCategoryInfo}
         cardTypes={filteredCardTypes}
         isFirstCategory={true}
         previewColorPreset={previewColorPreset}
+        discoveryContext={currentDiscoveryContext}
+        showCollectionLink={false}
       />
     );
-  } else {
+  } else if (catalog) {
     galleryContent = catalog.categories.reduce<React.ReactNode[]>(
       (nodes, category, categoryIndex) => {
         const categoryCardTypes = filteredCardTypes.filter(
@@ -377,24 +552,35 @@ export default function ExamplesPageClient({
           );
         }
 
+        const sectionCategoryInfo = categoryInfoByName.get(category);
+
+        if (!sectionCategoryInfo) {
+          return nodes;
+        }
+
         nodes.push(
           <CategorySection
             key={category}
             category={category}
+            categoryInfo={sectionCategoryInfo}
             cardTypes={categoryCardTypes}
             isFirstCategory={categoryIndex === 0}
             previewColorPreset={previewColorPreset}
+            discoveryContext={currentDiscoveryContext}
+            showCollectionLink={routeKind === "gallery"}
           />,
         );
         return nodes;
       },
       [],
     );
+  } else {
+    galleryContent = null;
   }
 
   return (
     <ErrorBoundary
-      resetKeys={[searchQuery, activeCategory ?? ""]}
+      resetKeys={[searchQuery, currentActiveCategory ?? ""]}
       onReset={handleClearFilters}
     >
       <div
@@ -420,12 +606,24 @@ export default function ExamplesPageClient({
           "
         />
 
-        <ExamplesHeroSection
-          totalCardTypes={catalog.totalCardTypes}
-          totalVariants={catalog.totalVariants}
-          categoryCount={catalog.categories.length}
-          createHref={SEARCH_PAGE_HREF}
-        />
+        {routeKind === "collection" && currentCategoryInfo && catalog ? (
+          <CollectionRouteHeader
+            categoryCount={summary.categoryInfo.length}
+            collectionCount={catalog.totalCardTypes}
+            description={currentCategoryInfo.description}
+            fullGalleryHref={galleryHref}
+            title={currentCategoryInfo.name}
+            variantCount={catalog.totalVariants}
+          />
+        ) : (
+          <ExamplesHeroSection
+            totalCardTypes={catalog?.totalCardTypes ?? summary.totalCardTypes}
+            totalVariants={catalog?.totalVariants ?? summary.totalVariants}
+            categoryCount={summary.categories.length}
+            createHref={SEARCH_PAGE_HREF}
+            onCreateClick={handleCreateClick}
+          />
+        )}
 
         <motion.div
           variants={fadeUp}
@@ -441,33 +639,41 @@ export default function ExamplesPageClient({
           <div className="gold-line max-w-24 flex-1" />
         </motion.div>
 
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4"
-        >
-          <div className="border border-gold/8 bg-background/85 backdrop-blur-xl">
-            <div className="px-5 pt-4 pb-0">
-              <div className="mb-3">
-                <SearchFilterBar
-                  searchQuery={searchQuery}
-                  onSearchChange={handleSearchChange}
-                  resultCount={filteredCardTypes.length}
-                  totalCount={catalog.totalCardTypes}
-                  hasActiveFilters={hasActiveFilters}
-                  onClearFilters={handleClearFilters}
+        {catalog && (
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={VIEWPORT_ONCE}
+            className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4"
+          >
+            <div className="border border-gold/8 bg-background/85 backdrop-blur-xl">
+              <div className="px-5 pt-4 pb-0">
+                <div className="mb-3">
+                  <SearchFilterBar
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    resultCount={filteredCardTypes.length}
+                    totalCount={catalog.totalCardTypes}
+                    hasActiveFilters={hasActiveFilters}
+                    onClearFilters={handleClearFilters}
+                  />
+                </div>
+                <CategoryNavigation
+                  categories={navigationCategoryInfo}
+                  activeCategory={currentActiveCategory}
+                  {...(isLegacyRoute
+                    ? {
+                        onCategoryClick: handleCategoryChange,
+                      }
+                    : {
+                        allHref: galleryHref,
+                      })}
                 />
               </div>
-              <CategoryNavigation
-                categories={navigationCategoryInfo}
-                activeCategory={activeCategory}
-                onCategoryClick={handleCategoryChange}
-              />
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
         <motion.section
           variants={fadeUp}
@@ -523,7 +729,10 @@ export default function ExamplesPageClient({
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
         >
-          <CTASection createHref={SEARCH_PAGE_HREF} />
+          <CTASection
+            createHref={SEARCH_PAGE_HREF}
+            onCreateClick={handleCreateClick}
+          />
         </motion.div>
       </div>
     </ErrorBoundary>
