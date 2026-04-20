@@ -4,9 +4,9 @@
  * The cron route updates the oldest stored users in small batches so cached
  * profiles stay reasonably fresh without overwhelming AniList, and it removes
  * records only after repeated 404s to distinguish deleted accounts from
- * transient upstream failures. The repository's cron contract lives in
- * `vercel.json`, and this route returns capacity/budget context so operators can
- * see when the fixed cadence no longer meets the 24-hour freshness goal.
+ * transient upstream failures. The repo-managed cadence is declared in the
+ * constants below, and this route returns capacity/budget context so operators
+ * can see when the fixed cadence no longer meets the 24-hour freshness goal.
  */
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
@@ -35,15 +35,20 @@ import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import { categorizeError } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import {
-  ALL_USER_DATA_PARTS,
   deleteUserRecord,
   fetchUserDataParts,
   listStalestUserIds,
-  reconstructUserRecord,
+  quarantineCorruptUserRefreshCandidate,
+  removeUserFromRefreshIndex,
   saveUserRecord,
   USER_BOOTSTRAP_DATA_PARTS,
+  UserDataIntegrityError,
 } from "@/lib/server/user-data";
-import type { UserStatsData } from "@/lib/types/records";
+import type {
+  PersistedRequestMetadata,
+  PersistedUserRecord,
+  UserStatsData,
+} from "@/lib/types/records";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
@@ -61,11 +66,8 @@ type UpdateResult =
     };
 
 const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
-const USER_REFRESH_DEFERRED_DATA_PARTS = ALL_USER_DATA_PARTS.filter(
-  (part) => part !== "meta",
-);
 const CRON_REFRESH_BATCH_SIZE = 5;
-const CRON_REFRESH_SCHEDULE = "0 */20 * * *";
+const CRON_REFRESH_SCHEDULE = "0 */6 * * *";
 const CRON_REFRESH_RUNS_PER_DAY = 4;
 
 type AniListUserStatsData = UserStatsData & {
@@ -180,6 +182,8 @@ type CronRefreshBatchCounts = {
 };
 
 type StoredCronRefreshMeta = {
+  createdAt?: string;
+  requestMetadata?: PersistedRequestMetadata;
   userId?: string;
   username?: string;
 };
@@ -203,6 +207,25 @@ function resolveStoredCronRefreshUsername(meta: StoredCronRefreshMeta): string {
   return "no username";
 }
 
+function resolveRefreshedCronUsername(
+  statsData: AniListUserStatsData,
+  meta: StoredCronRefreshMeta,
+  fallbackUserId: string,
+): string {
+  const statsUsername =
+    typeof statsData.User?.name === "string" ? statsData.User.name.trim() : "";
+
+  if (statsUsername.length > 0) {
+    return statsUsername;
+  }
+
+  if (typeof meta.username === "string" && meta.username.length > 0) {
+    return meta.username;
+  }
+
+  return fallbackUserId;
+}
+
 function aggregateCronRefreshBatchCounts(
   results: readonly CronRefreshBatchCounts[],
 ): CronRefreshBatchCounts {
@@ -222,14 +245,46 @@ function aggregateCronRefreshBatchCounts(
 }
 
 function normalizeRefreshedUserRecord(
-  user: ReturnType<typeof reconstructUserRecord>,
-) {
+  user: PersistedUserRecord,
+): PersistedUserRecord {
   const normalizationResult = validateAndNormalizeUserRecord(user);
   if ("normalized" in normalizationResult) {
-    return normalizationResult.normalized;
+    return {
+      ...user,
+      ...normalizationResult.normalized,
+      createdAt: user.createdAt,
+      requestMetadata: user.requestMetadata,
+      updatedAt: user.updatedAt,
+      userId: user.userId,
+      username: user.username,
+    };
   }
 
   return user;
+}
+
+function buildRefreshedCronUserRecord(params: {
+  meta: StoredCronRefreshMeta;
+  statsData: AniListUserStatsData;
+  trackedUserId: string;
+  updatedAt: string;
+}): PersistedUserRecord {
+  return {
+    createdAt:
+      typeof params.meta.createdAt === "string" &&
+      params.meta.createdAt.length > 0
+        ? params.meta.createdAt
+        : params.updatedAt,
+    requestMetadata: params.meta.requestMetadata,
+    stats: params.statsData,
+    updatedAt: params.updatedAt,
+    userId: params.trackedUserId,
+    username: resolveRefreshedCronUsername(
+      params.statsData,
+      params.meta,
+      params.trackedUserId,
+    ),
+  };
 }
 
 async function loadStoredCronRefreshMeta(params: {
@@ -276,40 +331,67 @@ async function loadStoredCronRefreshMeta(params: {
 }
 
 async function persistScheduledCronRefreshUser(params: {
-  endpoint: string;
   trackedUserId: string;
-  metaParts: Awaited<ReturnType<typeof fetchUserDataParts>>;
+  meta: StoredCronRefreshMeta;
   statsData: AniListUserStatsData;
   setStage: (stage: CronUserRefreshStage) => void;
 }): Promise<string> {
-  params.setStage("fetch_user_data_parts");
-  const remainingParts = await fetchUserDataParts(
-    params.trackedUserId,
-    [...USER_REFRESH_DEFERRED_DATA_PARTS],
-    {
-      audit: false,
-      triggerSource: "cron_refresh",
-    },
-  );
-
   params.setStage("reconstruct_user_record");
-  const user = reconstructUserRecord({
-    ...remainingParts,
-    meta: params.metaParts.meta,
+  const user = buildRefreshedCronUserRecord({
+    meta: params.meta,
+    statsData: params.statsData,
+    trackedUserId: params.trackedUserId,
+    updatedAt: new Date().toISOString(),
   });
-  const resolvedTrackedUserId = user.userId || params.trackedUserId;
-  user.stats = params.statsData;
 
   params.setStage("normalize_user_record");
   const finalUser = normalizeRefreshedUserRecord(user);
-  finalUser.updatedAt = new Date().toISOString();
 
   params.setStage("save_user_record");
   await saveUserRecord(finalUser, {
     triggerSource: "cron_refresh",
   });
 
-  return resolvedTrackedUserId;
+  return finalUser.userId || params.trackedUserId;
+}
+
+async function pruneUnreadableScheduledRefreshCandidate(params: {
+  endpoint: string;
+  error: unknown;
+  request?: Request;
+  userId: string;
+}): Promise<void> {
+  if (params.error instanceof UserDataIntegrityError) {
+    await quarantineCorruptUserRefreshCandidate(params.userId, {
+      errorMessage: params.error.message,
+    });
+    logPrivacySafe(
+      "warn",
+      params.endpoint,
+      "Quarantined unreadable user from scheduled refresh queue",
+      {
+        userId: params.userId,
+      },
+      params.request,
+    );
+    return;
+  }
+
+  if (
+    params.error instanceof Error &&
+    params.error.message === "Stored user metadata is missing"
+  ) {
+    await removeUserFromRefreshIndex(params.userId);
+    logPrivacySafe(
+      "warn",
+      params.endpoint,
+      "Removed stale scheduled refresh candidate with missing metadata",
+      {
+        userId: params.userId,
+      },
+      params.request,
+    );
+  }
 }
 
 async function abortScheduledCronRefreshUpdate(
@@ -357,7 +439,7 @@ async function processScheduledUserRefresh(params: {
       endpoint,
       request,
     });
-    const { metaParts } = metaLoad;
+    const { meta } = metaLoad;
     trackedUserId = metaLoad.trackedUserId;
 
     setStage("refresh_user_stats");
@@ -387,9 +469,8 @@ async function processScheduledUserRefresh(params: {
     }
 
     trackedUserId = await persistScheduledCronRefreshUser({
-      endpoint,
+      meta,
       trackedUserId,
-      metaParts,
       statsData: updateResult.statsData,
       setStage,
     });
@@ -416,6 +497,15 @@ async function processScheduledUserRefresh(params: {
         updateResultPromise,
         updateAbortController,
       );
+    }
+
+    if (stage === "fetch_user_data_parts") {
+      await pruneUnreadableScheduledRefreshCandidate({
+        endpoint,
+        error,
+        request,
+        userId: trackedUserId,
+      });
     }
 
     await reportCronUserRefreshError({

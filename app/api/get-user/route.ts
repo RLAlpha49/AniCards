@@ -26,10 +26,8 @@ import {
   ALL_USER_DATA_PARTS,
   fetchUserDataSnapshot,
   normalizeUsernameIndexValue,
-  PersistedUserState,
   reconstructPublicUserRecord,
   reconstructUserBootstrapRecord,
-  repairStaleUsernameAlias,
   USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
 
@@ -235,36 +233,6 @@ async function resolveLookupTarget(
   return { userId, normalizedLookupUsername };
 }
 
-async function handleStaleUsernameAlias(
-  request: Request,
-  userId: number,
-  normalizedLookupUsername: string,
-  startTime: number,
-  canonicalUsername?: string,
-  state?: PersistedUserState | null,
-): Promise<Response> {
-  logPrivacySafe(
-    "warn",
-    USER_API_ENDPOINT,
-    "Detected stale username alias that no longer matches stored record",
-    {
-      userId,
-      username: normalizedLookupUsername,
-    },
-    request,
-  );
-
-  await repairStaleUsernameAlias({
-    userId,
-    attemptedUsername: normalizedLookupUsername,
-    canonicalUsername,
-    state,
-  });
-
-  trackUserApiFailure(request, Date.now() - startTime, "stale_username_alias");
-  return apiErrorResponse(request, 404, "User not found");
-}
-
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
  * @param request - Incoming request with query parameters and headers.
@@ -360,14 +328,22 @@ export async function GET(request: Request) {
       normalizedLookupUsername &&
       persistedNormalizedUsername !== normalizedLookupUsername
     ) {
-      return handleStaleUsernameAlias(
+      logPrivacySafe(
+        "warn",
+        USER_API_ENDPOINT,
+        "Detected stale username alias that no longer matches stored record",
+        {
+          userId: numericUserId,
+          username: normalizedLookupUsername,
+        },
         request,
-        numericUserId,
-        normalizedLookupUsername,
-        startTime,
-        canonicalUsername,
-        userDataState,
       );
+      trackUserApiFailure(
+        request,
+        Date.now() - startTime,
+        "stale_username_alias",
+      );
+      return apiErrorResponse(request, 404, "User not found");
     }
 
     logPrivacySafe(

@@ -19,6 +19,7 @@ import {
   sharedRedisMockPipelineExec,
   sharedRedisMockRpush,
   sharedRedisMockSadd,
+  sharedRedisMockScan,
   sharedRedisMockSet,
   sharedRedisMockSmembers,
   sharedRedisMockSrem,
@@ -329,7 +330,7 @@ describe("Cron API Route", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(
-      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
     );
   });
 
@@ -355,7 +356,7 @@ describe("Cron API Route", () => {
       "Updated 0/0 users successfully. Failed: 0, Removed: 0",
     );
     expect(text).toContain(
-      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
     );
     expect(text).toContain(
       "Refresh capacity budget: 5 users/run, 20 users/day.",
@@ -408,7 +409,7 @@ describe("Cron API Route", () => {
       "Updated 5/5 users successfully. Failed: 0, Removed: 0",
     );
     expect(text).toContain(
-      "Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).",
+      "Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).",
     );
     expect(text).toContain(
       "Refresh capacity budget: 5 users/run, 20 users/day.",
@@ -453,7 +454,7 @@ describe("Cron API Route", () => {
     });
   });
 
-  it("waits for bootstrap meta validation before starting AniList refresh and defers the remaining split parts until success", async () => {
+  it("waits for bootstrap meta validation before starting AniList refresh and avoids rereading deferred split parts after success", async () => {
     mockUserRecords(["123"]);
     const deferredMetaParts = createDeferredPromise<(string | null)[]>();
     const deferredResponse = createDeferredPromise<Response>();
@@ -490,18 +491,7 @@ describe("Cron API Route", () => {
     const response = await responsePromise;
 
     expect(response.status).toBe(200);
-    expect(sharedRedisMockMget).toHaveBeenCalledTimes(2);
-    expect(sharedRedisMockMget.mock.calls[1]).toEqual([
-      "user:123:activity",
-      "user:123:favourites",
-      "user:123:statistics",
-      "user:123:pages",
-      "user:123:planning",
-      "user:123:current",
-      "user:123:rewatched",
-      "user:123:completed",
-      "user:123:aggregates",
-    ]);
+    expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
   });
 
   it("skips AniList refreshes when bootstrap metadata loading fails", async () => {
@@ -778,13 +768,12 @@ describe("Cron API Route", () => {
   });
 
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
-    sharedRedisMockSmembers.mockRejectedValueOnce(
+    sharedRedisMockScan.mockRejectedValueOnce(
       new Error("Redis connection error"),
     );
     const scanFailure = await POST(createCronRequest());
     await expectApiErrorResponse(scanFailure, 500, "Cron job failed");
 
-    sharedRedisMockSmembers.mockResolvedValueOnce(["123"]);
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "user:123:commit") {
         return Promise.reject(new Error("Redis error"));
@@ -792,6 +781,10 @@ describe("Cron API Route", () => {
 
       return Promise.resolve(null);
     });
+    sharedRedisMockScan.mockImplementationOnce(async () => [
+      0,
+      ["user:123:commit"],
+    ]);
     const getFailure = await POST(createCronRequest());
     await expectApiErrorResponse(getFailure, 500, "Cron job failed");
   });

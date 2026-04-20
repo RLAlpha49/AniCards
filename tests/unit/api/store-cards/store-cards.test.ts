@@ -642,6 +642,7 @@ describe("Store Cards API POST Endpoint", () => {
 
       const userId = 4343;
       const currentUpdatedAt = "2025-02-03T03:03:03.000Z";
+      const currentSnapshotToken = `snapshot-${userId}`;
 
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
@@ -663,6 +664,8 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         userId,
         statsData: {},
+        ifMatchRevision: 7,
+        ifMatchSnapshotToken: currentSnapshotToken,
         ifMatchUpdatedAt: currentUpdatedAt,
         cards: [
           {
@@ -684,9 +687,66 @@ describe("Store Cards API POST Endpoint", () => {
           `user:${userId}:meta`,
           `user:${userId}`,
         ],
-        [currentUpdatedAt, expect.any(String), expect.any(String)],
+        [
+          currentUpdatedAt,
+          expect.any(String),
+          expect.any(String),
+          "7",
+          currentSnapshotToken,
+        ],
       );
       expect(sharedRedisMockSet).toHaveBeenCalledWith(
+        `cards:${userId}`,
+        expect.any(String),
+      );
+    });
+
+    it("should return 409 when the live user snapshot moved after the caller captured compare tokens", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4345;
+      const currentUpdatedAt = "2025-02-03T03:03:03.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchRevision: 5,
+        ifMatchSnapshotToken: "snapshot-stale",
+        ifMatchUpdatedAt: currentUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+      await expect(res.json()).resolves.toMatchObject({
+        error:
+          "Conflict: data was updated elsewhere. Please reload and try again.",
+        retryable: false,
+      });
+      expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
         `cards:${userId}`,
         expect.any(String),
       );

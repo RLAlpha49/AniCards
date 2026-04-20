@@ -78,6 +78,12 @@ Rather than writing a single large JSON blob, AniCards stores broader sections s
 
 That split lets card rendering and API handlers load only what they actually need, while still allowing the app to reconstruct a bounded public user DTO when needed. The live `user:{id}:{part}` keys are stable; historical state lives in the commit metadata instead.
 
+The stale-user refresh queue is maintained separately as a sorted set keyed by
+stored `updatedAt`. Save/delete paths keep that index hot, while periodic repair
+passes rebuild it from bounded key scans and quarantine unreadable users out of
+the refresh queue instead of repeatedly retrying corrupt records on every cron
+run.
+
 ### Card configuration
 
 Saved editor state is stored separately in `cards:{userId}` records, with a lightweight `cards:{userId}:meta` companion used for renderer cache stamps and hot reads:
@@ -93,7 +99,11 @@ Saved editor state is stored separately in `cards:{userId}` records, with a ligh
 
 `/api/store-cards` merges incoming per-card/global patches into the existing record, keeps omitted settings intact, strips unsupported legacy entries on write, and persists only explicit card configs. Untouched default-disabled supported cards are synthesized later from the stored `cardOrder` signal plus the current supported-card catalog rather than being materialized on every save.
 
-Both user snapshot and card settings writes require compare-and-set tokens on updates. `ifMatchUpdatedAt` remains the browser-facing compatibility token, while split user writes also bind the atomic save to revision/snapshot metadata and card writes can carry the same user snapshot tokens when callers want to pin saves to a specific committed user snapshot.
+Both user snapshot and card settings writes require compare-and-set tokens on updates. `ifMatchUpdatedAt` remains the browser-facing compatibility token, while split user writes also bind the atomic save to revision/snapshot metadata. Card writes now push that user-snapshot check into the same Redis compare-and-set script that writes the cards record, so a stale `ifMatchRevision` / `ifMatchSnapshotToken` cannot race past the live user commit pointer between the merge read and the final write.
+
+If a durable stored cards record loses its linked parent user snapshot, public
+`/api/get-cards` reads now prune the orphaned cards record and return a
+deterministic 404 recovery path instead of surfacing that condition as a 500.
 
 ## External services
 

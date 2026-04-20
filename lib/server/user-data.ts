@@ -81,6 +81,7 @@ export const USER_RECORD_SCHEMA_VERSION = 2;
 const USER_COMMITTED_READ_SHAPE = "committed-user-snapshot-v1";
 const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
 const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
+const USER_REFRESH_QUARANTINE_KEY = "users:refresh-quarantine";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
 const USER_LIFECYCLE_AUDIT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
@@ -96,6 +97,9 @@ const USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_MS =
 const USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_LEASE_KEY = `${USER_PRIVACY_RIGHTS_EVIDENCE_KEY}:prune-lease`;
 const USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_INTERVAL_SECONDS = 24 * 60 * 60;
 const USER_REFRESH_INDEX_REPAIR_BATCH_SIZE = 25;
+const USER_REFRESH_INDEX_REPAIR_LEASE_KEY = `${USER_REFRESH_INDEX_KEY}:repair-lease`;
+const USER_REFRESH_INDEX_REPAIR_INTERVAL_SECONDS = 24 * 60 * 60;
+const USER_REFRESH_SCAN_BATCH_SIZE = 100;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 const USER_BOUNDED_SECTIONS = [
   "activity",
@@ -252,6 +256,19 @@ export interface MaintainerUserDataExportPackage {
   userState: PersistedUserState | null;
 }
 
+type RedisScanCursor = number | string;
+
+type RedisScanResult = [RedisScanCursor, string[]];
+
+type RedisKeyScanner = {
+  scan(
+    cursor: RedisScanCursor,
+    options?: {
+      count?: number;
+      match?: string;
+    },
+  ): Promise<RedisScanResult>;
+};
 export class UserDataIntegrityError extends Error {
   readonly kind = "corrupt" as const;
   readonly userId: string;
@@ -373,13 +390,6 @@ interface UserAggregates {
 export interface DeleteUserRecordResult {
   deletedKeys: string[];
   usernameIndexKeys: string[];
-}
-
-interface UserRefreshIndexRepairResult {
-  indexedUserCount: number;
-  prunedRegistryUserIds: string[];
-  removedIndexedUserIds: string[];
-  repairedUserIds: string[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */
@@ -2420,237 +2430,147 @@ async function loadLegacyCompatibleUserDataParts(
 }
 
 async function rebuildUserRefreshIndex(): Promise<number> {
-  const userIds = await readTrackedUserIds();
+  const keyScanner = redisClient as unknown as RedisKeyScanner;
+  const discoveredUserIds = new Set<string>();
 
-  if (userIds.length === 0) {
-    return 0;
-  }
+  const readScanMatches = async (match: string) => {
+    let cursor: RedisScanCursor = 0;
 
-  const states = await Promise.all(
-    userIds.map(async (candidateUserId) => {
-      try {
-        return await getPersistedUserState(candidateUserId);
-      } catch (error) {
-        if (error instanceof UserDataIntegrityError) {
-          logPrivacySafe(
-            "warn",
-            "User Data",
-            "Skipping corrupt user while rebuilding stale-user index",
-            {
-              userId: candidateUserId,
-              error: error.message,
-            },
-          );
-          return null;
+    do {
+      const [nextCursor, keys] = await keyScanner.scan(cursor, {
+        count: USER_REFRESH_SCAN_BATCH_SIZE,
+        match,
+      });
+
+      (Array.isArray(keys) ? keys : []).forEach((key) => {
+        const commitMatch = /^user:(\d+):commit$/.exec(key);
+        if (commitMatch?.[1]) {
+          discoveredUserIds.add(commitMatch[1]);
+          return;
         }
 
-        throw error;
-      }
-    }),
-  );
-
-  const validStates = states.filter(
-    (state): state is PersistedUserState => state !== null,
-  );
-
-  if (validStates.length === 0) {
-    return 0;
-  }
-
-  const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
-  validStates.forEach((state) => {
-    pipeline.zadd(USER_REFRESH_INDEX_KEY, {
-      score: getUpdatedAtScore(state.updatedAt),
-      member: state.userId,
-    });
-  });
-  await pipeline.exec();
-
-  return validStates.length;
-}
-
-async function repairMissingUserRefreshIndexEntries(
-  userIds: string[],
-): Promise<
-  Pick<
-    UserRefreshIndexRepairResult,
-    "prunedRegistryUserIds" | "repairedUserIds"
-  >
-> {
-  const prunedRegistryUserIds: string[] = [];
-  const repairedUserIds: string[] = [];
-
-  if (userIds.length === 0) {
-    return {
-      prunedRegistryUserIds,
-      repairedUserIds,
-    };
-  }
-
-  const states = await Promise.all(
-    userIds.map(async (candidateUserId) => {
-      try {
-        return {
-          state: await getPersistedUserState(candidateUserId),
-          userId: candidateUserId,
-        };
-      } catch (error) {
-        if (error instanceof UserDataIntegrityError) {
-          logPrivacySafe(
-            "warn",
-            "User Data",
-            "Skipping corrupt user while repairing stale-user index drift",
-            {
-              userId: candidateUserId,
-              error: error.message,
-            },
-          );
-          return {
-            state: undefined,
-            userId: candidateUserId,
-          };
+        const metaMatch = /^user:(\d+):meta$/.exec(key);
+        if (metaMatch?.[1]) {
+          discoveredUserIds.add(metaMatch[1]);
+          return;
         }
 
-        throw error;
-      }
-    }),
+        const legacyMatch = /^user:(\d+)$/.exec(key);
+        if (legacyMatch?.[1]) {
+          discoveredUserIds.add(legacyMatch[1]);
+        }
+      });
+
+      cursor = nextCursor;
+    } while (String(cursor) !== "0");
+  };
+
+  await Promise.all([
+    readScanMatches("user:*:commit"),
+    readScanMatches("user:*:meta"),
+    readScanMatches("user:*"),
+  ]);
+
+  const quarantinedUserIds = new Set(
+    (await redisSetClient.smembers(USER_REFRESH_QUARANTINE_KEY))
+      .map(String)
+      .filter((candidate) => /^\d+$/.test(candidate)),
+  );
+  const candidateUserIds = Array.from(discoveredUserIds).filter(
+    (userId) => !quarantinedUserIds.has(userId),
   );
 
   const validStates: PersistedUserState[] = [];
-  states.forEach(({ state, userId }) => {
-    if (state === null) {
-      prunedRegistryUserIds.push(userId);
-      return;
-    }
+  const prunedUserIds: string[] = [];
+  const quarantinedDuringRepair: string[] = [];
 
-    if (!state) {
-      return;
-    }
-
-    validStates.push(state);
-    repairedUserIds.push(state.userId);
-  });
-
-  if (validStates.length > 0) {
-    const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
-    validStates.forEach((state) => {
-      pipeline.zadd(USER_REFRESH_INDEX_KEY, {
-        score: getUpdatedAtScore(state.updatedAt),
-        member: state.userId,
-      });
-    });
-    await pipeline.exec();
-  }
-
-  if (prunedRegistryUserIds.length > 0) {
-    await redisSetClient.srem(
-      USER_REFRESH_REGISTRY_KEY,
-      ...prunedRegistryUserIds,
-    );
-  }
-
-  return {
-    prunedRegistryUserIds,
-    repairedUserIds,
-  };
-}
-
-async function repairUserRefreshIndexDrift(
-  trackedUserIds: string[],
-  indexedUserCount: number,
-): Promise<UserRefreshIndexRepairResult> {
-  const indexedUserIds =
-    indexedUserCount > 0
-      ? (
-          await redisSortedSetClient.zrange(
-            USER_REFRESH_INDEX_KEY,
-            0,
-            Math.max(0, indexedUserCount - 1),
-          )
-        ).map(String)
-      : [];
-  const trackedUserIdSet = new Set(trackedUserIds);
-  const indexedUserIdSet = new Set(indexedUserIds);
-  const missingUserIds = trackedUserIds.filter(
-    (userId) => !indexedUserIdSet.has(userId),
-  );
-  const removedIndexedUserIds = indexedUserIds.filter(
-    (userId) => !trackedUserIdSet.has(userId),
-  );
-  const prunedRegistryUserIds: string[] = [];
-  const repairedUserIds: string[] = [];
-
-  // Drain drift in bounded slices so a single repair pass can catch up large
-  // backlogs without turning one Redis repair into an unbounded fan-out.
   for (
     let startIndex = 0;
-    startIndex < missingUserIds.length;
+    startIndex < candidateUserIds.length;
     startIndex += USER_REFRESH_INDEX_REPAIR_BATCH_SIZE
   ) {
-    const batchUserIds = missingUserIds.slice(
+    const batchUserIds = candidateUserIds.slice(
       startIndex,
       startIndex + USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
     );
-    const batchRepairResult =
-      await repairMissingUserRefreshIndexEntries(batchUserIds);
+    const states = await Promise.all(
+      batchUserIds.map(async (candidateUserId) => {
+        try {
+          return {
+            state: await getPersistedUserState(candidateUserId),
+            userId: candidateUserId,
+          };
+        } catch (error) {
+          if (error instanceof UserDataIntegrityError) {
+            await quarantineCorruptUserRefreshCandidate(candidateUserId, {
+              errorMessage: error.message,
+            });
+            quarantinedDuringRepair.push(candidateUserId);
+            return {
+              state: undefined,
+              userId: candidateUserId,
+            };
+          }
 
-    prunedRegistryUserIds.push(...batchRepairResult.prunedRegistryUserIds);
-    repairedUserIds.push(...batchRepairResult.repairedUserIds);
+          throw error;
+        }
+      }),
+    );
+    states.forEach(({ state, userId }) => {
+      if (state === null) {
+        prunedUserIds.push(userId);
+        return;
+      }
+
+      if (!state) {
+        return;
+      }
+
+      validStates.push(state);
+    });
   }
 
-  if (removedIndexedUserIds.length > 0) {
-    await redisSortedSetClient.zrem(
-      USER_REFRESH_INDEX_KEY,
-      ...removedIndexedUserIds,
+  if (prunedUserIds.length > 0) {
+    await Promise.all(
+      prunedUserIds.map((userId) => removeUserFromRefreshIndex(userId)),
     );
   }
 
-  const indexedUserCountAfterRepair = Number(
-    await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
-  );
-  const remainingMissingUserCount = Math.max(
-    0,
-    missingUserIds.length -
-      repairedUserIds.length -
-      prunedRegistryUserIds.length,
-  );
+  await redisClient.del(USER_REFRESH_INDEX_KEY);
 
-  if (
-    repairedUserIds.length > 0 ||
-    prunedRegistryUserIds.length > 0 ||
-    removedIndexedUserIds.length > 0
+  for (
+    let startIndex = 0;
+    startIndex < validStates.length;
+    startIndex += USER_REFRESH_INDEX_REPAIR_BATCH_SIZE
   ) {
+    const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
+    validStates
+      .slice(startIndex, startIndex + USER_REFRESH_INDEX_REPAIR_BATCH_SIZE)
+      .forEach((state) => {
+        pipeline.zadd(USER_REFRESH_INDEX_KEY, {
+          score: getUpdatedAtScore(state.updatedAt),
+          member: state.userId,
+        });
+      });
+    await pipeline.exec();
+  }
+
+  if (prunedUserIds.length > 0 || quarantinedDuringRepair.length > 0) {
     logPrivacySafe(
       "warn",
       "User Data",
-      "Incrementally repaired stale-user index drift",
+      "Rebuilt stale-user index from bounded storage scans",
       {
-        indexedCountAfterRepair: indexedUserCountAfterRepair,
-        indexedCountBeforeRepair: indexedUserCount,
-        missingUserCount: missingUserIds.length,
-        prunedRegistryUserCount: prunedRegistryUserIds.length,
-        remainingMissingUserCount,
-        registryCount: trackedUserIds.length,
-        removedIndexedUserCount: removedIndexedUserIds.length,
-        repairedUserCount: repairedUserIds.length,
-        repairBatchSize: USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
-        repairFullyDrained: remainingMissingUserCount === 0,
-        repairPassCount:
-          missingUserIds.length === 0
-            ? 0
-            : Math.ceil(
-                missingUserIds.length / USER_REFRESH_INDEX_REPAIR_BATCH_SIZE,
-              ),
+        discoveredUserCount: candidateUserIds.length,
+        indexedUserCount: validStates.length,
+        prunedUserCount: prunedUserIds.length,
+        quarantinedUserCount: quarantinedDuringRepair.length,
+        scanBatchSize: USER_REFRESH_SCAN_BATCH_SIZE,
       },
     );
   }
 
-  return {
-    indexedUserCount: indexedUserCountAfterRepair,
-    prunedRegistryUserIds,
-    removedIndexedUserIds,
-    repairedUserIds,
-  };
+  return validStates.length;
 }
 
 export async function listStalestUserIds(
@@ -2662,16 +2582,13 @@ export async function listStalestUserIds(
 
   if (totalUsers === 0) {
     totalUsers = await rebuildUserRefreshIndex();
-  } else {
-    const trackedUserIds = await readTrackedUserIds();
-
-    if (trackedUserIds.length !== totalUsers) {
-      const repairResult = await repairUserRefreshIndexDrift(
-        trackedUserIds,
-        totalUsers,
-      );
-      totalUsers = repairResult.indexedUserCount;
-    }
+  } else if (
+    await tryAcquireMaintenanceLease(
+      USER_REFRESH_INDEX_REPAIR_LEASE_KEY,
+      USER_REFRESH_INDEX_REPAIR_INTERVAL_SECONDS,
+    )
+  ) {
+    totalUsers = await rebuildUserRefreshIndex();
   }
 
   if (totalUsers === 0 || limit <= 0) {
@@ -4000,6 +3917,7 @@ export async function saveUserRecord(
     });
   }
 
+  await redisSetClient.srem(USER_REFRESH_QUARANTINE_KEY, userId);
   await auditUserLifecycleEvent({
     action: "save",
     triggerSource: options?.triggerSource ?? "user_data_save",
@@ -4089,6 +4007,7 @@ export async function deleteUserRecord(
       [normalizedUserId, JSON.stringify([...ALL_USER_DATA_PARTS])],
     ),
   );
+  await redisSetClient.srem(USER_REFRESH_QUARANTINE_KEY, normalizedUserId);
   await auditUserLifecycleEvent({
     action: "delete",
     triggerSource: options?.triggerSource ?? "user_data_delete",
@@ -4110,6 +4029,50 @@ export async function releaseUnpinnedRetainedUserSnapshot(
     ],
     [JSON.stringify([...ALL_USER_DATA_PARTS])],
   );
+}
+
+/**
+ * Removes a user from refresh tracking and quarantine bookkeeping.
+ */
+export async function removeUserFromRefreshIndex(
+  userId: string | number,
+): Promise<void> {
+  const normalizedUserId = String(userId);
+
+  await Promise.all([
+    redisSetClient.srem(USER_REFRESH_QUARANTINE_KEY, normalizedUserId),
+    redisSetClient.srem(USER_REFRESH_REGISTRY_KEY, normalizedUserId),
+    redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, normalizedUserId),
+  ]);
+}
+
+export async function quarantineCorruptUserRefreshCandidate(
+  userId: string | number,
+  options?: {
+    errorMessage?: string;
+  },
+): Promise<void> {
+  const normalizedUserId = String(userId);
+  const addedToQuarantine = Number(
+    await redisSetClient.sadd(USER_REFRESH_QUARANTINE_KEY, normalizedUserId),
+  );
+
+  await Promise.all([
+    redisSetClient.srem(USER_REFRESH_REGISTRY_KEY, normalizedUserId),
+    redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, normalizedUserId),
+  ]);
+
+  if (addedToQuarantine > 0) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Quarantined unreadable user from stale-user refresh queue",
+      {
+        ...(options?.errorMessage ? { error: options.errorMessage } : {}),
+        userId: normalizedUserId,
+      },
+    );
+  }
 }
 
 /**

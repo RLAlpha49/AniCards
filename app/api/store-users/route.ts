@@ -173,60 +173,17 @@ function resolveStoreUsersCompareConflict(params: {
     return null;
   }
 
-  const currentRevision =
-    params.existingState.revision > 0
-      ? params.existingState.revision
-      : undefined;
-  const currentSnapshotToken = params.existingState.snapshot?.token;
-  const currentUpdatedAt = params.existingState.updatedAt;
-
   if (!hasStoreUsersCompareToken(params)) {
     return createStoreUsersConflictResponse({
       endpoint: params.endpoint,
       endpointKey: params.endpointKey,
-      currentRevision,
-      currentSnapshotToken,
+      currentRevision:
+        params.existingState.revision > 0
+          ? params.existingState.revision
+          : undefined,
+      currentSnapshotToken: params.existingState.snapshot?.token,
       request: params.request,
-      currentUpdatedAt,
-    });
-  }
-
-  if (params.ifMatchUpdatedAt && currentUpdatedAt !== params.ifMatchUpdatedAt) {
-    return createStoreUsersConflictResponse({
-      endpoint: params.endpoint,
-      endpointKey: params.endpointKey,
-      currentRevision,
-      currentSnapshotToken,
-      request: params.request,
-      currentUpdatedAt,
-    });
-  }
-
-  if (
-    typeof params.ifMatchRevision === "number" &&
-    currentRevision !== params.ifMatchRevision
-  ) {
-    return createStoreUsersConflictResponse({
-      endpoint: params.endpoint,
-      endpointKey: params.endpointKey,
-      currentRevision,
-      currentSnapshotToken,
-      request: params.request,
-      currentUpdatedAt,
-    });
-  }
-
-  if (
-    params.ifMatchSnapshotToken &&
-    currentSnapshotToken !== params.ifMatchSnapshotToken
-  ) {
-    return createStoreUsersConflictResponse({
-      endpoint: params.endpoint,
-      endpointKey: params.endpointKey,
-      currentRevision,
-      currentSnapshotToken,
-      request: params.request,
-      currentUpdatedAt,
+      currentUpdatedAt: params.existingState.updatedAt,
     });
   }
 

@@ -8,6 +8,7 @@ import {
   captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
+  sharedRedisMockEval,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockLtrim,
@@ -497,6 +498,7 @@ describe("User API GET Endpoint", () => {
 
       await expectError("username=alice", 404, "User not found");
       expect(sharedRedisMockDel).not.toHaveBeenCalledWith("username:alice");
+      expect(sharedRedisMockEval).not.toHaveBeenCalled();
     });
   });
 

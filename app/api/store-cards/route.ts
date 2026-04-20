@@ -988,6 +988,17 @@ local function write_next_record()
     return {2}
   end
 
+  local expectedRevision = tonumber(ARGV[4])
+  local expectedSnapshotToken = type(ARGV[5]) == "string" and string.len(ARGV[5]) > 0 and ARGV[5] or nil
+
+  if expectedRevision and userSnapshot["revision"] ~= expectedRevision then
+    return {3}
+  end
+
+  if expectedSnapshotToken and userSnapshot["token"] ~= expectedSnapshotToken then
+    return {3}
+  end
+
   local currentRecord = parse_json_object(current)
   local currentVersion = currentRecord and tonumber(currentRecord["version"]) or 0
   local nextVersion = currentVersion and currentVersion > 0 and (currentVersion + 1) or 1
@@ -1050,7 +1061,7 @@ type StoreCardsAtomicWriteResult =
   | {
       didWrite: false;
       currentUpdatedAt?: string;
-      reason: "conflict" | "missing_user_snapshot";
+      reason: "conflict" | "missing_user_snapshot" | "user_snapshot_conflict";
     };
 
 type SuccessfulStoreCardsAtomicWriteResult = Extract<
@@ -1259,18 +1270,10 @@ async function enforceIfMatchUpdatedAt(params: {
   existingData: unknown;
   existingRecord: CardsRecord | undefined;
   ifMatchUpdatedAt: string | undefined;
-  ifMatchRevision: number | undefined;
-  ifMatchSnapshotToken: string | undefined;
   routeContext: StoreCardsRouteContext;
 }): Promise<IfMatchUpdatedAtCheckResult> {
-  const {
-    existingData,
-    existingRecord,
-    ifMatchUpdatedAt,
-    ifMatchRevision,
-    ifMatchSnapshotToken,
-    routeContext,
-  } = params;
+  const { existingData, existingRecord, ifMatchUpdatedAt, routeContext } =
+    params;
 
   if (typeof existingData !== "string" || existingData.length === 0) {
     return { shouldEnforceAtomicCheck: false };
@@ -1286,33 +1289,6 @@ async function enforceIfMatchUpdatedAt(params: {
 
   if (!existingRecord || !existingUpdatedAt) {
     return createStoreCardsIfMatchConflictResult(undefined, routeContext);
-  }
-
-  if (
-    typeof ifMatchRevision === "number" &&
-    existingRecord.userSnapshot?.revision !== ifMatchRevision
-  ) {
-    return createStoreCardsIfMatchConflictResult(
-      existingUpdatedAt,
-      routeContext,
-    );
-  }
-
-  if (
-    ifMatchSnapshotToken &&
-    existingRecord.userSnapshot?.token !== ifMatchSnapshotToken
-  ) {
-    return createStoreCardsIfMatchConflictResult(
-      existingUpdatedAt,
-      routeContext,
-    );
-  }
-
-  if (existingUpdatedAt !== ifMatchUpdatedAt) {
-    return createStoreCardsIfMatchConflictResult(
-      existingUpdatedAt,
-      routeContext,
-    );
   }
 
   return {
@@ -1415,12 +1391,21 @@ function parseStoreCardsAtomicWriteResult(
     };
   }
 
+  if (status === 3) {
+    return {
+      didWrite: false,
+      reason: "user_snapshot_conflict",
+    };
+  }
+
   createUnexpectedStoreCardsAtomicWriteError();
 }
 
 async function storeCardsRecord(params: {
   cardsKey: string;
   expectedSerializedCurrentRecord?: string;
+  ifMatchRevision?: number;
+  ifMatchSnapshotToken?: string;
   userId: number;
   serializedCardData: string;
   ifMatchUpdatedAt?: string;
@@ -1429,6 +1414,8 @@ async function storeCardsRecord(params: {
   const {
     cardsKey,
     expectedSerializedCurrentRecord,
+    ifMatchRevision,
+    ifMatchSnapshotToken,
     userId,
     serializedCardData,
     ifMatchUpdatedAt,
@@ -1448,6 +1435,8 @@ async function storeCardsRecord(params: {
       ifMatchUpdatedAt && shouldEnforceAtomicCheck ? ifMatchUpdatedAt : "",
       serializedCardData,
       expectedSerializedCurrentRecord ?? "",
+      typeof ifMatchRevision === "number" ? String(ifMatchRevision) : "",
+      ifMatchSnapshotToken ?? "",
     ],
   );
 
@@ -1465,18 +1454,9 @@ async function loadExistingStoreCardsState(params: {
   cardsKey: string;
   userId: number;
   ifMatchUpdatedAt?: string;
-  ifMatchRevision?: number;
-  ifMatchSnapshotToken?: string;
   routeContext: StoreCardsRouteContext;
 }): Promise<LoadedStoreCardsState | { errorResponse: NextResponse }> {
-  const {
-    cardsKey,
-    userId,
-    ifMatchUpdatedAt,
-    ifMatchRevision,
-    ifMatchSnapshotToken,
-    routeContext,
-  } = params;
+  const { cardsKey, userId, ifMatchUpdatedAt, routeContext } = params;
 
   const existingData = await redisClient.get(cardsKey);
   const existingRecord = parseExistingCardsRecord(
@@ -1491,8 +1471,6 @@ async function loadExistingStoreCardsState(params: {
     existingData,
     existingRecord,
     ifMatchUpdatedAt,
-    ifMatchRevision,
-    ifMatchSnapshotToken,
     routeContext,
   });
   if (ifMatchCheck.conflictResponse) {
@@ -2092,8 +2070,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       cardsKey,
       userId,
       ifMatchUpdatedAt,
-      ifMatchRevision,
-      ifMatchSnapshotToken,
       routeContext,
     });
     if ("errorResponse" in existingState) return existingState.errorResponse;
@@ -2117,6 +2093,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       cardsKey,
       expectedSerializedCurrentRecord:
         existingState.ifMatchCheck.expectedSerializedCurrentRecord,
+      ifMatchRevision,
+      ifMatchSnapshotToken,
       userId,
       serializedCardData: JSON.stringify(cardData),
       ifMatchUpdatedAt,

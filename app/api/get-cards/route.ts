@@ -24,6 +24,8 @@ const anonymousRatelimit = createRateLimiter({
 const CARDS_API_ENDPOINT = "Cards API";
 const CARDS_API_FAILED_METRIC = "analytics:cards_api:failed_requests";
 const CARDS_API_SUCCESS_METRIC = "analytics:cards_api:successful_requests";
+const MISSING_STORED_CARDS_SNAPSHOT_MESSAGE =
+  "Card configuration snapshot is no longer available. Try to regenerate the card.";
 
 function trackCardsApiMetric(
   metric: string,
@@ -41,6 +43,10 @@ function trackCardsApiMetric(
     request,
     taskName: metric,
   });
+}
+
+async function pruneOrphanedStoredCardsRecord(userId: number): Promise<void> {
+  await redisClient.del(`cards:${userId}`, `cards:${userId}:meta`);
 }
 
 /**
@@ -148,10 +154,11 @@ export async function GET(request: Request) {
       );
 
       if (!parentSnapshotState) {
+        await pruneOrphanedStoredCardsRecord(numericUserId);
         logPrivacySafe(
           "warn",
           endpoint,
-          "Stored cards record lost its parent user snapshot",
+          "Stored cards record lost its parent user snapshot and was pruned",
           { userId: numericUserId },
           request,
         );
@@ -160,10 +167,10 @@ export async function GET(request: Request) {
         });
         return apiErrorResponse(
           request,
-          500,
-          "Stored cards record is incomplete or corrupted",
+          404,
+          MISSING_STORED_CARDS_SNAPSHOT_MESSAGE,
           {
-            category: "server_error",
+            category: "user_not_found",
             retryable: false,
           },
         );

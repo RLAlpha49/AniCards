@@ -678,7 +678,9 @@ paths:
         on round-trip instead of treating the `cards` array as the full
         ordering source. Read responses preserve already-stored legacy
         unsupported `cardName` values so older embeds remain visible until the
-        next successful `/api/store-cards` write.
+        next successful `/api/store-cards` write. If a durable cards record has
+        lost its linked parent user snapshot, the route prunes that orphaned
+        record and returns a recoverable 404 instead of a 500.
       parameters:
         - in: query
           name: userId
@@ -751,7 +753,7 @@ paths:
                     status: 400
                     recoverySuggestions: []
         "404":
-          description: "No cards stored for that user"
+          description: "No cards stored for that user, or an orphaned durable cards record was pruned"
           content:
             application/json:
               schema:
@@ -760,6 +762,13 @@ paths:
                 notFound:
                   value:
                     error: "Cards not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
+                missingSnapshot:
+                  value:
+                    error: "Card configuration snapshot is no longer available. Try to regenerate the card."
                     category: "user_not_found"
                     retryable: false
                     status: 404
@@ -993,8 +1002,8 @@ paths:
         request-proof cookie, and a short-lived per-user protected write grant
         for the same user. `/api/store-cards` accepts either the stronger
         stats-bound grant minted by `/api/anilist` `GetUserStats` or the
-        lighter `stored_user` grant refreshed by `/api/get-user` and
-        successful stored writes. The current repository does not expose a
+        lighter `stored_user` grant refreshed by successful stored writes. The
+        current repository does not expose a
         public self-serve deletion or export endpoint for this stored
         server-side data. Reads may still return legacy unsupported card IDs,
         but writes only accept current `CardType` values and strip unsupported
@@ -1002,7 +1011,9 @@ paths:
         update an existing stored record must include the latest
         `ifMatchUpdatedAt` compare token; callers may also send the matching
         user `ifMatchRevision` and `ifMatchSnapshotToken` when they want to
-        pin the save to a specific stored user snapshot.
+        pin the save to a specific stored user snapshot, and the atomic Redis
+        write will reject the save if the live user commit pointer moved before
+        the cards record was written.
       requestBody:
         required: true
         content:
@@ -1108,6 +1119,13 @@ paths:
                     retryable: false
                     status: 400
                     recoverySuggestions: []
+                invalidCardOrder:
+                  value:
+                    error: "Invalid cardOrder"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "403":
@@ -1125,7 +1143,7 @@ paths:
                     status: 403
                     recoverySuggestions: []
         "409":
-          description: "Missing or stale compare-and-set token"
+          description: "Missing or stale compare-and-set token, or missing linked user snapshot"
           content:
             application/json:
               schema:
@@ -1139,6 +1157,13 @@ paths:
                     status: 409
                     recoverySuggestions: []
                     currentUpdatedAt: "2026-03-21T10:10:00.000Z"
+                missingUserSnapshot:
+                  value:
+                    error: "Conflict: a persisted user snapshot is required before saving cards. Please reload user data and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "503":
@@ -1915,7 +1940,7 @@ paths:
                   value: |-
                     Updated 5/5 users successfully. Failed: 0, Removed: 0
 
-                    Repo-managed refresh schedule: 0 */20 * * * (4 runs/day).
+                    Repo-managed refresh schedule: 0 */6 * * * (4 runs/day).
                     Refresh capacity budget: 5 users/run, 20 users/day.
                     Current stored users: 18. Estimated full-sweep window: ~24 hours.
                     Current footprint fits within the repo-managed 24-hour freshness budget.

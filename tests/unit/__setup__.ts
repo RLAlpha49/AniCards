@@ -187,6 +187,21 @@ function getPositiveNumber(value: unknown): number | undefined {
   return typeof value === "number" && value > 0 ? value : undefined;
 }
 
+function getPositiveNumericValue(value: unknown): number | undefined {
+  if (typeof value === "number" && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
 function getEvalCurrentSnapshotToken(
   existingState: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -850,6 +865,8 @@ async function emulateAtomicStoreCardsEval(
     rawExpectedUpdatedAt,
     rawSerializedCardData,
     rawExpectedSerializedCurrent,
+    rawExpectedRevision,
+    rawExpectedSnapshotToken,
   ] = args;
 
   if (
@@ -863,6 +880,10 @@ async function emulateAtomicStoreCardsEval(
     getEvalStoreCardsExpectedString(rawExpectedUpdatedAt);
   const expectedSerializedCurrent = getEvalStoreCardsExpectedString(
     rawExpectedSerializedCurrent,
+  );
+  const expectedRevision = getPositiveNumericValue(rawExpectedRevision);
+  const expectedSnapshotToken = getEvalStoreCardsExpectedString(
+    rawExpectedSnapshotToken,
   );
 
   const fetchedCurrentRawRecord = await sharedRedisMockGet(cardsKey);
@@ -908,6 +929,17 @@ async function emulateAtomicStoreCardsEval(
 
   if (!userSnapshot) {
     return [2];
+  }
+
+  if (
+    expectedRevision !== undefined &&
+    userSnapshot.revision !== expectedRevision
+  ) {
+    return [3];
+  }
+
+  if (expectedSnapshotToken && userSnapshot.token !== expectedSnapshotToken) {
+    return [3];
   }
 
   const currentVersion = getEvalStoreCardsCurrentVersion(currentRawRecord);
@@ -996,7 +1028,7 @@ export async function defaultRedisEval(
     return emulateAtomicUserDeleteEval(keyList, argList);
   }
 
-  if (keyList.length === 5 && argList.length === 3) {
+  if (keyList.length === 5 && argList.length === 5) {
     return emulateAtomicStoreCardsEval(keyList, argList);
   }
 

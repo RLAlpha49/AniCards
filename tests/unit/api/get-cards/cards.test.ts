@@ -4,6 +4,7 @@ import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
+  sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockSet,
@@ -319,6 +320,44 @@ describe("Cards API GET Endpoint", () => {
       expect(res.status).toBe(500);
       const json = await getResponseJson(res);
       expect(json.error).toBe("Stored cards record is incomplete or corrupted");
+    });
+
+    it("should prune orphaned durable cards and return a recoverable 404", async () => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
+        if (key === "cards:123") {
+          return Promise.resolve(
+            JSON.stringify({
+              userId: 123,
+              cards: [{ cardName: "animeStats", titleColor: "#000" }],
+              updatedAt: "2026-03-28T00:00:00.000Z",
+              userSnapshot: {
+                token: "snapshot-123",
+                revision: 7,
+                updatedAt: "2026-03-27T00:00:00.000Z",
+                committedAt: "2026-03-27T00:00:01.000Z",
+              },
+            }),
+          );
+        }
+
+        return Promise.resolve(null);
+      });
+
+      const req = new Request(`${baseUrl}?userId=123`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(404);
+      expect(await getResponseJson(res)).toMatchObject({
+        error:
+          "Card configuration snapshot is no longer available. Try to regenerate the card.",
+        retryable: false,
+      });
+      expect(sharedRedisMockDel).toHaveBeenCalledWith(
+        "cards:123",
+        "cards:123:meta",
+      );
     });
 
     it("should track failed requests analytics on invalid userId", async () => {
