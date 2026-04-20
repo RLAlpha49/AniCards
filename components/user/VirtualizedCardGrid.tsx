@@ -29,15 +29,15 @@ function buildVirtualizedGridStyleText(args: {
   virtualRows: ReadonlyArray<{ index: number; start: number }>;
   scrollMargin: number;
 }): string {
-  const innerRule = `[data-virtual-grid="${args.scopeId}"] [data-virtual-grid-inner="true"] { height: ${formatCssPixelValue(args.totalSize)}; }`;
-  const rowRules = args.virtualRows
-    .map(
+  const ruleLines = [
+    `[data-virtual-grid="${args.scopeId}"] [data-virtual-grid-inner="true"] { height: ${formatCssPixelValue(args.totalSize)}; }`,
+    ...args.virtualRows.map(
       (virtualRow) =>
         `[data-virtual-grid="${args.scopeId}"] [data-virtual-grid-row="${virtualRow.index}"] { transform: translateY(${formatCssPixelValue(virtualRow.start - args.scrollMargin)}); }`,
-    )
-    .join("\n");
+    ),
+  ];
 
-  return `${innerRule}${rowRules ? `\n${rowRules}` : ""}`;
+  return ruleLines.join("\n");
 }
 
 function getBreakpointColumnCount(containerWidth: number): number {

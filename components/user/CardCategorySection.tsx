@@ -37,7 +37,7 @@ function sanitizeDynamicCssValue(
 ): string | null {
   if (!value) return null;
 
-  const sanitizedValue = value.replace(/[{};]/g, "").trim();
+  const sanitizedValue = value.replaceAll(/[{};]/g, "").trim();
   return sanitizedValue.length > 0 ? sanitizedValue : null;
 }
 const VIRTUALIZATION_THRESHOLD = 18;

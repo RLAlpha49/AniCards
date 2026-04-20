@@ -69,6 +69,22 @@ function renderGradientDefinition(
   );
 }
 
+function getColorValueSwatchFill(options: {
+  gradientId: string;
+  sanitizedGradient: GradientDefinition | null;
+  value: ColorValue;
+}): string {
+  if (options.sanitizedGradient) {
+    return `url(#${options.gradientId})`;
+  }
+
+  if (typeof options.value === "string") {
+    return options.value;
+  }
+
+  return getGradientRenderFallbackColor(options.value, "#000000");
+}
+
 export function ColorValueSwatch({
   className,
   cornerRadius = 0,
@@ -78,15 +94,17 @@ export function ColorValueSwatch({
   value,
   ...props
 }: Readonly<ColorValueSwatchProps>) {
-  const gradientId = useId().replaceAll(":", "");
+  const idBase = useId().replaceAll(":", "");
+  const gradientId = `${idBase}-gradient`;
+  const titleId = `${idBase}-title`;
   const sanitizedGradient = isGradient(value)
     ? sanitizeGradientForSvg(value)
     : null;
-  const fill = sanitizedGradient
-    ? `url(#${gradientId})`
-    : typeof value === "string"
-      ? value
-      : getGradientRenderFallbackColor(value, "#000000");
+  const fill = getColorValueSwatchFill({
+    gradientId,
+    sanitizedGradient,
+    value,
+  });
 
   return (
     <svg
@@ -94,10 +112,10 @@ export function ColorValueSwatch({
       preserveAspectRatio={preserveAspectRatio}
       className={cn("block", className)}
       aria-hidden={title ? undefined : true}
-      role={title ? "img" : undefined}
+      aria-labelledby={title ? titleId : undefined}
       {...props}
     >
-      {title ? <title>{title}</title> : null}
+      {title ? <title id={titleId}>{title}</title> : null}
       {sanitizedGradient ? (
         <defs>{renderGradientDefinition(sanitizedGradient, gradientId)}</defs>
       ) : null}
