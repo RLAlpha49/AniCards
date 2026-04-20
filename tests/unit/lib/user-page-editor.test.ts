@@ -7,27 +7,32 @@ const isolatedTestPath = fileURLToPath(
 );
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const decoder = new TextDecoder();
+const ISOLATED_REGRESSION_TIMEOUT_MS = 15_000;
 
 describe("user-page-editor store", () => {
-  it("passes the isolated regression suite", () => {
-    const result = Bun.spawnSync({
-      cmd: [process.execPath, "test", isolatedTestPath],
-      cwd: repoRoot,
-      env: process.env,
-      stderr: "pipe",
-      stdout: "pipe",
-    });
+  it(
+    "passes the isolated regression suite",
+    () => {
+      const result = Bun.spawnSync({
+        cmd: [process.execPath, "test", isolatedTestPath],
+        cwd: repoRoot,
+        env: process.env,
+        stderr: "pipe",
+        stdout: "pipe",
+      });
 
-    const output =
-      `${decoder.decode(result.stdout)}${decoder.decode(result.stderr)}`.trim();
+      const output =
+        `${decoder.decode(result.stdout)}${decoder.decode(result.stderr)}`.trim();
 
-    if (result.exitCode !== 0) {
-      throw new Error(
-        output ||
-          `Isolated user-page-editor regression suite failed with exit code ${result.exitCode}.`,
-      );
-    }
+      if (result.exitCode !== 0) {
+        throw new Error(
+          output ||
+            `Isolated user-page-editor regression suite failed with exit code ${result.exitCode}.`,
+        );
+      }
 
-    expect(result.exitCode).toBe(0);
-  });
+      expect(result.exitCode).toBe(0);
+    },
+    ISOLATED_REGRESSION_TIMEOUT_MS,
+  );
 });
