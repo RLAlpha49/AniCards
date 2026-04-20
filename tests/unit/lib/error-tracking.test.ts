@@ -9,7 +9,6 @@ import {
 import {
   allowConsoleWarningsAndErrors,
   parseRequestInitJson,
-  sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockLrange,
@@ -167,7 +166,6 @@ describe("error tracking", () => {
     sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
     sharedRedisMockLrange.mockReset();
-    sharedRedisMockDel.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockSet.mockReset();
@@ -235,11 +233,6 @@ describe("error tracking", () => {
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       expect.any(String),
-    );
-    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
-      "telemetry:error-reports:v1",
-      -250,
-      -1,
     );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:total",
@@ -550,22 +543,19 @@ describe("error tracking", () => {
   });
 
   it("increments the dropped counter when the ring buffer rolls over", async () => {
-    sharedRedisMockLrange
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        JSON.stringify({
-          id: "rep-evicted-1",
-          timestamp: 1_710_000_000_000,
-          source: "api_route",
-          userAction: "render_component_tree",
-          category: "server_error",
-          retryable: false,
-          technicalMessage: "Oldest retained error",
-          errorName: "Error",
-        }),
-      ])
-      .mockResolvedValueOnce([]);
-    sharedRedisMockRpush.mockResolvedValueOnce(251).mockResolvedValueOnce(1);
+    sharedRedisMockLrange.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      JSON.stringify({
+        id: "rep-evicted-1",
+        timestamp: 1_710_000_000_000,
+        source: "api_route",
+        userAction: "render_component_tree",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Oldest retained error",
+        errorName: "Error",
+      }),
+    ]);
+    sharedRedisMockRpush.mockResolvedValueOnce(251);
 
     await trackUserActionError(
       "render_component_tree",
@@ -580,48 +570,77 @@ describe("error tracking", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:dropped",
     );
-    expect(
-      sharedRedisMockRpush.mock.calls.some(
-        ([key]) => key === "telemetry:error-reports:v1:evicted:v1",
-      ),
-    ).toBe(true);
-    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      1,
+      -1,
+    );
+
+    const evictedSummaryCall = sharedRedisMockSet.mock.calls.find(
+      ([key]) => key === "telemetry:error-reports:v1:evicted-summary",
+    );
+
+    expect(evictedSummaryCall).toBeDefined();
+    expect(evictedSummaryCall?.[2]).toEqual({
+      ex: 14 * 24 * 60 * 60,
+    });
+
+    const evictedSummary = JSON.parse(String(evictedSummaryCall?.[1])) as {
+      recentReports?: Array<{
+        id?: string;
+      }>;
+      totalReports?: number;
+    };
+
+    expect(evictedSummary.totalReports).toBe(1);
+    expect(evictedSummary.recentReports?.[0]?.id).toBe("rep-evicted-1");
+    expect(sharedRedisMockGet).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:evicted-summary",
     );
   });
 
   it("ages out expired server-side reports before building the live buffer snapshot", async () => {
     const now = Date.now();
+    const storedEntries = [
+      JSON.stringify({
+        id: "rep-expired-1",
+        timestamp: now - 120_000,
+        expiresAt: now - 1,
+        source: "api_route",
+        userAction: "stale_error",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Expired retained error",
+        errorName: "Error",
+      }),
+      JSON.stringify({
+        id: "rep-fresh-1",
+        timestamp: now - 1_000,
+        expiresAt: now + 60_000,
+        source: "api_route",
+        userAction: "render_component_tree",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Fresh retained error",
+        errorName: "Error",
+      }),
+    ];
 
     sharedRedisMockMget
       .mockResolvedValueOnce(["2", "0"])
       .mockResolvedValueOnce(createRollingWindowCounterValues());
-    sharedRedisMockLrange
-      .mockResolvedValueOnce([
-        JSON.stringify({
-          id: "rep-fresh-1",
-          timestamp: now - 1_000,
-          expiresAt: now + 60_000,
-          source: "api_route",
-          userAction: "render_component_tree",
-          category: "server_error",
-          retryable: false,
-          technicalMessage: "Fresh retained error",
-          errorName: "Error",
-        }),
-        JSON.stringify({
-          id: "rep-expired-1",
-          timestamp: now - 120_000,
-          expiresAt: now - 1,
-          source: "api_route",
-          userAction: "stale_error",
-          category: "server_error",
-          retryable: false,
-          technicalMessage: "Expired retained error",
-          errorName: "Error",
-        }),
-      ])
-      .mockResolvedValueOnce([]);
+    sharedRedisMockLrange.mockImplementation(async () => [...storedEntries]);
+    sharedRedisMockLtrim.mockImplementation(async (_key, start, end) => {
+      const normalizedStart = start < 0 ? storedEntries.length + start : start;
+      const normalizedEnd = end < 0 ? storedEntries.length + end : end;
+      const nextEntries = storedEntries.slice(
+        Math.max(0, normalizedStart),
+        normalizedEnd + 1,
+      );
+
+      storedEntries.splice(0, storedEntries.length, ...nextEntries);
+      return "OK";
+    });
     sharedRedisMockGet.mockResolvedValueOnce(null);
 
     const snapshot = await getErrorReportBufferSnapshot();
@@ -639,8 +658,10 @@ describe("error tracking", () => {
       id: "rep-fresh-1",
       userAction: "render_component_tree",
     });
-    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
+      1,
+      -1,
     );
   });
   it("reads the current ring-buffer saturation snapshot", async () => {
@@ -649,7 +670,7 @@ describe("error tracking", () => {
       .mockResolvedValueOnce(
         createRollingWindowCounterValues({ captured: 6, dropped: 1 }),
       );
-    sharedRedisMockLrange.mockResolvedValueOnce([
+    sharedRedisMockLrange.mockResolvedValue([
       JSON.stringify({
         id: "rep-retained-1",
         timestamp: 1_710_000_100_000,

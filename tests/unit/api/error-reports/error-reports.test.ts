@@ -489,11 +489,7 @@ describe("error reports API route", () => {
 
     const response = await responsePromise;
 
-    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
-      "telemetry:error-reports:v1",
-      -250,
-      -1,
-    );
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ recorded: true });
   });

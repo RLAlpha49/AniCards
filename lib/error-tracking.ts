@@ -145,10 +145,10 @@ const ERROR_REPORTS_KEY = "telemetry:error-reports:v1";
 const ERROR_REPORTS_TOTAL_KEY = `${ERROR_REPORTS_KEY}:total`;
 const ERROR_REPORTS_DROPPED_KEY = `${ERROR_REPORTS_KEY}:dropped`;
 const ERROR_REPORTS_EVICTED_SUMMARY_KEY = `${ERROR_REPORTS_KEY}:evicted-summary`;
-const ERROR_REPORTS_EVICTED_REPORTS_KEY = `${ERROR_REPORTS_KEY}:evicted:v1`;
 const MAX_ERROR_REPORTS = 250;
 const ERROR_REPORT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
 const ERROR_REPORT_RETENTION_MS = ERROR_REPORT_RETENTION_SECONDS * 1000;
+const STRUCTURED_ERROR_REPORT_HEAD_SCAN_LIMIT = 32;
 const ERROR_REPORT_ROLLING_BUCKET_MS = 60 * 60 * 1000;
 const ERROR_REPORT_ROLLING_WINDOW_BUCKETS = 24;
 const ERROR_REPORT_ROLLING_COUNTER_KEY_PREFIX = `${ERROR_REPORTS_KEY}:rolling:hour`;
@@ -249,11 +249,14 @@ const MAX_CLIENT_ERROR_REPORT_DELIVERY_ATTEMPTS = 3;
 const MAX_CLIENT_QUEUED_ERROR_REPORTS = 24;
 const MAX_CLIENT_QUEUED_ERROR_REPORT_ATTEMPTS = 5;
 const CLIENT_ERROR_REPORT_RETRY_BASE_DELAY_MS = 250;
+const CLIENT_ERROR_REPORT_RETRY_JITTER_MIN_FACTOR = 0.75;
+const CLIENT_ERROR_REPORT_RETRY_JITTER_MAX_FACTOR = 1.25;
 const CLIENT_ERROR_REPORT_MAX_BACKOFF_MS = 2_000;
 const MAX_CLIENT_QUEUED_ERROR_REPORT_BODY_LENGTH =
   ERROR_REPORT_REQUEST_MAX_BYTES;
 const CLIENT_ERROR_REPORT_QUEUE_RETENTION_MS = 1000 * 60 * 60 * 24 * 7;
 const MAX_CLIENT_ERROR_REPORT_QUEUE_DROP_SAMPLES = 5;
+const CLIENT_ERROR_REPORT_CIRCUIT_BREAKER_MAX_STREAK = 5;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 
 type ClientErrorReportQueueStorageKind = "local_storage" | "session_storage";
@@ -360,6 +363,7 @@ interface ClientErrorReportQueueCircuitBreakerState {
   cooldownUntil: number;
   lastReason?: ClientErrorReportCircuitBreakerReason;
   lastStatusCode?: number;
+  retryableFailureStreak: number;
 }
 
 interface ClientErrorReportStorageWriteResult {
@@ -432,6 +436,7 @@ let isFlushingPendingClientErrorReportOutcomes = false;
 let clientErrorReportQueueCircuitBreakerState: ClientErrorReportQueueCircuitBreakerState =
   {
     cooldownUntil: 0,
+    retryableFailureStreak: 0,
   };
 let pendingVolatileClientErrorReportBreadcrumbs =
   buildEmptyClientErrorReportPendingBreadcrumbs();
@@ -1167,69 +1172,6 @@ function toStoredStructuredErrorReportEntry(
   };
 }
 
-function shouldRewriteStructuredErrorReportList(
-  currentEntries: unknown[],
-  nextEntries: StoredStructuredErrorReportEntry[],
-): boolean {
-  const serializedCurrentEntries = currentEntries.map((entry) =>
-    typeof entry === "string" ? entry : JSON.stringify(entry),
-  );
-
-  return (
-    serializedCurrentEntries.length !== nextEntries.length ||
-    serializedCurrentEntries.some(
-      (entry, index) => entry !== nextEntries[index]?.serialized,
-    )
-  );
-}
-
-async function rewriteStructuredErrorReportList(
-  key: string,
-  entries: StoredStructuredErrorReportEntry[],
-): Promise<void> {
-  await redisClient.del(key);
-
-  for (const entry of entries) {
-    await redisClient.rpush(key, entry.serialized);
-  }
-
-  if (entries.length > 0) {
-    await redisClient.expire(key, ERROR_REPORT_RETENTION_SECONDS);
-  }
-}
-
-async function pruneStructuredErrorReportList(
-  key: string,
-  maxEntries: number,
-): Promise<StructuredErrorReport[]> {
-  const rawEntries = await redisClient.lrange(key, 0, -1);
-  const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
-  const now = Date.now();
-  const nextEntries = currentEntries
-    .flatMap((entry) => {
-      const parsedEntry = toStoredStructuredErrorReportEntry(entry);
-      if (!parsedEntry) {
-        return [];
-      }
-
-      return isStructuredErrorReportWithinRetentionWindow(
-        parsedEntry.report,
-        now,
-      )
-        ? [parsedEntry]
-        : [];
-    })
-    .slice(-maxEntries);
-
-  if (shouldRewriteStructuredErrorReportList(currentEntries, nextEntries)) {
-    await rewriteStructuredErrorReportList(key, nextEntries);
-  } else if (nextEntries.length > 0) {
-    await redisClient.expire(key, ERROR_REPORT_RETENTION_SECONDS);
-  }
-
-  return nextEntries.map((entry) => entry.report);
-}
-
 async function appendEvictedStructuredErrorReports(
   reports: StructuredErrorReport[],
 ): Promise<void> {
@@ -1237,25 +1179,84 @@ async function appendEvictedStructuredErrorReports(
     return;
   }
 
-  const retainedReports = await pruneStructuredErrorReportList(
-    ERROR_REPORTS_EVICTED_REPORTS_KEY,
-    MAX_ERROR_REPORTS,
+  const existingState = parseStoredErrorReportTriageState(
+    await redisClient.get(ERROR_REPORTS_EVICTED_SUMMARY_KEY),
   );
-  const nextEntries = [...retainedReports, ...reports]
-    .slice(-MAX_ERROR_REPORTS)
-    .map(
-      (report) =>
-        ({
-          report,
-          serialized: JSON.stringify(report),
-        }) satisfies StoredStructuredErrorReportEntry,
-    );
+  const nextState = mergeStoredErrorReportTriageState(existingState, reports);
 
-  await rewriteStructuredErrorReportList(
-    ERROR_REPORTS_EVICTED_REPORTS_KEY,
-    nextEntries,
+  await redisClient.set(
+    ERROR_REPORTS_EVICTED_SUMMARY_KEY,
+    JSON.stringify(nextState),
+    {
+      ex: ERROR_REPORT_RETENTION_SECONDS,
+    },
   );
-  await redisClient.del(ERROR_REPORTS_EVICTED_SUMMARY_KEY);
+}
+
+async function trimExpiredStructuredErrorReportHead(
+  key: string,
+): Promise<void> {
+  while (true) {
+    const rawEntries = await redisClient.lrange(
+      key,
+      0,
+      STRUCTURED_ERROR_REPORT_HEAD_SCAN_LIMIT - 1,
+    );
+    const currentEntries = Array.isArray(rawEntries) ? rawEntries : [];
+
+    if (currentEntries.length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    let trimCount = 0;
+
+    for (const entry of currentEntries) {
+      const parsedEntry = toStoredStructuredErrorReportEntry(entry);
+
+      if (
+        !parsedEntry ||
+        !isStructuredErrorReportWithinRetentionWindow(parsedEntry.report, now)
+      ) {
+        trimCount += 1;
+        continue;
+      }
+
+      break;
+    }
+
+    if (trimCount === 0) {
+      return;
+    }
+
+    await redisClient.ltrim(key, trimCount, -1);
+
+    if (trimCount < currentEntries.length) {
+      return;
+    }
+  }
+}
+
+async function readStructuredErrorReportList(
+  key: string,
+): Promise<StructuredErrorReport[]> {
+  const rawEntries = await redisClient.lrange(key, 0, -1);
+
+  if (!Array.isArray(rawEntries) || rawEntries.length === 0) {
+    return [];
+  }
+
+  const now = Date.now();
+
+  return rawEntries
+    .map((entry) => toStoredStructuredErrorReportEntry(entry))
+    .filter(
+      (entry): entry is StoredStructuredErrorReportEntry =>
+        entry !== undefined &&
+        isStructuredErrorReportWithinRetentionWindow(entry.report, now),
+    )
+    .slice(-MAX_ERROR_REPORTS)
+    .map((entry) => entry.report);
 }
 
 async function recordErrorReportRollingWindowEvent(
@@ -1275,7 +1276,9 @@ async function recordErrorReportRollingWindowEvent(
     redisClient.expire(capturedKey, ttlSeconds),
     ...(droppedCount > 0
       ? [
-          redisClient.incr(droppedKey),
+          ...Array.from({ length: droppedCount }, () =>
+            redisClient.incr(droppedKey),
+          ),
           redisClient.expire(droppedKey, ttlSeconds),
         ]
       : []),
@@ -1325,20 +1328,6 @@ async function getErrorReportRollingWindowSnapshot(
     saturationRate:
       totalCaptured === 0 ? 0 : roundRatio(totalDropped / totalCaptured),
   };
-}
-
-function buildRecentEvictedErrorReportTriageSummary(
-  reports: StructuredErrorReport[],
-): ErrorReportTriageSummary & {
-  updatedAt?: number;
-} {
-  const summary = buildErrorReportTriageSummaryFromReports(reports);
-  const updatedAt = reports.reduce(
-    (latestTimestamp, report) => Math.max(latestTimestamp, report.timestamp),
-    0,
-  );
-
-  return updatedAt > 0 ? { ...summary, updatedAt } : summary;
 }
 
 function buildClientErrorReportQueueTriage(
@@ -2078,6 +2067,13 @@ function getClientErrorReportQueueCircuitBreakerCooldownUntil():
     : undefined;
 }
 
+function resetClientErrorReportQueueCircuitBreaker(): void {
+  clientErrorReportQueueCircuitBreakerState = {
+    cooldownUntil: 0,
+    retryableFailureStreak: 0,
+  };
+}
+
 function openClientErrorReportQueueCircuitBreaker(
   deliveryError: ClientErrorReportDeliveryError,
   state: ClientErrorReportQueueState | undefined,
@@ -2086,13 +2082,22 @@ function openClientErrorReportQueueCircuitBreaker(
     return;
   }
 
+  const nextFailureStreak = Math.min(
+    CLIENT_ERROR_REPORT_CIRCUIT_BREAKER_MAX_STREAK,
+    Math.max(
+      0,
+      clientErrorReportQueueCircuitBreakerState.retryableFailureStreak,
+    ) + 1,
+  );
+
   clientErrorReportQueueCircuitBreakerState = {
     cooldownUntil: getQueuedClientErrorReportNextAttemptAt({
-      attempts: 1,
+      attempts: nextFailureStreak,
       retryAfterMs: deliveryError.retryAfterMs,
     }),
     lastReason:
       deliveryError.statusCode === 429 ? "rate_limited" : "retryable_delivery",
+    retryableFailureStreak: nextFailureStreak,
     ...(typeof deliveryError.statusCode === "number"
       ? { lastStatusCode: deliveryError.statusCode }
       : {}),
@@ -2805,6 +2810,33 @@ function getClientErrorReportRetryDelay(attempt: number): number {
   );
 }
 
+function getJitteredClientErrorReportRetryDelay(delayMs: number): number {
+  const normalizedDelayMs = Math.max(0, Math.trunc(delayMs));
+  if (normalizedDelayMs === 0) {
+    return 0;
+  }
+
+  const minDelayMs = Math.max(
+    0,
+    Math.floor(normalizedDelayMs * CLIENT_ERROR_REPORT_RETRY_JITTER_MIN_FACTOR),
+  );
+  const maxDelayMs = Math.min(
+    CLIENT_ERROR_REPORT_MAX_BACKOFF_MS,
+    Math.max(
+      minDelayMs,
+      Math.ceil(
+        normalizedDelayMs * CLIENT_ERROR_REPORT_RETRY_JITTER_MAX_FACTOR,
+      ),
+    ),
+  );
+
+  if (maxDelayMs <= minDelayMs) {
+    return minDelayMs;
+  }
+
+  return minDelayMs + Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1));
+}
+
 function getClientErrorReportImmediateRetryDelay(options: {
   attempt: number;
   retryAfterMs?: number;
@@ -2815,7 +2847,9 @@ function getClientErrorReportImmediateRetryDelay(options: {
       : undefined;
   }
 
-  return getClientErrorReportRetryDelay(options.attempt);
+  return getJitteredClientErrorReportRetryDelay(
+    getClientErrorReportRetryDelay(options.attempt),
+  );
 }
 
 function getQueuedClientErrorReportNextAttemptAt(options: {
@@ -2825,7 +2859,9 @@ function getQueuedClientErrorReportNextAttemptAt(options: {
   const delayMs =
     typeof options.retryAfterMs === "number"
       ? options.retryAfterMs
-      : getClientErrorReportRetryDelay(options.attempts);
+      : getJitteredClientErrorReportRetryDelay(
+          getClientErrorReportRetryDelay(options.attempts),
+        );
 
   return Date.now() + Math.max(0, delayMs);
 }
@@ -3009,6 +3045,7 @@ async function replayQueuedClientErrorReport(
       1,
     );
 
+    resetClientErrorReportQueueCircuitBreaker();
     clearDeliveredClientErrorReportPendingSignals(store.state);
     store.state.stats.totalDelivered += 1;
     return {
@@ -3127,6 +3164,7 @@ async function deliverPendingClientErrorReportOutcomes(
     1,
   );
 
+  resetClientErrorReportQueueCircuitBreaker();
   clearDeliveredClientErrorReportPendingSignals(store.state);
   saveClientErrorReportQueueStore(store);
 }
@@ -3288,27 +3326,6 @@ async function flushQueuedClientErrorReports(): Promise<void> {
   }
 }
 
-async function readEvictedStructuredErrorReports(
-  persistedLength: number,
-): Promise<StructuredErrorReport[]> {
-  if (persistedLength <= MAX_ERROR_REPORTS) {
-    return [];
-  }
-
-  const overflowCount = persistedLength - MAX_ERROR_REPORTS;
-  const evictedEntriesRaw = await redisClient.lrange(
-    ERROR_REPORTS_KEY,
-    0,
-    overflowCount - 1,
-  );
-
-  return Array.isArray(evictedEntriesRaw)
-    ? evictedEntriesRaw
-        .map((entry) => parseStructuredErrorReport(entry))
-        .filter((entry): entry is StructuredErrorReport => entry !== undefined)
-    : [];
-}
-
 function logStructuredErrorPersistenceWarning(
   message: string,
   error: unknown,
@@ -3338,7 +3355,9 @@ async function updateStructuredErrorBufferCountersSafely(
     await Promise.all([
       redisClient.incr(ERROR_REPORTS_TOTAL_KEY),
       ...(droppedOnWrite > 0
-        ? [redisClient.incr(ERROR_REPORTS_DROPPED_KEY)]
+        ? Array.from({ length: droppedOnWrite }, () =>
+            redisClient.incr(ERROR_REPORTS_DROPPED_KEY),
+          )
         : []),
     ]);
   } catch (error) {
@@ -3382,18 +3401,26 @@ function logStructuredErrorBufferEntry(report: StructuredErrorReport): void {
 async function persistStructuredErrorBufferEntry(
   report: StructuredErrorReport,
 ): Promise<void> {
-  await pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS);
+  await trimExpiredStructuredErrorReportHead(ERROR_REPORTS_KEY);
 
   const persistedLength = await redisClient.rpush(
     ERROR_REPORTS_KEY,
     JSON.stringify(report),
   );
+  const droppedOnWrite = Math.max(0, persistedLength - MAX_ERROR_REPORTS);
   const evictedReports =
-    await readEvictedStructuredErrorReports(persistedLength);
+    droppedOnWrite > 0
+      ? (await redisClient.lrange(ERROR_REPORTS_KEY, 0, droppedOnWrite - 1))
+          .map((entry) => parseStructuredErrorReport(entry))
+          .filter(
+            (entry): entry is StructuredErrorReport => entry !== undefined,
+          )
+      : [];
 
-  await redisClient.ltrim(ERROR_REPORTS_KEY, -MAX_ERROR_REPORTS, -1);
+  if (droppedOnWrite > 0) {
+    await redisClient.ltrim(ERROR_REPORTS_KEY, droppedOnWrite, -1);
+  }
   await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
-  const droppedOnWrite = persistedLength > MAX_ERROR_REPORTS ? 1 : 0;
 
   await persistEvictedStructuredErrorReportsSafely(evictedReports);
   await updateStructuredErrorBufferCountersSafely(droppedOnWrite);
@@ -3408,13 +3435,10 @@ async function persistStructuredErrorBufferEntry(
  * @source
  */
 export async function getErrorReportBufferSnapshot(): Promise<ErrorReportBufferSnapshot> {
-  const [retainedReports, evictedReports] = await Promise.all([
-    pruneStructuredErrorReportList(ERROR_REPORTS_KEY, MAX_ERROR_REPORTS),
-    pruneStructuredErrorReportList(
-      ERROR_REPORTS_EVICTED_REPORTS_KEY,
-      MAX_ERROR_REPORTS,
-    ),
-  ]);
+  await trimExpiredStructuredErrorReportHead(ERROR_REPORTS_KEY);
+
+  const retainedReportsPromise =
+    readStructuredErrorReportList(ERROR_REPORTS_KEY);
   const counters = await redisClient.mget(
     ERROR_REPORTS_TOTAL_KEY,
     ERROR_REPORTS_DROPPED_KEY,
@@ -3423,22 +3447,17 @@ export async function getErrorReportBufferSnapshot(): Promise<ErrorReportBufferS
     ERROR_REPORTS_EVICTED_SUMMARY_KEY,
   );
   const rollingWindow = await getErrorReportRollingWindowSnapshot();
+  const retainedReports = await retainedReportsPromise;
   const [totalCapturedRaw, totalDroppedRaw] = counters;
 
-  const evictedTriage =
-    evictedReports.length > 0
-      ? buildRecentEvictedErrorReportTriageSummary(evictedReports)
-      : (() => {
-          const evictedTriageState =
-            parseStoredErrorReportTriageState(evictedTriageRaw);
-
-          return {
-            ...toErrorReportTriageSummary(evictedTriageState),
-            ...(evictedTriageState.updatedAt > 0
-              ? { updatedAt: evictedTriageState.updatedAt }
-              : {}),
-          };
-        })();
+  const evictedTriageState =
+    parseStoredErrorReportTriageState(evictedTriageRaw);
+  const evictedTriage = {
+    ...toErrorReportTriageSummary(evictedTriageState),
+    ...(evictedTriageState.updatedAt > 0
+      ? { updatedAt: evictedTriageState.updatedAt }
+      : {}),
+  };
 
   return buildErrorReportBufferSnapshot(
     parseRedisCounter(totalCapturedRaw),
@@ -3493,6 +3512,7 @@ function queueStructuredErrorReportWithCooldown(
 async function finalizePostedStructuredErrorReport(
   queueStore: ClientErrorReportQueueStore | null,
 ): Promise<void> {
+  resetClientErrorReportQueueCircuitBreaker();
   clearDeliveredClientErrorReportPendingSignals(queueStore?.state);
   saveClientErrorReportQueueStoreIfPresent(queueStore);
   await flushQueuedClientErrorReports();
@@ -3650,9 +3670,7 @@ export async function reportStructuredError(
 export function resetClientErrorReportClientStateForTests(): void {
   isFlushingQueuedClientErrorReports = false;
   isFlushingPendingClientErrorReportOutcomes = false;
-  clientErrorReportQueueCircuitBreakerState = {
-    cooldownUntil: 0,
-  };
+  resetClientErrorReportQueueCircuitBreaker();
   pendingVolatileClientErrorReportBreadcrumbs =
     buildEmptyClientErrorReportPendingBreadcrumbs();
 }
