@@ -119,8 +119,6 @@ const getCardsRecordMetaKey = (userId: string | number) =>
   `cards:${userId}:meta`;
 const getUserUsernameAliasSetKey = (userId: string | number) =>
   `user:${userId}:username-aliases`;
-const getUsernameIndexKey = (normalizedUsername: string) =>
-  `username:${normalizedUsername}`;
 const getUserSnapshotKeyPrefix = (
   userId: string | number,
   snapshotToken: string,
@@ -3414,29 +3412,6 @@ end
 return {1, payload["updatedAt"], tostring(nextRevision), payload["snapshotToken"]}
 `;
 
-const REPAIR_STALE_USERNAME_ALIAS_LUA = `
-local attemptedOwner = redis.call("GET", KEYS[1])
-if attemptedOwner == ARGV[1] and ARGV[2] ~= ARGV[3] then
-  redis.call("DEL", KEYS[1])
-end
-
-if string.len(ARGV[3]) > 0 then
-  local canonicalOwner = redis.call("GET", KEYS[2])
-  if not canonicalOwner or canonicalOwner == ARGV[1] then
-    redis.call("SET", KEYS[2], ARGV[1])
-  end
-end
-
-if string.len(ARGV[2]) > 0 then
-  redis.call("SADD", KEYS[3], ARGV[2])
-end
-if string.len(ARGV[3]) > 0 then
-  redis.call("SADD", KEYS[3], ARGV[3])
-end
-
-return {1}
-`;
-
 const DELETE_USER_RECORD_LUA = `
 local function parse_json_object(raw)
   if type(raw) ~= "string" or string.len(raw) == 0 then
@@ -3929,44 +3904,6 @@ export async function saveUserRecord(
     revision: saveResult.revision,
     snapshotToken: saveResult.snapshotToken,
   };
-}
-
-export async function repairStaleUsernameAlias(options: {
-  userId: string | number;
-  attemptedUsername: string;
-  canonicalUsername?: string;
-  state?: PersistedUserState | null;
-}): Promise<void> {
-  if (!options.state?.snapshot) {
-    return;
-  }
-
-  const attemptedNormalizedUsername = normalizeUsernameIndexValue(
-    options.attemptedUsername,
-  );
-  if (!attemptedNormalizedUsername) {
-    return;
-  }
-
-  const canonicalNormalizedUsername = normalizeUsernameIndexValue(
-    options.canonicalUsername,
-  );
-
-  await redisClient.eval(
-    REPAIR_STALE_USERNAME_ALIAS_LUA,
-    [
-      getUsernameIndexKey(attemptedNormalizedUsername),
-      getUsernameIndexKey(
-        canonicalNormalizedUsername ?? attemptedNormalizedUsername,
-      ),
-      getUserUsernameAliasSetKey(options.userId),
-    ],
-    [
-      String(options.userId),
-      attemptedNormalizedUsername,
-      canonicalNormalizedUsername ?? "",
-    ],
-  );
 }
 
 /**
