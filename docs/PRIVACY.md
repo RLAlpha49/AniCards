@@ -31,12 +31,16 @@ The write path does not intentionally persist raw IP addresses. The only active 
 
 ### Persisted card editor configuration
 
-`/api/store-cards` stores:
+`/api/store-cards` stores the following public-by-`userId` record shape:
 
-- `userId`
-- per-card settings
-- optional global settings
-- `updatedAt`
+- `userId` — the numeric AniList user ID and the public lookup key for `/api/get-cards`
+- `cards` — sparse explicit per-card overrides only; untouched default-disabled supported cards are reconstructed later instead of being stored here
+- optional compact `cardOrder` — the authored supported-card ordering signal used to reconstruct the full supported order on read/editor paths
+- optional `globalSettings` — shared preset, color, border, and layout overrides
+- `updatedAt` — browser-facing compare token and public cards-record timestamp
+- optional monotonic `version`
+- optional `schemaVersion`
+- optional linked `userSnapshot` containing `token`, `revision`, `updatedAt`, and `committedAt`
 
 The paired read route `/api/get-cards` is public by numeric AniList `userId`
 and returns that saved card configuration without additional authentication.
@@ -100,6 +104,9 @@ Those reports can include minimized versions of:
 - normalized route patterns
 - stack / component stack with file paths and URLs stripped
 - bounded metadata limited to a small number of safe keys and values
+- optional pseudonymous `requestId` / `operationId` identifiers when a retained
+  report needs them for debugging; the durable client-delivery summary metadata
+  does not copy those identifiers forward
 
 The ingestion route enforces a small request-body cap of roughly **24 KB**. The
 browser retry queue stores only the same minimized payload and drops entries
@@ -129,12 +136,13 @@ Client-supplied `userId` and `username` fields are ignored by this route and are
 
 ## Third-party and infrastructure services
 
-The codebase touches these external services:
-
-- **AniList GraphQL** — upstream source for profile and statistics data
-- **Upstash Redis / Ratelimit** — persistence, analytics counters, and retention-limited reports
-- **Google Analytics / Google Tag Manager** — consent-gated analytics when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
-- **Vercel Analytics / Speed Insights** — deployment-controlled runtime telemetry on Vercel deployments; separate from the Google Analytics consent state
+| Vendor / service                          | Purpose                                                  | Data handled                                                                                                            | When active                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **AniList GraphQL**                       | Source of truth for AniList-derived user snapshots       | Requested AniList profile, favourites, list, and statistics data for the target user                                    | Whenever a save or scheduled refresh needs upstream AniList data                                         |
+| **Upstash Redis / Ratelimit**             | Redis persistence and shared rate limiting               | Stored user snapshots, saved card configs, analytics counters, lifecycle/privacy evidence, and structured error reports | Always-on for repo-managed persistence, rate limiting, analytics counters, and retention-limited reports |
+| **Google Analytics / Google Tag Manager** | Consent-gated product analytics                          | Normalized pageviews, bounded event labels, and bounded error categories                                                | Only when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured and the visitor granted analytics consent      |
+| **Vercel Analytics / Speed Insights**     | Runtime observability outside the browser consent toggle | Deployment-controlled runtime analytics and performance signals                                                         | Only when the deployment enables runtime telemetry on Vercel                                             |
+| **Configured HTTPS error-alert webhook**  | Optional external error-alert delivery                   | Compact operational alert summaries with counts, rates, reasons, and threshold metadata                                 | Only when `ERROR_ALERT_WEBHOOK_URL` is configured                                                        |
 
 ## Analytics consent model
 

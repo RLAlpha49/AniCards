@@ -74,7 +74,6 @@ function buildRejectedErrorReportBreadcrumb(
   issues: Array<{
     path: PropertyKey[];
   }>,
-  requestId: string | undefined,
 ): Record<string, unknown> {
   const issueFields = Array.from(
     new Set(
@@ -91,10 +90,6 @@ function buildRejectedErrorReportBreadcrumb(
     source: resolveErrorReportSource(payload.source),
     ...(typeof payload.userAction === "string"
       ? { userAction: payload.userAction }
-      : {}),
-    ...(requestId ? { requestId } : {}),
-    ...(typeof payload.operationId === "string"
-      ? { operationId: payload.operationId }
       : {}),
     issueCount: issues.length,
     ...(issueFields.length > 0 ? { issueFields: issueFields.join(",") } : {}),
@@ -146,9 +141,6 @@ export async function POST(request: Request) {
     const rejectionBreadcrumb = buildRejectedErrorReportBreadcrumb(
       payload,
       parsedPayload.error.issues,
-      typeof payload.requestId === "string"
-        ? payload.requestId
-        : ingestionRequestId,
     );
 
     logPrivacySafe(
@@ -232,12 +224,6 @@ export async function POST(request: Request) {
     source: recordedReport.source,
     category: recordedReport.category,
     userAction: recordedReport.userAction,
-    ...(recordedReport.requestId
-      ? { requestId: recordedReport.requestId }
-      : {}),
-    ...(recordedReport.operationId
-      ? { operationId: recordedReport.operationId }
-      : {}),
   };
 
   scheduleTelemetryTask(

@@ -3065,14 +3065,6 @@ function buildClientErrorReportDeliveryOutcomeSummaryMetadata(
       metadata[`${prefix}Attempts`] = outcome.attempts;
     }
 
-    if (typeof outcome.requestId === "string") {
-      metadata[`${prefix}RequestId`] = outcome.requestId;
-    }
-
-    if (typeof outcome.operationId === "string") {
-      metadata[`${prefix}OperationId`] = outcome.operationId;
-    }
-
     if (typeof outcome.route === "string") {
       metadata[`${prefix}Route`] = outcome.route;
     }

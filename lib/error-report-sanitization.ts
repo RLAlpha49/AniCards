@@ -434,7 +434,7 @@ export function sanitizePrivacySafeLogValue(
     return redactUserIdentifier(value);
   }
 
-  if (normalizedKey === "request_id") {
+  if (normalizedKey === "request_id" || normalizedKey === "operation_id") {
     return sanitizeOptionalText(normalizedValue, 120);
   }
 
@@ -470,9 +470,11 @@ function collectSanitizedErrorReportMetadataEntries(
     MAX_METADATA_ENTRIES,
   )) {
     const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
+    const canonicalKey = normalizeMetadataKey(normalizedKey);
     if (
       !normalizedKey ||
-      normalizedKey.toLowerCase() === "requestid" ||
+      canonicalKey === "request_id" ||
+      canonicalKey === "operation_id" ||
       isSensitiveMetadataKey(normalizedKey)
     ) {
       continue;

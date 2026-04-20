@@ -40,10 +40,28 @@ test.describe("Privacy disclosure", () => {
       retentionSurface.getByText(/browser storage only/i).first(),
     ).toBeVisible();
     await expect(
-      retentionSurface.getByText(/lifecycle audit entries.*14 days/i),
+      page.getByRole("heading", {
+        level: 2,
+        name: /public card data/i,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 2,
+        name: /third-party services/i,
+      }),
+    ).toBeVisible();
+    await expect(
+      retentionSurface.getByText(/lifecycle audit.*14 days/i),
+    ).toBeVisible();
+    await expect(
+      retentionSurface.getByText(/privacy-rights evidence.*400 days/i),
     ).toBeVisible();
     await expect(
       page.getByText(/saved card configurations are publicly retrievable/i),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("privacy-public-card-table").getByText(/userSnapshot/i),
     ).toBeVisible();
     await expect(
       page.getByText(/server-side operational counters/i),

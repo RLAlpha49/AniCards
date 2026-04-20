@@ -32,12 +32,12 @@ const sections = [
     paragraphs: [
       "If you've consented, Google Analytics sends normalized pageviews and bounded events on route patterns like /user/* instead of raw profile URLs. We deliberately stay away from replaying your full browsing trail.",
       "Server-side operational counters for route health, availability, and structured error reporting continue regardless of the Google Analytics toggle, and runtime telemetry such as Vercel Analytics and Speed Insights is controlled separately by the deployment.",
-      "If a client error report cannot be delivered right away, AniCards can keep the same minimized payload in a capped local or session storage retry queue until it succeeds or expires. If an optional error-alert webhook is configured, the reporting cron can also send a compact operational alert summary — counts, rates, reasons, and optional request IDs — to that external HTTPS endpoint.",
+      "If a client error report cannot be delivered right away, AniCards can keep the same minimized payload in a capped local or session storage retry queue until it succeeds or expires. Retained structured error reports can still include pseudonymous request or operation IDs when a report needs them for debugging, but the durable client-delivery summary metadata does not copy those identifiers forward. If an optional error-alert webhook is configured, the reporting cron can also send a compact operational alert summary — counts, rates, reasons, and threshold context — to that external HTTPS endpoint.",
     ],
   },
   {
     id: "retention",
-    ordinal: "03",
+    ordinal: "05",
     heading: "Retention & Limits",
     lead: "Everything has a ceiling, a window, or both.",
     items: [
@@ -90,7 +90,7 @@ const sections = [
   },
   {
     id: "your-rights",
-    ordinal: "04",
+    ordinal: "06",
     heading: "Deletion & Export",
     lead: "Manual for now — reach out anytime.",
     paragraphs: [
@@ -101,7 +101,92 @@ const sections = [
   },
 ] as const;
 
-const tocItems = sections.map((s) => ({ id: s.id, label: s.heading }));
+const publicCardFieldRows = [
+  {
+    label: "userId",
+    detail:
+      "Numeric AniList user ID. This is the public lookup key for `/api/get-cards`.",
+  },
+  {
+    label: "cards",
+    detail:
+      "Sparse explicit per-card overrides only. Untouched default-disabled supported cards are reconstructed later instead of being stored here.",
+  },
+  {
+    label: "cardOrder",
+    detail:
+      "Optional compact supported-card ordering signal. Consumers should preserve it instead of treating the stored `cards` array as the full authored order.",
+  },
+  {
+    label: "globalSettings",
+    detail:
+      "Optional shared preset, color, border, and layout overrides that apply across the saved card set.",
+  },
+  {
+    label: "updatedAt",
+    detail:
+      "Server-side cards-record timestamp used for public reads and optimistic compare tokens.",
+  },
+  {
+    label: "version",
+    detail:
+      "Optional monotonic cards-record version used for cache stamps and storage metadata.",
+  },
+  {
+    label: "schemaVersion",
+    detail: "Optional cards-record schema marker for storage evolution.",
+  },
+  {
+    label: "userSnapshot",
+    detail:
+      "Optional linked stored user snapshot metadata: token, revision, updatedAt, and committedAt. This is public when it exists because `/api/get-cards` returns it.",
+  },
+] as const;
+
+const thirdPartyVendorRows = [
+  {
+    activation:
+      "Whenever a save or scheduled refresh needs upstream AniList data",
+    data: "Requested AniList profile, favourites, list, and statistics data for the target user",
+    purpose: "Source of truth for stored AniList-derived user snapshots",
+    vendor: "AniList GraphQL",
+  },
+  {
+    activation:
+      "Always-on for repo-managed persistence, rate limiting, analytics counters, and retention-limited reports",
+    data: "Stored user snapshots, saved card configs, analytics counters, lifecycle/privacy evidence, and structured error reports",
+    purpose: "Redis persistence and shared rate limiting",
+    vendor: "Upstash Redis / Ratelimit",
+  },
+  {
+    activation:
+      "Only when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured and the visitor granted analytics consent",
+    data: "Normalized pageviews, bounded event labels, and bounded error categories",
+    purpose: "Consent-gated product analytics",
+    vendor: "Google Analytics / Google Tag Manager",
+  },
+  {
+    activation: "Only when the deployment enables runtime telemetry on Vercel",
+    data: "Deployment-controlled runtime analytics and performance signals",
+    purpose: "Runtime observability outside the browser consent toggle",
+    vendor: "Vercel Analytics / Speed Insights",
+  },
+  {
+    activation: "Only when `ERROR_ALERT_WEBHOOK_URL` is configured",
+    data: "Compact operational alert summaries with counts, rates, reasons, and threshold metadata",
+    purpose: "Optional external error-alert delivery",
+    vendor: "Configured HTTPS error-alert webhook",
+  },
+] as const;
+
+const tocItems = [
+  { id: "data-collection", label: "Data Collection" },
+  { id: "telemetry", label: "Telemetry" },
+  { id: "public-card-data", label: "Public card data" },
+  { id: "third-party-services", label: "Third-party services" },
+  { id: "retention", label: "Retention & Limits" },
+  { id: "your-rights", label: "Deletion & Export" },
+] as const;
 
 function PrivacyTableOfContents({
   compact = false,
@@ -147,10 +232,13 @@ function PrivacyTableOfContents({
   );
 }
 
-function MobileRetentionCards({
+function MobileDetailCards({
+  badgeLabel = "Detail",
   items,
 }: Readonly<{
+  badgeLabel?: string;
   items: ReadonlyArray<{ label: string; detail: string }>;
+  testId?: string;
 }>) {
   return (
     <div data-testid="privacy-retention-cards" className="space-y-4 md:hidden">
@@ -170,7 +258,7 @@ function MobileRetentionCards({
                 tracking-[0.25em] text-muted-foreground uppercase
               "
             >
-              Retention
+              {badgeLabel}
             </span>
           </div>
           <p className="mt-3 text-sm/relaxed text-muted-foreground">
@@ -179,6 +267,143 @@ function MobileRetentionCards({
         </article>
       ))}
     </div>
+  );
+}
+
+type PrivacyStandardSection = (typeof sections)[number];
+
+function StandardPrivacySection({
+  section,
+}: Readonly<{
+  section: PrivacyStandardSection;
+}>) {
+  return (
+    <section
+      id={section.id}
+      aria-labelledby={`heading-${section.id}`}
+      className="scroll-mt-24"
+    >
+      <div className="flex items-start gap-6">
+        <div className="relative shrink-0 pt-1">
+          <div className="absolute top-0 left-0 h-full w-0.5 bg-gold/20" />
+          <span
+            aria-hidden="true"
+            className="
+              block pl-4 font-display text-[3rem] leading-none font-normal tracking-tight
+              text-gold/15 select-none
+              sm:text-[4rem]
+            "
+          >
+            {section.ordinal}
+          </span>
+        </div>
+        <div className="space-y-2 pt-2">
+          <h2
+            id={`heading-${section.id}`}
+            className="font-display text-xl tracking-[0.04em] text-foreground uppercase sm:text-2xl"
+          >
+            {section.heading}
+          </h2>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            {section.lead}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 h-px w-full bg-gold/10" />
+
+      {"paragraphs" in section && (
+        <div className="mt-8 max-w-2xl space-y-5">
+          {section.paragraphs.map((p) => (
+            <p
+              key={p}
+              className="text-[0.938rem]/7 text-muted-foreground sm:text-base/7"
+            >
+              {p}
+            </p>
+          ))}
+          {section.id === "your-rights" && (
+            <p className="text-[0.938rem]/7 text-muted-foreground sm:text-base/7">
+              Contact{" "}
+              <Link
+                href="mailto:contact@alpha49.com"
+                className="
+                  font-medium text-gold underline decoration-gold/30 underline-offset-4
+                  transition-colors
+                  hover:decoration-gold/70
+                "
+              >
+                contact@alpha49.com
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
+
+      {"items" in section && (
+        <div className="mt-8 space-y-4">
+          <MobileDetailCards badgeLabel="Retention" items={section.items} />
+
+          <div
+            data-testid="privacy-retention-table"
+            aria-label="Retention limits table"
+            tabIndex={0}
+            className="
+              hidden overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
+              md:block
+            "
+          >
+            <table className="w-full min-w-2xl text-left text-sm sm:text-base">
+              <caption className="sr-only">
+                Retention limits and cleanup windows for stored AniCards data.
+              </caption>
+              <thead>
+                <tr className="border-b border-gold/10 bg-gold/4">
+                  <th
+                    scope="col"
+                    className="
+                      px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em] text-muted-foreground
+                      uppercase
+                      sm:text-xs
+                    "
+                  >
+                    Category
+                  </th>
+                  <th
+                    scope="col"
+                    className="
+                      px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em] text-muted-foreground
+                      uppercase
+                      sm:text-xs
+                    "
+                  >
+                    Retention
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gold/8">
+                {section.items.map((row) => (
+                  <tr key={row.label} className="group">
+                    <th
+                      scope="row"
+                      className="
+                        w-1/4 px-6 py-4 align-top font-medium text-foreground transition-colors
+                        group-hover:text-gold
+                      "
+                    >
+                      {row.label}
+                    </th>
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {row.detail}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -335,145 +560,247 @@ export default async function PrivacyPage() {
 
           {/* Sections column */}
           <div className="space-y-24 lg:space-y-28">
-            {sections.map((section) => (
+            {sections.slice(0, 2).map((section) => (
               <SectionReveal key={section.id}>
-                <section
-                  id={section.id}
-                  aria-labelledby={`heading-${section.id}`}
-                  className="scroll-mt-24"
-                >
-                  {/* Ordinal + heading group */}
-                  <div className="flex items-start gap-6">
-                    {/* Large ordinal with vertical line accent */}
-                    <div className="relative shrink-0 pt-1">
-                      <div className="absolute top-0 left-0 h-full w-0.5 bg-gold/20" />
-                      <span
-                        aria-hidden="true"
-                        className="
-                          block pl-4 font-display text-[3rem] leading-none font-normal
-                          tracking-tight text-gold/15 select-none
-                          sm:text-[4rem]
-                        "
-                      >
-                        {section.ordinal}
-                      </span>
-                    </div>
-                    <div className="space-y-2 pt-2">
-                      <h2
-                        id={`heading-${section.id}`}
-                        className="
-                          font-display text-xl tracking-[0.04em] text-foreground uppercase
-                          sm:text-2xl
-                        "
-                      >
-                        {section.heading}
-                      </h2>
-                      <p className="text-sm text-muted-foreground sm:text-base">
-                        {section.lead}
-                      </p>
-                    </div>
+                <StandardPrivacySection section={section} />
+              </SectionReveal>
+            ))}
+
+            <SectionReveal>
+              <section
+                id="public-card-data"
+                aria-labelledby="heading-public-card-data"
+                className="scroll-mt-24"
+              >
+                <div className="flex items-start gap-6">
+                  <div className="relative shrink-0 pt-1">
+                    <div className="absolute top-0 left-0 h-full w-0.5 bg-gold/20" />
+                    <span
+                      aria-hidden="true"
+                      className="
+                        block pl-4 font-display text-[3rem] leading-none font-normal tracking-tight
+                        text-gold/15 select-none
+                        sm:text-[4rem]
+                      "
+                    >
+                      03
+                    </span>
                   </div>
+                  <div className="space-y-2 pt-2">
+                    <h2
+                      id="heading-public-card-data"
+                      className="
+                        font-display text-xl tracking-[0.04em] text-foreground uppercase
+                        sm:text-2xl
+                      "
+                    >
+                      Public card data
+                    </h2>
+                    <p className="text-sm text-muted-foreground sm:text-base">
+                      This is the field-level inventory for what the public
+                      `/api/get-cards` route can return.
+                    </p>
+                  </div>
+                </div>
 
-                  {/* Thin rule under heading */}
-                  <div className="mt-6 h-px w-full bg-gold/10" />
+                <div className="mt-6 h-px w-full bg-gold/10" />
 
-                  {/* Paragraphs (sections 01, 02, 04) */}
-                  {"paragraphs" in section && (
-                    <div className="mt-8 max-w-2xl space-y-5">
-                      {section.paragraphs.map((p) => (
-                        <p
-                          key={p}
-                          className="text-[0.938rem]/7 text-muted-foreground sm:text-base/7"
-                        >
-                          {p}
-                        </p>
-                      ))}
-                      {section.id === "your-rights" && (
-                        <p className="text-[0.938rem]/7 text-muted-foreground sm:text-base/7">
-                          Contact{" "}
-                          <Link
-                            href="mailto:contact@alpha49.com"
+                <div className="mt-8 space-y-4">
+                  <div className="space-y-4 md:hidden">
+                    {publicCardFieldRows.map((row) => (
+                      <article
+                        key={row.label}
+                        className="border border-gold/12 bg-background/60 p-4 backdrop-blur-sm"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <h3 className="text-base font-medium text-foreground">
+                            {row.label}
+                          </h3>
+                          <span
+                            aria-hidden="true"
                             className="
-                              font-medium text-gold underline decoration-gold/30 underline-offset-4
-                              transition-colors
-                              hover:decoration-gold/70
+                              rounded-full border border-gold/15 px-2.5 py-1 font-display
+                              text-[0.55rem] tracking-[0.25em] text-muted-foreground uppercase
                             "
                           >
-                            contact@alpha49.com
-                          </Link>
+                            Public
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm/relaxed text-muted-foreground">
+                          {row.detail}
                         </p>
-                      )}
-                    </div>
-                  )}
+                      </article>
+                    ))}
+                  </div>
 
-                  {/* Data table (section 03) — sharp corners, imperial style */}
-                  {"items" in section && (
-                    <div className="mt-8 space-y-4">
-                      <MobileRetentionCards items={section.items} />
+                  <div
+                    data-testid="privacy-public-card-table"
+                    aria-label="Public card fields table"
+                    tabIndex={0}
+                    className="
+                      hidden overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
+                      md:block
+                    "
+                  >
+                    <table className="w-full min-w-2xl text-left text-sm sm:text-base">
+                      <caption className="sr-only">
+                        Publicly retrievable stored card fields.
+                      </caption>
+                      <thead>
+                        <tr className="border-b border-gold/10 bg-gold/4">
+                          <th
+                            scope="col"
+                            className="
+                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                              text-muted-foreground uppercase
+                              sm:text-xs
+                            "
+                          >
+                            Field
+                          </th>
+                          <th
+                            scope="col"
+                            className="
+                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                              text-muted-foreground uppercase
+                              sm:text-xs
+                            "
+                          >
+                            What it means publicly
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gold/8">
+                        {publicCardFieldRows.map((row) => (
+                          <tr key={row.label} className="group">
+                            <th
+                              scope="row"
+                              className="
+                                w-1/4 px-6 py-4 align-top font-medium text-foreground
+                                transition-colors
+                                group-hover:text-gold
+                              "
+                            >
+                              {row.label}
+                            </th>
+                            <td className="px-6 py-4 text-muted-foreground">
+                              {row.detail}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </SectionReveal>
 
-                      <div
-                        data-testid="privacy-retention-table"
-                        aria-label="Retention limits table"
-                        tabIndex={0}
-                        className="
-                          hidden overflow-x-auto border border-gold/12 bg-background/60
-                          backdrop-blur-sm
-                          md:block
-                        "
-                      >
-                        <table className="w-full min-w-2xl text-left text-sm sm:text-base">
-                          <caption className="sr-only">
-                            Retention limits and cleanup windows for stored
-                            AniCards data.
-                          </caption>
-                          <thead>
-                            <tr className="border-b border-gold/10 bg-gold/4">
-                              <th
-                                scope="col"
-                                className="
-                                  px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
-                                  text-muted-foreground uppercase
-                                  sm:text-xs
-                                "
-                              >
-                                Category
-                              </th>
-                              <th
-                                scope="col"
-                                className="
-                                  px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
-                                  text-muted-foreground uppercase
-                                  sm:text-xs
-                                "
-                              >
-                                Retention
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gold/8">
-                            {section.items.map((row) => (
-                              <tr key={row.label} className="group">
-                                <th
-                                  scope="row"
-                                  className="
-                                    w-1/4 px-6 py-4 align-top font-medium text-foreground
-                                    transition-colors
-                                    group-hover:text-gold
-                                  "
-                                >
-                                  {row.label}
-                                </th>
-                                <td className="px-6 py-4 text-muted-foreground">
-                                  {row.detail}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </section>
+            <SectionReveal>
+              <section
+                id="third-party-services"
+                aria-labelledby="heading-third-party-services"
+                className="scroll-mt-24"
+              >
+                <div className="flex items-start gap-6">
+                  <div className="relative shrink-0 pt-1">
+                    <div className="absolute top-0 left-0 h-full w-0.5 bg-gold/20" />
+                    <span
+                      aria-hidden="true"
+                      className="
+                        block pl-4 font-display text-[3rem] leading-none font-normal tracking-tight
+                        text-gold/15 select-none
+                        sm:text-[4rem]
+                      "
+                    >
+                      04
+                    </span>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <h2
+                      id="heading-third-party-services"
+                      className="
+                        font-display text-xl tracking-[0.04em] text-foreground uppercase
+                        sm:text-2xl
+                      "
+                    >
+                      Third-party services
+                    </h2>
+                    <p className="text-sm text-muted-foreground sm:text-base">
+                      Here is the current vendor matrix for outbound services
+                      and infrastructure the repository relies on.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 h-px w-full bg-gold/10" />
+
+                <div
+                  data-testid="privacy-vendor-matrix"
+                  aria-label="Third-party vendor matrix"
+                  tabIndex={0}
+                  className="
+                    mt-8 overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
+                  "
+                >
+                  <table className="w-full min-w-4xl text-left text-sm sm:text-base">
+                    <caption className="sr-only">
+                      Third-party vendors, what they do, what data they handle,
+                      and when they are active.
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-gold/10 bg-gold/4">
+                        {[
+                          "Vendor",
+                          "Purpose",
+                          "Data handled",
+                          "When active",
+                        ].map((heading) => (
+                          <th
+                            key={heading}
+                            scope="col"
+                            className="
+                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                              text-muted-foreground uppercase
+                              sm:text-xs
+                            "
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gold/8">
+                      {thirdPartyVendorRows.map((row) => (
+                        <tr key={row.vendor} className="group">
+                          <th
+                            scope="row"
+                            className="
+                              px-6 py-4 align-top font-medium text-foreground transition-colors
+                              group-hover:text-gold
+                            "
+                          >
+                            {row.vendor}
+                          </th>
+                          <td className="px-6 py-4 text-muted-foreground">
+                            {row.purpose}
+                          </td>
+                          <td className="px-6 py-4 text-muted-foreground">
+                            {row.data}
+                          </td>
+                          <td className="px-6 py-4 text-muted-foreground">
+                            {row.activation}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </SectionReveal>
+
+            {sections.slice(2).map((section) => (
+              <SectionReveal key={section.id}>
+                <StandardPrivacySection section={section} />
               </SectionReveal>
             ))}
           </div>
