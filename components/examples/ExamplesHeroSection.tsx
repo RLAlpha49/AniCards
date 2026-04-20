@@ -23,6 +23,7 @@ interface HeroSectionProps {
   totalVariants: number;
   categoryCount: number;
   createHref: string;
+  onCreateClick?: () => void;
 }
 
 const GALLERY_SECTION_ID = "card-gallery";
@@ -64,6 +65,7 @@ export function ExamplesHeroSection({
   totalVariants,
   categoryCount,
   createHref,
+  onCreateClick,
 }: Readonly<HeroSectionProps>) {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const orchestrate = buildMotionSafeStaggerContainer({
@@ -294,6 +296,7 @@ export function ExamplesHeroSection({
         >
           <Link
             href={createHref}
+            onClick={onCreateClick}
             className="imperial-btn inline-flex imperial-btn-fill items-center"
           >
             <Sparkles className="mr-2 size-4" />
