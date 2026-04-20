@@ -55,9 +55,16 @@ export default async function AboutPage() {
                 <h1 className="
                   font-display text-[clamp(3rem,10vw,8rem)] leading-[0.88] font-black tracking-tight
                 ">
-                  <span className="block text-foreground">WHY</span>
+                  <span className="block text-foreground">ABOUT</span>
                   <span className="block text-gold">ANICARDS</span>
                 </h1>
+                <p className="
+                  mt-5 font-body-serif text-sm/relaxed tracking-[0.18em] text-foreground/35
+                  uppercase
+                  sm:text-base/relaxed
+                ">
+                  Why it exists and what keeps the scope honest
+                </p>
               </div>
             </SectionReveal>
 
