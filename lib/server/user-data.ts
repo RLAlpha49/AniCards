@@ -240,7 +240,7 @@ export interface PrivacyRightsEvidenceEntry {
 }
 
 export interface MaintainerUserDataExportArtifact {
-  parsed: unknown | null;
+  parsed: unknown;
   raw: string | null;
 }
 
@@ -909,6 +909,10 @@ type StoredPrivacyRightsEvidenceEntry = {
   serialized: string;
 };
 
+type SerializedEntry = {
+  serialized: string;
+};
+
 function sanitizePrivacyRightsAuditActor(value: string | undefined): string {
   if (typeof value !== "string") {
     return "maintainer_manual_workflow";
@@ -1008,9 +1012,9 @@ function toStoredUserLifecycleAuditEntry(
   };
 }
 
-function shouldRewriteUserLifecycleAuditEntries(
+function shouldRewriteSerializedEntries(
   currentEntries: unknown[],
-  nextEntries: StoredUserLifecycleAuditEntry[],
+  nextEntries: ReadonlyArray<SerializedEntry>,
 ): boolean {
   const serializedCurrentEntries = currentEntries.map((entry) =>
     typeof entry === "string" ? entry : JSON.stringify(entry),
@@ -1024,21 +1028,37 @@ function shouldRewriteUserLifecycleAuditEntries(
   );
 }
 
+async function rewriteSerializedEntries(options: {
+  entries: ReadonlyArray<SerializedEntry>;
+  key: string;
+  retentionSeconds: number;
+}): Promise<void> {
+  await redisClient.del(options.key);
+
+  for (const entry of options.entries) {
+    await redisClient.rpush(options.key, entry.serialized);
+  }
+
+  if (options.entries.length > 0) {
+    await redisClient.expire(options.key, options.retentionSeconds);
+  }
+}
+
+function shouldRewriteUserLifecycleAuditEntries(
+  currentEntries: unknown[],
+  nextEntries: StoredUserLifecycleAuditEntry[],
+): boolean {
+  return shouldRewriteSerializedEntries(currentEntries, nextEntries);
+}
+
 async function rewriteUserLifecycleAuditEntries(
   entries: StoredUserLifecycleAuditEntry[],
 ): Promise<void> {
-  await redisClient.del(USER_LIFECYCLE_AUDIT_KEY);
-
-  for (const entry of entries) {
-    await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, entry.serialized);
-  }
-
-  if (entries.length > 0) {
-    await redisClient.expire(
-      USER_LIFECYCLE_AUDIT_KEY,
-      USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
-    );
-  }
+  await rewriteSerializedEntries({
+    entries,
+    key: USER_LIFECYCLE_AUDIT_KEY,
+    retentionSeconds: USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
+  });
 }
 
 function collectRetainedUserLifecycleAuditEntries(
@@ -1086,33 +1106,17 @@ function shouldRewritePrivacyRightsEvidenceEntries(
   currentEntries: unknown[],
   nextEntries: StoredPrivacyRightsEvidenceEntry[],
 ): boolean {
-  const serializedCurrentEntries = currentEntries.map((entry) =>
-    typeof entry === "string" ? entry : JSON.stringify(entry),
-  );
-
-  return (
-    serializedCurrentEntries.length !== nextEntries.length ||
-    serializedCurrentEntries.some(
-      (entry, index) => entry !== nextEntries[index]?.serialized,
-    )
-  );
+  return shouldRewriteSerializedEntries(currentEntries, nextEntries);
 }
 
 async function rewritePrivacyRightsEvidenceEntries(
   entries: StoredPrivacyRightsEvidenceEntry[],
 ): Promise<void> {
-  await redisClient.del(USER_PRIVACY_RIGHTS_EVIDENCE_KEY);
-
-  for (const entry of entries) {
-    await redisClient.rpush(USER_PRIVACY_RIGHTS_EVIDENCE_KEY, entry.serialized);
-  }
-
-  if (entries.length > 0) {
-    await redisClient.expire(
-      USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
-      USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS,
-    );
-  }
+  await rewriteSerializedEntries({
+    entries,
+    key: USER_PRIVACY_RIGHTS_EVIDENCE_KEY,
+    retentionSeconds: USER_PRIVACY_RIGHTS_EVIDENCE_RETENTION_SECONDS,
+  });
 }
 
 function collectRetainedPrivacyRightsEvidenceEntries(
@@ -1374,8 +1378,7 @@ async function listPrivacyRightsEvidenceForUser(
     .map((value) => toStoredPrivacyRightsEvidenceEntry(value))
     .filter(
       (entry): entry is StoredPrivacyRightsEvidenceEntry =>
-        entry !== undefined &&
-        entry.entry.userId === userId &&
+        entry?.entry.userId === userId &&
         isPrivacyRightsEvidenceEntryWithinRetentionWindow(entry.entry, now),
     )
     .map((entry) => entry.entry);
@@ -2578,14 +2581,14 @@ export async function listStalestUserIds(
     await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
   );
 
-  if (totalUsers === 0) {
-    totalUsers = await rebuildUserRefreshIndex();
-  } else if (
-    await tryAcquireMaintenanceLease(
+  const shouldRebuildUserRefreshIndex =
+    totalUsers === 0 ||
+    (await tryAcquireMaintenanceLease(
       USER_REFRESH_INDEX_REPAIR_LEASE_KEY,
       USER_REFRESH_INDEX_REPAIR_INTERVAL_SECONDS,
-    )
-  ) {
+    ));
+
+  if (shouldRebuildUserRefreshIndex) {
     totalUsers = await rebuildUserRefreshIndex();
   }
 

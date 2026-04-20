@@ -110,6 +110,17 @@ type EvalDeletePayload = {
   userId: string;
 };
 
+type EvalStoreCardsPayload = {
+  cardsKey: string;
+  cardsMetaKey: unknown;
+  commitKey: unknown;
+  expectedRevision?: number;
+  expectedSerializedCurrent?: string;
+  expectedSnapshotToken?: string;
+  expectedUpdatedAt?: string;
+  rawSerializedCardData: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -355,6 +366,171 @@ function buildEvalStoredCardsUserSnapshotFromRecord(options: {
   }
 
   return Object.keys(snapshot).length > 0 ? snapshot : undefined;
+}
+
+function parseEvalStoreCardsPayload(
+  keys: unknown[],
+  args: unknown[],
+): EvalStoreCardsPayload | null {
+  const [cardsKey, cardsMetaKey, commitKey] = keys;
+  const [
+    rawExpectedUpdatedAt,
+    rawSerializedCardData,
+    rawExpectedSerializedCurrent,
+    rawExpectedRevision,
+    rawExpectedSnapshotToken,
+  ] = args;
+
+  if (
+    typeof cardsKey !== "string" ||
+    typeof rawSerializedCardData !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    cardsKey,
+    cardsMetaKey,
+    commitKey,
+    expectedUpdatedAt: getEvalStoreCardsExpectedString(rawExpectedUpdatedAt),
+    expectedSerializedCurrent: getEvalStoreCardsExpectedString(
+      rawExpectedSerializedCurrent,
+    ),
+    expectedRevision: getPositiveNumericValue(rawExpectedRevision),
+    expectedSnapshotToken: getEvalStoreCardsExpectedString(
+      rawExpectedSnapshotToken,
+    ),
+    rawSerializedCardData,
+  };
+}
+
+async function resolveEvalStoreCardsCurrentRawRecord(options: {
+  cardsKey: string;
+  expectedSerializedCurrent?: string;
+}): Promise<unknown> {
+  const fetchedCurrentRawRecord = await sharedRedisMockGet(options.cardsKey);
+
+  return resolveEvalCurrentStoreCardsRawRecord({
+    fetchedCurrentRawRecord,
+    expectedSerializedCurrent: options.expectedSerializedCurrent,
+  });
+}
+
+function getEvalStoreCardsCurrentConflict(options: {
+  currentRawRecord: unknown;
+  expectedSerializedCurrent?: string;
+  expectedUpdatedAt?: string;
+}): unknown[] | null {
+  if (!options.currentRawRecord && options.expectedSerializedCurrent) {
+    return [0];
+  }
+
+  if (
+    options.expectedSerializedCurrent &&
+    typeof options.currentRawRecord === "string" &&
+    options.currentRawRecord !== options.expectedSerializedCurrent
+  ) {
+    return buildEvalStoreCardsConflictResult(options.currentRawRecord);
+  }
+
+  const currentUpdatedAt = getEvalStoreCardsCurrentUpdatedAt(
+    options.currentRawRecord,
+  );
+
+  if (
+    options.expectedUpdatedAt &&
+    currentUpdatedAt !== options.expectedUpdatedAt
+  ) {
+    return buildEvalStoreCardsConflictResult(options.currentRawRecord);
+  }
+
+  return null;
+}
+
+async function resolveEvalStoreCardsUserSnapshot(
+  commitKey: unknown,
+): Promise<Record<string, unknown> | undefined> {
+  const commitPointer =
+    typeof commitKey === "string"
+      ? parseEvalJsonRecord(await sharedRedisMockGet(commitKey))
+      : null;
+
+  if (typeof commitPointer?.snapshotKeyPrefix !== "string") {
+    return undefined;
+  }
+
+  return buildEvalStoredCardsUserSnapshotFromRecord({
+    record: commitPointer,
+    tokenKey: "snapshotToken",
+  });
+}
+
+function getEvalStoreCardsSnapshotConflict(options: {
+  expectedRevision?: number;
+  expectedSnapshotToken?: string;
+  userSnapshot: Record<string, unknown>;
+}): unknown[] | null {
+  if (
+    options.expectedRevision !== undefined &&
+    options.userSnapshot.revision !== options.expectedRevision
+  ) {
+    return [3];
+  }
+
+  if (
+    options.expectedSnapshotToken &&
+    options.userSnapshot.token !== options.expectedSnapshotToken
+  ) {
+    return [3];
+  }
+
+  return null;
+}
+
+async function persistEvalStructuredStoreCardsRecord(options: {
+  cardsKey: string;
+  cardsMetaKey: unknown;
+  currentRawRecord: unknown;
+  nextRecord: Record<string, unknown>;
+  userSnapshot: Record<string, unknown>;
+}): Promise<unknown[]> {
+  const currentVersion = getEvalStoreCardsCurrentVersion(
+    options.currentRawRecord,
+  );
+  const nextVersion =
+    typeof currentVersion === "number" && currentVersion > 0
+      ? currentVersion + 1
+      : 1;
+
+  options.nextRecord.userSnapshot = options.userSnapshot;
+  options.nextRecord.version = nextVersion;
+
+  await sharedRedisMockSet(
+    options.cardsKey,
+    JSON.stringify(options.nextRecord),
+  );
+  if (typeof options.cardsMetaKey === "string") {
+    await sharedRedisMockSet(
+      options.cardsMetaKey,
+      JSON.stringify(
+        buildEvalStoreCardsMetaRecord({
+          nextRecord: options.nextRecord,
+          nextVersion,
+          userSnapshot: options.userSnapshot,
+        }),
+      ),
+    );
+  }
+
+  return [
+    1,
+    options.nextRecord.updatedAt,
+    String(nextVersion),
+    options.userSnapshot.token,
+    String(options.userSnapshot.revision),
+    options.userSnapshot.updatedAt,
+    options.userSnapshot.committedAt,
+  ];
 }
 
 function buildEvalSaveMeta(options: {
@@ -860,120 +1036,55 @@ async function emulateAtomicStoreCardsEval(
   keys: unknown[],
   args: unknown[],
 ): Promise<unknown[]> {
-  const [cardsKey, cardsMetaKey, commitKey] = keys;
-  const [
-    rawExpectedUpdatedAt,
-    rawSerializedCardData,
-    rawExpectedSerializedCurrent,
-    rawExpectedRevision,
-    rawExpectedSnapshotToken,
-  ] = args;
-
-  if (
-    typeof cardsKey !== "string" ||
-    typeof rawSerializedCardData !== "string"
-  ) {
+  const payload = parseEvalStoreCardsPayload(keys, args);
+  if (!payload) {
     return [1];
   }
 
-  const expectedUpdatedAt =
-    getEvalStoreCardsExpectedString(rawExpectedUpdatedAt);
-  const expectedSerializedCurrent = getEvalStoreCardsExpectedString(
-    rawExpectedSerializedCurrent,
-  );
-  const expectedRevision = getPositiveNumericValue(rawExpectedRevision);
-  const expectedSnapshotToken = getEvalStoreCardsExpectedString(
-    rawExpectedSnapshotToken,
-  );
-
-  const fetchedCurrentRawRecord = await sharedRedisMockGet(cardsKey);
-  const currentRawRecord = resolveEvalCurrentStoreCardsRawRecord({
-    fetchedCurrentRawRecord,
-    expectedSerializedCurrent,
+  const currentRawRecord = await resolveEvalStoreCardsCurrentRawRecord({
+    cardsKey: payload.cardsKey,
+    expectedSerializedCurrent: payload.expectedSerializedCurrent,
+  });
+  const currentConflict = getEvalStoreCardsCurrentConflict({
+    currentRawRecord,
+    expectedSerializedCurrent: payload.expectedSerializedCurrent,
+    expectedUpdatedAt: payload.expectedUpdatedAt,
   });
 
-  if (!currentRawRecord && expectedSerializedCurrent) {
-    return [0];
+  if (currentConflict) {
+    return currentConflict;
   }
 
-  if (
-    expectedSerializedCurrent &&
-    typeof currentRawRecord === "string" &&
-    currentRawRecord !== expectedSerializedCurrent
-  ) {
-    return buildEvalStoreCardsConflictResult(currentRawRecord);
-  }
-
-  const currentUpdatedAt = getEvalStoreCardsCurrentUpdatedAt(currentRawRecord);
-  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
-    return buildEvalStoreCardsConflictResult(currentRawRecord);
-  }
-
-  const nextRecord = parseEvalJsonRecord(rawSerializedCardData);
+  const nextRecord = parseEvalJsonRecord(payload.rawSerializedCardData);
   if (!nextRecord) {
-    await sharedRedisMockSet(cardsKey, rawSerializedCardData);
+    await sharedRedisMockSet(payload.cardsKey, payload.rawSerializedCardData);
     return [1];
   }
 
-  const commitPointer =
-    typeof commitKey === "string"
-      ? parseEvalJsonRecord(await sharedRedisMockGet(commitKey))
-      : null;
-  const userSnapshot =
-    typeof commitPointer?.snapshotKeyPrefix === "string"
-      ? buildEvalStoredCardsUserSnapshotFromRecord({
-          record: commitPointer,
-          tokenKey: "snapshotToken",
-        })
-      : undefined;
-
+  const userSnapshot = await resolveEvalStoreCardsUserSnapshot(
+    payload.commitKey,
+  );
   if (!userSnapshot) {
     return [2];
   }
 
-  if (
-    expectedRevision !== undefined &&
-    userSnapshot.revision !== expectedRevision
-  ) {
-    return [3];
+  const snapshotConflict = getEvalStoreCardsSnapshotConflict({
+    expectedRevision: payload.expectedRevision,
+    expectedSnapshotToken: payload.expectedSnapshotToken,
+    userSnapshot,
+  });
+
+  if (snapshotConflict) {
+    return snapshotConflict;
   }
 
-  if (expectedSnapshotToken && userSnapshot.token !== expectedSnapshotToken) {
-    return [3];
-  }
-
-  const currentVersion = getEvalStoreCardsCurrentVersion(currentRawRecord);
-  const nextVersion =
-    typeof currentVersion === "number" && currentVersion > 0
-      ? currentVersion + 1
-      : 1;
-
-  nextRecord.userSnapshot = userSnapshot;
-  nextRecord.version = nextVersion;
-
-  await sharedRedisMockSet(cardsKey, JSON.stringify(nextRecord));
-  if (typeof cardsMetaKey === "string") {
-    await sharedRedisMockSet(
-      cardsMetaKey,
-      JSON.stringify(
-        buildEvalStoreCardsMetaRecord({
-          nextRecord,
-          nextVersion,
-          userSnapshot,
-        }),
-      ),
-    );
-  }
-
-  return [
-    1,
-    nextRecord.updatedAt,
-    String(nextVersion),
-    userSnapshot.token,
-    String(userSnapshot.revision),
-    userSnapshot.updatedAt,
-    userSnapshot.committedAt,
-  ];
+  return persistEvalStructuredStoreCardsRecord({
+    cardsKey: payload.cardsKey,
+    cardsMetaKey: payload.cardsMetaKey,
+    currentRawRecord,
+    nextRecord,
+    userSnapshot,
+  });
 }
 
 function getEvalSavePayloadArg(argList: unknown[]): string | null {
