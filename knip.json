@@ -19,8 +19,12 @@
     "lib/svg-templates/**": ["exports"]
   },
   "tags": ["-@internal"],
-  "ignoreDependencies": ["postcss-load-config"],
+  "ignoreDependencies": [
+    "postcss-load-config",
+    "license-checker-rseidelsohn",
+    "lint-staged",
+    "tw-animate-css"
+  ],
   "ignoreBinaries": [],
-  "exclude": ["devDependencies"],
   "ignoreExportsUsedInFile": true
 }
