@@ -102,6 +102,15 @@ type InlineFeedback = {
 type UserPageEditorStoreState = ReturnType<typeof useUserPageEditor.getState>;
 type SettingsToolsWorkspaceBackup = ReturnType<typeof makeWorkspaceBackup>;
 type SettingsToolsShareBuildResult = ReturnType<typeof buildShareableCards>;
+type SettingsToolsCardOption = {
+  enabled: boolean;
+  id: string;
+  label: string;
+};
+type SettingsToolsShareData = Pick<
+  SettingsToolsShareBuildResult,
+  "shareableCards" | "skippedDisabledCards"
+>;
 type SettingsToolsFeedbackOutcome = {
   errorMessage?: string;
   successMessage?: string;
@@ -120,6 +129,11 @@ type SettingsToolsProfileShareDownloadOutcome =
       summary: DownloadSummary;
     };
 
+const EMPTY_SETTINGS_TOOLS_SHARE_DATA: SettingsToolsShareData = {
+  shareableCards: [],
+  skippedDisabledCards: [],
+};
+
 function clearTimeoutRef(timerRef: {
   current: ReturnType<typeof setTimeout> | null;
 }) {
@@ -135,6 +149,22 @@ function buildWorkspaceRestoreLabel(identity?: string | null): string {
   return identity
     ? `Workspace restored from ${identity}`
     : "Workspace restored";
+}
+
+function getSettingsToolsFeedbackNode(options: {
+  defaultMessage: React.ReactNode;
+  errorMessage: string | null;
+  successMessage: string | null;
+}): React.ReactNode {
+  if (options.errorMessage) {
+    return <span className="text-red-600">{options.errorMessage}</span>;
+  }
+
+  if (options.successMessage) {
+    return <span className="text-green-600">{options.successMessage}</span>;
+  }
+
+  return options.defaultMessage;
 }
 
 function TemplateFeedbackMessage(
@@ -420,6 +450,110 @@ function getSettingsToolsExportKindOptions(
   return base;
 }
 
+function getSettingsToolsCardOptions(options: {
+  cardConfigs: UserPageEditorStoreState["cardConfigs"];
+  props: Readonly<SettingsToolsProps>;
+}): SettingsToolsCardOption[] {
+  if (options.props.mode !== "card") {
+    return [];
+  }
+
+  const { cardId } = options.props;
+  const metaById = new Map(statCardTypes.map((t) => [t.id, t] as const));
+
+  return Object.values(options.cardConfigs)
+    .filter((config) => config.cardId !== cardId)
+    .map((config) => {
+      const meta = metaById.get(config.cardId);
+      return {
+        id: config.cardId,
+        label: meta?.label ?? config.cardId,
+        enabled: config.enabled,
+      };
+    })
+    .sort((left, right) => {
+      if (left.enabled !== right.enabled) {
+        return left.enabled ? -1 : 1;
+      }
+
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function getSettingsToolsProfileShareData(options: {
+  cardConfigs: UserPageEditorStoreState["cardConfigs"];
+  getEffectiveBorderColor: UserPageEditorStoreState["getEffectiveBorderColor"];
+  getEffectiveBorderRadius: UserPageEditorStoreState["getEffectiveBorderRadius"];
+  getEffectiveColors: UserPageEditorStoreState["getEffectiveColors"];
+  globalAdvancedSettings: UserPageEditorStoreState["globalAdvancedSettings"];
+  globalColorPreset: UserPageEditorStoreState["globalColorPreset"];
+  mode: SettingsToolsProps["mode"];
+  orderedCardIds: string[];
+  userId: UserPageEditorStoreState["userId"];
+}): SettingsToolsShareData {
+  if (options.mode !== "global") {
+    return EMPTY_SETTINGS_TOOLS_SHARE_DATA;
+  }
+
+  return buildShareableCards({
+    cardConfigs: options.cardConfigs,
+    cardIds: options.orderedCardIds,
+    getEffectiveBorderColor: options.getEffectiveBorderColor,
+    getEffectiveBorderRadius: options.getEffectiveBorderRadius,
+    getEffectiveColors: options.getEffectiveColors,
+    globalAdvancedSettings: options.globalAdvancedSettings,
+    globalColorPreset: options.globalColorPreset,
+    userId: options.userId,
+  });
+}
+
+function applySettingsToolsSnapshotToTarget(options: {
+  applySettingsSnapshotToCard: UserPageEditorStoreState["applySettingsSnapshotToCard"];
+  applySettingsSnapshotToGlobal: UserPageEditorStoreState["applySettingsSnapshotToGlobal"];
+  props: Readonly<SettingsToolsProps>;
+  snapshot: SettingsSnapshot;
+}): void {
+  if (options.props.mode === "global") {
+    options.applySettingsSnapshotToGlobal(options.snapshot);
+    return;
+  }
+
+  options.applySettingsSnapshotToCard(options.props.cardId, options.snapshot);
+}
+
+function applySettingsToolsTemplateToTarget(options: {
+  applySettingsTemplateToCard: UserPageEditorStoreState["applySettingsTemplateToCard"];
+  applySettingsTemplateToGlobal: UserPageEditorStoreState["applySettingsTemplateToGlobal"];
+  props: Readonly<SettingsToolsProps>;
+  selectedTemplateId: string;
+}): void {
+  if (!options.selectedTemplateId) {
+    return;
+  }
+
+  if (options.props.mode === "global") {
+    options.applySettingsTemplateToGlobal(options.selectedTemplateId);
+    return;
+  }
+
+  options.applySettingsTemplateToCard(
+    options.props.cardId,
+    options.selectedTemplateId,
+  );
+}
+
+function copySettingsToolsFromSelectedCard(options: {
+  copyFromCardId: string;
+  copySettingsFromCard: UserPageEditorStoreState["copySettingsFromCard"];
+  props: Readonly<SettingsToolsProps>;
+}): void {
+  if (options.props.mode !== "card" || !options.copyFromCardId) {
+    return;
+  }
+
+  options.copySettingsFromCard(options.copyFromCardId, options.props.cardId);
+}
+
 async function downloadSettingsToolsProfileShareCards(options: {
   format: CardDownloadFormat;
   onProgress: (progress: { current: number; total: number }) => void;
@@ -580,62 +714,37 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [settingsTemplates]);
 
   const cardOptions = useMemo(() => {
-    if (props.mode !== "card") return [];
-
-    const metaById = new Map(statCardTypes.map((t) => [t.id, t] as const));
-
-    return Object.values(cardConfigs)
-      .filter((c) => c.cardId !== props.cardId)
-      .map((c) => {
-        const meta = metaById.get(c.cardId);
-        return {
-          id: c.cardId,
-          label: meta?.label ?? c.cardId,
-          enabled: c.enabled,
-        };
-      })
-      .sort((a, b) => {
-        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-        return a.label.localeCompare(b.label);
-      });
+    return getSettingsToolsCardOptions({
+      cardConfigs,
+      props,
+    });
   }, [cardConfigs, props]);
 
-  const feedbackNode = useMemo(() => {
-    if (importError) {
-      return <span className="text-red-600">{importError}</span>;
-    }
-    if (importSuccess) {
-      return <span className="text-green-600">{importSuccess}</span>;
-    }
-
-    return (
+  const feedbackNode = getSettingsToolsFeedbackNode({
+    errorMessage: importError,
+    successMessage: importSuccess,
+    defaultMessage: (
       <span className="text-muted-foreground">
         Exported JSON is safe to share (no secrets), but it may reveal your
         styling preferences.
       </span>
-    );
-  }, [importError, importSuccess]);
+    ),
+  });
 
-  const workspaceFeedbackNode = useMemo(() => {
-    if (workspaceImportError) {
-      return <span className="text-red-600">{workspaceImportError}</span>;
-    }
-    if (workspaceImportSuccess) {
-      return <span className="text-green-600">{workspaceImportSuccess}</span>;
-    }
-
-    return (
+  const workspaceFeedbackNode = getSettingsToolsFeedbackNode({
+    errorMessage: workspaceImportError,
+    successMessage: workspaceImportSuccess,
+    defaultMessage: (
       <span className="text-muted-foreground">
         Full workspace backups stay local to your browser and include global
         settings, per-card configs, ordering, templates, and local recovery
         state.
       </span>
-    );
-  }, [workspaceImportError, workspaceImportSuccess]);
+    ),
+  });
 
-  const templateFeedbackNode = useMemo(
-    () => <TemplateFeedbackMessage feedback={templateFeedback} />,
-    [templateFeedback],
+  const templateFeedbackNode = (
+    <TemplateFeedbackMessage feedback={templateFeedback} />
   );
 
   const orderedCardIds = useMemo(() => {
@@ -663,21 +772,15 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     shareableCards: profileShareCards,
     skippedDisabledCards: profileShareSkippedDisabledCards,
   } = useMemo(() => {
-    if (props.mode !== "global") {
-      return {
-        shareableCards: [],
-        skippedDisabledCards: [] as Array<{ cardId: string; rawType: string }>,
-      };
-    }
-
-    return buildShareableCards({
+    return getSettingsToolsProfileShareData({
       cardConfigs,
-      cardIds: orderedCardIds,
       getEffectiveBorderColor,
       getEffectiveBorderRadius,
       getEffectiveColors,
       globalAdvancedSettings,
       globalColorPreset,
+      mode: props.mode,
+      orderedCardIds,
       userId,
     });
   }, [
@@ -880,11 +983,12 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
   const applySnapshotToTarget = useCallback(
     (snapshot: SettingsSnapshot) => {
-      if (props.mode === "global") {
-        applySettingsSnapshotToGlobal(snapshot);
-      } else {
-        applySettingsSnapshotToCard(props.cardId, snapshot);
-      }
+      applySettingsToolsSnapshotToTarget({
+        applySettingsSnapshotToCard,
+        applySettingsSnapshotToGlobal,
+        props,
+        snapshot,
+      });
     },
     [applySettingsSnapshotToCard, applySettingsSnapshotToGlobal, props],
   );
@@ -1052,13 +1156,12 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [deleteSettingsTemplate, selectedTemplateId, templateOptions]);
 
   const handleApplyTemplate = useCallback(() => {
-    if (!selectedTemplateId) return;
-
-    if (props.mode === "global") {
-      applySettingsTemplateToGlobal(selectedTemplateId);
-    } else {
-      applySettingsTemplateToCard(props.cardId, selectedTemplateId);
-    }
+    applySettingsToolsTemplateToTarget({
+      applySettingsTemplateToCard,
+      applySettingsTemplateToGlobal,
+      props,
+      selectedTemplateId,
+    });
   }, [
     applySettingsTemplateToCard,
     applySettingsTemplateToGlobal,
@@ -1067,9 +1170,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   ]);
 
   const handleCopyFromCard = useCallback(() => {
-    if (props.mode !== "card") return;
-    if (!copyFromCardId) return;
-    copySettingsFromCard(copyFromCardId, props.cardId);
+    copySettingsToolsFromSelectedCard({
+      copyFromCardId,
+      copySettingsFromCard,
+      props,
+    });
   }, [copyFromCardId, copySettingsFromCard, props]);
 
   const exportKindOptions = useMemo(() => {
