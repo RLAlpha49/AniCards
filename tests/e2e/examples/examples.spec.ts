@@ -224,4 +224,37 @@ test.describe("Examples gallery", () => {
       ).toBeVisible({ timeout: 15000 });
     });
   });
+
+  test("preserves discovery filters when moving from examples into search", async ({
+    page,
+  }) => {
+    await gotoReady(
+      page,
+      "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+    );
+
+    const createYoursLink = page.getByRole("link", {
+      name: /^create yours$/i,
+    });
+
+    await clickAnchorAndExpectUrl(page, createYoursLink, /\/search(?:\?|$)/);
+
+    await expect(page.getByTestId("search-discovery-context")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("search-discovery-context")).toContainText(
+      /anime deep dive gallery/i,
+    );
+    await expect(page.getByTestId("search-discovery-context")).toContainText(
+      /voice actors/i,
+    );
+    await expect(
+      page
+        .getByTestId("search-discovery-context")
+        .getByRole("link", { name: /return to anime deep dive/i }),
+    ).toHaveAttribute(
+      "href",
+      /\/examples\?search=Voice(?:%20|\+)Actors&category=Anime(?:%20|\+)Deep(?:%20|\+)Dive/,
+    );
+  });
 });

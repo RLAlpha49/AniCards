@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/Button";
 import { EASE_OUT_EXPO } from "@/lib/animations";
 import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
 import {
+  getExamplesDiscoveryContextLabel,
+  getExamplesDiscoveryContextReturnLabel,
+  getRememberedUserPageRouteLabel,
   queueSettingsTemplateForEditor,
   readSearchLaunchContinuityState,
   type SearchLaunchContinuityState,
@@ -24,6 +27,8 @@ import {
 const EMPTY_CONTINUITY_STATE: SearchLaunchContinuityState = {
   pendingTemplateApply: null,
   lastSuccessfulUserRoute: null,
+  recentSuccessfulUserRoutes: [],
+  lastDiscoveryContext: null,
 };
 
 function getRememberedUserRouteTitle(
@@ -33,7 +38,7 @@ function getRememberedUserRouteTitle(
     return "Your last editor shows up here";
   }
 
-  return route.username ? `@${route.username}` : `AniList user ${route.userId}`;
+  return getRememberedUserPageRouteLabel(route);
 }
 
 function focusSearchForm(reducedMotion: boolean): void {
@@ -71,9 +76,14 @@ function buildStarterStyleTemplate(
 
 function getQueuedStyleMessage(
   pendingTemplateName: string | null | undefined,
+  discoveryContextLabel: string | null,
 ): string {
   if (pendingTemplateName) {
     return `${pendingTemplateName} is already queued and will apply the moment the editor opens.`;
+  }
+
+  if (discoveryContextLabel) {
+    return `Queue one of the starter looks on the right, then search above, reopen a recent editor, or head back to ${discoveryContextLabel} without losing the thread.`;
   }
 
   return "Queue one of the starter looks on the right, then search above or reopen your last editor to carry it forward.";
@@ -149,6 +159,10 @@ export function SearchCapabilities() {
     (starterStyle: EditorStarterStyle) => {
       const queueResult = queueSettingsTemplateForEditor(
         buildStarterStyleTemplate(starterStyle),
+        {
+          source: "search-starter",
+          discoveryContext: continuityState.lastDiscoveryContext ?? undefined,
+        },
       );
 
       if (!queueResult.ok) {
@@ -185,11 +199,29 @@ export function SearchCapabilities() {
   const hasLastEditor = Boolean(continuityState.lastSuccessfulUserRoute?.href);
   const pendingTemplateName =
     continuityState.pendingTemplateApply?.templateName;
-  const queuedStyleMessage = getQueuedStyleMessage(pendingTemplateName);
+  const discoveryContextLabel = continuityState.lastDiscoveryContext
+    ? getExamplesDiscoveryContextLabel(continuityState.lastDiscoveryContext)
+    : null;
+  const queuedStyleMessage = getQueuedStyleMessage(
+    pendingTemplateName,
+    discoveryContextLabel,
+  );
   const resumeLastEditorButtonContent = renderResumeLastEditorButtonContent({
     hasLastEditor,
     isBusy: busyActionId === "resume-last-editor",
   });
+  const additionalRecentUserRoutes = continuityState.recentSuccessfulUserRoutes
+    .filter(
+      (route) => route.href !== continuityState.lastSuccessfulUserRoute?.href,
+    )
+    .slice(0, 3);
+  const examplesHref =
+    continuityState.lastDiscoveryContext?.href ?? "/examples";
+  const examplesLabel = continuityState.lastDiscoveryContext
+    ? getExamplesDiscoveryContextReturnLabel(
+        continuityState.lastDiscoveryContext,
+      )
+    : "Browse live examples";
 
   return (
     <section className="px-6 py-20 sm:px-12 md:py-28">
@@ -261,9 +293,55 @@ export function SearchCapabilities() {
                 </p>
               ) : null}
 
+              {discoveryContextLabel ? (
+                <p className="mt-3 text-xs/relaxed text-gold/80">
+                  {discoveryContextLabel} is still remembered here too, so your
+                  examples detour can stay exact instead of snapping back to the
+                  generic gallery.
+                </p>
+              ) : null}
+
               <p className="mt-3 text-xs/relaxed text-foreground/45">
                 {queuedStyleMessage}
               </p>
+
+              {additionalRecentUserRoutes.length > 0 ? (
+                <div className="mt-4">
+                  <p className="text-[0.68rem] tracking-[0.2em] text-foreground/35 uppercase">
+                    Recent editors
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {additionalRecentUserRoutes.map((route) => (
+                      <Button
+                        key={route.userId}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setBusyActionId(route.userId);
+                          void Promise.resolve(router.push(route.href)).catch(
+                            () => {
+                              setBusyActionId(null);
+                              toast.error("Couldn't open that recent editor", {
+                                description:
+                                  "Try the primary resume button or the search form above.",
+                              });
+                            },
+                          );
+                        }}
+                        disabled={busyActionId !== null}
+                        className="
+                          min-h-10 border border-gold/15 bg-background/65 px-3 text-xs
+                          tracking-[0.15em] uppercase
+                          hover:bg-gold/5
+                        "
+                      >
+                        {getRememberedUserPageRouteLabel(route)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -292,7 +370,7 @@ export function SearchCapabilities() {
                 hover:bg-gold/5
               "
             >
-              <Link href="/examples">Browse live examples</Link>
+              <Link href={examplesHref}>{examplesLabel}</Link>
             </Button>
           </div>
         </motion.div>

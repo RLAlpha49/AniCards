@@ -14,6 +14,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { type MouseEvent, useCallback } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -22,16 +23,16 @@ import {
   buildMotionSafeStaggerContainer,
 } from "@/lib/animations";
 import type { SearchLookupMode } from "@/lib/seo";
-import type {
+import {
+  getExamplesDiscoveryContextLabel,
+  getExamplesDiscoveryContextReturnLabel,
+  getRememberedUserPageRouteLabel,
   PendingSettingsTemplateApply,
   RememberedUserPageRoute,
+  SearchLaunchDiscoveryContext,
 } from "@/lib/user-page-settings-templates";
 
 import { SearchForm } from "./SearchForm";
-
-function getRememberedUserRouteTitle(route: RememberedUserPageRoute): string {
-  return route.username ? `@${route.username}` : `AniList user ${route.userId}`;
-}
 
 type SearchHeroLookupResult = NonNullable<
   SearchHeroSectionProps["lookupResult"]
@@ -82,7 +83,9 @@ interface SearchHeroSectionProps {
   initialFieldError?: string;
   initialSearchMode: SearchLookupMode;
   initialSearchValue: string;
+  lastDiscoveryContext?: SearchLaunchDiscoveryContext | null;
   lastSuccessfulUserRoute?: RememberedUserPageRoute | null;
+  recentSuccessfulUserRoutes?: readonly RememberedUserPageRoute[];
   lookupResult?: {
     avatarUrl?: string | null;
     ctaLabel: string;
@@ -99,6 +102,7 @@ interface SearchHeroSectionProps {
   onOpenResolvedLookup?: (href: string, trackingSource: string) => void;
   pendingTemplateApply?: PendingSettingsTemplateApply | null;
   onClearPendingTemplateApply?: () => void;
+  onOpenRecentEditor?: (href: string) => void;
   onResumeLastEditor?: () => void;
 }
 
@@ -106,12 +110,15 @@ export function SearchHeroSection({
   initialFieldError,
   initialSearchMode,
   initialSearchValue,
+  lastDiscoveryContext,
   lastSuccessfulUserRoute,
+  recentSuccessfulUserRoutes,
   lookupResult,
   onLoadingChange,
   onOpenResolvedLookup,
   pendingTemplateApply,
   onClearPendingTemplateApply,
+  onOpenRecentEditor,
   onResumeLastEditor,
 }: Readonly<SearchHeroSectionProps>) {
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -125,6 +132,12 @@ export function SearchHeroSection({
     distance: 28,
     duration: 0.7,
   });
+  const additionalRecentUserRoutes = (recentSuccessfulUserRoutes ?? [])
+    .filter((route) => route.href !== lastSuccessfulUserRoute?.href)
+    .slice(0, 3);
+  const queuedStyleSourceLabel = pendingTemplateApply?.discoveryContext
+    ? getExamplesDiscoveryContextLabel(pendingTemplateApply.discoveryContext)
+    : null;
   const handleLookupLinkClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
       if (
@@ -269,6 +282,63 @@ export function SearchHeroSection({
           <span>✦ One-Click Setup</span>
         </motion.div>
 
+        {lastDiscoveryContext ? (
+          <motion.div
+            variants={itemVariants}
+            initial={false}
+            className="
+              mx-auto mb-8 max-w-3xl border border-gold/20 bg-background/70 p-4 text-left
+              backdrop-blur-sm
+            "
+            data-testid="search-discovery-context"
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="
+                  mt-0.5 flex size-9 shrink-0 items-center justify-center bg-gold/15
+                  dark:bg-gold/10
+                ">
+                  <Sparkles className="size-4 text-gold-dim dark:text-gold" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.7rem] tracking-[0.25em] text-gold/70 uppercase">
+                    Examples continuity
+                  </p>
+                  <p className="mt-1 text-sm/relaxed font-semibold text-foreground">
+                    {getExamplesDiscoveryContextLabel(lastDiscoveryContext)}
+                  </p>
+                  <p className="mt-1 text-xs/relaxed text-foreground/60 sm:text-sm/relaxed">
+                    Your last gallery or collection thread is still within
+                    reach, so you can jump back to compare another example
+                    without rebuilding the route context by hand.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <Button
+                  asChild
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="
+                    min-h-11 border-gold/20 bg-background/70 px-4 text-xs tracking-[0.15em]
+                    uppercase
+                    hover:bg-gold/5
+                  "
+                >
+                  <Link href={lastDiscoveryContext.href}>
+                    {getExamplesDiscoveryContextReturnLabel(
+                      lastDiscoveryContext,
+                    )}
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+
         {lastSuccessfulUserRoute ? (
           <motion.div
             variants={itemVariants}
@@ -293,7 +363,7 @@ export function SearchHeroSection({
                     Continue where you left off
                   </p>
                   <p className="mt-1 text-sm/relaxed font-semibold text-foreground">
-                    {getRememberedUserRouteTitle(lastSuccessfulUserRoute)}
+                    {getRememberedUserPageRouteLabel(lastSuccessfulUserRoute)}
                   </p>
                   <p className="mt-1 text-xs/relaxed text-foreground/60 sm:text-sm/relaxed">
                     Jump straight back into the last editor AniCards loaded in
@@ -310,6 +380,32 @@ export function SearchHeroSection({
                       is already queued and will apply as soon as the editor
                       opens.
                     </p>
+                  ) : null}
+
+                  {additionalRecentUserRoutes.length > 0 ? (
+                    <div className="mt-4">
+                      <p className="text-[0.68rem] tracking-[0.2em] text-foreground/35 uppercase">
+                        Also recent
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {additionalRecentUserRoutes.map((route) => (
+                          <Button
+                            key={route.userId}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenRecentEditor?.(route.href)}
+                            className="
+                              min-h-10 border border-gold/15 bg-background/65 px-3 text-xs
+                              tracking-[0.15em] uppercase
+                              hover:bg-gold/5
+                            "
+                          >
+                            {getRememberedUserPageRouteLabel(route)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -362,9 +458,9 @@ export function SearchHeroSection({
                     time you open the editor.
                   </p>
                   <p className="mt-2 text-xs/relaxed text-foreground/55">
-                    AniCards will carry this queued look into the next editor
-                    session you open from search, examples, or a remembered
-                    profile.
+                    {queuedStyleSourceLabel
+                      ? `AniCards will carry this queued look into the next editor session you open from search, a remembered profile, or ${queuedStyleSourceLabel}.`
+                      : "AniCards will carry this queued look into the next editor session you open from search, examples, or a remembered profile."}
                   </p>
                 </div>
               </div>

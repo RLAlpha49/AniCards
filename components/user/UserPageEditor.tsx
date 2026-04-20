@@ -116,6 +116,7 @@ import {
 } from "@/lib/user-page-settings-io";
 import {
   consumePendingSettingsTemplateApply,
+  getExamplesDiscoveryContextLabel,
   readSettingsTemplatesFromStorage,
   rememberLastSuccessfulUserPageRoute,
 } from "@/lib/user-page-settings-templates";
@@ -1503,18 +1504,33 @@ function usePendingSettingsTemplateApplication(params: {
     }
 
     if (!template) {
-      toast.error("Couldn't apply the queued example style", {
-        description: "Try selecting the example again from the gallery.",
+      const sourceLabel = pendingTemplateApply.discoveryContext
+        ? getExamplesDiscoveryContextLabel(
+            pendingTemplateApply.discoveryContext,
+          )
+        : pendingTemplateApply.source === "search-starter"
+          ? "the starter style panel"
+          : "the examples gallery";
+
+      toast.error("Couldn't apply the queued style", {
+        description: `Try queuing it again from ${sourceLabel}.`,
       });
       return;
     }
 
     store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
+    const appliedFromLabel = pendingTemplateApply.discoveryContext
+      ? getExamplesDiscoveryContextLabel(pendingTemplateApply.discoveryContext)
+      : pendingTemplateApply.source === "search-starter"
+        ? "the search starter styles"
+        : null;
+
     toast.success(
       `${pendingTemplateApply.templateName ?? template.name} applied`,
       {
-        description:
-          "This style is now active in Global Settings and saved in your template library.",
+        description: appliedFromLabel
+          ? `This style is now active in Global Settings, saved in your template library, and carried over from ${appliedFromLabel}.`
+          : "This style is now active in Global Settings and saved in your template library.",
       },
     );
   }, [params.isLoading, params.userId]);

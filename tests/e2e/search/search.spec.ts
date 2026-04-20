@@ -4,8 +4,12 @@ import { gotoReady, waitForUiReady } from "../fixtures/browser-utils";
 
 const LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY =
   "anicards:last-successful-user-page-route:v1";
+const RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY =
+  "anicards:recent-successful-user-page-routes:v1";
 const PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY =
   "anicards:user-page-settings-template-apply:v1";
+const EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY =
+  "anicards:examples-discovery-context:v1";
 
 async function waitForSearchFormReady(page: Page): Promise<void> {
   await waitForUiReady(page.getByTestId("search-form"));
@@ -244,7 +248,7 @@ test.describe("Search page", () => {
     page,
   }) => {
     await page.evaluate(
-      ({ lastRouteKey, pendingKey }) => {
+      ({ discoveryKey, lastRouteKey, pendingKey, recentRoutesKey }) => {
         globalThis.sessionStorage.setItem(
           pendingKey,
           JSON.stringify({
@@ -252,6 +256,14 @@ test.describe("Search page", () => {
             templateName: "Anime Stats — Minimal (Light)",
             applyTo: "global",
             source: "examples",
+            discoveryContext: {
+              source: "examples",
+              href: "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+              routeKind: "legacy",
+              collectionName: "Anime Deep Dive",
+              searchQuery: "Voice Actors",
+              savedAt: Date.now(),
+            },
             queuedAt: Date.now(),
           }),
         );
@@ -264,10 +276,40 @@ test.describe("Search page", () => {
             savedAt: Date.now(),
           }),
         );
+        globalThis.sessionStorage.setItem(
+          recentRoutesKey,
+          JSON.stringify([
+            {
+              href: "/user/Alpha49",
+              userId: "542244",
+              username: "Alpha49",
+              savedAt: Date.now(),
+            },
+            {
+              href: "/user/Beta49",
+              userId: "777777",
+              username: "Beta49",
+              savedAt: Date.now() - 1_000,
+            },
+          ]),
+        );
+        globalThis.sessionStorage.setItem(
+          discoveryKey,
+          JSON.stringify({
+            source: "examples",
+            href: "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+            routeKind: "legacy",
+            collectionName: "Anime Deep Dive",
+            searchQuery: "Voice Actors",
+            savedAt: Date.now(),
+          }),
+        );
       },
       {
+        discoveryKey: EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY,
         lastRouteKey: LAST_SUCCESSFUL_USER_PAGE_ROUTE_STORAGE_KEY,
         pendingKey: PENDING_SETTINGS_TEMPLATE_APPLY_STORAGE_KEY,
+        recentRoutesKey: RECENT_SUCCESSFUL_USER_PAGE_ROUTES_STORAGE_KEY,
       },
     );
 
@@ -283,10 +325,32 @@ test.describe("Search page", () => {
     await expect(pendingTemplateBanner).toContainText(
       /anime stats — minimal \(light\)/i,
     );
+    await expect(page.getByTestId("search-discovery-context")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("search-discovery-context")).toContainText(
+      /anime deep dive gallery/i,
+    );
+    await expect(page.getByTestId("search-discovery-context")).toContainText(
+      /voice actors/i,
+    );
+    await expect(
+      page
+        .getByTestId("search-discovery-context")
+        .getByRole("link", { name: /return to anime deep dive/i }),
+    ).toHaveAttribute(
+      "href",
+      "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+    );
     await expect(
       page
         .getByTestId("search-last-editor-card")
         .getByRole("button", { name: /resume last editor/i }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page
+        .getByTestId("search-last-editor-card")
+        .getByRole("button", { name: /@Beta49/i }),
     ).toBeVisible({ timeout: 15000 });
 
     await page.getByRole("button", { name: /clear queued style/i }).click();
@@ -352,7 +416,7 @@ test.describe("Search page", () => {
 
     expect(pendingTemplate).toMatchObject({
       applyTo: "global",
-      source: "examples",
+      source: "search-starter",
       templateId: "starter:anicards-dark",
       templateName: "AniCards Dark",
     });

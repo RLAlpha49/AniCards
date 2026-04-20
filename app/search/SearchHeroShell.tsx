@@ -12,12 +12,18 @@ import { buildCanonicalUserPageUrl, type SearchLookupMode } from "@/lib/seo";
 import type { UserBootstrapRecord } from "@/lib/types/records";
 import {
   clearPendingSettingsTemplateApply,
-  type PendingSettingsTemplateApply,
   readSearchLaunchContinuityState,
-  type RememberedUserPageRoute,
+  type SearchLaunchContinuityState,
   subscribeSearchLaunchContinuity,
 } from "@/lib/user-page-settings-templates";
 import { safeTrack, trackNavigation } from "@/lib/utils/google-analytics";
+
+const EMPTY_CONTINUITY_STATE: SearchLaunchContinuityState = {
+  pendingTemplateApply: null,
+  lastSuccessfulUserRoute: null,
+  recentSuccessfulUserRoutes: [],
+  lastDiscoveryContext: null,
+};
 
 type SearchLookupAttempt = {
   fallbackHref: string;
@@ -160,15 +166,11 @@ export default function SearchHeroShell({
       ? buildFallbackLookupResult(initialLookupAttempt)
       : null,
   );
-  const [pendingTemplateApply, setPendingTemplateApply] =
-    useState<PendingSettingsTemplateApply | null>(null);
-  const [lastSuccessfulUserRoute, setLastSuccessfulUserRoute] =
-    useState<RememberedUserPageRoute | null>(null);
+  const [continuityState, setContinuityState] =
+    useState<SearchLaunchContinuityState>(EMPTY_CONTINUITY_STATE);
 
   const syncContinuityState = useCallback(() => {
-    const nextContinuityState = readSearchLaunchContinuityState();
-    setPendingTemplateApply(nextContinuityState.pendingTemplateApply);
-    setLastSuccessfulUserRoute(nextContinuityState.lastSuccessfulUserRoute);
+    setContinuityState(readSearchLaunchContinuityState());
   }, []);
 
   useEffect(() => {
@@ -243,23 +245,13 @@ export default function SearchHeroShell({
 
   const handleClearPendingTemplateApply = useCallback(() => {
     clearPendingSettingsTemplateApply();
-    setPendingTemplateApply(null);
+    setContinuityState((currentState) => ({
+      ...currentState,
+      pendingTemplateApply: null,
+    }));
   }, []);
 
-  const handleResumeLastEditor = useCallback(() => {
-    if (!lastSuccessfulUserRoute?.href) {
-      return;
-    }
-
-    setLoading(true);
-    void Promise.resolve(router.push(lastSuccessfulUserRoute.href)).catch(
-      () => {
-        setLoading(false);
-      },
-    );
-  }, [lastSuccessfulUserRoute?.href, router]);
-
-  const handleOpenLookupResult = useCallback(
+  const handleOpenEditorRoute = useCallback(
     (href: string, trackingSource: string) => {
       setLoading(true);
       safeTrack(() => trackNavigation("user_page", trackingSource));
@@ -268,6 +260,31 @@ export default function SearchHeroShell({
       });
     },
     [router],
+  );
+
+  const handleResumeLastEditor = useCallback(() => {
+    if (!continuityState.lastSuccessfulUserRoute?.href) {
+      return;
+    }
+
+    handleOpenEditorRoute(
+      continuityState.lastSuccessfulUserRoute.href,
+      "search_resume_last_editor",
+    );
+  }, [continuityState.lastSuccessfulUserRoute, handleOpenEditorRoute]);
+
+  const handleOpenRecentEditor = useCallback(
+    (href: string) => {
+      handleOpenEditorRoute(href, "search_recent_editor");
+    },
+    [handleOpenEditorRoute],
+  );
+
+  const handleOpenLookupResult = useCallback(
+    (href: string, trackingSource: string) => {
+      handleOpenEditorRoute(href, trackingSource);
+    },
+    [handleOpenEditorRoute],
   );
 
   return (
@@ -294,12 +311,17 @@ export default function SearchHeroShell({
             lookupResult={lookupResult}
             initialSearchMode={initialSearchMode}
             initialSearchValue={initialSearchValue}
-            lastSuccessfulUserRoute={lastSuccessfulUserRoute}
+            lastSuccessfulUserRoute={continuityState.lastSuccessfulUserRoute}
+            recentSuccessfulUserRoutes={
+              continuityState.recentSuccessfulUserRoutes
+            }
+            lastDiscoveryContext={continuityState.lastDiscoveryContext}
             onLoadingChange={setLoading}
             onOpenResolvedLookup={handleOpenLookupResult}
-            pendingTemplateApply={pendingTemplateApply}
+            pendingTemplateApply={continuityState.pendingTemplateApply}
             onClearPendingTemplateApply={handleClearPendingTemplateApply}
             onResumeLastEditor={handleResumeLastEditor}
+            onOpenRecentEditor={handleOpenRecentEditor}
           />
         </SectionReveal>
       </div>
