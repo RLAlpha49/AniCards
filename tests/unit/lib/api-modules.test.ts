@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
@@ -479,7 +479,8 @@ describe("api module hardening", () => {
   });
 
   it("derives request-proof and protected-write signatures from purpose-scoped subkeys", async () => {
-    process.env.API_SECRET_TOKEN = "test-root-secret";
+    const rootSecret = randomUUID();
+    process.env.API_SECRET_TOKEN = rootSecret;
 
     const requestProofToken = await createRequestProofToken({
       ip: "127.0.0.1",
@@ -501,12 +502,12 @@ describe("api module hardening", () => {
     ).split(".");
 
     expect(requestProofSignatureSegment).not.toBe(
-      createHmac("sha256", "test-root-secret")
+      createHmac("sha256", rootSecret)
         .update(String(requestProofPayloadSegment))
         .digest("base64url"),
     );
     expect(grantSignatureSegment).not.toBe(
-      createHmac("sha256", "test-root-secret")
+      createHmac("sha256", rootSecret)
         .update(String(grantPayloadSegment))
         .digest("base64url"),
     );
