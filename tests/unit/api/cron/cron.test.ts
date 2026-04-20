@@ -403,6 +403,7 @@ describe("Cron API Route", () => {
 
     const response = await POST(createCronRequest());
     const text = await response.text();
+    await flushScheduledTelemetryTasksForTests();
 
     expect(response.status).toBe(200);
     expect(text).toContain(
@@ -424,6 +425,47 @@ describe("Cron API Route", () => {
     expect(sharedRedisMockSet).toHaveBeenCalledWith(
       "user:15:activity",
       expect.any(String),
+    );
+
+    const refreshSnapshotCall = sharedRedisMockSet.mock.calls.find(
+      ([key]) => key === "analytics:cron_job:refresh_batch_last_run",
+    );
+
+    expect(refreshSnapshotCall).toBeDefined();
+    expect(refreshSnapshotCall?.[2]).toEqual({
+      ex: 14 * 24 * 60 * 60,
+    });
+
+    const refreshSnapshot = parseJsonString<{
+      batchSize: number;
+      completedAt: string;
+      configuredBatchSize: number;
+      dailyCapacity: number;
+      estimatedSweepHours: number;
+      failedUpdates: number;
+      note: string;
+      removedUsers: number;
+      schedule: string;
+      successfulUpdates: number;
+      totalUsers: number;
+      withinDailyBudget: boolean;
+    }>(refreshSnapshotCall?.[1], "cron refresh snapshot");
+
+    expect(refreshSnapshot).toMatchObject({
+      batchSize: 5,
+      configuredBatchSize: 5,
+      dailyCapacity: 20,
+      estimatedSweepHours: 18,
+      failedUpdates: 0,
+      note: "Current footprint fits within the repo-managed 24-hour freshness budget.",
+      removedUsers: 0,
+      schedule: "0 */6 * * *",
+      successfulUpdates: 5,
+      totalUsers: 15,
+      withinDailyBudget: true,
+    });
+    expect(new Date(refreshSnapshot.completedAt).toString()).not.toBe(
+      "Invalid Date",
     );
     expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:15");
     expect(sharedRedisMockZrange).toHaveBeenCalledWith(

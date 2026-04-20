@@ -21,6 +21,7 @@ import {
   buildFailedRequestMetricKeys,
   buildLatencyBucketMetricKeys,
   scheduleAnalyticsBatch,
+  scheduleCronRefreshBatchTelemetrySnapshot,
   scheduleLowValueAnalyticsBatch,
 } from "@/lib/api/telemetry";
 import {
@@ -845,12 +846,15 @@ export async function POST(request: Request) {
     const { successfulUpdates, failedUpdates, removedUsers } =
       aggregateCronRefreshBatchCounts(batchResults);
 
+    const durationMs = Date.now() - startTime;
+    const completedAt = new Date().toISOString();
+
     logPrivacySafe(
       "log",
       endpoint,
       "Cron job completed",
       {
-        durationMs: Date.now() - startTime,
+        durationMs,
         batchSize: batch.length,
         totalUsers,
         successfulUpdates,
@@ -875,6 +879,28 @@ export async function POST(request: Request) {
       request,
     );
 
+    scheduleCronRefreshBatchTelemetrySnapshot(
+      {
+        completedAt,
+        batchSize: batch.length,
+        configuredBatchSize: CRON_REFRESH_BATCH_SIZE,
+        dailyCapacity: refreshBudget.dailyCapacity,
+        estimatedSweepHours: refreshBudget.estimatedSweepHours,
+        failedUpdates,
+        note: refreshBudget.note,
+        removedUsers,
+        schedule: CRON_REFRESH_SCHEDULE,
+        successfulUpdates,
+        totalUsers,
+        withinDailyBudget: totalUsers <= refreshBudget.dailyCapacity,
+      },
+      {
+        endpoint,
+        request,
+        taskName: "cron refresh batch summary",
+      },
+    );
+
     const headers = apiTextHeaders(request);
 
     const scheduleMessage = [
@@ -886,7 +912,7 @@ export async function POST(request: Request) {
       refreshBudget.note,
     ].join("\n");
 
-    trackCronRequestOutcome(request, Date.now() - startTime, "success");
+    trackCronRequestOutcome(request, durationMs, "success");
 
     return new Response(scheduleMessage, { status: 200, headers });
   } catch (error: unknown) {
