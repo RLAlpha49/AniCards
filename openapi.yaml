@@ -2971,13 +2971,17 @@ components:
         category:
           type: string
           enum:
+            - "not_found"
             - "user_not_found"
             - "rate_limited"
             - "network_error"
             - "invalid_data"
+            - "validation_error"
+            - "conflict"
             - "server_error"
             - "timeout"
             - "authentication"
+            - "forbidden"
             - "unknown"
         retryable:
           type: boolean
@@ -3126,13 +3130,17 @@ components:
         category:
           type: string
           enum:
+            - "not_found"
             - "user_not_found"
             - "rate_limited"
             - "network_error"
             - "invalid_data"
+            - "validation_error"
+            - "conflict"
             - "server_error"
             - "timeout"
             - "authentication"
+            - "forbidden"
             - "unknown"
         retryable:
           type: boolean

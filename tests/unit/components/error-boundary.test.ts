@@ -164,6 +164,60 @@ describe("ErrorBoundary fallback model", () => {
     expect(conflictModel.suggestions).toEqual(customSuggestions);
   });
 
+  it("keeps AniList username misses distinct from generic 404 resources", () => {
+    const genericNotFoundModel = buildErrorFallbackModel(
+      Object.assign(
+        new Error(
+          "Not Found: Card configuration snapshot is no longer available.",
+        ),
+        {
+          statusCode: 404,
+        },
+      ),
+    );
+    const userNotFoundModel = buildErrorFallbackModel(
+      Object.assign(new Error("User not found"), {
+        statusCode: 404,
+      }),
+    );
+    const namedAniListUserNotFoundModel = buildErrorFallbackModel(
+      Object.assign(
+        new Error(
+          'User "MissingUser" not found on AniList. Please check the username and try again.',
+        ),
+        {
+          statusCode: 404,
+        },
+      ),
+    );
+
+    expect(genericNotFoundModel.category).toBe("not_found");
+    expect(genericNotFoundModel.message).toBe(
+      "This page or resource couldn't be found",
+    );
+    expect(
+      genericNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(false);
+
+    expect(userNotFoundModel.category).toBe("user_not_found");
+    expect(userNotFoundModel.message).toBe("User not found");
+    expect(
+      userNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(true);
+
+    expect(namedAniListUserNotFoundModel.category).toBe("user_not_found");
+    expect(namedAniListUserNotFoundModel.message).toBe("User not found");
+    expect(
+      namedAniListUserNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(true);
+  });
+
   it("renders a privacy-safe incident reference when provided", () => {
     const markup = renderToStaticMarkup(
       createElement(ErrorFallbackPanel, {

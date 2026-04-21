@@ -9,6 +9,7 @@
  * @source
  */
 export const ERROR_CATEGORIES = [
+  "not_found",
   "user_not_found",
   "rate_limited",
   "network_error",
@@ -150,6 +151,14 @@ function resolveErrorDetailsCategory(
     return exactMatch.category;
   }
 
+  if (statusCode === 404) {
+    const messageCategory = categorizeError(message);
+
+    if (messageCategory === "user_not_found") {
+      return messageCategory;
+    }
+  }
+
   return statusCode
     ? categorizeByStatusCode(statusCode)
     : categorizeError(message);
@@ -228,6 +237,28 @@ export function extractStructuredErrorContext(
  * @source
  */
 const ERROR_MESSAGE_MAP: Record<string, ErrorDetails> = {
+  // Generic not found errors
+  not_found: {
+    userMessage: "This page or resource couldn\'t be found",
+    technicalMessage: "The requested page or resource could not be found",
+    category: "not_found",
+    retryable: false,
+    suggestions: [
+      {
+        title: "Go back or return home",
+        description:
+          "The link may be outdated, incomplete, or the content may no longer be available.",
+        actionUrl: "/",
+        actionLabel: "Go Home",
+      },
+      {
+        title: "Retry from the last page",
+        description:
+          "If you followed a shared or older link, go back to the previous page and try again from there.",
+      },
+    ],
+  },
+
   // User not found errors
   not_found_user: {
     userMessage: "User not found",
@@ -463,7 +494,7 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
   400: "invalid_data",
   401: "authentication",
   403: "forbidden",
-  404: "user_not_found",
+  404: "not_found",
   408: "timeout",
   409: "conflict",
   422: "validation_error",
@@ -527,14 +558,24 @@ export function isRetryableStatusCode(statusCode?: number): boolean {
  */
 export function categorizeError(message: string): ErrorCategory {
   const lowercased = message.toLowerCase();
+  const referencesAniListUsernameMiss =
+    lowercased.includes("not found on anilist") ||
+    lowercased.includes("could not be found on anilist");
 
   if (
-    lowercased.includes("not found") ||
+    lowercased.includes("user not found") ||
+    lowercased.includes("username not found") ||
     lowercased.includes("no such user") ||
     lowercased.includes("user does not exist") ||
-    lowercased.includes("no user found")
+    lowercased.includes("no user found") ||
+    lowercased.includes("anilist username could not be found") ||
+    referencesAniListUsernameMiss
   ) {
     return "user_not_found";
+  }
+
+  if (lowercased.includes("not found") || lowercased.includes("404")) {
+    return "not_found";
   }
 
   if (
