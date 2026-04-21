@@ -40,42 +40,42 @@ export function SelectionCounter({
         <span className="text-sm font-semibold text-foreground">
           {selectedCount} selected
         </span>
-        <div className="flex items-center gap-2">
-          <button
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={onSelectAllEnabled}
             className="
-              text-left text-xs text-gold-dim
-              hover:text-gold
-              focus:outline-none
-              focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+              justify-start px-2.5 text-xs text-gold-dim
+              hover:bg-gold/8 hover:text-gold
               dark:text-gold
-              dark:hover:text-gold
+              dark:hover:bg-gold/10 dark:hover:text-gold
             "
             aria-label="Select all enabled cards"
             aria-keyshortcuts="Control+A Meta+A"
             title="Select all enabled (Ctrl/Cmd+A)"
           >
             Select all enabled
-          </button>
+          </Button>
 
           {groupOptions && groupOptions.length > 0 && onSelectGroup ? (
             <Popover>
               <PopoverTrigger asChild>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   className="
-                    text-left text-xs text-gold-dim
-                    hover:text-gold
-                    focus:outline-none
-                    focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+                    justify-start px-2.5 text-xs text-gold-dim
+                    hover:bg-gold/8 hover:text-gold
                     dark:text-gold
-                    dark:hover:text-gold
+                    dark:hover:bg-gold/10 dark:hover:text-gold
                   "
                   aria-label="Select cards by category"
                 >
                   Select by category
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-1.5" align="start" side="top">
                 <div className="flex flex-col gap-0.5">

@@ -1,9 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { motion } from "@/components/ui/Motion";
 import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import { buildFadeUpVariants, VIEWPORT_ONCE } from "@/lib/animations";
@@ -143,9 +142,9 @@ export function CardMarquee({
       aria-hidden="true"
       className="relative py-16"
       variants={marqueeReveal}
-      initial="hidden"
-      whileInView="visible"
-      viewport={VIEWPORT_ONCE}
+      initial={prefersSimplifiedMotion ? false : "hidden"}
+      whileInView={prefersSimplifiedMotion ? undefined : "visible"}
+      viewport={prefersSimplifiedMotion ? undefined : VIEWPORT_ONCE}
     >
       <div className="gold-line-thick mx-auto mb-10 max-w-[70%]" />
 

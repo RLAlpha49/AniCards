@@ -4,7 +4,6 @@
 // current editor snapshot so bulk copy/download/edit stays consistent even when
 // the main grid is filtered, reordered, or partially off-screen.
 
-import { AnimatePresence, motion } from "framer-motion";
 import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
   type ReactNode,
@@ -20,6 +19,11 @@ import { useShallow } from "zustand/react/shallow";
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { Button } from "@/components/ui/Button";
 import {
+  AnimatePresence,
+  motion,
+  NO_MOTION_TRANSITION,
+} from "@/components/ui/Motion";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -31,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import { statCardTypes } from "@/lib/card-types";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { type CardDownloadFormat, cn } from "@/lib/utils";
@@ -58,6 +63,7 @@ interface BulkActionsToolbarProps {
 export function BulkActionsToolbar({
   className,
 }: Readonly<BulkActionsToolbarProps>) {
+  const { prefersSimplifiedMotion } = useMotionPreferences();
   const [copiedFormat, setCopiedFormat] = useState<
     "url" | "anilist" | "failed-list" | null
   >(null);
@@ -499,10 +505,22 @@ export function BulkActionsToolbar({
           <motion.div
             key="toolbar"
             data-testid="bulk-actions-toolbar"
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={
+              prefersSimplifiedMotion
+                ? false
+                : { opacity: 0, y: 20, scale: 0.95 }
+            }
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={
+              prefersSimplifiedMotion
+                ? undefined
+                : { opacity: 0, y: 20, scale: 0.95 }
+            }
+            transition={
+              prefersSimplifiedMotion
+                ? NO_MOTION_TRANSITION
+                : { duration: 0.2, ease: "easeOut" }
+            }
             className={cn(
               "pointer-events-auto",
               "w-full max-w-full sm:w-fit",

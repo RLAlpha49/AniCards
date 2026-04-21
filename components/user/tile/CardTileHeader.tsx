@@ -54,6 +54,7 @@ interface CardTileHeaderProps {
 
   dragHandleProps?: CardTileDragHandleProps;
   reorderControls?: CardTileReorderControls;
+  isDragging?: boolean;
   preferTapInfoDisclosure?: boolean;
 }
 
@@ -268,6 +269,7 @@ export const CardTileHeader = memo(function CardTileHeader({
   onOpenSettings,
   dragHandleProps,
   reorderControls,
+  isDragging = false,
   preferTapInfoDisclosure = false,
 }: Readonly<CardTileHeaderProps>) {
   const hasMathTooltip = Boolean(
@@ -380,7 +382,9 @@ export const CardTileHeader = memo(function CardTileHeader({
                 focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
               `,
               "dark:border-gold/15",
-              "cursor-grab touch-none active:cursor-grabbing",
+              isDragging
+                ? "cursor-grabbing touch-none"
+                : "cursor-grab active:cursor-grabbing",
             )}
             {...dragHandleProps.attributes}
             {...(dragHandleProps.listeners as Record<string, unknown>)}

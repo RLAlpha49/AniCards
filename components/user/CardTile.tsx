@@ -4,7 +4,6 @@
 // affordances, and per-card actions all live here while the shared editor store
 // remains the source of truth for card state.
 
-import { AnimatePresence, motion } from "framer-motion";
 import { Columns2, Maximize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -18,6 +17,11 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
+import {
+  AnimatePresence,
+  motion,
+  NO_MOTION_TRANSITION,
+} from "@/components/ui/Motion";
 import {
   Select,
   SelectContent,
@@ -37,6 +41,7 @@ import { DisabledState } from "@/components/user/tile/DisabledState";
 import { VariantSelector } from "@/components/user/tile/VariantSelector";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { useDownload } from "@/hooks/useDownload";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
 import { getCardVariantTooltip } from "@/lib/card-variant-tooltips";
 import {
@@ -283,6 +288,7 @@ type ExpandedPreviewDialogProps = {
   onVariantChange: (variant: string) => void;
   getVariantTooltipForCard: (variantId: string) => string | null;
   preferTapInfoDisclosure?: boolean;
+  prefersSimplifiedMotion: boolean;
 };
 
 function ExpandedPreviewDialog({
@@ -307,6 +313,7 @@ function ExpandedPreviewDialog({
   onVariantChange,
   getVariantTooltipForCard,
   preferTapInfoDisclosure = false,
+  prefersSimplifiedMotion,
 }: Readonly<ExpandedPreviewDialogProps>) {
   const isComparing = compareEnabled && Boolean(comparePreviewUrl);
 
@@ -317,10 +324,20 @@ function ExpandedPreviewDialog({
           {open && (
             <motion.div
               className="group/card-tile imperial-card overflow-hidden rounded-none border-0 p-0"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={
+                prefersSimplifiedMotion ? false : { opacity: 0, scale: 0.95 }
+              }
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              exit={
+                prefersSimplifiedMotion
+                  ? undefined
+                  : { opacity: 0, scale: 0.95 }
+              }
+              transition={
+                prefersSimplifiedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { duration: 0.25, ease: [0.22, 1, 0.36, 1] }
+              }
             >
               <DialogHeader className="border-b-0 bg-background/90 px-6 pt-5 pb-4 backdrop-blur-sm">
                 <DialogTitle className="
@@ -448,6 +465,7 @@ export const CardTile = memo(function CardTile({
   isDragging = false,
   preferTapInfoDisclosure = false,
 }: Readonly<CardTileProps>) {
+  const { prefersSimplifiedMotion } = useMotionPreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewExpandedOpen, setPreviewExpandedOpen] = useState(false);
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
@@ -786,7 +804,10 @@ export const CardTile = memo(function CardTile({
       data-testid={`card-tile-${cardId}`}
       data-tour="card-tile"
       className={cn(
-        "group/card-tile relative overflow-hidden border-2 transition-all duration-300",
+        "group/card-tile relative overflow-hidden border-2",
+        prefersSimplifiedMotion
+          ? "transition-none"
+          : "transition-all duration-300",
         `
           focus-within:ring-2 focus-within:ring-gold/70 focus-within:ring-offset-2
           dark:focus-within:ring-offset-background
@@ -808,7 +829,9 @@ export const CardTile = memo(function CardTile({
           config.enabled &&
           "ring-2 ring-gold ring-offset-2 dark:ring-offset-background",
         (isPreviewHovered || isAnyPopoverOpen) &&
-          "-translate-y-0.5 shadow-xl shadow-gold/10",
+          (prefersSimplifiedMotion
+            ? "shadow-xl shadow-gold/10"
+            : "-translate-y-0.5 shadow-xl shadow-gold/10"),
       )}
     >
       <div className="
@@ -830,6 +853,7 @@ export const CardTile = memo(function CardTile({
         onOpenSettings={openSettings}
         dragHandleProps={dragHandleProps}
         reorderControls={reorderControls}
+        isDragging={isDragging}
         preferTapInfoDisclosure={preferTapInfoDisclosure}
       />
 
@@ -942,6 +966,7 @@ export const CardTile = memo(function CardTile({
             onVariantChange={handleVariantChange}
             getVariantTooltipForCard={getVariantTooltipForCard}
             preferTapInfoDisclosure={preferTapInfoDisclosure}
+            prefersSimplifiedMotion={prefersSimplifiedMotion}
           />
         </>
       ) : null}

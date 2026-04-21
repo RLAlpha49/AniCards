@@ -1,9 +1,9 @@
 "use client";
 
 import type { MotionStyle } from "framer-motion";
-import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
+import { motion } from "@/components/ui/Motion";
 import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import {
   buildFadeUpVariants,

@@ -41,6 +41,7 @@ function sanitizeDynamicCssValue(
   return sanitizedValue.length > 0 ? sanitizedValue : null;
 }
 const VIRTUALIZATION_THRESHOLD = 18;
+const REORDER_POINTER_ACTIVATION_DISTANCE = 8;
 
 export type CardTileDragHandleProps = {
   attributes: DraggableAttributes;
@@ -228,7 +229,11 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, {
+      // Require a slightly more intentional move so the reorder handle can
+      // coexist with vertical scrolling on touch devices.
+      activationConstraint: { distance: REORDER_POINTER_ACTIVATION_DISTANCE },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),

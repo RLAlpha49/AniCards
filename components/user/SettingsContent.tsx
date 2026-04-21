@@ -20,10 +20,15 @@ import { ColorPresetSelector } from "@/components/stat-card-generator/ColorPrese
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
-import { AnimatePresence, motion } from "@/components/ui/Motion";
+import {
+  AnimatePresence,
+  motion,
+  NO_MOTION_TRANSITION,
+} from "@/components/ui/Motion";
 import { Switch } from "@/components/ui/Switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";
+import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import type { ColorValue } from "@/lib/types/card";
 import {
   cn,
@@ -306,6 +311,31 @@ function getColorPickerHex(val?: string) {
   return undefined;
 }
 
+function getMotionSafeTransitionClass(
+  prefersSimplifiedMotion: boolean,
+  animatedClassName: string,
+) {
+  return prefersSimplifiedMotion ? "transition-none" : animatedClassName;
+}
+
+function getDisclosureMotionProps(prefersSimplifiedMotion: boolean) {
+  if (prefersSimplifiedMotion) {
+    return {
+      initial: false as const,
+      animate: { height: "auto" as const, opacity: 1 },
+      exit: undefined,
+      transition: NO_MOTION_TRANSITION,
+    };
+  }
+
+  return {
+    initial: { height: 0, opacity: 0 },
+    animate: { height: "auto" as const, opacity: 1 },
+    exit: { height: 0, opacity: 0 },
+    transition: { duration: 0.2, ease: "easeInOut" as const },
+  };
+}
+
 interface AdvancedSettings {
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
@@ -360,29 +390,45 @@ function SettingsSection({
   icon: Icon,
   defaultOpen = true,
   children,
+  prefersSimplifiedMotion,
 }: Readonly<{
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   defaultOpen?: boolean;
   children: React.ReactNode;
+  prefersSimplifiedMotion: boolean;
 }>) {
   const [open, setOpen] = useState(defaultOpen);
   const sectionId = useId();
   const triggerId = `${sectionId}-trigger`;
   const panelId = `${sectionId}-panel`;
+  const disclosureMotionProps = getDisclosureMotionProps(
+    prefersSimplifiedMotion,
+  );
 
   return (
-    <div className="border border-border/50 bg-card/40 transition-colors">
+    <div
+      className={cn(
+        "border border-border/50 bg-card/40",
+        getMotionSafeTransitionClass(
+          prefersSimplifiedMotion,
+          "transition-colors",
+        ),
+      )}
+    >
       <button
         id={triggerId}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="
-          flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors
-          hover:bg-muted/40
-        "
+        className={cn(
+          "flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40",
+          getMotionSafeTransitionClass(
+            prefersSimplifiedMotion,
+            "transition-colors",
+          ),
+        )}
       >
         <div className="flex items-center gap-2.5">
           <div className="
@@ -398,7 +444,11 @@ function SettingsSection({
         <ChevronRight
           aria-hidden="true"
           className={cn(
-            "size-4 text-muted-foreground transition-transform duration-200",
+            "size-4 text-muted-foreground",
+            getMotionSafeTransitionClass(
+              prefersSimplifiedMotion,
+              "transition-transform duration-200",
+            ),
             open && "rotate-90",
           )}
         />
@@ -408,10 +458,7 @@ function SettingsSection({
           {open && (
             <motion.div
               key="content"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
+              {...disclosureMotionProps}
               className="overflow-hidden"
             >
               <div className="border-t border-border/40 p-4">{children}</div>
@@ -431,11 +478,13 @@ function ColorsTabContent({
   colorPreset,
   onPresetChange,
   colorPickers,
+  prefersSimplifiedMotion,
 }: Readonly<{
   quickColorPresets: QuickColorPresetOption[];
   colorPreset: string;
   onPresetChange: (preset: string) => void;
   colorPickers: ColorPickerItem[];
+  prefersSimplifiedMotion: boolean;
 }>) {
   return (
     <TabsContent value="colors" className="mt-4 space-y-4">
@@ -453,7 +502,11 @@ function ColorsTabContent({
                 variant={preset.id === colorPreset ? "default" : "outline"}
                 onClick={() => onPresetChange(preset.id)}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-8 text-xs font-medium",
+                  getMotionSafeTransitionClass(
+                    prefersSimplifiedMotion,
+                    "transition-all",
+                  ),
                   preset.id === colorPreset
                     ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                     : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -466,7 +519,11 @@ function ColorsTabContent({
         </div>
       )}
 
-      <SettingsSection title="Color Preset" icon={Palette}>
+      <SettingsSection
+        title="Color Preset"
+        icon={Palette}
+        prefersSimplifiedMotion={prefersSimplifiedMotion}
+      >
         <ColorPresetSelector
           selectedPreset={colorPreset}
           presets={colorPresets}
@@ -474,7 +531,12 @@ function ColorsTabContent({
         />
       </SettingsSection>
 
-      <SettingsSection title="Custom Colors" icon={Palette} defaultOpen={false}>
+      <SettingsSection
+        title="Custom Colors"
+        icon={Palette}
+        defaultOpen={false}
+        prefersSimplifiedMotion={prefersSimplifiedMotion}
+      >
         <ColorPickerGroup pickers={colorPickers} />
       </SettingsSection>
     </TabsContent>
@@ -489,6 +551,7 @@ function BorderTabContent({
   onBorderEnabledChange,
   onBorderRadiusChange,
   borderInputs,
+  prefersSimplifiedMotion,
 }: Readonly<{
   idPrefix: string;
   borderEnabled: boolean;
@@ -497,7 +560,12 @@ function BorderTabContent({
   onBorderEnabledChange: (enabled: boolean) => void;
   onBorderRadiusChange: (radius: number) => void;
   borderInputs: BorderColorInputState;
+  prefersSimplifiedMotion: boolean;
 }>) {
+  const disclosureMotionProps = getDisclosureMotionProps(
+    prefersSimplifiedMotion,
+  );
+
   return (
     <TabsContent value="border" className="mt-4 space-y-4">
       <div className="space-y-2">
@@ -511,7 +579,11 @@ function BorderTabContent({
             variant={borderEnabled ? "outline" : "default"}
             onClick={() => onBorderEnabledChange(false)}
             className={cn(
-              "h-8 text-xs font-medium transition-all",
+              "h-8 text-xs font-medium",
+              getMotionSafeTransitionClass(
+                prefersSimplifiedMotion,
+                "transition-all",
+              ),
               borderEnabled
                 ? "border-border/60 hover:border-gold/40 hover:bg-gold/5"
                 : "bg-gold text-white shadow-sm hover:bg-gold/90",
@@ -530,7 +602,11 @@ function BorderTabContent({
               onBorderRadiusChange(0);
             }}
             className={cn(
-              "h-8 text-xs font-medium transition-all",
+              "h-8 text-xs font-medium",
+              getMotionSafeTransitionClass(
+                prefersSimplifiedMotion,
+                "transition-all",
+              ),
               borderEnabled && borderRadius === 0
                 ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                 : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -549,7 +625,11 @@ function BorderTabContent({
               onBorderRadiusChange(16);
             }}
             className={cn(
-              "h-8 text-xs font-medium transition-all",
+              "h-8 text-xs font-medium",
+              getMotionSafeTransitionClass(
+                prefersSimplifiedMotion,
+                "transition-all",
+              ),
               borderEnabled && borderRadius === 16
                 ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                 : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -584,10 +664,7 @@ function BorderTabContent({
         {borderEnabled && (
           <motion.div
             key="border-settings"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            {...disclosureMotionProps}
             className="space-y-5 overflow-hidden"
           >
             <div className="space-y-2">
@@ -628,7 +705,10 @@ function BorderTabContent({
                   aria-invalid={!borderInputs.isBorderColorValid}
                   aria-describedby={borderInputs.borderColorAriaDescribedBy}
                   className={cn(
-                    "h-10 flex-1 font-mono text-sm lowercase transition-colors",
+                    `
+                      h-10 flex-1 font-mono text-sm lowercase transition-colors
+                      motion-reduce:transition-none
+                    `,
                     borderInputs.isBorderColorValid
                       ? "border-border/60 focus-visible:ring-gold/30"
                       : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500",
@@ -638,12 +718,7 @@ function BorderTabContent({
               </div>
               <AnimatePresence>
                 {!borderInputs.isBorderColorValid && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-1"
-                  >
+                  <motion.div {...disclosureMotionProps} className="mt-1">
                     <p
                       id={`${idPrefix}-borderColor-error`}
                       className="text-xs text-red-600"
@@ -715,6 +790,7 @@ function AdvancedTabContent({
   onAdvancedSettingChange,
   gridValidationEnabled,
   gridInputs,
+  prefersSimplifiedMotion,
 }: Readonly<{
   idPrefix: string;
   mode: "global" | "card";
@@ -726,7 +802,12 @@ function AdvancedTabContent({
   ) => void;
   gridValidationEnabled: boolean;
   gridInputs: GridSizeInputState;
+  prefersSimplifiedMotion: boolean;
 }>) {
+  const disclosureMotionProps = getDisclosureMotionProps(
+    prefersSimplifiedMotion,
+  );
+
   return (
     <TabsContent value="advanced" className="mt-4 space-y-3">
       {visibility.showStatusColors && (
@@ -824,9 +905,7 @@ function AdvancedTabContent({
                 {gridValidationEnabled && !gridInputs.isGridColsValid && (
                   <motion.p
                     id={`${idPrefix}-gridCols-error`}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
+                    {...disclosureMotionProps}
                     className="mt-1 text-xs text-red-600"
                   >
                     Enter a whole number between {GRID_MIN} and {GRID_MAX}.
@@ -866,9 +945,7 @@ function AdvancedTabContent({
                 {gridValidationEnabled && !gridInputs.isGridRowsValid && (
                   <motion.p
                     id={`${idPrefix}-gridRows-error`}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
+                    {...disclosureMotionProps}
                     className="mt-1 text-xs text-red-600"
                   >
                     Enter a whole number between {GRID_MIN} and {GRID_MAX}.
@@ -919,6 +996,8 @@ export function SettingsContent({
     showFavorites: mode === "global",
     showGridSize: mode === "global",
   };
+
+  const { prefersSimplifiedMotion } = useMotionPreferences();
 
   const effectiveAdvancedSettings = useMemo(
     () => ({
@@ -1064,42 +1143,60 @@ export function SettingsContent({
         >
           <TabsTrigger
             value="colors"
-            className="
-              mb-2 gap-1.5 text-xs font-medium transition-all
-              data-[state=active]:bg-gold/90 data-[state=active]:text-white
-              data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
-              sm:text-sm
-            "
+            className={cn(
+              `
+                mb-2 gap-1.5 text-xs font-medium
+                data-[state=active]:bg-gold/90 data-[state=active]:text-white
+                data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+                sm:text-sm
+              `,
+              getMotionSafeTransitionClass(
+                prefersSimplifiedMotion,
+                "transition-all",
+              ),
+            )}
           >
             <Palette className="size-3.5" aria-hidden="true" />
             Colors
           </TabsTrigger>
           <TabsTrigger
             value="border"
-            className="
-              mb-2 gap-1.5 text-xs font-medium transition-all
-              data-[state=active]:bg-gold/90 data-[state=active]:text-white
-              data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
-              sm:text-sm
-            "
+            className={cn(
+              `
+                mb-2 gap-1.5 text-xs font-medium
+                data-[state=active]:bg-gold/90 data-[state=active]:text-white
+                data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+                sm:text-sm
+              `,
+              getMotionSafeTransitionClass(
+                prefersSimplifiedMotion,
+                "transition-all",
+              ),
+            )}
           >
             <Square className="size-3.5" aria-hidden="true" />
             Border
           </TabsTrigger>
-          {hasAdvancedOptions && (
+          {hasAdvancedOptions ? (
             <TabsTrigger
               value="advanced"
-              className="
-                mb-2 gap-1.5 text-xs font-medium transition-all
-                data-[state=active]:bg-gold/90 data-[state=active]:text-white
-                data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
-                sm:text-sm
-              "
+              className={cn(
+                `
+                  mb-2 gap-1.5 text-xs font-medium
+                  data-[state=active]:bg-gold/90 data-[state=active]:text-white
+                  data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+                  sm:text-sm
+                `,
+                getMotionSafeTransitionClass(
+                  prefersSimplifiedMotion,
+                  "transition-all",
+                ),
+              )}
             >
               <Sliders className="size-3.5" aria-hidden="true" />
               Advanced
             </TabsTrigger>
-          )}
+          ) : null}
         </TabsList>
 
         <ColorsTabContent
@@ -1107,6 +1204,7 @@ export function SettingsContent({
           colorPreset={colorPreset}
           onPresetChange={onPresetChange}
           colorPickers={colorPickers}
+          prefersSimplifiedMotion={prefersSimplifiedMotion}
         />
 
         <BorderTabContent
@@ -1117,6 +1215,7 @@ export function SettingsContent({
           onBorderEnabledChange={onBorderEnabledChange}
           onBorderRadiusChange={onBorderRadiusChange}
           borderInputs={borderInputs}
+          prefersSimplifiedMotion={prefersSimplifiedMotion}
         />
 
         {hasAdvancedOptions ? (
@@ -1128,6 +1227,7 @@ export function SettingsContent({
             onAdvancedSettingChange={onAdvancedSettingChange}
             gridValidationEnabled={gridValidationEnabled}
             gridInputs={gridInputs}
+            prefersSimplifiedMotion={prefersSimplifiedMotion}
           />
         ) : null}
       </Tabs>
@@ -1138,7 +1238,13 @@ export function SettingsContent({
           variant="ghost"
           size="sm"
           onClick={onReset}
-          className="gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className={cn(
+            "gap-2 text-xs text-muted-foreground hover:text-foreground",
+            getMotionSafeTransitionClass(
+              prefersSimplifiedMotion,
+              "transition-colors",
+            ),
+          )}
         >
           <RotateCcw className="size-3.5" />
           {resetLabel ?? defaultResetLabel}
@@ -1170,6 +1276,7 @@ function ToggleRow({
   return (
     <div className="
       flex items-center justify-between border border-border/50 bg-muted/30 p-4 transition-colors
+      motion-reduce:transition-none
     ">
       <div className="flex items-center gap-3">
         <div className="
