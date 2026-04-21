@@ -258,6 +258,20 @@ const CLIENT_ERROR_REPORT_QUEUE_RETENTION_MS = 1000 * 60 * 60 * 24 * 7;
 const MAX_CLIENT_ERROR_REPORT_QUEUE_DROP_SAMPLES = 5;
 const CLIENT_ERROR_REPORT_CIRCUIT_BREAKER_MAX_STREAK = 5;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
+const CLIENT_INCIDENT_REFERENCE_PREFIX = "client";
+
+export function getImmediateIncidentReference(
+  reference?: string | null,
+): string {
+  const normalizedReference =
+    typeof reference === "string" ? reference.trim() : "";
+
+  if (normalizedReference.length > 0) {
+    return normalizedReference;
+  }
+
+  return `${CLIENT_INCIDENT_REFERENCE_PREFIX}:${crypto.randomUUID()}`;
+}
 
 type ClientErrorReportQueueStorageKind = "local_storage" | "session_storage";
 

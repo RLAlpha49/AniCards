@@ -2,17 +2,27 @@
 
 import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import type { ErrorInfo, ReactNode } from "react";
-import { Component, useEffect, useId, useRef } from "react";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 
 import { Button } from "@/components/ui/Button";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
+  type ErrorCategory,
   extractStructuredErrorContext,
   getErrorDetails,
   type RecoverySuggestion,
 } from "@/lib/error-messages";
-import { reportStructuredError } from "@/lib/error-tracking";
+import {
+  getImmediateIncidentReference,
+  reportStructuredError,
+} from "@/lib/error-tracking";
 import { cn } from "@/lib/utils";
 import { safeTrack, trackError } from "@/lib/utils/google-analytics";
 
@@ -46,6 +56,7 @@ interface ErrorBoundaryState {
 export interface ErrorFallbackModel {
   heading: string;
   message: string;
+  category: ErrorCategory;
   retryable: boolean;
   suggestions: RecoverySuggestion[];
 }
@@ -90,6 +101,7 @@ export function buildErrorFallbackModel(
   return {
     heading: "Something went wrong",
     message: details.userMessage,
+    category: details.category,
     retryable: details.retryable,
     suggestions: details.suggestions,
   };
@@ -145,9 +157,12 @@ export function ErrorFallbackPanel(
 ) {
   const model = buildErrorFallbackModel(props.error ?? null);
   const incidentReference = props.incidentReference?.trim();
+  const shouldPreserveResetForUnknownFailure = model.category === "unknown";
   const shouldShowRetry =
     typeof props.onRetry === "function" &&
-    (model.retryable || props.allowRetryWhenNonRetryable === true);
+    (model.retryable ||
+      props.allowRetryWhenNonRetryable === true ||
+      shouldPreserveResetForUnknownFailure);
   const fallbackPanelId = useId();
   const messageId = useId();
   const panelRef = useRef<HTMLElement>(null);
@@ -333,7 +348,9 @@ export class ErrorBoundary extends Component<
     return {
       hasError: true,
       error,
-      incidentReference: undefined,
+      incidentReference: getImmediateIncidentReference(
+        (error as Error & { digest?: string }).digest,
+      ),
     };
   }
 
@@ -352,6 +369,12 @@ export class ErrorBoundary extends Component<
       globalThis.location === undefined
         ? undefined
         : `${globalThis.location.pathname}${globalThis.location.search}`;
+    const immediateIncidentReference =
+      this.state.hasError && this.state.error === error
+        ? this.state.incidentReference
+        : getImmediateIncidentReference(
+            (error as Error & { digest?: string }).digest,
+          );
     const errorContext = extractStructuredErrorContext(
       error,
       "We couldn't render this part of the experience.",
@@ -367,6 +390,7 @@ export class ErrorBoundary extends Component<
         boundary: "client_error_boundary",
         errorName: error.name,
         error: error.message,
+        incidentReference: immediateIncidentReference,
         route: currentRoute,
         stack: error.stack,
         componentStack: errorInfo.componentStack ?? undefined,
@@ -389,10 +413,12 @@ export class ErrorBoundary extends Component<
       route: currentRoute,
       metadata: {
         boundary: "client_error_boundary",
+        initialIncidentReference: immediateIncidentReference,
       },
     }).then((report) => {
       if (
         !report?.id ||
+        report.id === immediateIncidentReference ||
         this.pendingIncidentError !== error ||
         !this.state.hasError ||
         this.state.error !== error

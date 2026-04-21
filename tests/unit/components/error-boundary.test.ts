@@ -79,6 +79,22 @@ function ThrowingComponent(props: Readonly<{ error: Error }>): null {
   throw props.error;
 }
 
+function createDeferredPromise<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void;
+  let rejectPromise!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+
+  return {
+    promise,
+    resolve: resolvePromise,
+    reject: rejectPromise,
+  };
+}
+
 beforeEach(() => {
   allowConsoleWarningsAndErrors();
   resetHappyDom("http://localhost/error-boundary");
@@ -244,6 +260,115 @@ describe("ErrorBoundary fallback model", () => {
     );
 
     expect(getByRole("button", { name: /try again/i })).toBeTruthy();
+  });
+
+  it("preserves retry when an unknown failure still has a live reset handler", () => {
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: new Error("Unexpected render explosion"),
+        onRetry: () => undefined,
+      }),
+    );
+
+    expect(getByRole("button", { name: /try again/i })).toBeTruthy();
+  });
+
+  it("shows a local incident reference immediately before client boundary reporting settles", async () => {
+    const originalFetch = globalThis.fetch;
+    const deferredResponse = createDeferredPromise<Response>();
+    const fetchMock = mock(() => deferredResponse.promise);
+
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      render(
+        createElement(
+          ErrorBoundary,
+          undefined,
+          createElement(ThrowingComponent, {
+            error: new Error("Unexpected render explosion"),
+          }),
+        ),
+      );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+      expect(firstFetchCall).toBeTruthy();
+
+      const payload = parseRequestInitJson<{
+        id?: string;
+      }>(firstFetchCall?.[1] as RequestInit | undefined);
+
+      expect(document.body.textContent).toContain("Incident reference");
+      expect(document.body.textContent).not.toContain(String(payload.id));
+
+      deferredResponse.resolve(new Response(null, { status: 202 }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(String(payload.id));
+      });
+    } finally {
+      Object.defineProperty(globalThis, "fetch", {
+        value: originalFetch,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  it("shows the Next.js digest immediately before App Router reporting settles", async () => {
+    const originalFetch = globalThis.fetch;
+    const deferredResponse = createDeferredPromise<Response>();
+    const fetchMock = mock(() => deferredResponse.promise);
+
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const error = Object.assign(new Error("Route segment crashed"), {
+        digest: "digest-route-12345",
+      });
+      const { getByTestId } = render(
+        createElement(AppRouterBoundaryHarness, { error }),
+      );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      expect(getByTestId("incident-reference").textContent).toBe(error.digest);
+
+      deferredResponse.resolve(new Response(null, { status: 202 }));
+
+      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+      expect(firstFetchCall).toBeTruthy();
+
+      const payload = parseRequestInitJson<{
+        id?: string;
+      }>(firstFetchCall?.[1] as RequestInit | undefined);
+
+      await waitFor(() => {
+        expect(getByTestId("incident-reference").textContent).toBe(
+          String(payload.id),
+        );
+      });
+    } finally {
+      Object.defineProperty(globalThis, "fetch", {
+        value: originalFetch,
+        configurable: true,
+        writable: true,
+      });
+    }
   });
 
   it("surfaces the resolved structured incident ID for App Router boundaries", async () => {

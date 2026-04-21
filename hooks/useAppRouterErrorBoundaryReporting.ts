@@ -7,7 +7,10 @@ import {
   extractStructuredErrorContext,
   type StructuredErrorLike,
 } from "@/lib/error-messages";
-import { reportStructuredError } from "@/lib/error-tracking";
+import {
+  getImmediateIncidentReference,
+  reportStructuredError,
+} from "@/lib/error-tracking";
 import { safeTrack, trackError } from "@/lib/utils/google-analytics";
 
 type AppRouterBoundaryError = StructuredErrorLike & { digest?: string };
@@ -36,8 +39,26 @@ export function useAppRouterErrorBoundaryReporting(
   props: Readonly<AppRouterErrorBoundaryReportingOptions>,
 ): AppRouterErrorBoundaryReportingResult {
   const { boundary, defaultErrorName, error, logLabel, userAction } = props;
-  const [incidentReference, setIncidentReference] = useState<string>();
+  const [reportedIncidentReference, setReportedIncidentReference] =
+    useState<string>();
   const pendingIncidentErrorRef = useRef<AppRouterBoundaryError | null>(null);
+  const immediateIncidentReferenceRef = useRef<{
+    error: AppRouterBoundaryError | null;
+    incidentReference: string;
+  }>({
+    error: null,
+    incidentReference: getImmediateIncidentReference(),
+  });
+
+  if (immediateIncidentReferenceRef.current.error !== error) {
+    immediateIncidentReferenceRef.current = {
+      error,
+      incidentReference: getImmediateIncidentReference(error.digest),
+    };
+  }
+
+  const immediateIncidentReference =
+    immediateIncidentReferenceRef.current.incidentReference;
 
   useEffect(() => {
     const currentRoute = getCurrentRoute();
@@ -45,11 +66,10 @@ export function useAppRouterErrorBoundaryReporting(
       error,
       "We couldn't render this part of the experience.",
     );
-    const fallbackIncidentReference = error.digest?.trim() || undefined;
     let isActive = true;
 
     pendingIncidentErrorRef.current = error;
-    setIncidentReference(undefined);
+    setReportedIncidentReference(undefined);
 
     logPrivacySafe(
       "error",
@@ -60,6 +80,7 @@ export function useAppRouterErrorBoundaryReporting(
         errorName: error.name ?? defaultErrorName,
         error: error.message,
         digest: error.digest,
+        incidentReference: immediateIncidentReference,
         route: currentRoute,
         stack: error.stack,
       },
@@ -82,13 +103,18 @@ export function useAppRouterErrorBoundaryReporting(
       route: currentRoute,
       metadata: {
         boundary,
+        initialIncidentReference: immediateIncidentReference,
       },
     }).then((report) => {
       if (!isActive || pendingIncidentErrorRef.current !== error) {
         return;
       }
 
-      setIncidentReference(report?.id ?? fallbackIncidentReference);
+      if (!report?.id || report.id === immediateIncidentReference) {
+        return;
+      }
+
+      setReportedIncidentReference(report.id);
     });
 
     safeTrack(() =>
@@ -102,7 +128,16 @@ export function useAppRouterErrorBoundaryReporting(
         pendingIncidentErrorRef.current = null;
       }
     };
-  }, [boundary, defaultErrorName, error, logLabel, userAction]);
+  }, [
+    boundary,
+    defaultErrorName,
+    error,
+    immediateIncidentReference,
+    logLabel,
+    userAction,
+  ]);
 
-  return { incidentReference };
+  return {
+    incidentReference: reportedIncidentReference ?? immediateIncidentReference,
+  };
 }
