@@ -107,7 +107,7 @@ export default async function NotFound() {
   await recordNotFoundTelemetry();
 
   return (
-    <main className="relative isolate overflow-hidden">
+    <div className="relative isolate overflow-hidden">
       <div
         aria-hidden="true"
         className="absolute inset-0 opacity-80 not-found-backdrop"
@@ -281,6 +281,6 @@ export default async function NotFound() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

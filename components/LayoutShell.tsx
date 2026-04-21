@@ -2,6 +2,7 @@ import React from "react";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import { MAIN_CONTENT_ID } from "@/lib/shell-a11y";
 
 export function LayoutShell({
   children,
@@ -10,7 +11,7 @@ export function LayoutShell({
     <div className="flex min-h-shell-viewport flex-col">
       <Header />
       <main
-        id="main-content"
+        id={MAIN_CONTENT_ID}
         tabIndex={-1}
         className="
           flex-1 scroll-mt-24

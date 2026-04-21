@@ -28,7 +28,7 @@ export default async function ProjectsPage() {
         data={generateStructuredData("projects")}
         nonce={nonce}
       />
-      <div className="relative min-h-screen">
+      <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
         <ProjectsHeroSection />
         <SectionReveal>

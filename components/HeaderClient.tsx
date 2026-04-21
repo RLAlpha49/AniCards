@@ -15,6 +15,15 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import DarkModeToggle from "@/components/DarkModeToggle";
+import {
+  getMobileMenuAriaLabel,
+  MOBILE_MENU_FOCUSABLE_SELECTOR,
+  MOBILE_MENU_HYDRATED_DATASET_KEY,
+  MOBILE_MENU_NAVIGATION_ATTRIBUTE,
+  MOBILE_MENU_OPEN_DATASET_KEY,
+  MOBILE_MENU_TOGGLE_ATTRIBUTE,
+  MOBILE_MENU_TOGGLE_SELECTOR,
+} from "@/lib/shell-a11y";
 import { cn } from "@/lib/utils";
 import { safeTrack, trackNavigation } from "@/lib/utils/google-analytics";
 
@@ -26,15 +35,6 @@ const NAV_ITEMS = [
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ] as const;
-
-const MOBILE_MENU_FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])",
-].join(", ");
-
-const MOBILE_MENU_OPEN_DATASET_KEY = "mobileMenuOpen";
-const MOBILE_MENU_HYDRATED_DATASET_KEY = "mobileMenuHydrated";
 
 function isMobileMenuPreopened(): boolean {
   if (typeof document === "undefined") {
@@ -57,6 +57,19 @@ function getFocusableMenuElements(
     container.querySelectorAll<HTMLElement>(MOBILE_MENU_FOCUSABLE_SELECTOR),
   );
 }
+
+function createDataFlagAttribute<Name extends string>(
+  name: Name,
+): { [Key in Name]: "true" } {
+  return { [name]: "true" } as { [Key in Name]: "true" };
+}
+
+const MOBILE_MENU_TOGGLE_DATA_ATTRIBUTE = createDataFlagAttribute(
+  MOBILE_MENU_TOGGLE_ATTRIBUTE,
+);
+const MOBILE_MENU_NAVIGATION_DATA_ATTRIBUTE = createDataFlagAttribute(
+  MOBILE_MENU_NAVIGATION_ATTRIBUTE,
+);
 
 const BRAND_BAR_CLASSES = [
   "h-3.5 opacity-100",
@@ -289,9 +302,9 @@ export default function HeaderClient() {
 
           <div className="flex items-center justify-end gap-3 md:justify-self-end">
             <button
+              {...MOBILE_MENU_TOGGLE_DATA_ATTRIBUTE}
               ref={mobileMenuToggleRef}
               type="button"
-              data-mobile-menu-toggle="true"
               className="
                 flex size-11 shrink-0 touch-manipulation-safe items-center justify-center
                 rounded-full border border-gold/20 bg-background/70 text-foreground/60
@@ -303,7 +316,7 @@ export default function HeaderClient() {
               onClick={toggleMobileMenu}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-label={getMobileMenuAriaLabel(mobileMenuOpen)}
             >
               <span className="relative size-5" aria-hidden>
                 <span
@@ -341,9 +354,9 @@ export default function HeaderClient() {
       </div>
 
       <nav
+        {...MOBILE_MENU_NAVIGATION_DATA_ATTRIBUTE}
         ref={mobileMenuRef}
         id="mobile-navigation"
-        data-mobile-navigation="true"
         className="overflow-hidden border-t border-gold/20 md:hidden"
         aria-label="Mobile navigation"
         hidden={!mobileMenuOpen}
@@ -384,7 +397,7 @@ export default function HeaderClient() {
 
       <noscript>
         <style>{`
-          [data-mobile-menu-toggle="true"] {
+          ${MOBILE_MENU_TOGGLE_SELECTOR} {
             display: none !important;
           }
         `}</style>

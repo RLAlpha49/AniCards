@@ -113,7 +113,7 @@ export default async function UserSearchPage({
   return (
     <>
       <StructuredDataScript page="search" />
-      <div className="relative min-h-screen">
+      <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
         <SearchHeroShell
           initialFieldError={initialFieldError}

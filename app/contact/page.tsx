@@ -27,7 +27,7 @@ export default async function ContactPage() {
         data={generateStructuredData("contact")}
         nonce={nonce}
       />
-      <div className="relative min-h-screen">
+      <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
 
         <SectionReveal>
