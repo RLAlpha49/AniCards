@@ -4,7 +4,6 @@
 // keyboard shortcuts, filtering, and bulk actions all meet here so individual
 // card tiles can stay focused on per-card rendering and controls.
 
-import { motion } from "framer-motion";
 import {
   Activity,
   AlertCircle,
@@ -16,6 +15,7 @@ import {
   ChevronsUp,
   ChevronsUpDown,
   Clapperboard,
+  Command as CommandIcon,
   Download,
   Eye,
   EyeOff,
@@ -68,6 +68,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
+import { motion, NO_MOTION_TRANSITION } from "@/components/ui/Motion";
 import {
   Popover,
   PopoverContent,
@@ -92,10 +93,7 @@ import {
   flushUserPageDraftBackup,
   useUserPageDraftBackup,
 } from "@/hooks/useUserPageDraftBackup";
-import {
-  getMotionSafeScrollBehavior,
-  NO_MOTION_TRANSITION,
-} from "@/lib/animations";
+import { getMotionSafeScrollBehavior } from "@/lib/animations";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
 import { statCardTypes } from "@/lib/card-types";
 import {
@@ -297,7 +295,7 @@ function UserPageEditorLoadingScreen(
 
   return (
     <div className="
-      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+      relative z-10 container mx-auto flex min-h-shell-viewport items-center justify-center px-4
     ">
       <motion.div
         initial={
@@ -361,7 +359,7 @@ function UserPageEditorErrorScreen(
 ) {
   return (
     <div className="
-      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+      relative z-10 container mx-auto flex min-h-shell-viewport items-center justify-center px-4
     ">
       <motion.div
         initial={
@@ -481,6 +479,18 @@ function parseVisibilityParam(v: string | null): VisibilityFilter {
   return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
 }
 
+function hasReorderModeBlockingFilters(params: {
+  query: string;
+  visibility: VisibilityFilter;
+  customFilter: CustomFilter;
+}) {
+  return (
+    params.query.trim().length > 0 ||
+    params.visibility !== "all" ||
+    params.customFilter !== "all"
+  );
+}
+
 export type SearchParamsLike = { get: (key: string) => string | null };
 
 export function syncFiltersFromSearchParams(opts: {
@@ -579,6 +589,12 @@ export function useDebouncedEditorUrlSync(opts: {
 function useUserPageEditorCommandPalette(opts: {
   userId: string | null;
   scrollBehavior: ScrollBehavior;
+  hasActiveFilters: boolean;
+  clearAllFilters: () => void;
+  canEnterReorderMode: boolean;
+  isReorderMode: boolean;
+  toggleReorderMode: () => void;
+  clearReorderBlockersAndEnter: () => void;
   visibility: VisibilityFilter;
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
   searchRef: React.RefObject<HTMLInputElement | null>;
@@ -602,6 +618,12 @@ function useUserPageEditorCommandPalette(opts: {
   const {
     userId,
     scrollBehavior,
+    hasActiveFilters,
+    clearAllFilters,
+    canEnterReorderMode,
+    isReorderMode,
+    toggleReorderMode,
+    clearReorderBlockersAndEnter,
     visibility,
     setVisibility,
     searchRef,
@@ -683,9 +705,54 @@ function useUserPageEditorCommandPalette(opts: {
         run: toggleVisibilityFilter,
       },
       {
+        id: "clear-filters",
+        label: "Clear filters",
+        description: hasActiveFilters
+          ? "Reset search, category, visibility, and customization filters"
+          : "No active filters to clear",
+        keywords: ["reset", "filters", "search", "category"],
+        group: "editor",
+        icon: <RotateCcw className="size-4" aria-hidden="true" />,
+        disabled: !hasActiveFilters,
+        run: clearAllFilters,
+      },
+      {
+        id: "reorder-mode",
+        label: isReorderMode
+          ? "Finish reordering"
+          : canEnterReorderMode
+            ? "Turn on reorder mode"
+            : "Clear blockers & enter reorder mode",
+        description: isReorderMode
+          ? "Exit reorder mode"
+          : canEnterReorderMode
+            ? "Drag cards or use step-by-step move controls"
+            : "Clears search, visibility, and customization filters first",
+        keywords: [
+          "reorder",
+          "drag",
+          "sort",
+          "move",
+          "clear blockers",
+          "clear filters",
+        ],
+        group: "editor",
+        shortcutHint: "Ctrl/Cmd+D",
+        icon: <GripVertical className="size-4" aria-hidden="true" />,
+        run: () => {
+          if (isReorderMode || canEnterReorderMode) {
+            toggleReorderMode();
+            return;
+          }
+
+          clearReorderBlockersAndEnter();
+        },
+      },
+      {
         id: "open-settings",
         label: "Open global settings",
-        description: "Edit default colors, borders, and advanced options",
+        description:
+          "Edit default colors, borders, and the Settings Tools backup/import options",
         keywords: ["preferences", "theme", "defaults"],
         group: "editor",
         icon: <SlidersHorizontal className="size-4" aria-hidden="true" />,
@@ -727,8 +794,8 @@ function useUserPageEditorCommandPalette(opts: {
       },
       {
         id: "help",
-        label: "Help",
-        description: "View shortcuts and tips",
+        label: "Help & shortcuts",
+        description: "Search help topics, shortcuts, and tips",
         keywords: ["shortcuts", "faq", "guide"],
         group: "help",
         shortcutHint: "Ctrl/Cmd+H",
@@ -737,7 +804,7 @@ function useUserPageEditorCommandPalette(opts: {
       },
       {
         id: "start-tour",
-        label: "Start tour",
+        label: "Start guided tour",
         description: "Guided walkthrough of the editor",
         keywords: ["tutorial", "onboarding", "walkthrough"],
         group: "help",
@@ -812,6 +879,11 @@ function useUserPageEditorCommandPalette(opts: {
       },
     ],
     [
+      clearAllFilters,
+      clearReorderBlockersAndEnter,
+      hasActiveFilters,
+      canEnterReorderMode,
+      isReorderMode,
       openBulkActions,
       canDiscardNow,
       canSaveNow,
@@ -830,6 +902,7 @@ function useUserPageEditorCommandPalette(opts: {
       expandAll,
       collapseAll,
       exportSettings,
+      toggleReorderMode,
     ],
   );
 
@@ -997,7 +1070,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
         toast("Reorder mode is disabled while filters are active.", {
           id: "reorder-mode-unavailable",
           description:
-            "Clear the search box and set visibility to All to reorder.",
+            "Clear search, visibility, and customization filters first — or use Clear blockers & reorder from the command palette or More actions menu.",
         });
         return;
       }
@@ -1118,7 +1191,7 @@ function ReorderModeToolbarToggle({
       title={
         canEnterReorderMode
           ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
-          : "Clear search and set visibility to All to reorder"
+          : "Clear the blocking filters first, or use Clear blockers & reorder"
       }
     >
       <GripVertical className="mr-1.5 size-3.5" />
@@ -1153,8 +1226,10 @@ function ReorderModeToolbarToggle({
             </div>
           ) : (
             <p>
-              Clear the search box and set visibility to <strong>All</strong> to
-              reorder cards.
+              Reorder needs the full working list. Use{" "}
+              <strong>Clear blockers & reorder</strong> from the command palette
+              or More actions, or clear search, visibility, and customization
+              filters first.
               <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
             </p>
           )}
@@ -1183,7 +1258,7 @@ function ReorderModeMenuToggle({
       title={
         canEnterReorderMode
           ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
-          : "Clear search and set visibility to All to reorder"
+          : "Clear the blocking filters first, or use Clear blockers & reorder"
       }
     >
       <GripVertical className="mr-2 size-4" />
@@ -1924,11 +1999,21 @@ type EditorBulkActionsProps = {
   redoBulk: () => void;
   canUndoBulk: boolean;
   canRedoBulk: boolean;
+  canSaveNow: boolean;
   allCardCount: number;
   enabledCardCount: number;
+  hasActiveFilters: boolean;
   enableAllCards: () => void;
   disableAllCards: () => void;
   resetAllCardsToGlobal: () => void;
+  clearAllFilters: () => void;
+  openCommandPalette: () => void;
+  openGlobalSettings: () => void;
+  openHelpDialog: () => void;
+  startTour: () => void;
+  exportSettings: () => void;
+  saveNow: () => void | Promise<void>;
+  onClearAndEnterReorder: () => void;
   isDisableAllDialogOpen: boolean;
   setIsDisableAllDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isResetDialogOpen: boolean;
@@ -1948,11 +2033,21 @@ function EditorBulkActions({
   redoBulk,
   canUndoBulk,
   canRedoBulk,
+  canSaveNow,
   allCardCount,
   enabledCardCount,
+  hasActiveFilters,
   enableAllCards,
   disableAllCards,
   resetAllCardsToGlobal,
+  clearAllFilters,
+  openCommandPalette,
+  openGlobalSettings,
+  openHelpDialog,
+  startTour,
+  exportSettings,
+  saveNow,
+  onClearAndEnterReorder,
   isDisableAllDialogOpen,
   setIsDisableAllDialogOpen,
   isResetDialogOpen,
@@ -2017,6 +2112,21 @@ function EditorBulkActions({
     });
   }, [allCardCount, resetAllCardsToGlobal, setIsResetDialogOpen]);
 
+  const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
+
+  const runMoreAction = useCallback(
+    (action: () => void | Promise<void>, label: string) => {
+      setIsMoreActionsOpen(false);
+
+      void Promise.resolve()
+        .then(() => action())
+        .catch((error) => {
+          console.error(`Failed to run more action \"${label}\":`, error);
+        });
+    },
+    [],
+  );
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -2027,7 +2137,11 @@ function EditorBulkActions({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                className="
+                  size-11 p-0 text-muted-foreground
+                  hover:bg-gold/5 hover:text-foreground
+                  md:size-8
+                "
                 onClick={expandAll}
               >
                 <ChevronsUpDown className="size-4" />
@@ -2046,7 +2160,11 @@ function EditorBulkActions({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                className="
+                  size-11 p-0 text-muted-foreground
+                  hover:bg-gold/5 hover:text-foreground
+                  md:size-8
+                "
                 onClick={collapseAll}
               >
                 <ChevronsUpDown className="size-4 rotate-90" />
@@ -2077,7 +2195,11 @@ function EditorBulkActions({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  className="
+                    size-11 p-0 text-muted-foreground
+                    hover:bg-gold/5 hover:text-foreground
+                    md:size-8
+                  "
                   onClick={undoBulk}
                   disabled={!canUndoBulk}
                 >
@@ -2097,7 +2219,11 @@ function EditorBulkActions({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                  className="
+                    size-11 p-0 text-muted-foreground
+                    hover:bg-gold/5 hover:text-foreground
+                    md:size-8
+                  "
                   onClick={redoBulk}
                   disabled={!canRedoBulk}
                 >
@@ -2187,31 +2313,148 @@ function EditorBulkActions({
         </div>
 
         <div className="ml-auto sm:hidden">
-          <Popover>
+          <Popover open={isMoreActionsOpen} onOpenChange={setIsMoreActionsOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="size-8 p-0 text-muted-foreground hover:bg-gold/5 hover:text-foreground"
+                className="
+                  size-11 p-0 text-muted-foreground
+                  hover:bg-gold/5 hover:text-foreground
+                  md:size-8
+                "
+                aria-label="More editor actions"
               >
                 <MoreHorizontal className="size-4" />
                 <span className="sr-only">More actions</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-48 p-2" align="end">
+            <PopoverContent className="w-64 p-2" align="end">
               <div className="flex flex-col gap-1">
-                <ReorderModeMenuToggle
-                  isReorderMode={isReorderMode}
-                  canEnterReorderMode={canEnterReorderMode}
-                  onToggle={onToggleReorderMode}
-                  dataTour="reorder-toggle"
-                />
+                <div className="
+                  px-2 py-1 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground
+                  uppercase
+                ">
+                  Editor actions
+                </div>
 
                 <Button
                   variant="ghost"
                   size="sm"
                   className="justify-start"
-                  onClick={undoBulk}
+                  onClick={() => runMoreAction(saveNow, "save changes")}
+                  disabled={!canSaveNow}
+                >
+                  <Save className="mr-2 size-4" />
+                  Save changes
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() =>
+                    runMoreAction(openGlobalSettings, "open global settings")
+                  }
+                >
+                  <SlidersHorizontal className="mr-2 size-4" />
+                  Global settings
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() =>
+                    runMoreAction(openCommandPalette, "open command palette")
+                  }
+                >
+                  <CommandIcon className="mr-2 size-4" />
+                  Command palette
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() =>
+                    runMoreAction(openHelpDialog, "open help and shortcuts")
+                  }
+                >
+                  <Info className="mr-2 size-4" />
+                  Help & shortcuts
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => runMoreAction(startTour, "start guided tour")}
+                >
+                  <BookOpen className="mr-2 size-4" />
+                  Start tour
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() =>
+                    runMoreAction(exportSettings, "download workspace backup")
+                  }
+                >
+                  <Download className="mr-2 size-4" />
+                  Download backup
+                </Button>
+
+                {hasActiveFilters ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={() =>
+                      runMoreAction(clearAllFilters, "clear filters")
+                    }
+                  >
+                    <RotateCcw className="mr-2 size-4" />
+                    Clear filters
+                  </Button>
+                ) : null}
+
+                {!canEnterReorderMode && !isReorderMode ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-gold-dim dark:text-gold"
+                    onClick={() =>
+                      runMoreAction(
+                        onClearAndEnterReorder,
+                        "clear blockers and enter reorder mode",
+                      )
+                    }
+                  >
+                    <GripVertical className="mr-2 size-4" />
+                    Clear blockers & reorder
+                  </Button>
+                ) : (
+                  <ReorderModeMenuToggle
+                    isReorderMode={isReorderMode}
+                    canEnterReorderMode={canEnterReorderMode}
+                    onToggle={() =>
+                      runMoreAction(onToggleReorderMode, "toggle reorder mode")
+                    }
+                    dataTour="reorder-toggle"
+                  />
+                )}
+
+                <div className="my-1 h-px bg-gold/10 dark:bg-gold/12" />
+                <div className="
+                  px-2 py-1 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground
+                  uppercase
+                ">
+                  Bulk & history
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start"
+                  onClick={() => runMoreAction(undoBulk, "undo bulk action")}
                   disabled={!canUndoBulk}
                 >
                   <Undo2 className="mr-2 size-4" />
@@ -2221,7 +2464,7 @@ function EditorBulkActions({
                   variant="ghost"
                   size="sm"
                   className="justify-start"
-                  onClick={redoBulk}
+                  onClick={() => runMoreAction(redoBulk, "redo bulk action")}
                   disabled={!canRedoBulk}
                 >
                   <Redo2 className="mr-2 size-4" />
@@ -2232,7 +2475,9 @@ function EditorBulkActions({
                   variant="ghost"
                   size="sm"
                   className="justify-start text-gold-dim dark:text-gold"
-                  onClick={handleEnableAllCards}
+                  onClick={() =>
+                    runMoreAction(handleEnableAllCards, "enable all cards")
+                  }
                 >
                   <Eye className="mr-2 size-4" />
                   Enable All
@@ -2241,7 +2486,12 @@ function EditorBulkActions({
                   variant="ghost"
                   size="sm"
                   className="justify-start text-red-600 dark:text-red-400"
-                  onClick={handleOpenDisableAllDialog}
+                  onClick={() =>
+                    runMoreAction(
+                      handleOpenDisableAllDialog,
+                      "open disable all dialog",
+                    )
+                  }
                   disabled={enabledCardCount === 0}
                 >
                   <EyeOff className="mr-2 size-4" />
@@ -2251,7 +2501,12 @@ function EditorBulkActions({
                   variant="ghost"
                   size="sm"
                   className="justify-start text-muted-foreground"
-                  onClick={handleOpenResetDialog}
+                  onClick={() =>
+                    runMoreAction(
+                      handleOpenResetDialog,
+                      "open reset all dialog",
+                    )
+                  }
                 >
                   <RotateCcw className="mr-2 size-4" />
                   Reset All
@@ -2661,13 +2916,16 @@ export function UserPageEditor({
 
   const groupFilterTriggerId = "card-group-filter";
 
-  const canEnterReorderMode = useMemo(
+  const hasReorderBlockingFilters = useMemo(
     () =>
-      query.trim().length === 0 &&
-      visibility === "all" &&
-      customFilter === "all",
+      hasReorderModeBlockingFilters({
+        query,
+        visibility,
+        customFilter,
+      }),
     [query, visibility, customFilter],
   );
+  const canEnterReorderMode = !hasReorderBlockingFilters;
   useReorderModeAvailability({
     canEnterReorderMode,
     isReorderMode,
@@ -2926,28 +3184,6 @@ export function UserPageEditor({
     );
   }, []);
 
-  const { recentActionsStorageKey, commandPaletteCommands } =
-    useUserPageEditorCommandPalette({
-      userId,
-      scrollBehavior,
-      visibility,
-      setVisibility,
-      searchRef,
-      selectAllEnabled,
-      deselectAll: clearSelection,
-      toggleTheme: handleToggleTheme,
-      expandAll,
-      collapseAll,
-      exportSettings: handleExportSettings,
-      canSaveNow,
-      canDiscardNow,
-      saveNow,
-      startTour,
-      openGlobalSettings: () => setIsGlobalSettingsOpen(true),
-      openDiscardDialog: () => setIsDiscardDialogOpen(true),
-      openHelpDialog,
-    });
-
   const {
     handleResolveConflictKeepEdits,
     handleResolveConflictDiscardEdits,
@@ -3019,9 +3255,58 @@ export function UserPageEditor({
     setCustomFilter("all");
   }, []);
 
+  const handleClearReorderBlockersAndEnter = useCallback(() => {
+    if (query.trim().length > 0) {
+      setQuery("");
+    }
+
+    if (visibility !== "all") {
+      setVisibility("all");
+    }
+
+    if (customFilter !== "all") {
+      setCustomFilter("all");
+    }
+
+    setIsReorderMode(true);
+    toast("Reorder mode is ready", {
+      id: "reorder-mode-prepared",
+      description:
+        "Cleared the filters that block reordering. Category focus stays in place.",
+    });
+  }, [customFilter, query, visibility]);
+
   const handleToggleReorderMode = useCallback(() => {
     setIsReorderMode((prev) => !prev);
   }, []);
+
+  const { recentActionsStorageKey, commandPaletteCommands } =
+    useUserPageEditorCommandPalette({
+      userId,
+      scrollBehavior,
+      hasActiveFilters,
+      clearAllFilters,
+      canEnterReorderMode,
+      isReorderMode,
+      toggleReorderMode: handleToggleReorderMode,
+      clearReorderBlockersAndEnter: handleClearReorderBlockersAndEnter,
+      visibility,
+      setVisibility,
+      searchRef,
+      selectAllEnabled,
+      deselectAll: clearSelection,
+      toggleTheme: handleToggleTheme,
+      expandAll,
+      collapseAll,
+      exportSettings: handleExportSettings,
+      canSaveNow,
+      canDiscardNow,
+      saveNow,
+      startTour,
+      openGlobalSettings: () => setIsGlobalSettingsOpen(true),
+      openDiscardDialog: () => setIsDiscardDialogOpen(true),
+      openHelpDialog,
+    });
 
   const groupIcon = useCallback(
     (groupName: string) => GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON,
@@ -3149,9 +3434,10 @@ export function UserPageEditor({
         />
 
         <div className="mt-6 space-y-8">
-          <main
+          <section
             data-testid="user-page-editor-main"
             data-ui-ready={hasMounted ? "true" : "false"}
+            aria-labelledby="user-page-editor-heading"
             className="mx-auto w-full max-w-full space-y-6 lg:max-w-[80vw]"
           >
             <motion.div
@@ -3176,10 +3462,13 @@ export function UserPageEditor({
                   <LayoutGrid className="size-6 text-primary-foreground" />
                 </div>
                 <div>
-                  <h2 className="
-                    font-display text-lg tracking-[0.15em] text-foreground uppercase
-                    sm:text-xl
-                  ">
+                  <h2
+                    id="user-page-editor-heading"
+                    className="
+                      font-display text-lg tracking-[0.15em] text-foreground uppercase
+                      sm:text-xl
+                    "
+                  >
                     Your Cards
                   </h2>
                   <p className="font-body-serif text-sm text-muted-foreground">
@@ -3302,7 +3591,7 @@ export function UserPageEditor({
                           onPointerEnter={prefetchHelpDialog}
                           onFocus={prefetchHelpDialog}
                           aria-haspopup="dialog"
-                          aria-label="Help"
+                          aria-label="Help and shortcuts"
                           aria-keyshortcuts="Control+H Meta+H"
                           data-tour="help-button"
                         >
@@ -3319,8 +3608,9 @@ export function UserPageEditor({
                         className="max-w-xs text-xs/relaxed"
                       >
                         <p>
-                          Open help and view all shortcuts.
+                          Open searchable help, shortcuts, and the guided tour.
                           <ShortcutHint>Ctrl/Cmd+H</ShortcutHint>
+                          <ShortcutHint>Ctrl/Cmd+K</ShortcutHint>
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -3343,6 +3633,7 @@ export function UserPageEditor({
                                 font-semibold text-primary-foreground shadow-sm shadow-gold/20
                                 transition-all
                                 hover:shadow-md hover:shadow-gold/30
+                                motion-reduce:transition-none
                                 sm:px-3
                               "
                               data-tour="global-settings"
@@ -3359,12 +3650,17 @@ export function UserPageEditor({
                         >
                           <p>
                             Set your default look (colors, borders, and more).
-                            Individual cards can still be customized.
+                            Individual cards can still be customized, and the
+                            Settings Tools section inside also handles backups,
+                            templates, and JSON import/export.
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+                    <DialogContent className="
+                      max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+                      max-w-4xl overflow-y-auto
+                    ">
                       <GlobalSettingsPanel onSave={saveNow} />
                     </DialogContent>
                   </Dialog>
@@ -3590,7 +3886,7 @@ export function UserPageEditor({
                       size="sm"
                       aria-pressed={visibility === "all"}
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         visibility === "all"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3606,7 +3902,7 @@ export function UserPageEditor({
                       aria-pressed={visibility === "enabled"}
                       aria-keyshortcuts="Control+E Meta+E"
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         visibility === "enabled"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3623,7 +3919,7 @@ export function UserPageEditor({
                       size="sm"
                       aria-pressed={visibility === "disabled"}
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         visibility === "disabled"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3665,7 +3961,7 @@ export function UserPageEditor({
                       size="sm"
                       aria-pressed={customFilter === "all"}
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         customFilter === "all"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3680,7 +3976,7 @@ export function UserPageEditor({
                       size="sm"
                       aria-pressed={customFilter === "customized"}
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         customFilter === "customized"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3695,7 +3991,7 @@ export function UserPageEditor({
                       size="sm"
                       aria-pressed={customFilter === "uncustomized"}
                       className={cn(
-                        "h-8 px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all motion-reduce:transition-none",
                         customFilter === "uncustomized"
                           ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
@@ -3735,11 +4031,21 @@ export function UserPageEditor({
                   redoBulk={redoBulk}
                   canUndoBulk={canUndoBulk}
                   canRedoBulk={canRedoBulk}
+                  canSaveNow={canSaveNow}
                   allCardCount={allCardIds.length}
                   enabledCardCount={enabledCardIds.length}
+                  hasActiveFilters={hasActiveFilters}
                   enableAllCards={enableAllCards}
                   disableAllCards={disableAllCards}
                   resetAllCardsToGlobal={resetAllCardsToGlobal}
+                  clearAllFilters={clearAllFilters}
+                  openCommandPalette={() => setIsCommandPaletteOpen(true)}
+                  openGlobalSettings={() => setIsGlobalSettingsOpen(true)}
+                  openHelpDialog={openHelpDialog}
+                  startTour={startTour}
+                  exportSettings={handleExportSettings}
+                  saveNow={saveNow}
+                  onClearAndEnterReorder={handleClearReorderBlockersAndEnter}
                   isDisableAllDialogOpen={isDisableAllDialogOpen}
                   setIsDisableAllDialogOpen={setIsDisableAllDialogOpen}
                   isResetDialogOpen={isResetDialogOpen}
@@ -3770,7 +4076,7 @@ export function UserPageEditor({
               setVisibility={setVisibility}
               visibleGroupNames={visibleGroupNames}
             />
-          </main>
+          </section>
         </div>
       </div>
 

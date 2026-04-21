@@ -190,7 +190,9 @@ test.describe("User page", () => {
     });
 
     await test.step("The help button opens the editor guidance dialog", async () => {
-      const helpButton = page.getByRole("button", { name: /^help$/i });
+      const helpButton = page.getByRole("button", {
+        name: /^help(?: and shortcuts)?$/i,
+      });
 
       await expect(helpButton).toBeVisible({ timeout: 15000 });
       await helpButton.focus();

@@ -308,7 +308,7 @@ test.describe("User page mobile ergonomics", () => {
     await page.keyboard.press("Escape");
 
     const moreActionsButton = page.getByRole("button", {
-      name: /more actions/i,
+      name: /^more(?: editor)? actions$/i,
     });
     await moreActionsButton.scrollIntoViewIfNeeded();
     await moreActionsButton.click();

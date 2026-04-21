@@ -305,7 +305,9 @@ export function UserHelpDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="
-        grid max-h-[88vh] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0
+        grid
+        max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+        max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0
         md:grid-cols-[230px_1fr]
       ">
         {/* Ambient glow */}
@@ -325,9 +327,15 @@ export function UserHelpDialog({
               <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-gold/40" />
               <input
                 id="user-help-search"
-                type="text"
+                type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="Search topics..."
                 className="
                   h-11 w-full border border-gold/15 bg-transparent pr-3 pl-9 text-sm text-foreground
@@ -441,9 +449,15 @@ export function UserHelpDialog({
             <div className="relative mb-2.5">
               <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-gold/40" />
               <input
-                type="text"
+                type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="Search topics..."
                 className="
                   h-11 w-full border border-gold/15 bg-transparent pr-3 pl-8 text-sm text-foreground
@@ -561,7 +575,8 @@ export function UserHelpDialog({
           <div className="relative shrink-0 border-t border-gold/15 px-6 py-3.5 md:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="font-mono text-[0.68rem] tracking-wide text-muted-foreground/45">
-                <kbd className="text-gold/50">Ctrl/Cmd + H</kbd> to toggle
+                <kbd className="text-gold/50">Ctrl/Cmd + H</kbd> help ·{" "}
+                <kbd className="text-gold/50">Ctrl/Cmd + K</kbd> command palette
               </span>
 
               <div className="flex items-center gap-2">

@@ -80,7 +80,7 @@ export function GlobalSettingsPanel({
       <CardSettingsPanel
         mode="global"
         title="Global Settings"
-        description="Apply to all cards"
+        description="Apply to all cards. Settings Tools below handles backups, imports, and reusable templates."
         onSaveAll={onSave}
         saveAllDisabled={!isDirty}
         isSaving={isSaving}

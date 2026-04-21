@@ -1471,7 +1471,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                               Restore backup
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="
+                            max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+                            max-w-2xl overflow-y-auto
+                          ">
                             <DialogHeader>
                               <DialogTitle>
                                 Restore workspace backup
@@ -1517,6 +1520,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                                   onChange={(e) =>
                                     setWorkspaceImportText(e.target.value)
                                   }
+                                  spellCheck={false}
+                                  autoCorrect="off"
+                                  autoCapitalize="none"
+                                  autoComplete="off"
                                   className="
                                     h-48 w-full resize-none border border-border/60 bg-background
                                     p-3 font-mono text-xs text-foreground shadow-sm
@@ -1645,7 +1652,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                           Import
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
+                      <DialogContent className="
+                        max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+                        max-w-2xl overflow-y-auto
+                      ">
                         <DialogHeader>
                           <DialogTitle>Import settings</DialogTitle>
                           <DialogDescription>
@@ -1686,6 +1696,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                               id="settings-import-text"
                               value={importText}
                               onChange={(e) => setImportText(e.target.value)}
+                              spellCheck={false}
+                              autoCorrect="off"
+                              autoCapitalize="none"
+                              autoComplete="off"
                               className="
                                 h-48 w-full resize-none border border-border/60 bg-background p-3
                                 font-mono text-xs text-foreground shadow-sm

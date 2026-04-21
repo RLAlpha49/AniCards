@@ -189,7 +189,8 @@ export function CardSettingsDialog({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="
-        max-h-[85vh] max-w-4xl overflow-y-auto border border-border/60 bg-background/95 shadow-xl
+        max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+        max-w-4xl overflow-y-auto border border-border/60 bg-background/95 shadow-xl
         backdrop-blur-md
         dark:bg-background/95
       ">
@@ -204,7 +205,7 @@ export function CardSettingsDialog({
           mode="card"
           idPrefix={cardId}
           title={`${label} Settings`}
-          description="Customize this card's appearance"
+          description="Customize this card's appearance. Settings Tools below can copy, import, export, or save reusable looks."
           tools={
             <SettingsTools mode="card" cardId={cardId} cardLabel={label} />
           }

@@ -108,11 +108,12 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
   createTopic(
     "keyboard-shortcuts",
     "Keyboard shortcuts",
-    "Quick keys for search, selection, saving, and reorder mode.",
+    "Quick keys for search, commands, selection, saving, and reorder mode.",
     ["keyboard", "shortcuts", "hotkeys", "keys"],
     [
       unorderedList(
         "Search cards: Ctrl/Cmd+F focuses the card search box.",
+        "Command palette: Ctrl/Cmd+K opens editor actions.",
         "Category filter: Ctrl/Cmd+Shift+F focuses the category dropdown.",
         "Enabled-only: Ctrl/Cmd+E toggles between Enabled and All.",
         "Save now: Ctrl/Cmd+S triggers Save.",
@@ -140,6 +141,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "Ctrl/Cmd+Shift+F — opens up the category dropdown.",
         "Visibility toggle — bounce between All, Enabled, and Disabled cards.",
         "Ctrl/Cmd+E — quick-swaps between Enabled and All.",
+        "Clear filters — resets search, category, visibility, and customization filters in one go.",
         'Syntax chips — tap one to add filters like enabled:true, custom:yes, or group:"Core Stats" without typing the token by hand.',
       ),
     ],
@@ -155,7 +157,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "This is where you set the baseline — default colors, border styling, and a handful of shared options. Any individual card can override these picks when you want something specific, so don't worry about locking yourself in.",
       ),
       note(
-        "The Reset All option snaps every card back to your global defaults in one shot.",
+        "The Reset All option snaps every card back to your global defaults in one shot, and Settings Tools below it handles backups, imports, and reusable templates.",
       ),
     ],
     '[data-tour="global-settings"]',
@@ -173,9 +175,10 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "Ctrl/Cmd+D — switches Reorder mode on or off (when it's available).",
         "Esc — drops you right out of Reorder mode.",
         "Open a card's reorder options to move it earlier or later without dragging.",
+        "If search, visibility, or customization filters are blocking reorder, use Clear blockers & reorder from the command palette or More actions menu.",
       ),
       note(
-        "Fair warning — Reorder mode stays disabled while you've got filters running. Otherwise you'd be rearranging a partial list, which gets confusing fast.",
+        "Reorder mode only starts from the full working list: clear the search box, set visibility back to All, and reset the customization filter first. Focusing one category is still okay.",
       ),
     ],
     '[data-tour="reorder-toggle"]',
@@ -249,6 +252,9 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         "Reset to global — wipes your overrides and drops the card back to global defaults.",
         'Any card running custom settings will sport a "Custom" badge on its tile so you can tell at a glance.',
       ),
+      note(
+        "The card-level Settings Tools section also lets you copy settings from another card, save templates, or import/export JSON without leaving the dialog.",
+      ),
     ],
   ),
   createTopic(
@@ -284,6 +290,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
       unorderedList(
         "Commands are organized into groups: editor, bulk, and help.",
         "Your recent actions float to the top so you can rerun them quickly.",
+        "On touch devices, the More actions menu mirrors the most practical commands: save, settings, help, backups, and clear blockers for reorder.",
         "Enter runs whatever's highlighted. Esc backs out.",
       ),
     ],
