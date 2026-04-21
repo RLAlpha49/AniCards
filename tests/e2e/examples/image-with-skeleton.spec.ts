@@ -10,6 +10,7 @@ const SVG_IMAGE_RESPONSE = `
 `;
 
 const CARD_PREVIEW_ROUTE = /\/(?:api\/card|card\.svg)(?:\?.*)?$/;
+const EXAMPLES_COLLECTION_ROUTE = "/examples/core-stats";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -58,20 +59,13 @@ test.describe("ImageWithSkeleton", () => {
     await preferDarkColorScheme(page);
     await mockExamplePreviewResponses(page, { delay: imageGate.promise });
 
-    await gotoReady(page, "/examples");
+    await gotoReady(page, EXAMPLES_COLLECTION_ROUTE);
 
     const gallery = page.locator("#card-gallery");
     await expect(gallery).toBeVisible({
       timeout: 15000,
     });
     await gallery.scrollIntoViewIfNeeded();
-
-    const openCollectionButton = page.getByRole("button", {
-      name: /open collection/i,
-    });
-    await expect(openCollectionButton.first()).toBeVisible({ timeout: 15000 });
-    await openCollectionButton.first().scrollIntoViewIfNeeded();
-    await openCollectionButton.first().click();
 
     const imageCards = gallery.locator("[data-image-state]");
     await expect
@@ -135,18 +129,11 @@ test.describe("ImageWithSkeleton", () => {
     await preferDarkColorScheme(page);
     await mockExamplePreviewResponses(page, { failRequests: 1 });
 
-    await gotoReady(page, "/examples");
+    await gotoReady(page, EXAMPLES_COLLECTION_ROUTE);
 
     const gallery = page.locator("#card-gallery");
     await expect(gallery).toBeVisible({ timeout: 15000 });
     await gallery.scrollIntoViewIfNeeded();
-
-    const openCollectionButton = page.getByRole("button", {
-      name: /open collection/i,
-    });
-    await expect(openCollectionButton.first()).toBeVisible({ timeout: 15000 });
-    await openCollectionButton.first().scrollIntoViewIfNeeded();
-    await openCollectionButton.first().click();
 
     const imageCards = gallery.locator("[data-image-state]");
     await expect
