@@ -63,6 +63,7 @@ function registerModuleMocks() {
       AnimatePresence: ({ children }: { children?: ReactNode }) => (
         <>{children}</>
       ),
+      NO_MOTION_TRANSITION: { duration: 0 },
       motion: {
         button: MotionButton,
         div: MotionDiv,
@@ -70,11 +71,21 @@ function registerModuleMocks() {
     };
   });
 
+  mock.module("@/hooks/useMotionPreferences", () => ({
+    useMotionPreferences: () => ({
+      prefersReducedMotion: false,
+      prefersReducedData: false,
+      prefersCoarsePointer: false,
+      prefersSimplifiedMotion: false,
+    }),
+  }));
+
   mock.module("@/components/user/ColorPreviewCard", () => ({
     ColorPreviewCard: () => <div data-kind="color-preview-card" />,
   }));
 
   mock.module("@/components/ui/Button", () => ({
+    buttonVariants: () => "",
     Button: ({ children, type = "button", ...props }: ButtonProps) => {
       const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 

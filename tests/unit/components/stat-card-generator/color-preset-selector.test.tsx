@@ -94,6 +94,7 @@ mock.module("@/components/ui/Motion", () => {
     AnimatePresence: ({ children }: { children?: ReactNode }) => (
       <>{children}</>
     ),
+    NO_MOTION_TRANSITION: { duration: 0 },
     motion: {
       button: MotionButton,
       div: MotionDiv,
@@ -102,6 +103,7 @@ mock.module("@/components/ui/Motion", () => {
 });
 
 mock.module("@/components/ui/Button", () => ({
+  buttonVariants: () => "",
   Button: ({ children, type = "button", ...props }: ButtonProps) => {
     const buttonProps = omitStubProps(props, ["size", "variant"] as const);
 

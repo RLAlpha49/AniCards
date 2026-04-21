@@ -36,7 +36,7 @@ function subscribeToMediaQuery(
 }
 
 export function useMotionPreferences() {
-  const runtimeReducedMotion = useReducedMotion() ?? false;
+  const runtimeReducedMotion = useReducedMotion();
   const [hasHydrated, setHasHydrated] = useState(false);
   const [prefersReducedData, setPrefersReducedData] = useState(false);
   const [prefersCoarsePointer, setPrefersCoarsePointer] = useState(false);
@@ -77,12 +77,13 @@ export function useMotionPreferences() {
     };
   }, []);
 
-  const prefersReducedMotion = hasHydrated ? runtimeReducedMotion : false;
+  const resolvedReducedMotion = runtimeReducedMotion ?? true;
+  const prefersReducedMotion = hasHydrated ? resolvedReducedMotion : true;
   const prefersSimplifiedMotion = useMemo(
     () =>
-      hasHydrated &&
+      !hasHydrated ||
       shouldSimplifyMotion({
-        reducedMotion: runtimeReducedMotion,
+        reducedMotion: resolvedReducedMotion,
         reducedData: prefersReducedData,
         coarsePointer: prefersCoarsePointer,
       }),
@@ -90,7 +91,7 @@ export function useMotionPreferences() {
       hasHydrated,
       prefersCoarsePointer,
       prefersReducedData,
-      runtimeReducedMotion,
+      resolvedReducedMotion,
     ],
   );
 
