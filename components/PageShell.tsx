@@ -2,7 +2,6 @@
 
 import React from "react";
 
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,60 +42,58 @@ export default function PageShell({
   const hasHero = Boolean(badge || title || subtitle || heroContent);
 
   return (
-    <ErrorBoundary>
-      <div className={cn("relative w-full overflow-hidden", mainClassName)}>
-        <div className="relative z-10 h-full">
-          {hasHero && (
-            <section className="relative size-full overflow-x-visible overflow-y-hidden">
-              <div className="relative z-10 container mx-auto px-0">
-                <div className="mx-auto flex w-full flex-col items-center text-center">
-                  {badge && <div className={HERO_REVEAL_CLASS}>{badge}</div>}
+    <div className={cn("relative w-full overflow-hidden", mainClassName)}>
+      <div className="relative z-10 h-full">
+        {hasHero && (
+          <section className="relative size-full overflow-x-visible overflow-y-hidden">
+            <div className="relative z-10 container mx-auto px-0">
+              <div className="mx-auto flex w-full flex-col items-center text-center">
+                {badge && <div className={HERO_REVEAL_CLASS}>{badge}</div>}
 
-                  <h1
+                <h1
+                  className={cn(
+                    HERO_REVEAL_CLASS,
+                    `
+                      mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-foreground
+                      motion-safe:delay-75
+                      sm:text-5xl
+                      md:text-6xl
+                      lg:text-7xl
+                    `,
+                  )}
+                >
+                  {title}
+                </h1>
+
+                {subtitle && (
+                  <p
                     className={cn(
                       HERO_REVEAL_CLASS,
-                      `
-                        mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-foreground
-                        motion-safe:delay-75
-                        sm:text-5xl
-                        md:text-6xl
-                        lg:text-7xl
-                      `,
+                      "mt-6 max-w-2xl text-lg text-foreground/60 motion-safe:delay-150 sm:text-xl",
                     )}
                   >
-                    {title}
-                  </h1>
+                    {subtitle}
+                  </p>
+                )}
 
-                  {subtitle && (
-                    <p
-                      className={cn(
-                        HERO_REVEAL_CLASS,
-                        "mt-6 max-w-2xl text-lg text-foreground/60 motion-safe:delay-150 sm:text-xl",
-                      )}
-                    >
-                      {subtitle}
-                    </p>
-                  )}
-
-                  {heroContent && (
-                    <div
-                      className={cn(
-                        HERO_REVEAL_CLASS,
-                        "motion-safe:delay-200",
-                        heroContentClassName,
-                      )}
-                    >
-                      {heroContent}
-                    </div>
-                  )}
-                </div>
+                {heroContent && (
+                  <div
+                    className={cn(
+                      HERO_REVEAL_CLASS,
+                      "motion-safe:delay-200",
+                      heroContentClassName,
+                    )}
+                  >
+                    {heroContent}
+                  </div>
+                )}
               </div>
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
-          {children}
-        </div>
+        {children}
       </div>
-    </ErrorBoundary>
+    </div>
   );
 }
