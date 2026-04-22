@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 const reportPath =
   process.env.COVERAGE_REPORT_PATH ?? ".artifacts/coverage/lcov.info";
-const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "72");
+const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "73");
 
 function normalizeCoveragePath(filePath) {
   return filePath.replaceAll("\\", "/");

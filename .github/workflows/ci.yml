@@ -261,7 +261,7 @@ jobs:
 
       - name: Enforce unit test line coverage threshold
         env:
-          COVERAGE_LINES_THRESHOLD: "72"
+          COVERAGE_LINES_THRESHOLD: "73"
         run: bun run test:unit:coverage:check
 
       - name: Upload unit test coverage
