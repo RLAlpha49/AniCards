@@ -130,17 +130,22 @@ type SettingsToolsProfileShareDownloadOutcome =
       summary: DownloadSummary;
     };
 
-type SettingsToolsStringSetter = (value: string | null) => void;
-type SettingsToolsTemplateFeedbackSetter = (
-  value: InlineFeedback | null,
-) => void;
-type SettingsToolsDownloadSummarySetter = (
-  value: DownloadSummary | null,
-) => void;
-type SettingsToolsDownloadProgressSetter = (value: {
-  current: number;
-  total: number;
-}) => void;
+type SettingsToolsStringSetter = React.Dispatch<
+  React.SetStateAction<string | null>
+>;
+type SettingsToolsTemplateFeedbackSetter = React.Dispatch<
+  React.SetStateAction<InlineFeedback | null>
+>;
+type SettingsToolsDownloadSummarySetter = React.Dispatch<
+  React.SetStateAction<DownloadSummary | null>
+>;
+type SettingsToolsDownloadProgressSetter = React.Dispatch<
+  React.SetStateAction<{
+    current: number;
+    total: number;
+  }>
+>;
+type SettingsToolsCopiedShareFormat = "url" | "anilist" | "failed-list" | null;
 
 const EMPTY_SETTINGS_TOOLS_SHARE_DATA: SettingsToolsShareData = {
   shareableCards: [],
@@ -162,6 +167,36 @@ function buildWorkspaceRestoreLabel(identity?: string | null): string {
   return identity
     ? `Workspace restored from ${identity}`
     : "Workspace restored";
+}
+
+function getSettingsToolsInitialExportKind(
+  mode: SettingsToolsProps["mode"],
+): ExportKind {
+  return mode === "global" ? "all" : "current";
+}
+
+function getSettingsToolsOrderedCardIds(options: {
+  cardConfigs: UserPageEditorStoreState["cardConfigs"];
+  cardOrder: UserPageEditorStoreState["cardOrder"];
+}): string[] {
+  const seen = new Set<string>();
+  const orderedIds: string[] = [];
+
+  for (const cardId of options.cardOrder) {
+    if (!options.cardConfigs[cardId] || seen.has(cardId)) continue;
+    seen.add(cardId);
+    orderedIds.push(cardId);
+  }
+
+  for (const cardId of Object.keys(options.cardConfigs).sort((a, b) =>
+    a.localeCompare(b),
+  )) {
+    if (seen.has(cardId)) continue;
+    seen.add(cardId);
+    orderedIds.push(cardId);
+  }
+
+  return orderedIds;
 }
 
 function getSettingsToolsFeedbackNode(options: {
@@ -247,6 +282,123 @@ function downloadJson(filename: string, json: string) {
   a.download = filename;
   a.click();
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function copySettingsToolsJsonToClipboard(options: {
+  buildExport: () => SettingsExportV1;
+  setImportError: SettingsToolsStringSetter;
+  setImportSuccess: SettingsToolsStringSetter;
+}): Promise<void> {
+  const exp = options.buildExport();
+  const json = stringifySettingsExport(exp);
+
+  try {
+    await navigator.clipboard.writeText(json);
+    options.setImportSuccess("Export copied to clipboard.");
+    globalThis.setTimeout(() => options.setImportSuccess(null), 1500);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    options.setImportError(`Failed to copy: ${message}`);
+    globalThis.setTimeout(() => options.setImportError(null), 2500);
+  }
+}
+
+async function copySettingsToolsProfileShareUrlsWithFeedback(options: {
+  format: "url" | "anilist";
+  profileShareCards: SettingsToolsShareBuildResult["shareableCards"];
+  setCopiedShareFormat: (value: SettingsToolsCopiedShareFormat) => void;
+  shareCopyTimerRef: {
+    current: ReturnType<typeof setTimeout> | null;
+  };
+}): Promise<void> {
+  if (options.profileShareCards.length === 0) {
+    return;
+  }
+
+  try {
+    await copyShareableCardUrlsToClipboard(
+      options.profileShareCards,
+      options.format,
+    );
+    options.setCopiedShareFormat(options.format);
+    clearTimeoutRef(options.shareCopyTimerRef);
+    options.shareCopyTimerRef.current = globalThis.setTimeout(() => {
+      options.setCopiedShareFormat(null);
+      options.shareCopyTimerRef.current = null;
+    }, 2000);
+  } catch (error) {
+    console.error("Failed to copy profile share URLs:", error);
+  }
+}
+
+async function copySettingsToolsShareListToClipboard(options: {
+  list: string[];
+  setCopiedShareFormat: (value: SettingsToolsCopiedShareFormat) => void;
+  shareCopyTimerRef: {
+    current: ReturnType<typeof setTimeout> | null;
+  };
+}): Promise<void> {
+  if (options.list.length === 0) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(options.list.join("\n"));
+    options.setCopiedShareFormat("failed-list");
+    clearTimeoutRef(options.shareCopyTimerRef);
+    options.shareCopyTimerRef.current = globalThis.setTimeout(() => {
+      options.setCopiedShareFormat(null);
+      options.shareCopyTimerRef.current = null;
+    }, 2000);
+  } catch (error) {
+    console.error("Failed to copy share list:", error);
+  }
+}
+
+async function copySettingsToolsWorkspaceBackupWithFeedback(options: {
+  buildWorkspaceBackupPayload: () => SettingsToolsWorkspaceBackup | null;
+  setWorkspaceImportError: SettingsToolsStringSetter;
+  setWorkspaceImportSuccess: SettingsToolsStringSetter;
+}): Promise<void> {
+  const backup = options.buildWorkspaceBackupPayload();
+  if (!backup) {
+    return;
+  }
+
+  const json = stringifyWorkspaceBackup(backup);
+
+  try {
+    await navigator.clipboard.writeText(json);
+    options.setWorkspaceImportSuccess("Workspace backup copied to clipboard.");
+    globalThis.setTimeout(() => options.setWorkspaceImportSuccess(null), 1500);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.setWorkspaceImportError(
+      `Failed to copy workspace backup: ${message}`,
+    );
+    globalThis.setTimeout(() => options.setWorkspaceImportError(null), 2500);
+  }
+}
+
+function downloadSettingsToolsWorkspaceBackupWithFeedback(options: {
+  buildWorkspaceBackupPayload: () => SettingsToolsWorkspaceBackup | null;
+  setWorkspaceImportSuccess: SettingsToolsStringSetter;
+}): void {
+  const backup = options.buildWorkspaceBackupPayload();
+  if (!backup) {
+    return;
+  }
+
+  downloadJson(
+    buildWorkspaceBackupFilename({
+      exportedAt: backup.exportedAt,
+      userId: backup.userId,
+      username: backup.username,
+    }),
+    stringifyWorkspaceBackup(backup),
+  );
+  options.setWorkspaceImportSuccess("Workspace backup downloaded.");
+  globalThis.setTimeout(() => options.setWorkspaceImportSuccess(null), 1500);
 }
 
 function isExportKind(value: string): value is ExportKind {
@@ -861,7 +1013,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   const [copyFromCardId, setCopyFromCardId] = useState<string>("");
 
   const [exportKind, setExportKind] = useState<ExportKind>(
-    props.mode === "global" ? "all" : "current",
+    getSettingsToolsInitialExportKind(props.mode),
   );
 
   const [importOpen, setImportOpen] = useState(false);
@@ -878,9 +1030,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   >(null);
   const [templateFeedback, setTemplateFeedback] =
     useState<InlineFeedback | null>(null);
-  const [copiedShareFormat, setCopiedShareFormat] = useState<
-    "url" | "anilist" | "failed-list" | null
-  >(null);
+  const [copiedShareFormat, setCopiedShareFormat] =
+    useState<SettingsToolsCopiedShareFormat>(null);
   const [isShareDownloading, setIsShareDownloading] = useState(false);
   const [shareDownloadProgress, setShareDownloadProgress] = useState({
     current: 0,
@@ -994,24 +1145,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   );
 
   const orderedCardIds = useMemo(() => {
-    const seen = new Set<string>();
-    const orderedIds: string[] = [];
-
-    for (const cardId of cardOrder) {
-      if (!cardConfigs[cardId] || seen.has(cardId)) continue;
-      seen.add(cardId);
-      orderedIds.push(cardId);
-    }
-
-    for (const cardId of Object.keys(cardConfigs).sort((a, b) =>
-      a.localeCompare(b),
-    )) {
-      if (seen.has(cardId)) continue;
-      seen.add(cardId);
-      orderedIds.push(cardId);
-    }
-
-    return orderedIds;
+    return getSettingsToolsOrderedCardIds({
+      cardConfigs,
+      cardOrder,
+    });
   }, [cardConfigs, cardOrder]);
 
   const {
@@ -1085,20 +1222,15 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     settingsTemplates,
   ]);
 
-  const handleCopyJson = useCallback(async () => {
-    const exp = buildExport();
-    const json = stringifySettingsExport(exp);
-
-    try {
-      await navigator.clipboard.writeText(json);
-      setImportSuccess("Export copied to clipboard.");
-      setTimeout(() => setImportSuccess(null), 1500);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setImportError(`Failed to copy: ${msg}`);
-      setTimeout(() => setImportError(null), 2500);
-    }
-  }, [buildExport]);
+  const handleCopyJson = useCallback(
+    () =>
+      copySettingsToolsJsonToClipboard({
+        buildExport,
+        setImportError,
+        setImportSuccess,
+      }),
+    [buildExport],
+  );
 
   const handleDownloadJson = useCallback(() => {
     const exp = buildExport();
@@ -1107,43 +1239,29 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [buildExport]);
 
   const handleCopyProfileShareUrls = useCallback(
-    async (format: "url" | "anilist" = "url") => {
-      if (profileShareCards.length === 0) return;
-
-      try {
-        await copyShareableCardUrlsToClipboard(profileShareCards, format);
-        setCopiedShareFormat(format);
-        clearTimeoutRef(shareCopyTimerRef);
-        shareCopyTimerRef.current = globalThis.setTimeout(() => {
-          setCopiedShareFormat(null);
-          shareCopyTimerRef.current = null;
-        }, 2000);
-      } catch (error) {
-        console.error("Failed to copy profile share URLs:", error);
-      }
-    },
+    (format: "url" | "anilist" = "url") =>
+      copySettingsToolsProfileShareUrlsWithFeedback({
+        format,
+        profileShareCards,
+        setCopiedShareFormat,
+        shareCopyTimerRef,
+      }),
     [profileShareCards],
   );
 
-  const handleCopyShareList = useCallback(async (list: string[]) => {
-    if (list.length === 0) return;
-
-    try {
-      await navigator.clipboard.writeText(list.join("\n"));
-      setCopiedShareFormat("failed-list");
-      clearTimeoutRef(shareCopyTimerRef);
-      shareCopyTimerRef.current = globalThis.setTimeout(() => {
-        setCopiedShareFormat(null);
-        shareCopyTimerRef.current = null;
-      }, 2000);
-    } catch (error) {
-      console.error("Failed to copy share list:", error);
-    }
-  }, []);
+  const handleCopyShareList = useCallback(
+    (list: string[]) =>
+      copySettingsToolsShareListToClipboard({
+        list,
+        setCopiedShareFormat,
+        shareCopyTimerRef,
+      }),
+    [],
+  );
 
   const handleDownloadProfileShareCards = useCallback(
-    async (format: CardDownloadFormat = "png") => {
-      await downloadSettingsToolsProfileShareCardsWithFeedback({
+    (format: CardDownloadFormat = "png") =>
+      downloadSettingsToolsProfileShareCardsWithFeedback({
         format,
         isShareDownloading,
         orderedCardIds,
@@ -1154,8 +1272,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         setShareDownloadProgress,
         setShareDownloadSummary,
         shareDownloadSummaryTimerRef,
-      });
-    },
+      }),
     [
       isShareDownloading,
       orderedCardIds,
@@ -1168,37 +1285,24 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     ],
   );
 
-  const handleCopyWorkspaceBackup = useCallback(async () => {
-    const backup = buildWorkspaceBackupPayload();
-    if (!backup) return;
-
-    const json = stringifyWorkspaceBackup(backup);
-    try {
-      await navigator.clipboard.writeText(json);
-      setWorkspaceImportSuccess("Workspace backup copied to clipboard.");
-      globalThis.setTimeout(() => setWorkspaceImportSuccess(null), 1500);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setWorkspaceImportError(`Failed to copy workspace backup: ${message}`);
-      globalThis.setTimeout(() => setWorkspaceImportError(null), 2500);
-    }
-  }, [buildWorkspaceBackupPayload]);
-
-  const handleDownloadWorkspaceBackup = useCallback(() => {
-    const backup = buildWorkspaceBackupPayload();
-    if (!backup) return;
-
-    downloadJson(
-      buildWorkspaceBackupFilename({
-        exportedAt: backup.exportedAt,
-        userId: backup.userId,
-        username: backup.username,
+  const handleCopyWorkspaceBackup = useCallback(
+    () =>
+      copySettingsToolsWorkspaceBackupWithFeedback({
+        buildWorkspaceBackupPayload,
+        setWorkspaceImportError,
+        setWorkspaceImportSuccess,
       }),
-      stringifyWorkspaceBackup(backup),
-    );
-    setWorkspaceImportSuccess("Workspace backup downloaded.");
-    globalThis.setTimeout(() => setWorkspaceImportSuccess(null), 1500);
-  }, [buildWorkspaceBackupPayload]);
+    [buildWorkspaceBackupPayload],
+  );
+
+  const handleDownloadWorkspaceBackup = useCallback(
+    () =>
+      downloadSettingsToolsWorkspaceBackupWithFeedback({
+        buildWorkspaceBackupPayload,
+        setWorkspaceImportSuccess,
+      }),
+    [buildWorkspaceBackupPayload],
+  );
 
   const applySnapshotToTarget = useCallback(
     (snapshot: SettingsSnapshot) => {
@@ -1339,6 +1443,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   const exportKindOptions = useMemo(() => {
     return getSettingsToolsExportKindOptions(props.mode);
   }, [props.mode]);
+  const isCardMode = props.mode === "card";
+  const isGlobalMode = props.mode === "global";
 
   const handleExportKindChange = useCallback((value: string) => {
     if (!isExportKind(value)) return;
@@ -1393,364 +1499,63 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
           >
             <div className="space-y-5 border-t border-border/40 p-4">
               {/* ── Copy from Card ─────────────────────────── */}
-              {props.mode === "card" && (
-                <ToolGroup label="Copy from another card">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select
-                      value={copyFromCardId}
-                      onValueChange={setCopyFromCardId}
-                    >
-                      <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
-                        <SelectValue placeholder="Select a card" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cardOptions.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.label}
-                            {c.enabled ? "" : " (disabled)"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyFromCard}
-                      disabled={!copyFromCardId}
-                      className="h-9 border-border/60 hover:bg-gold/5"
-                    >
-                      <Copy className="mr-1.5 size-3.5" aria-hidden="true" />
-                      Copy
-                    </Button>
-                  </div>
-                </ToolGroup>
+              {isCardMode && (
+                <SettingsToolsCopyFromCardSection
+                  cardOptions={cardOptions}
+                  copyFromCardId={copyFromCardId}
+                  onCopyFromCard={handleCopyFromCard}
+                  onCopyFromCardIdChange={setCopyFromCardId}
+                />
               )}
 
               {/* ── Templates ─────────────────────────────── */}
-              <ToolGroup label="Templates">
-                <div className="space-y-2.5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      value={templateName}
-                      onChange={(e) => setTemplateName(e.target.value)}
-                      placeholder="Template name"
-                      className="h-9 border-border/60 sm:w-72"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
-                      onClick={handleSaveTemplate}
-                      disabled={!templateName.trim()}
-                    >
-                      <FileDown
-                        className="mr-1.5 size-3.5"
-                        aria-hidden="true"
-                      />
-                      Save current
-                    </Button>
-                  </div>
+              <SettingsToolsTemplatesSection
+                feedbackNode={templateFeedbackNode}
+                onApplyTemplate={handleApplyTemplate}
+                onDeleteTemplate={handleDeleteTemplate}
+                onSaveTemplate={handleSaveTemplate}
+                onSelectedTemplateIdChange={setSelectedTemplateId}
+                onTemplateNameChange={setTemplateName}
+                selectedTemplateId={selectedTemplateId}
+                templateName={templateName}
+                templateOptions={templateOptions}
+              />
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Select
-                      value={selectedTemplateId}
-                      onValueChange={setSelectedTemplateId}
-                    >
-                      <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
-                        <SelectValue placeholder="Select a template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templateOptions.length === 0 ? (
-                          <SelectItem value="__no_templates" disabled>
-                            No templates yet
-                          </SelectItem>
-                        ) : (
-                          templateOptions.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 border-border/60 hover:bg-gold/5"
-                      onClick={handleApplyTemplate}
-                      disabled={!selectedTemplateId}
-                    >
-                      Apply
-                    </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="h-9"
-                          disabled={!selectedTemplateId}
-                        >
-                          <Trash2
-                            className="mr-1.5 size-3.5"
-                            aria-hidden="true"
-                          />
-                          Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete template?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will remove the template from your browser.
-                            This cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDeleteTemplate}>
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-
-                  {templateFeedbackNode}
-                </div>
-              </ToolGroup>
-
-              {props.mode === "global" ? (
+              {isGlobalMode && (
                 <>
-                  <ToolGroup label="Profile sharing">
-                    <div className="space-y-3">
-                      <div className="
-                        flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground
-                      ">
-                        <span>
-                          {profileShareCards.length} enabled card
-                          {profileShareCards.length === 1 ? "" : "s"} ready to
-                          share.
-                        </span>
-                        {profileShareSkippedDisabledCards.length > 0 ? (
-                          <span>
-                            {profileShareSkippedDisabledCards.length} disabled
-                            card
-                            {profileShareSkippedDisabledCards.length === 1
-                              ? ""
-                              : "s"}{" "}
-                            excluded automatically.
-                          </span>
-                        ) : null}
-                        {userId ? null : (
-                          <span>
-                            Load a profile before generating share URLs.
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        className={cn(
-                          "flex flex-wrap items-center gap-2",
-                          (!userId || orderedCardIds.length === 0) &&
-                            "pointer-events-none opacity-50",
-                        )}
-                        aria-disabled={!userId || orderedCardIds.length === 0}
-                      >
-                        <CopyUrlsPopover
-                          copiedFormat={copiedShareFormat}
-                          handleCopyUrls={handleCopyProfileShareUrls}
-                        />
-                        <DownloadPopover
-                          isDownloading={isShareDownloading}
-                          downloadProgress={shareDownloadProgress}
-                          handleDownloadAll={handleDownloadProfileShareCards}
-                        />
-                      </div>
-
-                      <DownloadStatusAlerts
-                        downloadSummary={shareDownloadSummary}
-                        downloadError={shareDownloadError}
-                        setDownloadSummary={setShareDownloadSummary}
-                        setDownloadError={setShareDownloadError}
-                        copyToClipboard={handleCopyShareList}
-                      />
-                    </div>
-                  </ToolGroup>
-
-                  <ToolGroup label="Workspace backup / restore">
-                    <div className="space-y-2.5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-9 border-border/60 hover:bg-gold/5"
-                          onClick={handleCopyWorkspaceBackup}
-                        >
-                          <Copy
-                            className="mr-1.5 size-3.5"
-                            aria-hidden="true"
-                          />
-                          Copy backup JSON
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-9 border-border/60 hover:bg-gold/5"
-                          onClick={handleDownloadWorkspaceBackup}
-                        >
-                          <Download
-                            className="mr-1.5 size-3.5"
-                            aria-hidden="true"
-                          />
-                          Download backup
-                        </Button>
-
-                        <Dialog
-                          open={workspaceImportOpen}
-                          onOpenChange={setWorkspaceImportOpen}
-                        >
-                          <DialogTrigger asChild>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
-                            >
-                              <FileUp
-                                className="mr-1.5 size-3.5"
-                                aria-hidden="true"
-                              />
-                              Restore backup
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="
-                            max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
-                            max-w-2xl overflow-y-auto
-                          ">
-                            <DialogHeader>
-                              <DialogTitle>
-                                Restore workspace backup
-                              </DialogTitle>
-                              <DialogDescription>
-                                Paste a full workspace backup or choose a file.
-                                This replaces the current in-browser workspace
-                                view, template library, and local recovery data.
-                              </DialogDescription>
-                            </DialogHeader>
-
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2">
-                                <Label
-                                  htmlFor="workspace-import-file"
-                                  className="sr-only"
-                                >
-                                  Choose a workspace backup file to import
-                                </Label>
-                                <Input
-                                  id="workspace-import-file"
-                                  type="file"
-                                  accept="application/json,.json"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    handleWorkspaceImportFile(file);
-                                    e.target.value = "";
-                                  }}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label
-                                  htmlFor="workspace-import-text"
-                                  className="text-xs"
-                                >
-                                  Or paste workspace backup JSON
-                                </Label>
-                                <textarea
-                                  id="workspace-import-text"
-                                  value={workspaceImportText}
-                                  onChange={(e) =>
-                                    setWorkspaceImportText(e.target.value)
-                                  }
-                                  spellCheck={false}
-                                  autoCorrect="off"
-                                  autoCapitalize="none"
-                                  autoComplete="off"
-                                  className="
-                                    h-48 w-full resize-none border border-border/60 bg-background
-                                    p-3 font-mono text-xs text-foreground shadow-sm
-                                    focus:outline-none
-                                    focus-visible:ring-2 focus-visible:ring-gold/30
-                                  "
-                                  placeholder={`{
-  "schemaVersion": 1,
-  "scope": "workspace",
-  ...
-}`}
-                                />
-                              </div>
-
-                              {workspaceImportError ? (
-                                <p
-                                  role="alert"
-                                  className="text-sm text-red-600"
-                                >
-                                  {workspaceImportError}
-                                </p>
-                              ) : null}
-                              {workspaceImportSuccess ? (
-                                <output
-                                  className="text-sm text-green-600"
-                                  aria-live="polite"
-                                >
-                                  {workspaceImportSuccess}
-                                </output>
-                              ) : null}
-
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setWorkspaceImportOpen(false);
-                                    setWorkspaceImportText("");
-                                    setWorkspaceImportError(null);
-                                    setWorkspaceImportSuccess(null);
-                                  }}
-                                >
-                                  Close
-                                </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() =>
-                                    handleWorkspaceImportString(
-                                      workspaceImportText,
-                                    )
-                                  }
-                                  disabled={!workspaceImportText.trim()}
-                                >
-                                  Restore
-                                </Button>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-
-                      <div className="min-h-5 text-xs">
-                        {workspaceFeedbackNode}
-                      </div>
-                    </div>
-                  </ToolGroup>
+                  <SettingsToolsProfileSharingSection
+                    copiedShareFormat={copiedShareFormat}
+                    downloadError={shareDownloadError}
+                    downloadProgress={shareDownloadProgress}
+                    downloadSummary={shareDownloadSummary}
+                    isDownloading={isShareDownloading}
+                    onCopyShareList={handleCopyShareList}
+                    onCopyUrls={handleCopyProfileShareUrls}
+                    onDownloadAll={handleDownloadProfileShareCards}
+                    orderedCardIds={orderedCardIds}
+                    profileShareCards={profileShareCards}
+                    profileShareSkippedDisabledCards={
+                      profileShareSkippedDisabledCards
+                    }
+                    setDownloadError={setShareDownloadError}
+                    setDownloadSummary={setShareDownloadSummary}
+                    userId={userId}
+                  />
+                  <SettingsToolsWorkspaceBackupSection
+                    feedbackNode={workspaceFeedbackNode}
+                    onCopyWorkspaceBackup={handleCopyWorkspaceBackup}
+                    onDownloadWorkspaceBackup={handleDownloadWorkspaceBackup}
+                    onWorkspaceImportFile={handleWorkspaceImportFile}
+                    onWorkspaceImportOpenChange={setWorkspaceImportOpen}
+                    onWorkspaceImportString={handleWorkspaceImportString}
+                    onWorkspaceImportTextChange={setWorkspaceImportText}
+                    workspaceImportError={workspaceImportError}
+                    workspaceImportOpen={workspaceImportOpen}
+                    workspaceImportSuccess={workspaceImportSuccess}
+                    workspaceImportText={workspaceImportText}
+                  />
                 </>
-              ) : null}
+              )}
 
               {/* ── Import / Export ────────────────────────── */}
               <ToolGroup label="Import / Export (JSON)">
@@ -1916,6 +1721,385 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function SettingsToolsCopyFromCardSection(
+  props: Readonly<{
+    cardOptions: SettingsToolsCardOption[];
+    copyFromCardId: string;
+    onCopyFromCard: () => void;
+    onCopyFromCardIdChange: (value: string) => void;
+  }>,
+) {
+  return (
+    <ToolGroup label="Copy from another card">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Select
+          value={props.copyFromCardId}
+          onValueChange={props.onCopyFromCardIdChange}
+        >
+          <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
+            <SelectValue placeholder="Select a card" />
+          </SelectTrigger>
+          <SelectContent>
+            {props.cardOptions.map((cardOption) => (
+              <SelectItem key={cardOption.id} value={cardOption.id}>
+                {cardOption.label}
+                {cardOption.enabled ? "" : " (disabled)"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={props.onCopyFromCard}
+          disabled={!props.copyFromCardId}
+          className="h-9 border-border/60 hover:bg-gold/5"
+        >
+          <Copy className="mr-1.5 size-3.5" aria-hidden="true" />
+          Copy
+        </Button>
+      </div>
+    </ToolGroup>
+  );
+}
+
+function SettingsToolsTemplatesSection(
+  props: Readonly<{
+    feedbackNode: React.ReactNode;
+    onApplyTemplate: () => void;
+    onDeleteTemplate: () => void;
+    onSaveTemplate: () => void;
+    onSelectedTemplateIdChange: (value: string) => void;
+    onTemplateNameChange: (value: string) => void;
+    selectedTemplateId: string;
+    templateName: string;
+    templateOptions: SettingsTemplateV1[];
+  }>,
+) {
+  return (
+    <ToolGroup label="Templates">
+      <div className="space-y-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input
+            value={props.templateName}
+            onChange={(event) => props.onTemplateNameChange(event.target.value)}
+            placeholder="Template name"
+            className="h-9 border-border/60 sm:w-72"
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
+            onClick={props.onSaveTemplate}
+            disabled={!props.templateName.trim()}
+          >
+            <FileDown className="mr-1.5 size-3.5" aria-hidden="true" />
+            Save current
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Select
+            value={props.selectedTemplateId}
+            onValueChange={props.onSelectedTemplateIdChange}
+          >
+            <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
+              <SelectValue placeholder="Select a template" />
+            </SelectTrigger>
+            <SelectContent>
+              {props.templateOptions.length === 0 ? (
+                <SelectItem value="__no_templates" disabled>
+                  No templates yet
+                </SelectItem>
+              ) : (
+                props.templateOptions.map((templateOption) => (
+                  <SelectItem key={templateOption.id} value={templateOption.id}>
+                    {templateOption.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 border-border/60 hover:bg-gold/5"
+            onClick={props.onApplyTemplate}
+            disabled={!props.selectedTemplateId}
+          >
+            Apply
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-9"
+                disabled={!props.selectedTemplateId}
+              >
+                <Trash2 className="mr-1.5 size-3.5" aria-hidden="true" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete template?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove the template from your browser. This cannot
+                  be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={props.onDeleteTemplate}>
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+
+        {props.feedbackNode}
+      </div>
+    </ToolGroup>
+  );
+}
+
+function SettingsToolsProfileSharingSection(
+  props: Readonly<{
+    copiedShareFormat: SettingsToolsCopiedShareFormat;
+    downloadError: string | null;
+    downloadProgress: { current: number; total: number };
+    downloadSummary: DownloadSummary | null;
+    isDownloading: boolean;
+    onCopyShareList: (list: string[]) => void | Promise<void>;
+    onCopyUrls: (format?: "url" | "anilist") => void | Promise<void>;
+    onDownloadAll: (format?: CardDownloadFormat) => void | Promise<void>;
+    orderedCardIds: string[];
+    profileShareCards: SettingsToolsShareBuildResult["shareableCards"];
+    profileShareSkippedDisabledCards: SettingsToolsShareBuildResult["skippedDisabledCards"];
+    setDownloadError: SettingsToolsStringSetter;
+    setDownloadSummary: SettingsToolsDownloadSummarySetter;
+    userId: UserPageEditorStoreState["userId"];
+  }>,
+) {
+  const shareActionsDisabled =
+    !props.userId || props.orderedCardIds.length === 0;
+
+  return (
+    <ToolGroup label="Profile sharing">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            {props.profileShareCards.length} enabled card
+            {props.profileShareCards.length === 1 ? "" : "s"} ready to share.
+          </span>
+          {props.profileShareSkippedDisabledCards.length > 0 ? (
+            <span>
+              {props.profileShareSkippedDisabledCards.length} disabled card
+              {props.profileShareSkippedDisabledCards.length === 1
+                ? ""
+                : "s"}{" "}
+              excluded automatically.
+            </span>
+          ) : null}
+          {props.userId ? null : (
+            <span>Load a profile before generating share URLs.</span>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2",
+            shareActionsDisabled && "pointer-events-none opacity-50",
+          )}
+          aria-disabled={shareActionsDisabled}
+        >
+          <CopyUrlsPopover
+            copiedFormat={props.copiedShareFormat}
+            handleCopyUrls={props.onCopyUrls}
+          />
+          <DownloadPopover
+            isDownloading={props.isDownloading}
+            downloadProgress={props.downloadProgress}
+            handleDownloadAll={props.onDownloadAll}
+          />
+        </div>
+
+        <DownloadStatusAlerts
+          downloadSummary={props.downloadSummary}
+          downloadError={props.downloadError}
+          setDownloadSummary={props.setDownloadSummary}
+          setDownloadError={props.setDownloadError}
+          copyToClipboard={props.onCopyShareList}
+        />
+      </div>
+    </ToolGroup>
+  );
+}
+
+function SettingsToolsWorkspaceBackupSection(
+  props: Readonly<{
+    feedbackNode: React.ReactNode;
+    onCopyWorkspaceBackup: () => void | Promise<void>;
+    onDownloadWorkspaceBackup: () => void;
+    onWorkspaceImportFile: (file: File) => void | Promise<void>;
+    onWorkspaceImportOpenChange: (value: boolean) => void;
+    onWorkspaceImportString: (raw: string) => void;
+    onWorkspaceImportTextChange: (value: string) => void;
+    workspaceImportError: string | null;
+    workspaceImportOpen: boolean;
+    workspaceImportSuccess: string | null;
+    workspaceImportText: string;
+  }>,
+) {
+  return (
+    <ToolGroup label="Workspace backup / restore">
+      <div className="space-y-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 border-border/60 hover:bg-gold/5"
+            onClick={props.onCopyWorkspaceBackup}
+          >
+            <Copy className="mr-1.5 size-3.5" aria-hidden="true" />
+            Copy backup JSON
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 border-border/60 hover:bg-gold/5"
+            onClick={props.onDownloadWorkspaceBackup}
+          >
+            <Download className="mr-1.5 size-3.5" aria-hidden="true" />
+            Download backup
+          </Button>
+
+          <Dialog
+            open={props.workspaceImportOpen}
+            onOpenChange={props.onWorkspaceImportOpenChange}
+          >
+            <DialogTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
+              >
+                <FileUp className="mr-1.5 size-3.5" aria-hidden="true" />
+                Restore backup
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="
+              max-h-[calc(var(--shell-viewport-min-height)-var(--safe-area-top)-var(--safe-area-bottom)-1rem)]
+              max-w-2xl overflow-y-auto
+            ">
+              <DialogHeader>
+                <DialogTitle>Restore workspace backup</DialogTitle>
+                <DialogDescription>
+                  Paste a full workspace backup or choose a file. This replaces
+                  the current in-browser workspace view, template library, and
+                  local recovery data.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="workspace-import-file" className="sr-only">
+                    Choose a workspace backup file to import
+                  </Label>
+                  <Input
+                    id="workspace-import-file"
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      props.onWorkspaceImportFile(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="workspace-import-text" className="text-xs">
+                    Or paste workspace backup JSON
+                  </Label>
+                  <textarea
+                    id="workspace-import-text"
+                    value={props.workspaceImportText}
+                    onChange={(event) =>
+                      props.onWorkspaceImportTextChange(event.target.value)
+                    }
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    className="
+                      h-48 w-full resize-none border border-border/60 bg-background p-3 font-mono
+                      text-xs text-foreground shadow-sm
+                      focus:outline-none
+                      focus-visible:ring-2 focus-visible:ring-gold/30
+                    "
+                    placeholder={`{
+  "schemaVersion": 1,
+  "scope": "workspace",
+  ...
+}`}
+                  />
+                </div>
+
+                {props.workspaceImportError ? (
+                  <p role="alert" className="text-sm text-red-600">
+                    {props.workspaceImportError}
+                  </p>
+                ) : null}
+                {props.workspaceImportSuccess ? (
+                  <output className="text-sm text-green-600" aria-live="polite">
+                    {props.workspaceImportSuccess}
+                  </output>
+                ) : null}
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      props.onWorkspaceImportOpenChange(false);
+                      props.onWorkspaceImportTextChange("");
+                    }}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      props.onWorkspaceImportString(props.workspaceImportText)
+                    }
+                    disabled={!props.workspaceImportText.trim()}
+                  >
+                    Restore
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="min-h-5 text-xs">{props.feedbackNode}</div>
+      </div>
+    </ToolGroup>
   );
 }
 
