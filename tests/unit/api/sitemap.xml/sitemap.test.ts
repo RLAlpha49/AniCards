@@ -1,4 +1,16 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
+
+const realUserDataModule = (await import(
+  new URL("../../../../lib/server/user-data.ts", import.meta.url).href
+)) as typeof import("@/lib/server/user-data");
 
 type PublicUserProfileSitemapEntry = {
   username: string;
@@ -8,10 +20,6 @@ type PublicUserProfileSitemapEntry = {
 const listPublicUserProfileSitemapEntriesMock = mock(
   async (): Promise<PublicUserProfileSitemapEntry[]> => [],
 );
-
-mock.module("@/lib/server/user-data", () => ({
-  listPublicUserProfileSitemapEntries: listPublicUserProfileSitemapEntriesMock,
-}));
 
 const CACHE_CONTROL = "public, s-maxage=3600, stale-while-revalidate=600";
 const STATIC_SITEMAP_PATHS = [
@@ -36,8 +44,21 @@ const PROFILE_LASTMOD = "2026-03-27T00:00:05.000Z";
 const STATIC_LASTMOD = "2026-04-20";
 
 beforeEach(() => {
+  mock.module("@/lib/server/user-data", () => ({
+    ...realUserDataModule,
+    listPublicUserProfileSitemapEntries:
+      listPublicUserProfileSitemapEntriesMock,
+  }));
   listPublicUserProfileSitemapEntriesMock.mockReset();
   listPublicUserProfileSitemapEntriesMock.mockResolvedValue([]);
+});
+
+afterEach(() => {
+  mock.module("@/lib/server/user-data", () => realUserDataModule);
+});
+
+afterAll(() => {
+  mock.restore();
 });
 
 async function getRouteXml(modulePath: string, siteUrl?: string) {

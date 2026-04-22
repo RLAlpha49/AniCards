@@ -40,7 +40,9 @@ const {
   splitUserRecord,
   UserDataIntegrityError,
   UserRecordUsernameConflictError,
-} = await import("@/lib/server/user-data");
+} = (await import(
+  new URL("../../../lib/server/user-data.ts", import.meta.url).href
+)) as typeof import("@/lib/server/user-data");
 
 const compareAlphabetically = (left: string, right: string) =>
   left.localeCompare(right);
