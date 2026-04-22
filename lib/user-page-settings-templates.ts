@@ -292,7 +292,7 @@ function buildSearchLaunchDiscoveryContext(
 
   const href = normalizeNonBlankString(input.href);
 
-  if (!href || !href.startsWith("/examples")) {
+  if (!href?.startsWith("/examples")) {
     return null;
   }
 
@@ -472,11 +472,7 @@ export function getRememberedUserPageRouteLabel(
 }
 
 export function getExamplesDiscoveryContextLabel(
-  context:
-    | SearchLaunchDiscoveryContext
-    | SearchLaunchDiscoveryContextInput
-    | null
-    | undefined,
+  context: SearchLaunchDiscoveryContextLike,
 ): string {
   if (!context) {
     return "Examples";
@@ -502,11 +498,7 @@ export function getExamplesDiscoveryContextLabel(
 }
 
 export function getExamplesDiscoveryContextReturnLabel(
-  context:
-    | SearchLaunchDiscoveryContext
-    | SearchLaunchDiscoveryContextInput
-    | null
-    | undefined,
+  context: SearchLaunchDiscoveryContextLike,
 ): string {
   if (!context) {
     return "Return to examples";
