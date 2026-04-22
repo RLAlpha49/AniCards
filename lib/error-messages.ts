@@ -239,7 +239,7 @@ export function extractStructuredErrorContext(
 const ERROR_MESSAGE_MAP: Record<string, ErrorDetails> = {
   // Generic not found errors
   not_found: {
-    userMessage: "This page or resource couldn\'t be found",
+    userMessage: "This page or resource couldn't be found",
     technicalMessage: "The requested page or resource could not be found",
     category: "not_found",
     retryable: false,
