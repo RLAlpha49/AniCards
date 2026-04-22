@@ -177,7 +177,7 @@ function installMatchMediaController(
         }
       }
 
-      queryList.onchange?.call(queryList, changeEvent as never);
+      queryList.onchange?.(changeEvent as never);
     },
   };
 }
