@@ -7,7 +7,9 @@ import {
 } from "../fixtures/browser-utils";
 
 test.describe("Home page", () => {
-  test("navigates to search from hero CTA", async ({ page }) => {
+  test("navigates to search from hero CTA @deployed-smoke", async ({
+    page,
+  }) => {
     await test.step("Open homepage", async () => {
       await gotoReady(page, "/");
     });
@@ -26,7 +28,9 @@ test.describe("Home page", () => {
     });
   });
 
-  test("navigates to examples from View Gallery CTA", async ({ page }) => {
+  test("navigates to examples from View Gallery CTA @deployed-smoke", async ({
+    page,
+  }) => {
     await gotoReady(page, "/");
 
     await test.step("Open the examples gallery", async () => {

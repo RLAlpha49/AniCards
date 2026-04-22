@@ -3,20 +3,15 @@ import { type APIRequestContext, expect, test } from "@playwright/test";
 import { getSiteUrl } from "@/lib/site-config";
 
 import {
+  createProjectPage,
   dismissAnalyticsPromptIfVisible,
+  expectHomeNoJsMobileFallback,
+  getConfiguredBaseUrl,
   gotoReady,
 } from "../fixtures/browser-utils";
 
 function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-}
-
-function getConfiguredBaseUrl(testBaseUrl: string | undefined): string {
-  if (!testBaseUrl) {
-    throw new Error("Expected the Playwright project to define a baseURL");
-  }
-
-  return testBaseUrl;
 }
 
 async function getWithRetry(
@@ -49,7 +44,7 @@ test.describe("Unmocked app shell smoke", () => {
     height: 851,
   };
 
-  test("serves the home app shell with middleware CSP headers, nonce-aware JSON-LD, and the legacy card rewrite surface", async ({
+  test("serves the home app shell with middleware CSP headers, nonce-aware JSON-LD, and the legacy card rewrite surface @deployed-smoke", async ({
     page,
     request,
   }) => {
@@ -148,49 +143,27 @@ test.describe("Unmocked app shell smoke", () => {
     await expect(menuToggle).toBeFocused();
   });
 
-  test("keeps the home hero and mobile navigation reachable when JavaScript is unavailable", async ({
+  test("keeps the home hero and mobile navigation reachable when JavaScript is unavailable @mobile-lite", async ({
     browser,
   }, testInfo) => {
-    const context = await browser.newContext({
+    const { context, page } = await createProjectPage(browser, testInfo, {
       javaScriptEnabled: false,
       viewport: mobileNavigationViewport,
     });
-    const page = await context.newPage();
-    const configuredBaseUrl = getConfiguredBaseUrl(
-      typeof testInfo.project.use.baseURL === "string"
-        ? testInfo.project.use.baseURL
-        : undefined,
-    );
+    const configuredBaseUrl = getConfiguredBaseUrl(testInfo);
 
     try {
       await page.goto(new URL("/", configuredBaseUrl).toString(), {
         waitUntil: "load",
       });
 
-      await expect(
-        page.getByRole("link", { name: /^get started$/i }),
-      ).toBeVisible({ timeout: 15000 });
-      await expect(
-        page.locator('[data-mobile-navigation-fallback="true"]'),
-      ).toBeVisible({ timeout: 15000 });
-      await expect(
-        page
-          .locator('[data-mobile-navigation-fallback="true"]')
-          .getByRole("link", {
-            name: /^search$/i,
-          }),
-      ).toBeVisible({ timeout: 15000 });
-      await expect(page.locator('[data-mobile-menu-toggle="true"]')).toBeHidden(
-        {
-          timeout: 15000,
-        },
-      );
+      await expectHomeNoJsMobileFallback(page);
     } finally {
       await context.close();
     }
   });
 
-  test("serves robots.txt from the real metadata route", async ({
+  test("serves robots.txt from the real metadata route @deployed-smoke", async ({
     request,
   }) => {
     const response = await getWithRetry(request, "/robots.txt");
@@ -210,7 +183,7 @@ test.describe("Unmocked app shell smoke", () => {
     );
   });
 
-  test("resolves legacy lookup URLs with lookup-safe metadata", async ({
+  test("resolves legacy lookup URLs with lookup-safe metadata @deployed-smoke", async ({
     page,
   }) => {
     await page.goto("/user?username=Alpha49&q=seasonal", {

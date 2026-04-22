@@ -332,8 +332,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  e2e-chromium:
-    name: E2E Chromium
+  e2e-playwright:
+    name: ${{ matrix.name }}
     timeout-minutes: 25
     runs-on: ubuntu-latest
     needs: [changes, build]
@@ -341,6 +341,22 @@ jobs:
     permissions:
       actions: read
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: E2E Chromium
+            artifact_name: playwright-report-chromium
+            script: test:e2e:ci:chromium
+          - name: E2E Mobile Chrome
+            artifact_name: playwright-report-mobile-chrome
+            script: test:e2e:ci:mobile-chrome
+          - name: E2E Firefox Routes
+            artifact_name: playwright-report-firefox
+            script: test:e2e:ci:firefox-routes
+          - name: E2E Firefox Smoke
+            artifact_name: playwright-report-firefox-smoke
+            script: test:e2e:ci:firefox-smoke
     env:
       NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
       NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
@@ -350,24 +366,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: |
-          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
-
-      - name: Setup Bun dependencies
+      - name: Setup Bun dependencies and Playwright
         uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
+          install-playwright: "true"
 
       - name: Download Next build artifact
         uses: actions/download-artifact@v8
@@ -375,204 +378,15 @@ jobs:
           name: next-build
           path: .next
 
-      - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
+      - name: Run Playwright lane
+        id: playwright
+        run: bun run ${{ matrix.script }}
 
-      - name: Run Playwright E2E tests (Chromium)
-        id: playwright_chromium
-        run: bun run test:e2e -- --project=chromium
-
-      - name: Upload Playwright artifacts (Chromium)
-        if: ${{ always() && steps.playwright_chromium.outcome == 'failure' }}
+      - name: Upload Playwright artifacts
+        if: ${{ always() && steps.playwright.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-chromium
-          path: |
-            .artifacts/playwright-report
-            .artifacts/playwright-test-results
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 7
-
-  e2e-mobile:
-    name: E2E Mobile Chrome
-    timeout-minutes: 25
-    runs-on: ubuntu-latest
-    needs: [changes, build]
-    if: ${{ needs.changes.outputs.app_validation == 'true' }}
-    permissions:
-      actions: read
-      contents: read
-    env:
-      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
-      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: |
-          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
-
-      - name: Setup Bun dependencies
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: latest
-
-      - name: Download Next build artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: next-build
-          path: .next
-
-      - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
-
-      - name: Run Playwright E2E tests (Mobile Chrome)
-        id: playwright_mobile
-        run: bun run test:e2e -- --project=mobile-chrome
-
-      - name: Upload Playwright artifacts (Mobile Chrome)
-        if: ${{ always() && steps.playwright_mobile.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report-mobile-chrome
-          path: |
-            .artifacts/playwright-report
-            .artifacts/playwright-test-results
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 7
-
-  e2e-firefox:
-    name: E2E Firefox Routes
-    timeout-minutes: 25
-    runs-on: ubuntu-latest
-    needs: [changes, build]
-    if: ${{ needs.changes.outputs.app_validation == 'true' }}
-    permissions:
-      actions: read
-      contents: read
-    env:
-      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
-      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: |
-          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
-
-      - name: Setup Bun dependencies
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: latest
-
-      - name: Download Next build artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: next-build
-          path: .next
-
-      - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
-
-      - name: Run Playwright route suite (Firefox)
-        id: playwright_firefox
-        run: bun run test:e2e -- tests/e2e/search tests/e2e/user --project=firefox
-
-      - name: Upload Playwright artifacts (Firefox)
-        if: ${{ always() && steps.playwright_firefox.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report-firefox
-          path: |
-            .artifacts/playwright-report
-            .artifacts/playwright-test-results
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 7
-
-  e2e-firefox-smoke:
-    name: E2E Firefox Smoke
-    timeout-minutes: 20
-    runs-on: ubuntu-latest
-    needs: [changes, build]
-    if: ${{ needs.changes.outputs.app_validation == 'true' }}
-    permissions:
-      actions: read
-      contents: read
-    env:
-      NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
-      NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-      NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: |
-          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
-
-      - name: Setup Bun dependencies
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: latest
-
-      - name: Download Next build artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: next-build
-          path: .next
-
-      - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
-
-      - name: Run Playwright local smoke tests (Firefox)
-        id: playwright_firefox_smoke
-        run: bun run test:e2e -- tests/e2e/smoke/unmocked-app-shell.spec.ts --project=firefox
-
-      - name: Upload Playwright artifacts (Firefox Smoke)
-        if: ${{ always() && steps.playwright_firefox_smoke.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report-firefox-smoke
+          name: ${{ matrix.artifact_name }}
           path: |
             .artifacts/playwright-report
             .artifacts/playwright-test-results

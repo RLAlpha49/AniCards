@@ -206,7 +206,9 @@ test.describe("Examples gallery", () => {
     });
   });
 
-  test("navigates to search from examples CTA", async ({ page }) => {
+  test("navigates to search from examples CTA @deployed-smoke", async ({
+    page,
+  }) => {
     await gotoReady(page, "/examples");
 
     await test.step("Navigate to search from CTA", async () => {

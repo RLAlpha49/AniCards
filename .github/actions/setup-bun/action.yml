@@ -6,6 +6,10 @@ inputs:
     description: Bun version to install.
     required: false
     default: latest
+  install-playwright:
+    description: Restore the Playwright browser cache and install Playwright browsers when needed.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -21,6 +25,23 @@ runs:
         echo "version=$(bun --version)" >> "$GITHUB_OUTPUT"
         echo "cache_dir=$(bun pm cache)" >> "$GITHUB_OUTPUT"
       shell: bash
+
+    - name: Resolve Playwright version
+      if: ${{ inputs.install-playwright == 'true' }}
+      id: playwright-version
+      run: |
+        VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Cache Playwright browsers
+      if: ${{ inputs.install-playwright == 'true' }}
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
 
     - name: Cache Bun global package cache
       uses: actions/cache@v5
@@ -38,4 +59,9 @@ runs:
 
     - name: Install dependencies
       run: bun install --frozen-lockfile
+      shell: bash
+
+    - name: Install Playwright browsers and system dependencies
+      if: ${{ inputs.install-playwright == 'true' }}
+      run: bunx playwright install --with-deps
       shell: bash

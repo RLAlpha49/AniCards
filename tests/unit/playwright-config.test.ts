@@ -195,12 +195,39 @@ describe("playwright.config", () => {
       "chromium",
       "mobile-chrome",
       "firefox",
+      "mobile-safari",
     ]);
     expect(config.webServer).toEqual(
       expect.objectContaining({
         command: "bun run start",
         reuseExistingServer: false,
       }),
+    );
+    const mobileSafariProject = config.projects?.find(
+      (project) => project.name === "mobile-safari",
+    );
+    expect(mobileSafariProject?.testMatch).toBeUndefined();
+  });
+
+  it("adds a lightweight iPhone mobile-only lane to matrix-lite", async () => {
+    const module = await importPlaywrightConfigModule("matrix-lite");
+    const config = module.createPlaywrightConfig({
+      PLAYWRIGHT_MATRIX_LITE: "1",
+    });
+
+    expect(config.projects?.map((project) => project.name)).toEqual([
+      "chromium",
+      "mobile-chrome",
+      "firefox",
+      "mobile-safari",
+    ]);
+
+    const mobileSafariProject = config.projects?.find(
+      (project) => project.name === "mobile-safari",
+    );
+
+    expect(mobileSafariProject?.grep).toEqual(
+      module.PLAYWRIGHT_LIGHTWEIGHT_MOBILE_TEST_GREP,
     );
   });
 

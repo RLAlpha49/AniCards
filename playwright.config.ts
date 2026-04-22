@@ -19,8 +19,10 @@ type PlaywrightConfigShape = Parameters<typeof defineConfig>[0];
 type PlaywrightProjects = NonNullable<PlaywrightConfigShape["projects"]>;
 type PlaywrightProject = PlaywrightProjects[number];
 type PlaywrightEnv = Readonly<Record<string, string | undefined>>;
+type PlaywrightProjectMatrixMode = "default" | "matrix-lite" | "full-matrix";
 
 export const PLAYWRIGHT_ARTIFACTS_DIR = "./.artifacts";
+export const PLAYWRIGHT_LIGHTWEIGHT_MOBILE_TEST_GREP = /@mobile-lite/;
 export const PLAYWRIGHT_MOBILE_ONLY_TEST_MATCH =
   /tests[\\/]e2e[\\/]user[\\/]user-mobile\.spec\.[jt]sx?$/;
 
@@ -64,8 +66,25 @@ function getLocalServerCommand(
   return "bun run dev";
 }
 
+function resolveProjectMatrixMode(
+  env: PlaywrightEnv,
+): PlaywrightProjectMatrixMode {
+  if (
+    Boolean(readOptionalEnvValue(env, "CI")) ||
+    isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"))
+  ) {
+    return "full-matrix";
+  }
+
+  if (isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_MATRIX_LITE"))) {
+    return "matrix-lite";
+  }
+
+  return "default";
+}
+
 function createStandardProjects(
-  includeFullMatrix: boolean,
+  matrixMode: PlaywrightProjectMatrixMode,
 ): PlaywrightProjects {
   const chromiumProject = {
     name: "chromium",
@@ -84,9 +103,36 @@ function createStandardProjects(
     use: { ...devices["Desktop Firefox"] },
   } satisfies PlaywrightProject;
 
-  return includeFullMatrix
-    ? [chromiumProject, mobileChromeProject, firefoxProject]
-    : [chromiumProject];
+  const mobileSafariProject = {
+    name: "mobile-safari",
+    use: { ...devices["iPhone 12"] },
+  } satisfies PlaywrightProject;
+
+  const mobileSafariLiteProject = {
+    ...mobileSafariProject,
+    grep: PLAYWRIGHT_LIGHTWEIGHT_MOBILE_TEST_GREP,
+  } satisfies PlaywrightProject;
+
+  switch (matrixMode) {
+    case "full-matrix":
+      return [
+        chromiumProject,
+        mobileChromeProject,
+        firefoxProject,
+        mobileSafariProject,
+      ];
+
+    case "matrix-lite":
+      return [
+        chromiumProject,
+        mobileChromeProject,
+        firefoxProject,
+        mobileSafariLiteProject,
+      ];
+
+    default:
+      return [chromiumProject];
+  }
 }
 
 export function createPlaywrightConfig(
@@ -103,12 +149,10 @@ export function createPlaywrightConfig(
   const useLocalProductionServer = isEnabledFlag(
     readOptionalEnvValue(env, "PLAYWRIGHT_LOCAL_PRODUCTION"),
   );
-  const includeFullMatrix =
-    Boolean(readOptionalEnvValue(env, "CI")) ||
-    isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"));
+  const projectMatrixMode = resolveProjectMatrixMode(env);
   const isCi = Boolean(readOptionalEnvValue(env, "CI"));
   const shouldLaunchLocalServer = !resolvedBaseUrl;
-  const projects = createStandardProjects(includeFullMatrix);
+  const projects = createStandardProjects(projectMatrixMode);
   const resolvedExtraHTTPHeaders = buildPlaywrightAutomationBypassHeaders({
     automationBypassSecret,
     resolvedBaseUrl,
