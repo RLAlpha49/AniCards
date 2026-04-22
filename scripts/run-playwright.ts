@@ -90,10 +90,7 @@ export function resolveRequestedProjectMatrix(
 ): PlaywrightMatrixMode {
   const requestedProjects = getRequestedProjects(argv);
 
-  if (
-    requestedProjects.length === 0 ||
-    requestedProjects.every((projectName) => projectName === "chromium")
-  ) {
+  if (requestedProjects.every((projectName) => projectName === "chromium")) {
     return "default";
   }
 
@@ -118,7 +115,7 @@ export function resolvePlaywrightRunMode(
   }
 
   throw new Error(
-    `Invalid Playwright run mode \"${rawMode}\". Expected one of: ${formatSupportedRunModes()}.`,
+    `Invalid Playwright run mode "${rawMode}". Expected one of: ${formatSupportedRunModes()}.`,
   );
 }
 
@@ -223,6 +220,54 @@ export function classifyDeployedSmokeReadinessStatus(
   return "http-error";
 }
 
+type DeployedSmokeProbeResult = {
+  kind: Exclude<DeployedSmokeReadinessStatus, "network-error">;
+  status: number;
+};
+
+function formatLastNetworkErrorSuffix(lastError?: string): string {
+  return lastError ? ` Last network error: ${lastError}` : "";
+}
+
+function formatLastStatusSuffix(lastStatus?: number): string {
+  return lastStatus ? ` Last status: ${lastStatus}.` : "";
+}
+
+function formatWaitNetworkErrorSuffix(lastError?: string): string {
+  return lastError ? ` :: ${lastError}` : "";
+}
+
+function formatWaitStatusSuffix(lastStatus?: number): string {
+  return lastStatus ? ` HTTP ${lastStatus}` : "";
+}
+
+async function probeDeployedSmokeReadiness(options: {
+  fetchFn: NonNullable<WaitForDeployedSmokeReadinessOptions["fetchFn"]>;
+  headers: Record<string, string> | undefined;
+  target: ResolvedPlaywrightBaseUrl;
+}): Promise<DeployedSmokeProbeResult> {
+  const response = await options.fetchFn(options.target.origin, {
+    headers: options.headers,
+    signal: AbortSignal.timeout(DEPLOYED_SMOKE_REQUEST_TIMEOUT_MS),
+  });
+
+  return {
+    kind: classifyDeployedSmokeReadinessStatus(response.status),
+    status: response.status,
+  };
+}
+
+function getDeployedSmokeRetryDelayMs(
+  attempt: number,
+  remainingMs: number,
+): number {
+  return Math.min(
+    DEPLOYED_SMOKE_MAX_RETRY_DELAY_MS,
+    DEPLOYED_SMOKE_INITIAL_RETRY_DELAY_MS * 2 ** (attempt - 1),
+    remainingMs,
+  );
+}
+
 function formatDeployedSmokeReadinessError(options: {
   hasBypassSecret: boolean;
   lastError?: string;
@@ -253,10 +298,11 @@ function formatDeployedSmokeReadinessError(options: {
   }
 
   if (lastKind === "network-error") {
-    return `Deployed smoke target at ${target.origin} did not become reachable before the readiness window expired.${lastError ? ` Last network error: ${lastError}` : ""}`;
+    return `Deployed smoke target at ${target.origin} did not become reachable before the readiness window expired.${formatLastNetworkErrorSuffix(lastError)}`;
   }
 
-  return `Deployed smoke target at ${target.origin} did not become ready within ${timeoutMs ?? DEPLOYED_SMOKE_READY_TIMEOUT_MS}ms.${lastStatus ? ` Last status: ${lastStatus}.` : ""}`;
+  const timeoutValue = timeoutMs ?? DEPLOYED_SMOKE_READY_TIMEOUT_MS;
+  return `Deployed smoke target at ${target.origin} did not become ready within ${timeoutValue}ms.${formatLastStatusSuffix(lastStatus)}`;
 }
 
 function formatDeployedSmokeReadinessWaitMessage(options: {
@@ -269,10 +315,10 @@ function formatDeployedSmokeReadinessWaitMessage(options: {
   const { attempt, lastError, lastKind, lastStatus, target } = options;
 
   if (lastKind === "network-error") {
-    return `[INFO] Waiting for deployed target (${attempt}) after a network error: ${target.origin}${lastError ? ` :: ${lastError}` : ""}`;
+    return `[INFO] Waiting for deployed target (${attempt}) after a network error: ${target.origin}${formatWaitNetworkErrorSuffix(lastError)}`;
   }
 
-  return `[INFO] Waiting for deployed target (${attempt}) after ${lastKind}${lastStatus ? ` HTTP ${lastStatus}` : ""}: ${target.origin}`;
+  return `[INFO] Waiting for deployed target (${attempt}) after ${lastKind}${formatWaitStatusSuffix(lastStatus)}: ${target.origin}`;
 }
 
 export async function waitForDeployedSmokeReadiness(
@@ -300,25 +346,23 @@ export async function waitForDeployedSmokeReadiness(
     attempt += 1;
 
     try {
-      const response = await fetchFn(target.origin, {
+      const probeResult = await probeDeployedSmokeReadiness({
+        fetchFn,
         headers,
-        signal: AbortSignal.timeout(DEPLOYED_SMOKE_REQUEST_TIMEOUT_MS),
+        target,
       });
-      const readinessStatus = classifyDeployedSmokeReadinessStatus(
-        response.status,
-      );
 
-      lastStatus = response.status;
+      lastStatus = probeResult.status;
       lastError = undefined;
 
-      if (readinessStatus === "ready") {
+      if (probeResult.kind === "ready") {
         logger.info(`[INFO] Deployed target is reachable: ${target.origin}`);
         return;
       }
 
-      lastKind = readinessStatus;
+      lastKind = probeResult.kind;
 
-      if (readinessStatus !== "pending") {
+      if (probeResult.kind !== "pending") {
         throw new Error(
           formatDeployedSmokeReadinessError({
             hasBypassSecret,
@@ -346,11 +390,7 @@ export async function waitForDeployedSmokeReadiness(
       break;
     }
 
-    const delayMs = Math.min(
-      DEPLOYED_SMOKE_MAX_RETRY_DELAY_MS,
-      DEPLOYED_SMOKE_INITIAL_RETRY_DELAY_MS * 2 ** (attempt - 1),
-      remainingMs,
-    );
+    const delayMs = getDeployedSmokeRetryDelayMs(attempt, remainingMs);
 
     logger.info(
       formatDeployedSmokeReadinessWaitMessage({
@@ -402,7 +442,7 @@ export function resolvePlaywrightRunConfiguration(
         },
       };
 
-    case "deployed-smoke":
+    case "deployed-smoke": {
       const deployedSmokeTarget = resolveDeployedSmokeTarget(env);
 
       return {
@@ -412,6 +452,7 @@ export function resolvePlaywrightRunConfiguration(
           PLAYWRIGHT_BASE_URL: deployedSmokeTarget.origin,
         },
       };
+    }
   }
 }
 
