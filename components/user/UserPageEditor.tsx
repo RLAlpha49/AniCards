@@ -677,6 +677,27 @@ function useUserPageEditorCommandPalette(opts: {
     });
   }, [selectAllEnabled]);
 
+  const reorderModeCommandCopy = useMemo(() => {
+    if (isReorderMode) {
+      return {
+        label: "Finish reordering",
+        description: "Exit reorder mode",
+      };
+    }
+
+    if (canEnterReorderMode) {
+      return {
+        label: "Turn on reorder mode",
+        description: "Drag cards or use step-by-step move controls",
+      };
+    }
+
+    return {
+      label: "Clear blockers & enter reorder mode",
+      description: "Clears search, visibility, and customization filters first",
+    };
+  }, [canEnterReorderMode, isReorderMode]);
+
   const commandPaletteCommands = useMemo<CommandPaletteCommand[]>(
     () => [
       {
@@ -719,16 +740,8 @@ function useUserPageEditorCommandPalette(opts: {
       },
       {
         id: "reorder-mode",
-        label: isReorderMode
-          ? "Finish reordering"
-          : canEnterReorderMode
-            ? "Turn on reorder mode"
-            : "Clear blockers & enter reorder mode",
-        description: isReorderMode
-          ? "Exit reorder mode"
-          : canEnterReorderMode
-            ? "Drag cards or use step-by-step move controls"
-            : "Clears search, visibility, and customization filters first",
+        label: reorderModeCommandCopy.label,
+        description: reorderModeCommandCopy.description,
         keywords: [
           "reorder",
           "drag",
@@ -891,6 +904,8 @@ function useUserPageEditorCommandPalette(opts: {
       openDiscardDialog,
       openGlobalSettings,
       openHelpDialog,
+      reorderModeCommandCopy.description,
+      reorderModeCommandCopy.label,
       saveNow,
       searchRef,
       startTour,
@@ -2138,7 +2153,7 @@ function EditorBulkActions({
       void Promise.resolve()
         .then(() => action())
         .catch((error) => {
-          console.error(`Failed to run more action \"${label}\":`, error);
+          console.error(`Failed to run more action "${label}":`, error);
         });
     },
     [],
