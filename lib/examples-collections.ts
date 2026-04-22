@@ -1,4 +1,5 @@
 import type { ExampleCategory } from "@/components/examples/types";
+import { trimOuterRepeatedCharacter } from "@/lib/utils";
 
 export const EXAMPLES_INDEX_PATH = "/examples";
 export const EXAMPLES_GALLERY_SEGMENT = "gallery";
@@ -103,15 +104,16 @@ function normalizeSearchQuery(
 ): string | undefined {
   const trimmedValue = value?.trim();
 
-  return trimmedValue ? trimmedValue : undefined;
+  return trimmedValue || undefined;
 }
 
 function slugify(value: string): string {
-  return value
+  const normalizedValue = value
     .trim()
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "");
+    .replaceAll(/[^a-z0-9]+/g, "-");
+
+  return trimOuterRepeatedCharacter(normalizedValue, "-");
 }
 
 function buildSearchSuffix(search?: string | null): string {

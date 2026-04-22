@@ -20,7 +20,7 @@ import {
   readLastSuccessfulUserPageRoute,
   type SearchLaunchDiscoveryContextInput,
 } from "@/lib/user-page-settings-templates";
-import { cn, toCardApiHref } from "@/lib/utils";
+import { cn, toCardApiHref, trimOuterRepeatedCharacter } from "@/lib/utils";
 
 import type { ExampleCardVariant } from "./types";
 
@@ -73,12 +73,13 @@ function buildExampleTemplateId(
   themeLabel: string,
 ): string {
   const slugify = (value: string): string => {
-    return value
+    const normalizedValue = value
       .trim()
       .replaceAll(/([a-z0-9])([A-Z])/g, "$1-$2")
       .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "-")
-      .replaceAll(/^-+|-+$/g, "");
+      .replaceAll(/[^a-z0-9]+/g, "-");
+
+    return trimOuterRepeatedCharacter(normalizedValue, "-");
   };
 
   return [
@@ -87,6 +88,34 @@ function buildExampleTemplateId(
     slugify(variantName),
     slugify(themeLabel),
   ].join(":");
+}
+
+function getEditorButtonTitle(options: {
+  hasSelectedSettingsSnapshot: boolean;
+  queuedForEditor: boolean;
+}): string {
+  if (!options.hasSelectedSettingsSnapshot) {
+    return "Choose a preview theme before queuing this style";
+  }
+
+  return options.queuedForEditor
+    ? "Queued for the editor"
+    : "Queue this style for the editor";
+}
+
+function getQueuedStyleSuccessDescription(options: {
+  discoveryContext?: SearchLaunchDiscoveryContextInput;
+  rememberedUserRoute: ReturnType<typeof readLastSuccessfulUserPageRoute>;
+}): string {
+  if (options.rememberedUserRoute) {
+    return "Jumping back into your last loaded editor so AniCards can apply it there.";
+  }
+
+  if (options.discoveryContext) {
+    return "Pick a user next and AniCards will carry this queued look over without dropping your current examples context.";
+  }
+
+  return "Pick a user and AniCards will apply this example as a reusable template.";
 }
 
 export function ExampleCard({
@@ -113,21 +142,16 @@ export function ExampleCard({
   );
   const isPreviewReady = previewUrl !== undefined;
   const canCopyPreview =
-    isPreviewReady &&
-    typeof globalThis.navigator !== "undefined" &&
-    globalThis.navigator.clipboard !== undefined;
+    isPreviewReady && globalThis.navigator?.clipboard !== undefined;
   const buttonLabels = buildButtonLabels({
     canCopyPreview,
     copied,
     queuedForEditor,
   });
-  let editorButtonTitle = "Choose a preview theme before queuing this style";
-
-  if (selectedSettingsSnapshot) {
-    editorButtonTitle = queuedForEditor
-      ? "Queued for the editor"
-      : "Queue this style for the editor";
-  }
+  const editorButtonTitle = getEditorButtonTitle({
+    hasSelectedSettingsSnapshot: Boolean(selectedSettingsSnapshot),
+    queuedForEditor,
+  });
 
   useEffect(() => {
     if (copied) {
@@ -203,14 +227,14 @@ export function ExampleCard({
 
       const rememberedUserRoute = readLastSuccessfulUserPageRoute();
       const nextRoute = rememberedUserRoute?.href ?? "/search";
+      const successDescription = getQueuedStyleSuccessDescription({
+        discoveryContext,
+        rememberedUserRoute,
+      });
 
       setQueuedForEditor(true);
       toast.success("Style queued for your editor", {
-        description: rememberedUserRoute
-          ? "Jumping back into your last loaded editor so AniCards can apply it there."
-          : discoveryContext
-            ? "Pick a user next and AniCards will carry this queued look over without dropping your current examples context."
-            : "Pick a user and AniCards will apply this example as a reusable template.",
+        description: successDescription,
       });
       router.push(nextRoute);
     },

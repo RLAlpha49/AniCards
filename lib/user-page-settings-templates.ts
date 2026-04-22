@@ -23,6 +23,11 @@ export const EXAMPLES_DISCOVERY_CONTEXT_STORAGE_KEY =
 
 type SearchLaunchSource = "examples" | "search-starter";
 type ExamplesDiscoveryRouteKind = "index" | "gallery" | "collection" | "legacy";
+type SearchLaunchDiscoveryContextLike =
+  | SearchLaunchDiscoveryContextInput
+  | SearchLaunchDiscoveryContext
+  | null
+  | undefined;
 
 export interface SearchLaunchDiscoveryContext {
   source: "examples";
@@ -268,11 +273,7 @@ function parseSearchLaunchDiscoveryContext(
 }
 
 function buildSearchLaunchDiscoveryContext(
-  input:
-    | SearchLaunchDiscoveryContextInput
-    | SearchLaunchDiscoveryContext
-    | null
-    | undefined,
+  input: SearchLaunchDiscoveryContextLike,
   savedAt = Date.now(),
 ): SearchLaunchDiscoveryContext | null {
   if (!input) {
@@ -393,10 +394,7 @@ function parseRememberedUserPageRouteValue(
   return {
     href,
     userId,
-    username:
-      typeof value.username === "string" && value.username.trim().length > 0
-        ? value.username.trim()
-        : undefined,
+    username: normalizeNonBlankString(value.username),
     savedAt,
   };
 }
@@ -754,7 +752,7 @@ export function rememberLastSuccessfulUserPageRoute(params: {
   const normalizedUserId = normalizePositiveIntegerString(params.userId);
   if (!normalizedUserId) return;
 
-  const normalizedUsername = params.username?.trim() || undefined;
+  const normalizedUsername = normalizeNonBlankString(params.username);
   const nextRoute = {
     href: buildRememberedUserPageHref({
       userId: normalizedUserId,

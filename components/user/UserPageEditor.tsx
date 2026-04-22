@@ -115,6 +115,7 @@ import {
 import {
   consumePendingSettingsTemplateApply,
   getExamplesDiscoveryContextLabel,
+  type PendingSettingsTemplateApply,
   readSettingsTemplatesFromStorage,
   rememberLastSuccessfulUserPageRoute,
 } from "@/lib/user-page-settings-templates";
@@ -909,6 +910,24 @@ function useUserPageEditorCommandPalette(opts: {
   return { recentActionsStorageKey, commandPaletteCommands };
 }
 
+function getPendingTemplateSourceLabel(options: {
+  defaultLabel: string | null;
+  pendingTemplateApply: PendingSettingsTemplateApply;
+  starterLabel: string;
+}): string | null {
+  if (options.pendingTemplateApply.discoveryContext) {
+    return getExamplesDiscoveryContextLabel(
+      options.pendingTemplateApply.discoveryContext,
+    );
+  }
+
+  if (options.pendingTemplateApply.source === "search-starter") {
+    return options.starterLabel;
+  }
+
+  return options.defaultLabel;
+}
+
 function isTypingInEditorField(target: EventTarget | null) {
   if (!(target instanceof Element)) {
     return false;
@@ -1579,13 +1598,11 @@ function usePendingSettingsTemplateApplication(params: {
     }
 
     if (!template) {
-      const sourceLabel = pendingTemplateApply.discoveryContext
-        ? getExamplesDiscoveryContextLabel(
-            pendingTemplateApply.discoveryContext,
-          )
-        : pendingTemplateApply.source === "search-starter"
-          ? "the starter style panel"
-          : "the examples gallery";
+      const sourceLabel = getPendingTemplateSourceLabel({
+        defaultLabel: "the examples gallery",
+        pendingTemplateApply,
+        starterLabel: "the starter style panel",
+      });
 
       toast.error("Couldn't apply the queued style", {
         description: `Try queuing it again from ${sourceLabel}.`,
@@ -1594,11 +1611,11 @@ function usePendingSettingsTemplateApplication(params: {
     }
 
     store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
-    const appliedFromLabel = pendingTemplateApply.discoveryContext
-      ? getExamplesDiscoveryContextLabel(pendingTemplateApply.discoveryContext)
-      : pendingTemplateApply.source === "search-starter"
-        ? "the search starter styles"
-        : null;
+    const appliedFromLabel = getPendingTemplateSourceLabel({
+      defaultLabel: null,
+      pendingTemplateApply,
+      starterLabel: "the search starter styles",
+    });
 
     toast.success(
       `${pendingTemplateApply.templateName ?? template.name} applied`,

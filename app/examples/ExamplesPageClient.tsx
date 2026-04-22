@@ -393,12 +393,16 @@ export default function ExamplesPageClient({
     );
     const normalizedQuery = nextSearchQuery?.trim();
 
-    return normalizedQuery ? normalizedQuery : undefined;
+    return normalizedQuery || undefined;
   }, [searchParamsString]);
+  const currentDiscoveryHref = useMemo(
+    () => (searchParamsString ? `${pathname}?${searchParamsString}` : pathname),
+    [pathname, searchParamsString],
+  );
   const currentDiscoveryContext = useMemo<SearchLaunchDiscoveryContextInput>(
     () => ({
       source: "examples",
-      href: `${pathname}${searchParamsString ? `?${searchParamsString}` : ""}`,
+      href: currentDiscoveryHref,
       routeKind,
       collectionName:
         currentCategoryInfo?.name ?? currentActiveCategory ?? undefined,
@@ -407,12 +411,11 @@ export default function ExamplesPageClient({
     }),
     [
       currentActiveCategory,
+      currentDiscoveryHref,
       currentCategoryInfo?.name,
       currentCategoryInfo?.slug,
       currentDiscoverySearchQuery,
-      pathname,
       routeKind,
-      searchParamsString,
     ],
   );
   const handleCreateClick = useCallback(() => {
