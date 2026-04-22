@@ -9,6 +9,9 @@ info:
   description: >-
     Hand-maintained OpenAPI 3.2.0 specification for the live AniCards Next.js
     route handlers, validated against the current codebase behavior and tests.
+    Older generators, validators, or hosted doc viewers that only partially
+    support OpenAPI 3.2 may misbehave, so verify tool compatibility before
+    treating parser drift as a contract bug.
     Storage-related routes persist AniList-derived user snapshots and card
     editor configuration in Upstash Redis; the repository's current privacy
     posture, telemetry consent model, and retention caveats are documented in
@@ -2142,17 +2145,22 @@ components:
       in: header
       name: x-cron-secret
       description: >-
-        Shared cron secret header for operator-facing cron endpoints. Local and
-        manual callers can send `x-cron-secret`. Deployed environments fail
-        with `503` when `CRON_SECRET` is missing; unsecured cron is available
-        only through the explicit development override.
+        Shared cron secret header for operator-facing cron endpoints. Manual or
+        local callers can send `x-cron-secret: <CRON_SECRET>`, while hosted
+        schedulers may alternatively send `Authorization: Bearer
+        <CRON_SECRET>`. Outside explicit local development (`NODE_ENV=
+        development` plus `ALLOW_UNSECURED_CRON_IN_DEV=true`), missing
+        `CRON_SECRET` fails closed with `503`.
     CronBearer:
       type: http
       scheme: bearer
       bearerFormat: "CRON_SECRET"
       description: >-
         Hosted schedulers such as Vercel may send `Authorization: Bearer
-        <CRON_SECRET>` instead of `x-cron-secret`.
+        <CRON_SECRET>` instead of `x-cron-secret`. The bearer form is
+        equivalent to the `x-cron-secret` header and is still disabled unless
+        `CRON_SECRET` is configured, except for the explicit local-development
+        bypass.
 
   parameters:
     CronSecretHeader:
@@ -2162,11 +2170,13 @@ components:
       schema:
         type: string
       description: >-
-        Cron secret used to protect operator-only endpoints. When the server is
-        missing `CRON_SECRET`, the route fails with `503` instead of allowing
-        unauthenticated access, except in the explicit development override.
-        Hosted schedulers may alternatively use `Authorization: Bearer
-        <CRON_SECRET>`.
+        Cron secret used to protect operator-only endpoints. Copyable manual
+        form: `x-cron-secret: <CRON_SECRET>`. Hosted schedulers may
+        alternatively use `Authorization: Bearer <CRON_SECRET>`. When the
+        server is missing `CRON_SECRET`, the route fails with `503` instead of
+        allowing unauthenticated access, except for the explicit
+        `NODE_ENV=development` plus `ALLOW_UNSECURED_CRON_IN_DEV=true`
+        override.
 
     CardUserId:
       in: query

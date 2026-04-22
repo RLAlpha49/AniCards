@@ -15,6 +15,8 @@ The public API contract lives in [`openapi.yaml`](../openapi.yaml).
 
 Worth being explicit here: this file is hand-maintained. Nothing auto-generates it from the route handlers. So when the spec and a summary doc contradict each other — and eventually they will — `openapi.yaml` wins. Fix the docs in the same pull request, not later.
 
+One tooling caveat: `openapi.yaml` is authored in OpenAPI `3.2.0`. Older generators, validators, or hosted doc viewers that only partially support `3.2` may misparse it or silently drop details, so verify tool support before assuming the contract is wrong.
+
 ## Route families in the contract
 
 At the moment, the contract covers these public route families:
@@ -50,6 +52,18 @@ Those grants are intentionally route-specific:
 Successful `/api/store-users` and `/api/store-cards` responses refresh the lighter `stored_user` grant. Successful `/api/anilist` `GetUserStats` responses refresh the stronger stats-bound grant. Public `/api/get-user` reads stay account-free and **do not** mint write authority on their own.
 
 One extra gotcha for `/api/store-users`: the server only persists the bound AniList snapshot that was just approved for that browser/user flow. A client can still send `username` in the JSON body for compatibility, but the authoritative username comes from the bound snapshot/write grant, not from whatever the browser claims in that field.
+
+## Common editor save flow
+
+Before any protected API save, a same-origin document navigation to the `/user` editor must already have let middleware refresh the shared request-proof cookie. After that, the common browser flow is:
+
+1. **Optional username resolution** — `POST /api/anilist` (`proxyAniList`) with `operation=GetUserId` resolves a numeric AniList `userId` when the browser only has a username. It does **not** mint a write grant.
+2. **Bootstrap identity lookup** — `GET /api/get-user?view=bootstrap` (`getStoredUser`) confirms the canonical profile target. It stays a public read and does **not** mint a write grant.
+3. **Existing cards lookup** — `GET /api/get-cards` (`getStoredCards`) returns the sparse cards record plus cards `updatedAt` and optional `userSnapshot` metadata. Preserve `cardOrder`; later `/api/store-cards` writes must echo the latest cards `ifMatchUpdatedAt` when the record already exists.
+4. **Fresh stats approval** — `POST /api/anilist` (`proxyAniList`) with `operation=GetUserStats` returns the approved AniList stats payload and refreshes the stronger stats-bound protected-write grant cookie for that user.
+5. **Persist the user snapshot** — `POST /api/store-users` (`storeUser`) consumes the request-proof cookie, same-origin and verified-IP checks, and the stats-bound grant. When a stored user already exists, send the latest user `ifMatchUpdatedAt`; optionally add `ifMatchRevision` and `ifMatchSnapshotToken` for a stronger snapshot-bound compare. Success returns new user `updatedAt`, `revision`, and `snapshotToken`, then refreshes the lighter `stored_user` grant.
+6. **Persist the cards patch** — `POST /api/store-cards` (`storeCards`) consumes the request-proof cookie plus either the stats-bound grant or the refreshed `stored_user` grant. When the cards record already exists, send the latest cards `ifMatchUpdatedAt`. If you need to pin the save to the user snapshot from step 5, also send `ifMatchRevision` and `ifMatchSnapshotToken`. Success returns cards `updatedAt` plus the linked `userSnapshot` and refreshes the `stored_user` grant again.
+7. **Later autosaves and conflict recovery** — subsequent `storeCards` autosaves keep using the latest cards `ifMatchUpdatedAt`. A `409` means one of the compare tokens or snapshot bindings is stale; reload `getStoredUser` / `getStoredCards` before retrying.
 
 ## Editor contract quick map
 

@@ -45,6 +45,37 @@ On Windows PowerShell:
 Copy-Item .env.example .env.local
 ```
 
+## Minimal `.env.local` examples
+
+Start with one of these copy-paste snippets, then layer on any extra toggles from [`.env.example`](../.env.example) only when your task actually needs them.
+
+### UI-only starter snippet
+
+```dotenv
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### Full app/API starter snippet
+
+```dotenv
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+ANILIST_TOKEN=replace-with-anilist-token
+UPSTASH_REDIS_REST_URL=https://your-upstash-instance.upstash.io
+UPSTASH_REDIS_REST_TOKEN=replace-with-upstash-rest-token
+
+# Use a real secret to mirror production protected-write behavior locally.
+API_SECRET_TOKEN=replace-with-long-random-secret
+# Or, for explicit localhost-only fallback testing instead:
+# ALLOW_INSECURE_LOCALHOST_SECRETS=true
+```
+
+Add `CRON_SECRET=changeme` only when you're exercising `/api/cron*` endpoints.
+
 ## Fill in what you actually need
 
 The template in [`.env.example`](../.env.example) is grouped by concern. Match the setup to your work — no reason to fill in everything.
@@ -90,39 +121,46 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 The full command surface lives in [`package.json`](../package.json). Use those Bun-first entrypoints verbatim in docs, PR notes, and examples rather than translating them to npm, yarn, or pnpm variants. Here's what each one actually does:
 
-| Command                      | What it does                                    | When to use it                                                                         |
-| ---------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `bun run format:write`       | Writes Prettier fixes, then runs ESLint autofix | Best all-in-one cleanup pass before pushing                                            |
-| `bun run lint`               | ESLint with `--fix`                             | Local autofix lint run                                                                 |
-| `bun run lint:check`         | ESLint check-only                               | CI parity or read-only validation                                                      |
-| `bun run typecheck`          | TypeScript no-emit check                        | Required before push                                                                   |
-| `bun run test:unit`          | Bun unit test suite only                        | Fast check for most logic changes                                                      |
-| `bun run test:unit:coverage` | Unit tests with coverage artifacts              | Coverage or CI parity                                                                  |
-| `bun run test`               | `test:unit` plus Playwright E2E                 | Full regression when browser behavior might be affected                                |
-| `bun run check:unused`       | Knip unused-code analysis                       | CI-enforced merge gate; run locally for PR parity after refactors or file removals     |
-| `bun run check:licenses`     | License policy check plus JSON policy report    | CI-enforced merge gate; run locally for PR parity, especially after dependency changes |
-| `bun run generate:sbom`      | CycloneDX JSON SBOM for production dependencies | Security-audit parity, vendor review prep, or any dependency inventory handoff         |
+| Command                      | What it does                                                       | When to use it                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `bun run format:write`       | Writes Prettier fixes, then runs ESLint autofix                    | Best all-in-one cleanup pass before pushing                                                       |
+| `bun run lint`               | ESLint with `--fix`                                                | Local autofix lint run                                                                            |
+| `bun run lint:check`         | ESLint check-only                                                  | CI parity or read-only validation                                                                 |
+| `bun run typecheck`          | TypeScript no-emit check                                           | Required before push                                                                              |
+| `bun run build`              | Production Next.js build via Turbopack                             | First-class regression check for routing, metadata, headers, config, and production-only bundling |
+| `bun run test:unit`          | Bun unit test suite only                                           | Fast check for most logic changes                                                                 |
+| `bun run test:unit:coverage` | Unit tests with coverage artifacts plus line-threshold enforcement | Coverage gate or coverage artifact generation                                                     |
+| `bun run test`               | Unit coverage gate plus matrix-lite Playwright                     | High-signal local regression when browser, mobile, or cross-browser behavior shifts               |
+| `bun run check:unused`       | Knip unused-code analysis                                          | CI-enforced merge gate; run locally for PR parity after refactors or file removals                |
+| `bun run check:licenses`     | License policy check plus JSON policy report                       | CI-enforced merge gate; run locally for PR parity, especially after dependency changes            |
+| `bun run generate:sbom`      | CycloneDX JSON SBOM for production dependencies                    | Security-audit parity, vendor review prep, or any dependency inventory handoff                    |
 
 There is no separate `bun run format` script in this repository — `bun run format:write` is the formatter entrypoint.
+
+Treat `bun run build` as a first-class local regression check, not just a release chore. It's often the fastest way to catch App Router, metadata, header, and production-bundling regressions that won't show up in unit tests.
+
+Use `bun run test:unit` for the fast logic-only loop, and reach for `bun run test:unit:coverage` or `bun run test` when you want a real unit-coverage gate locally. The coverage checker honors `COVERAGE_LINES_THRESHOLD` when you need a stricter floor for a specific lane.
 
 ### Playwright entrypoints beyond `bun run test:e2e`
 
 Treat `bun run test:e2e` as the default Playwright path. Reach for the specialized wrappers only when you specifically need a local production build or a deployed smoke target.
 
-- `bun run test:e2e` — default Playwright path. Start here for normal browser validation; it boots the local dev server unless `PLAYWRIGHT_BASE_URL` is already set.
+- `bun run test:e2e` — default fast Playwright path. Start here for normal browser validation; it stays Chromium-first locally and boots the dev server unless `PLAYWRIGHT_BASE_URL` is already set.
+- `bun run test:e2e:matrix-lite` — first-class local mobile/cross-browser lane. Use when browser behavior changed and you want a stronger regression pass without opting into the full matrix.
 - `bun run test:e2e:local-prod` — same suite against a local production build (`bun run build && bun run start`). Use when build output, headers, caching, or other production-only behavior matters.
 - `bun run test:e2e:deployed-smoke` — minimal smoke for the deployed app shell and `robots.txt`. Use after deploys or against preview/staging targets only; set `PLAYWRIGHT_BASE_URL` and `VERCEL_AUTOMATION_BYPASS_SECRET` when needed.
 
-If you need a non-default browser project locally, pass the Playwright selector directly, for example `bun run test:e2e -- --project=mobile-chrome`. The Playwright launcher wrapper expands to the full browser matrix on demand for non-default project requests, while `PLAYWRIGHT_FULL_MATRIX=1` and CI still force the whole set.
+If you need a non-default browser project locally, pass the Playwright selector directly, for example `bun run test:e2e -- --project=mobile-chrome`. The launcher expands to the matrix-lite project set for the standard mobile/firefox projects, while `PLAYWRIGHT_FULL_MATRIX=1` or a full-only selector such as `--project=mobile-safari` exposes the full set.
 
 Playwright reads `.env` and `.env.local`, so reusable values such as `PLAYWRIGHT_BASE_URL` or `VERCEL_AUTOMATION_BYPASS_SECRET` can live there when that fits your workflow.
 
 For most changes, this sequence covers the common local pass:
 
 1. `bun run format:write`
-2. `bun run test:unit` for logic changes — or `bun run test` when browser behavior might shift
+2. `bun run test:unit` for logic changes — or `bun run test` when browser behavior might shift or you want coverage-gate parity
 3. `bun run typecheck`
-4. `bun run lint:check`
+4. `bun run build`
+5. `bun run lint:check`
 
 CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests. CI keeps lint read-only via `bun run lint:check` and only spins up the heavier lint/typecheck/build/Playwright lanes when code-bearing, config, or dependency files change. `bun run check:licenses` still runs as a dedicated policy gate, and its `.artifacts/licenses/license-policy-report.json` output is now summarized in the workflow run and uploaded as an artifact in CI, dependency-review, security-audit, and validated dependency-refresh lanes. Scheduled security audits still run the full baseline and publish a CycloneDX SBOM artifact from `bun run generate:sbom`.
 

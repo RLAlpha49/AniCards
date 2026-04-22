@@ -57,6 +57,32 @@ cp .env.example .env.local
 Copy-Item .env.example .env.local
 ```
 
+If you want a paste-and-go starting point, begin `.env.local` with one of these:
+
+```dotenv
+# UI-only mode
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+```dotenv
+# Full app/API mode
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+ANILIST_TOKEN=replace-with-anilist-token
+UPSTASH_REDIS_REST_URL=https://your-upstash-instance.upstash.io
+UPSTASH_REDIS_REST_TOKEN=replace-with-upstash-rest-token
+
+API_SECRET_TOKEN=replace-with-long-random-secret
+# Or, for explicit localhost-only fallback testing instead:
+# ALLOW_INSECURE_LOCALHOST_SECRETS=true
+```
+
+Add `CRON_SECRET=changeme` only when you're testing `/api/cron*`. The fuller env matrix lives in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
 Then start the dev server:
 
 ```bash
@@ -65,7 +91,7 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**UI-only mode** (no credentials needed) covers all frontend work, marketing pages, and visual changes. **Full API mode** — routes that call AniList or read/write Redis — requires an `ANILIST_TOKEN` and Upstash Redis credentials. The env template in `.env.example` is grouped by concern; fill in only what your work actually needs. Full details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+**UI-only mode** (no credentials needed) covers all frontend work, marketing pages, and visual changes. **Full API mode** adds AniList and Upstash Redis credentials, plus `API_SECRET_TOKEN` when you want protected-write behavior to mirror production locally. If you intentionally want the explicit localhost-only fallback instead, add `ALLOW_INSECURE_LOCALHOST_SECRETS=true` while the public URLs stay on loopback hosts. Full details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 If you need protected proxy/write routes such as `/api/anilist`, `/api/store-users`, `/api/store-cards`, or `/api/convert`, keep two extra envs in mind: `API_SECRET_TOKEN` is required in production and worth setting locally when you want request-proof behavior to match production, while `TRUSTED_CLIENT_IP_HEADERS` is only for non-default proxy/CDN setups that forward the client IP in something other than the built-in Vercel/Cloudflare headers.
 

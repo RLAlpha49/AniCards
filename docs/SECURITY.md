@@ -99,9 +99,16 @@ When production cannot verify client-IP provenance for those public reads, the r
 
 ### Operator cron routes
 
-Cron endpoints use `authorizeCronRequest()` and require an `x-cron-secret` header whenever `CRON_SECRET` is configured.
+Cron endpoints use `authorizeCronRequest()` and accept either of these equivalent headers whenever `CRON_SECRET` is configured:
 
-There's a local-dev escape hatch: `ALLOW_UNSECURED_CRON_IN_DEV=true` bypasses that check in development. That's a local-development escape hatch only — not a production posture.
+```http
+x-cron-secret: <CRON_SECRET>
+Authorization: Bearer <CRON_SECRET>
+```
+
+Hosted schedulers commonly use the bearer form, while local/manual calls can keep using `x-cron-secret`.
+
+If `CRON_SECRET` is missing outside explicit local development, the routes fail closed with `503`; they do **not** become public. The only bypass is `ALLOW_UNSECURED_CRON_IN_DEV=true` in `NODE_ENV=development`, which exists strictly for local manual testing and should stay off in hosted environments.
 
 ## Abuse controls
 
