@@ -4,6 +4,8 @@ The root [`README.md`](../README.md) is your way in. Everything here goes deeper
 
 ## Diagrams
 
+Open and edit the checked-in `.drawio` sources locally in VS Code with the Draw.io Integration extension (`hediet.vscode-drawio`). `docs/diagrams/*.drawio` is the source of truth; update the diagram in the same PR as the code or doc change it explains.
+
 - [`diagrams/runtime-architecture.drawio`](./diagrams/runtime-architecture.drawio) — runtime map from middleware and layouts through API handlers, Redis, AniList, caching, and telemetry.
 - [`diagrams/public-api-surface.drawio`](./diagrams/public-api-surface.drawio) — public route families, canonical handlers, aliases, shared controls, and backing services.
 - [`diagrams/security-request-flow.drawio`](./diagrams/security-request-flow.drawio) — HTML CSP/nonce flow plus the API protection branches for public reads, browser writes, SVG renders, and cron jobs.
@@ -23,10 +25,8 @@ The root [`README.md`](../README.md) is your way in. Everything here goes deeper
 
 ## Contributor quickstart
 
-- [`DEVELOPMENT.md`](./DEVELOPMENT.md) — Bun-first local setup, env expectations, validation commands, and the contributor flow.
+- [`DEVELOPMENT.md`](./DEVELOPMENT.md) — Bun-first local setup, copy-paste `.env.local` examples, validation commands, the canonical instruction-discovery map, the current shared alias map, and the supported `.drawio` workflow.
 - [`../AGENTS.md`](../AGENTS.md) — repo-specific execution rules plus the pointer to roadmap guardrails.
-- Key implementation guardrails live in [`../.github/instructions/nextjs.instructions.md`](../.github/instructions/nextjs.instructions.md), [`../.github/instructions/reactjs.instructions.md`](../.github/instructions/reactjs.instructions.md), [`../.github/instructions/security-and-owasp.instructions.md`](../.github/instructions/security-and-owasp.instructions.md), and [`../.github/instructions/performance-optimization.instructions.md`](../.github/instructions/performance-optimization.instructions.md).
-- [`../components.json`](../components.json) is the shared UI scaffolding source of truth for aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`).
 
 ## Development and maintenance
 

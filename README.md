@@ -113,7 +113,7 @@ Next.js (App Router, Turbopack) · TypeScript · Tailwind CSS · Radix UI · Ups
 
 Pull requests are welcome. Fork the repo, cut a feature branch, run the relevant validation commands from `docs/DEVELOPMENT.md`, and open a PR. If your change touches a public route, update [`openapi.yaml`](openapi.yaml) in the same PR.
 
-Before broad repo changes, read `docs/DEVELOPMENT.md` for the Bun-first workflow and `AGENTS.md` for repo-specific execution rules. The main implementation guardrails live in `.github/instructions/nextjs.instructions.md`, `.github/instructions/reactjs.instructions.md`, `.github/instructions/security-and-owasp.instructions.md`, and `.github/instructions/performance-optimization.instructions.md`.
+Before broad repo changes, start with [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the Bun-first workflow, copy-paste `.env.local` examples, canonical instruction discovery, shared alias map, `.drawio` workflow, and validation commands. Treat `bun run build` as a first-class regression check whenever routes, config, metadata, headers, or other production-only behavior might shift. `AGENTS.md` layers on repo-specific execution rules, and [`docs/README.md#stable-contract-index`](docs/README.md#stable-contract-index) is the jump table for durable API, architecture, security, and privacy contracts.
 
 If you're scaffolding or refactoring shared UI, treat `components.json` as the source of truth for `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`). For public-contract changes, use `docs/README.md#stable-contract-index` as the jump table so the API, architecture, security, and privacy docs stay in sync.
 

@@ -23,13 +23,44 @@ bun install
 
 `bun install` automatically runs the `prepare` script, which wires up the Husky git hooks. Nothing extra needed.
 
-## Contributor guardrails
+## Contributor guardrails and instruction discovery
 
-Use this guide plus `../AGENTS.md` as the onboarding baseline for repo work.
+Use this guide plus `../AGENTS.md` as the onboarding baseline for repo work. Treat this section as the canonical instruction-discovery map so the front page, docs index, and agent guidance can link here instead of carrying their own drift-prone partial lists.
 
-- `AGENTS.md` covers the repo-specific execution rules and links to roadmap guardrails.
-- The main instruction anchors live in `../.github/instructions/nextjs.instructions.md`, `../.github/instructions/reactjs.instructions.md`, `../.github/instructions/security-and-owasp.instructions.md`, and `../.github/instructions/performance-optimization.instructions.md`.
-- `../components.json` is the UI scaffolding source of truth for shared `shadcn/ui` work: aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`).
+- `../AGENTS.md` covers repo-specific execution rules and points to `../.github/instructions/roadmap-guardrails.instructions.md` when roadmap/theme guardrails matter.
+- [`README.md`](./README.md#stable-contract-index) is the jump table for durable API, architecture, security, and privacy contract sections when public behavior changes.
+- `../components.json` stays authoritative for shared `shadcn/ui` scaffolding; the alias map below is copied from it for quick reference, not ownership.
+
+| Instruction file                                                   | Reach for it when...                                                                         |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `../.github/instructions/nextjs.instructions.md`                   | App Router files, route handlers, metadata, caching, or server/client boundary work          |
+| `../.github/instructions/reactjs.instructions.md`                  | React components, hooks, interaction behavior, and CSS/SCSS authoring                        |
+| `../.github/instructions/typescript.instructions.md`               | TypeScript source, shared types, configs, and module-boundary work                           |
+| `../.github/instructions/security-and-owasp.instructions.md`       | External input, auth, secrets, headers, network access, or security review                   |
+| `../.github/instructions/performance-optimization.instructions.md` | Performance-sensitive TypeScript/JavaScript/CSS/HTML changes                                 |
+| `../.github/instructions/roadmap-guardrails.instructions.md`       | Docs/app/tests work that could accidentally reintroduce intentionally dropped roadmap themes |
+
+### Shared UI scaffolding source of truth
+
+`components.json` currently sets `style: "new-york"`, `rsc: true`, `tsx: true`, and the Tailwind stylesheet entrypoint `app/globals.css`.
+
+| Alias key    | Resolves to       |
+| ------------ | ----------------- |
+| `components` | `@/components`    |
+| `ui`         | `@/components/ui` |
+| `hooks`      | `@/hooks`         |
+| `lib`        | `@/lib`           |
+| `utils`      | `@/lib/utils`     |
+
+If those values ever change, update `../components.json` first and then refresh any docs that quote it.
+
+### Diagram workflow
+
+The checked-in diagram sources live in `docs/diagrams/*.drawio`.
+
+- Supported local workflow: open and edit those files directly in VS Code with the Draw.io Integration extension (`hediet.vscode-drawio`).
+- Commit the `.drawio` source file in the same PR as the code or doc change it explains.
+- Use `docs/README.md` as the navigation hub for the current diagram inventory.
 
 ## Copy the env template
 
