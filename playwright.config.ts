@@ -42,6 +42,14 @@ function isEnabledFlag(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
 
+function isUnitTestRuntime(env: PlaywrightEnv): boolean {
+  return readOptionalEnvValue(env, "ANICARDS_UNIT_TEST") === "true";
+}
+
+function isCiRuntime(env: PlaywrightEnv): boolean {
+  return Boolean(readOptionalEnvValue(env, "CI")) && !isUnitTestRuntime(env);
+}
+
 export function loadPlaywrightEnv(projectDir = process.cwd()) {
   return loadEnvConfig(
     projectDir,
@@ -55,7 +63,7 @@ function getLocalServerCommand(
   env: PlaywrightEnv,
   useLocalProductionServer: boolean,
 ): string {
-  if (readOptionalEnvValue(env, "CI")) {
+  if (isCiRuntime(env)) {
     return "bun run start";
   }
 
@@ -70,7 +78,7 @@ function resolveProjectMatrixMode(
   env: PlaywrightEnv,
 ): PlaywrightProjectMatrixMode {
   if (
-    Boolean(readOptionalEnvValue(env, "CI")) ||
+    isCiRuntime(env) ||
     isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"))
   ) {
     return "full-matrix";
@@ -150,7 +158,7 @@ export function createPlaywrightConfig(
     readOptionalEnvValue(env, "PLAYWRIGHT_LOCAL_PRODUCTION"),
   );
   const projectMatrixMode = resolveProjectMatrixMode(env);
-  const isCi = Boolean(readOptionalEnvValue(env, "CI"));
+  const isCi = isCiRuntime(env);
   const shouldLaunchLocalServer = !resolvedBaseUrl;
   const projects = createStandardProjects(projectMatrixMode);
   const resolvedExtraHTTPHeaders = buildPlaywrightAutomationBypassHeaders({

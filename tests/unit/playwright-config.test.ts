@@ -209,6 +209,16 @@ describe("playwright.config", () => {
     expect(mobileSafariProject?.testMatch).toBeUndefined();
   });
 
+  it("keeps the default export on the local matrix during unit-test imports", async () => {
+    const module = await importPlaywrightConfigModule(
+      "unit-test-default-export",
+    );
+
+    expect(module.default.projects?.map((project) => project.name)).toEqual([
+      "chromium",
+    ]);
+  });
+
   it("adds a lightweight iPhone mobile-only lane to matrix-lite", async () => {
     const module = await importPlaywrightConfigModule("matrix-lite");
     const config = module.createPlaywrightConfig({
