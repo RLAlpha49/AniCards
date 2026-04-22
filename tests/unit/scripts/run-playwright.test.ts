@@ -126,6 +126,65 @@ describe("run-playwright", () => {
     expect(classifyDeployedSmokeReadinessStatus(418)).toBe("http-error");
   });
 
+  it("treats external Vercel protection redirects as protected and probes with manual redirect handling", async () => {
+    const target = resolveDeployedSmokeTarget({
+      PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
+    });
+    let receivedInit: RequestInit | undefined;
+
+    await expect(
+      waitForDeployedSmokeReadiness(
+        target,
+        {},
+        {
+          fetchFn: async (_input, init) => {
+            receivedInit = init;
+
+            return new Response("", {
+              status: 302,
+              headers: {
+                location:
+                  "https://vercel.com/sso-api?url=https://anicards-preview-123.vercel.app/",
+              },
+            });
+          },
+          logger: { info: () => {} },
+          now: () => 0,
+          sleep: async () => {},
+          timeoutMs: 1,
+        },
+      ),
+    ).rejects.toThrow(/VERCEL_AUTOMATION_BYPASS_SECRET/i);
+
+    expect(receivedInit?.redirect).toBe("manual");
+  });
+
+  it("accepts same-origin redirects as reachable deployed smoke responses", async () => {
+    const target = resolveDeployedSmokeTarget({
+      PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
+    });
+
+    await expect(
+      waitForDeployedSmokeReadiness(
+        target,
+        {},
+        {
+          fetchFn: async () =>
+            new Response("", {
+              status: 307,
+              headers: {
+                location: "/search",
+              },
+            }),
+          logger: { info: () => {} },
+          now: () => 0,
+          sleep: async () => {},
+          timeoutMs: 1,
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("retries retryable deployed smoke responses until the target becomes reachable", async () => {
     const target = resolveDeployedSmokeTarget({
       PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",

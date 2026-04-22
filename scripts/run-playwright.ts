@@ -225,6 +225,15 @@ type DeployedSmokeProbeResult = {
   status: number;
 };
 
+function isVercelProtectionRedirectHost(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase();
+
+  return (
+    normalizedHostname === "vercel.com" ||
+    normalizedHostname === "www.vercel.com"
+  );
+}
+
 function formatLastNetworkErrorSuffix(lastError?: string): string {
   return lastError ? ` Last network error: ${lastError}` : "";
 }
@@ -248,8 +257,35 @@ async function probeDeployedSmokeReadiness(options: {
 }): Promise<DeployedSmokeProbeResult> {
   const response = await options.fetchFn(options.target.origin, {
     headers: options.headers,
+    redirect: "manual",
     signal: AbortSignal.timeout(DEPLOYED_SMOKE_REQUEST_TIMEOUT_MS),
   });
+
+  if (response.status >= 300 && response.status < 400) {
+    const redirectLocation = response.headers.get("location");
+
+    if (redirectLocation) {
+      let redirectTargetUrl: URL;
+
+      try {
+        redirectTargetUrl = new URL(redirectLocation, options.target.origin);
+      } catch {
+        return {
+          kind: "http-error",
+          status: response.status,
+        };
+      }
+
+      if (redirectTargetUrl.origin !== options.target.origin) {
+        return {
+          kind: isVercelProtectionRedirectHost(redirectTargetUrl.hostname)
+            ? "protected"
+            : "http-error",
+          status: response.status,
+        };
+      }
+    }
+  }
 
   return {
     kind: classifyDeployedSmokeReadinessStatus(response.status),
@@ -321,6 +357,59 @@ function formatDeployedSmokeReadinessWaitMessage(options: {
   return `[INFO] Waiting for deployed target (${attempt}) after ${lastKind}${formatWaitStatusSuffix(lastStatus)}: ${target.origin}`;
 }
 
+type DeployedSmokeReadinessAttemptState = {
+  lastError?: string;
+  lastKind: Exclude<DeployedSmokeReadinessStatus, "ready">;
+  lastStatus?: number;
+};
+
+async function getDeployedSmokeReadinessAttemptState(options: {
+  fetchFn: NonNullable<WaitForDeployedSmokeReadinessOptions["fetchFn"]>;
+  hasBypassSecret: boolean;
+  headers: Record<string, string> | undefined;
+  target: ResolvedPlaywrightBaseUrl;
+}): Promise<DeployedSmokeReadinessAttemptState | "ready"> {
+  try {
+    const probeResult = await probeDeployedSmokeReadiness({
+      fetchFn: options.fetchFn,
+      headers: options.headers,
+      target: options.target,
+    });
+
+    if (probeResult.kind === "ready") {
+      return "ready";
+    }
+
+    if (probeResult.kind !== "pending") {
+      throw new Error(
+        formatDeployedSmokeReadinessError({
+          hasBypassSecret: options.hasBypassSecret,
+          lastKind: probeResult.kind,
+          lastStatus: probeResult.status,
+          target: options.target,
+        }),
+      );
+    }
+
+    return {
+      lastKind: probeResult.kind,
+      lastStatus: probeResult.status,
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("Deployed smoke target")
+    ) {
+      throw error;
+    }
+
+    return {
+      lastKind: "network-error",
+      lastError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function waitForDeployedSmokeReadiness(
   target: ResolvedPlaywrightBaseUrl,
   env: PlaywrightEnv = process.env,
@@ -345,44 +434,21 @@ export async function waitForDeployedSmokeReadiness(
   while (now() <= deadline) {
     attempt += 1;
 
-    try {
-      const probeResult = await probeDeployedSmokeReadiness({
-        fetchFn,
-        headers,
-        target,
-      });
+    const attemptState = await getDeployedSmokeReadinessAttemptState({
+      fetchFn,
+      hasBypassSecret,
+      headers,
+      target,
+    });
 
-      lastStatus = probeResult.status;
-      lastError = undefined;
-
-      if (probeResult.kind === "ready") {
-        logger.info(`[INFO] Deployed target is reachable: ${target.origin}`);
-        return;
-      }
-
-      lastKind = probeResult.kind;
-
-      if (probeResult.kind !== "pending") {
-        throw new Error(
-          formatDeployedSmokeReadinessError({
-            hasBypassSecret,
-            lastKind,
-            lastStatus,
-            target,
-          }),
-        );
-      }
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith("Deployed smoke target")
-      ) {
-        throw error;
-      }
-
-      lastKind = "network-error";
-      lastError = error instanceof Error ? error.message : String(error);
+    if (attemptState === "ready") {
+      logger.info(`[INFO] Deployed target is reachable: ${target.origin}`);
+      return;
     }
+
+    lastError = attemptState.lastError;
+    lastKind = attemptState.lastKind;
+    lastStatus = attemptState.lastStatus;
 
     const remainingMs = deadline - now();
 
