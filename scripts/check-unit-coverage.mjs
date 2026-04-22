@@ -5,7 +5,7 @@ const reportPath =
 const threshold = Number(process.env.COVERAGE_LINES_THRESHOLD ?? "72");
 
 function normalizeCoveragePath(filePath) {
-  return filePath.replace(/\\/g, "/");
+  return filePath.replaceAll("\\", "/");
 }
 
 function shouldSkipCoverageRecord(filePath) {

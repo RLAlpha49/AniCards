@@ -36,11 +36,14 @@ function readJsonFile(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
 }
 
+const ESCAPED_MARKDOWN_BACKSLASH = String.raw`\\`;
+const ESCAPED_MARKDOWN_PIPE = String.raw`\|`;
+
 function escapeMarkdownTableCell(value) {
   return String(value ?? "")
-    .replace(/\\/g, "\\\\")
-    .replace(/\|/g, "\\|")
-    .replace(/\r?\n/g, " ")
+    .replaceAll("\\", ESCAPED_MARKDOWN_BACKSLASH)
+    .replaceAll("|", ESCAPED_MARKDOWN_PIPE)
+    .replaceAll(/\r?\n/g, " ")
     .trim();
 }
 
