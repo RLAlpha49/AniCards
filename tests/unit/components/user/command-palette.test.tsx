@@ -76,11 +76,15 @@ mock.module("@/components/ui/Dialog", () => ({
     children,
     hideCloseButton: _hideCloseButton,
     ...props
-  }: DialogContentProps) => (
-    <div role="dialog" aria-modal="true" {...props}>
-      {children}
-    </div>
-  ),
+  }: DialogContentProps) => {
+    void _hideCloseButton;
+
+    return (
+      <div role="dialog" aria-modal="true" {...props}>
+        {children}
+      </div>
+    );
+  },
   DialogDescription: ({ children, ...props }: ComponentProps<"p">) => (
     <p {...props}>{children}</p>
   ),
@@ -135,24 +139,28 @@ mock.module("cmdk", () => {
     onPointerDown,
     onSelect,
     value,
-  }: CommandItemProps) => (
-    <button
-      type="button"
-      role="option"
-      aria-disabled={disabled ? "true" : undefined}
-      className={className}
-      data-value={value ?? ""}
-      disabled={disabled}
-      onClick={() => {
-        if (!disabled) {
-          onSelect?.();
-        }
-      }}
-      onPointerDown={onPointerDown}
-    >
-      {children}
-    </button>
-  );
+  }: CommandItemProps) => {
+    void _keywords;
+
+    return (
+      <button
+        type="button"
+        role="option"
+        aria-disabled={disabled ? "true" : undefined}
+        className={className}
+        data-value={value ?? ""}
+        disabled={disabled}
+        onClick={() => {
+          if (!disabled) {
+            onSelect?.();
+          }
+        }}
+        onPointerDown={onPointerDown}
+      >
+        {children}
+      </button>
+    );
+  };
 
   return {
     Command: Object.assign(CommandRoot, {
