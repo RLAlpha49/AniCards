@@ -688,9 +688,7 @@ function BorderTabContent({
                     onChange={(e) =>
                       borderInputs.handleColorPickerChange(e.target.value)
                     }
-                    className="
-                      absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0
-                    "
+                    className="absolute -top-1/2 -left-1/2 size-[200%] cursor-pointer border-0 p-0"
                     aria-label="Border color picker"
                   />
                 </div>

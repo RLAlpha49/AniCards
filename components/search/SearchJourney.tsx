@@ -59,7 +59,7 @@ export function SearchJourney() {
       <div className="mx-auto max-w-5xl">
         <div className="relative grid grid-cols-1 gap-14 md:grid-cols-3 md:gap-0">
           {/* Horizontal connecting line (desktop) */}
-          <div className="absolute top-16 right-[16.67%] left-[16.67%] hidden h-px md:block">
+          <div className="absolute inset-x-[16.67%] top-16 hidden h-px md:block">
             <motion.div
               className="size-full origin-left bg-linear-to-r from-gold/40 via-gold/15 to-gold/40"
               initial={prefersReducedMotion ? false : { scaleX: 0 }}

@@ -370,9 +370,7 @@ function GradientStopEditor({
                   onChange={(e) =>
                     handleStopChange(index, "color", e.target.value)
                   }
-                  className="
-                    absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0
-                  "
+                  className="absolute -top-1/2 -left-1/2 size-[200%] cursor-pointer border-0 p-0"
                 />
               </div>
 
@@ -884,7 +882,7 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
               type="color"
               value={isValidHex(solidBaseHex) ? solidBaseHex : "#000000"}
               onChange={(e) => handleSolidChange(e.target.value)}
-              className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+              className="absolute -top-1/2 -left-1/2 size-[200%] cursor-pointer border-0 p-0"
               aria-label={`${picker.label} color picker`}
             />
           </div>

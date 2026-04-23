@@ -116,7 +116,7 @@ export function ProjectEthos() {
               <motion.div
                 variants={dotScale}
                 className="
-                  absolute -top-[3.35rem] left-1/2 hidden size-3 -translate-x-1/2 rotate-45 border
+                  absolute top-[-3.35rem] left-1/2 hidden size-3 -translate-x-1/2 rotate-45 border
                   border-gold/40 bg-background
                   md:block
                 "
