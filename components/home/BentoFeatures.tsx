@@ -11,6 +11,7 @@ import {
   Share2,
   Shield,
 } from "lucide-react";
+import Link from "next/link";
 import { useRef } from "react";
 
 import {
@@ -79,7 +80,16 @@ const FEATURES = [
   },
 ] as const;
 
-export function BentoFeatures() {
+interface BentoFeatureLink {
+  href: string;
+  label: string;
+}
+
+export function BentoFeatures({
+  featureLinks = [],
+}: Readonly<{
+  featureLinks?: readonly (BentoFeatureLink | null | undefined)[];
+}>) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -142,41 +152,61 @@ export function BentoFeatures() {
           animate={isInView ? "visible" : undefined}
           className="grid gap-4 md:auto-rows-[180px] md:grid-cols-3"
         >
-          {FEATURES.map((f, i) => (
-            <motion.div
-              key={f.title}
-              custom={i}
-              variants={featureVariants}
-              whileHover={getMotionSafeAnimation(prefersReducedMotion, {
-                y: -4,
-                transition: { duration: 0.25 },
-              })}
-              className={`group bento-cell ${f.span}`}
-            >
-              <div className="flex h-full flex-col justify-between p-6 sm:p-8">
-                <div className="flex items-start justify-between">
-                  <f.icon className="size-5 text-gold/60 transition-colors group-hover:text-gold" />
-                  <span className="
-                    font-display text-2xl text-gold/30 transition-colors
-                    group-hover:text-gold/50
-                  ">
-                    {f.num}
-                  </span>
+          {FEATURES.map((f, i) => {
+            const featureLink = featureLinks[i];
+
+            return (
+              <motion.div
+                key={f.title}
+                custom={i}
+                variants={featureVariants}
+                whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+                  y: -4,
+                  transition: { duration: 0.25 },
+                })}
+                className={`group bento-cell ${f.span}`}
+              >
+                <div className="flex h-full flex-col justify-between p-6 sm:p-8">
+                  <div className="flex items-start justify-between">
+                    <f.icon className="size-5 text-gold/60 transition-colors group-hover:text-gold" />
+                    <span className="
+                      font-display text-2xl text-gold/30 transition-colors
+                      group-hover:text-gold/50
+                    ">
+                      {f.num}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="
+                      mb-2 font-display text-xs tracking-[0.25em] text-foreground
+                      sm:text-sm
+                    ">
+                      {f.title}
+                    </h3>
+                    <p className="font-body-serif text-sm/relaxed text-foreground/45">
+                      {f.desc}
+                    </p>
+                    {featureLink && (
+                      <Link
+                        href={featureLink.href}
+                        className="
+                          mt-5 inline-flex min-h-11 touch-manipulation-safe items-center
+                          text-[0.65rem] font-semibold tracking-[0.18em] text-gold uppercase
+                          transition-colors
+                          hover:text-gold/80
+                          focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                          focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                          focus-visible:outline-none
+                        "
+                      >
+                        {featureLink.label}
+                      </Link>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h3 className="
-                    mb-2 font-display text-xs tracking-[0.25em] text-foreground
-                    sm:text-sm
-                  ">
-                    {f.title}
-                  </h3>
-                  <p className="font-body-serif text-sm/relaxed text-foreground/45">
-                    {f.desc}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </motion.div>
       </div>
     </section>

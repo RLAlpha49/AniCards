@@ -482,12 +482,49 @@ const EXAMPLES_CATALOG: ExamplesCatalogPayload = {
   cardTypes: EXAMPLES_CARD_TYPES,
 };
 
+export interface ExampleCatalogRouteLink {
+  cardTypeId: ExampleCardType["id"];
+  cardTypeTitle: ExampleCardType["title"];
+  collectionName: ExampleCategory;
+  collectionSlug: string;
+  href: string;
+}
+
+const EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE = new Map(
+  EXAMPLES_CARD_TYPES.map((cardType) => {
+    const collection = getExampleCollectionByCategory(cardType.category);
+
+    return [
+      cardType.id,
+      {
+        cardTypeId: cardType.id,
+        cardTypeTitle: cardType.title,
+        collectionName: collection.name,
+        collectionSlug: collection.slug,
+        href: buildExamplesCollectionPath(collection.slug, {
+          search: cardType.title,
+        }),
+      } satisfies ExampleCatalogRouteLink,
+    ] as const;
+  }),
+);
+
 export function getExamplesCatalogSummary(): ExamplesCatalogSummary {
   return EXAMPLES_CATALOG_SUMMARY;
 }
 
 export function getExamplesCatalog(): ExamplesCatalogPayload {
   return EXAMPLES_CATALOG;
+}
+
+export function getExampleCatalogRouteLink(
+  cardTypeId: string,
+): ExampleCatalogRouteLink | null {
+  const link = EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE.get(
+    cardTypeId as ExampleCardType["id"],
+  );
+
+  return link ? { ...link } : null;
 }
 
 export function getExamplesCollectionCatalog(

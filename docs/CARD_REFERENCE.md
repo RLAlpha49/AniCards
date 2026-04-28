@@ -20,6 +20,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 
 ### Core stats
 
+Browse the live [Core Stats examples](/examples/core-stats) when you want to compare these layouts before hand-writing a URL.
+
 - **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
@@ -27,6 +29,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 - **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 
 ### Anime deep dive
+
+Preview these in the live [Anime Deep Dive collection](/examples/anime-deep-dive) or jump straight to [Anime Genres](/examples/anime-deep-dive?search=Anime%20Genres) and [Anime Staff](/examples/anime-deep-dive?search=Anime%20Staff).
 
 - **Anime Genres** (`animeGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Anime Tags** (`animeTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
@@ -50,6 +54,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 
 ### Manga deep dive
 
+Compare the live [Manga Deep Dive examples](/examples/manga-deep-dive) before building URLs manually.
+
 - **Manga Genres** (`mangaGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Manga Tags** (`mangaTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Manga Staff** (`mangaStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
@@ -63,6 +69,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 
 ### Activity and engagement
 
+Browse the live [Activity & Engagement collection](/examples/activity-engagement) to see these cards in context.
+
 - **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
 - **Activity Streaks** (`activityStreaks`) — Variations: Default
 - **Top Activity Days** (`topActivityDays`) — Variations: Default
@@ -71,6 +79,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 - **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
 
 ### Library and progress
+
+Open the live [Library & Progress examples](/examples/library-progress) to compare favourite, backlog, and milestone cards side by side.
 
 - **Favourites Summary** (`favoritesSummary`) — Variations: Default
 - **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Staff, Studios, Mixed
@@ -84,6 +94,8 @@ Every card has a `cardType` identifier and supports one or more `variation` valu
 - **Dropped Media** (`droppedMedia`) — Variations: Default
 
 ### Advanced analytics
+
+See these in the live [Advanced Analytics collection](/examples/advanced-analytics) when you want a quicker visual reference.
 
 - **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
 - **Country Diversity** (`countryDiversity`) — Variations: Default
@@ -144,6 +156,8 @@ This list mirrors the live sorted `colorPresets` keys in `components/stat-card-g
 `custom` is the only special sentinel value; it follows the precedence rules above instead of applying a named palette.
 
 ### Examples
+
+Want live previews before you tweak query strings? Jump to [Anime Genres in the examples catalog](/examples/anime-deep-dive?search=Anime%20Genres), [Anime Staff](/examples/anime-deep-dive?search=Anime%20Staff), or [Profile Overview](/examples/core-stats?search=Profile%20Overview).
 
 ```text
 https://api.anicards.alpha49.com/card.svg?cardType=animeGenres&userId=542244&variation=pie&colorPreset=anilistDark&titleColor=%23ff0000&backgroundColor=%230b1622&piePercentages=true

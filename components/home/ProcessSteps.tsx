@@ -2,6 +2,7 @@
 
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { Palette, Search, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useRef } from "react";
 
 import {
@@ -36,9 +37,16 @@ function getSteps(totalCardTypes: number) {
   ] as const;
 }
 
+interface ProcessStepLink {
+  href: string;
+  label: string;
+}
+
 export function ProcessSteps({
+  stepLinks = [],
   totalCardTypes,
 }: Readonly<{
+  stepLinks?: readonly (ProcessStepLink | null | undefined)[];
   totalCardTypes: number;
 }>) {
   const ref = useRef<HTMLElement>(null);
@@ -118,44 +126,64 @@ export function ProcessSteps({
           />
 
           <div className="relative z-10 grid gap-12 md:grid-cols-3 md:gap-0">
-            {steps.map((step, i) => (
-              <motion.div
-                key={step.title}
-                custom={i}
-                variants={stepVariants}
-                initial={false}
-                animate={isInView ? "visible" : undefined}
-                whileHover={getMotionSafeAnimation(prefersReducedMotion, {
-                  y: -6,
-                  transition: { duration: 0.3, ease: EASE_OUT_EXPO },
-                })}
-                className="relative text-center"
-              >
+            {steps.map((step, i) => {
+              const stepLink = stepLinks[i];
+
+              return (
                 <motion.div
+                  key={step.title}
                   custom={i}
-                  variants={stepIconVariants}
+                  variants={stepVariants}
                   initial={false}
                   animate={isInView ? "visible" : undefined}
-                  className="
-                    relative z-10 mx-auto mb-6 flex size-28 flex-col items-center justify-center
-                    rounded-full border-2 border-[hsl(var(--gold)/0.35)] bg-card
-                  "
+                  whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+                    y: -6,
+                    transition: { duration: 0.3, ease: EASE_OUT_EXPO },
+                  })}
+                  className="relative text-center"
                 >
-                  <span className="mb-1 font-display text-2xl text-gold">
-                    {step.num}
-                  </span>
-                  <step.icon className="size-5 text-gold/50" />
+                  <motion.div
+                    custom={i}
+                    variants={stepIconVariants}
+                    initial={false}
+                    animate={isInView ? "visible" : undefined}
+                    className="
+                      relative z-10 mx-auto mb-6 flex size-28 flex-col items-center justify-center
+                      rounded-full border-2 border-[hsl(var(--gold)/0.35)] bg-card
+                    "
+                  >
+                    <span className="mb-1 font-display text-2xl text-gold">
+                      {step.num}
+                    </span>
+                    <step.icon className="size-5 text-gold/50" />
+                  </motion.div>
+
+                  <h3 className="mb-3 font-display text-sm tracking-[0.3em] text-foreground">
+                    {step.title}
+                  </h3>
+
+                  <p className="mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/45">
+                    {step.desc}
+                  </p>
+                  {stepLink && (
+                    <Link
+                      href={stepLink.href}
+                      className="
+                        mt-5 inline-flex min-h-11 touch-manipulation-safe items-center
+                        text-[0.65rem] font-semibold tracking-[0.18em] text-gold uppercase
+                        transition-colors
+                        hover:text-gold/80
+                        focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                        focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                        focus-visible:outline-none
+                      "
+                    >
+                      {stepLink.label}
+                    </Link>
+                  )}
                 </motion.div>
-
-                <h3 className="mb-3 font-display text-sm tracking-[0.3em] text-foreground">
-                  {step.title}
-                </h3>
-
-                <p className="mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/45">
-                  {step.desc}
-                </p>
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
