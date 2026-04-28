@@ -710,7 +710,14 @@ export function getExamplesPageSEOConfig({
     };
   }
 
-  return seoConfigs.examples;
+  return {
+    ...seoConfigs.examples,
+    ...(hasSearch
+      ? {
+          robots: NOINDEX_ROBOTS,
+        }
+      : {}),
+  };
 }
 
 /**

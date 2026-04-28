@@ -100,8 +100,10 @@ export function CardPreviewPlaceholder({
         absolute -bottom-8 left-[12%] size-20 rounded-full bg-[hsl(var(--foreground)/0.08)] blur-3xl
       " />
       <div className="
-        absolute inset-0 animate-pulse
+        absolute inset-0
         bg-[linear-gradient(90deg,transparent,hsl(var(--foreground)/0.03),transparent)]
+        motion-safe:animate-pulse
+        motion-reduce:hidden
       " />
     </div>
   );

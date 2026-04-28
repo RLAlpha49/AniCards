@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Check, Copy, ExternalLink, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -127,6 +127,7 @@ export function ExampleCard({
   index = 0,
 }: Readonly<ExampleCardProps>) {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [copied, setCopied] = useState(false);
   const [queuedForEditor, setQueuedForEditor] = useState(false);
   const previewUrl = selectThemePreviewUrl(
@@ -251,22 +252,32 @@ export function ExampleCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{
-        duration: 0.5,
-        delay: Math.min(index * 0.05, 0.25),
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
+      whileInView={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={
+        prefersReducedMotion ? undefined : { once: true, margin: "-40px" }
+      }
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : {
+              duration: 0.5,
+              delay: Math.min(index * 0.05, 0.25),
+              ease: [0.22, 1, 0.36, 1],
+            }
+      }
       className="w-full"
     >
       <div
         className={cn(
           "group/card relative overflow-hidden rounded-sm",
-          "border border-transparent transition-all duration-500",
-          "hover:border-gold/20",
-          "hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
+          "border border-transparent",
+          prefersReducedMotion
+            ? undefined
+            : `
+              transition-all duration-500
+              hover:border-gold/20 hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]
+            `,
           "group-focus-visible/card:border-gold/20",
           "group-focus-visible/card:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
           "group-focus-visible/card:ring-2",
@@ -292,22 +303,30 @@ export function ExampleCard({
           dark:bg-[hsl(var(--foreground)/0.02)]
         ">
           {/* Subtle vignette on hover */}
-          <div className="
-            pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
-            group-hover/card:opacity-100
-            group-focus-visible/card:opacity-100
-          ">
+          {!prefersReducedMotion && (
             <div className="
-              size-full
-              bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
-            " />
-          </div>
+              pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
+              group-hover/card:opacity-100
+              group-focus-visible/card:opacity-100
+            ">
+              <div className="
+                size-full
+                bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
+              " />
+            </div>
+          )}
 
-          <div className="
-            flex justify-center p-4 transition-transform duration-700 ease-out
-            group-hover/card:scale-[1.03]
-            group-focus-visible/card:scale-[1.03]
-          ">
+          <div
+            className={cn(
+              "flex justify-center p-4",
+              !prefersReducedMotion &&
+                `
+                  transition-transform duration-700 ease-out
+                  group-hover/card:scale-[1.03]
+                  group-focus-visible/card:scale-[1.03]
+                `,
+            )}
+          >
             {isPreviewReady && previewHref ? (
               <ImageWithSkeleton
                 src={previewHref}
@@ -330,7 +349,7 @@ export function ExampleCard({
           </div>
 
           {/* Hover action badge */}
-          {isPreviewReady && previewHref && (
+          {!prefersReducedMotion && isPreviewReady && previewHref && (
             <div className="
               pointer-events-none absolute inset-0 z-3 flex items-center justify-center
             ">

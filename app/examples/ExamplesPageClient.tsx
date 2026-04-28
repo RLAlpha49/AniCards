@@ -4,13 +4,20 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   CategoryNavigation,
   CategorySection,
   CTASection,
+  type ExampleCardType,
   type ExampleCategory,
   type ExamplesCatalogPayload,
   type ExamplesCatalogSummary,
@@ -24,7 +31,6 @@ import {
   buildExamplesGalleryPath,
   EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM,
   EXAMPLES_SEARCH_QUERY_PARAM,
-  getExampleCollectionFromLegacyValue,
 } from "@/lib/examples-collections";
 import {
   rememberExamplesDiscoveryContext,
@@ -32,6 +38,7 @@ import {
 } from "@/lib/user-page-settings-templates";
 
 const SEARCH_PAGE_HREF = "/search";
+const SEARCH_URL_SYNC_DELAY_MS = 180;
 
 function normalizeExamplesSearchText(value: string): string {
   return value
@@ -40,47 +47,11 @@ function normalizeExamplesSearchText(value: string): string {
     .trim();
 }
 
-function parseExampleCategory(
-  category: string | null,
-  categories: ReadonlySet<ExampleCategory>,
-): ExampleCategory | null {
-  const collection = getExampleCollectionFromLegacyValue(category);
-
-  if (!collection) {
-    return null;
-  }
-
-  return categories.has(collection.name) ? collection.name : null;
-}
-
-function buildLegacyFilterQueryString(
-  searchParams: Pick<URLSearchParams, "toString">,
-  searchQuery: string,
-  activeCategory: ExampleCategory | null,
-): string {
-  const params = new URLSearchParams(searchParams.toString());
-  const trimmedSearchQuery = searchQuery.trim();
-
-  if (trimmedSearchQuery.length > 0) {
-    params.set(EXAMPLES_SEARCH_QUERY_PARAM, trimmedSearchQuery);
-  } else {
-    params.delete(EXAMPLES_SEARCH_QUERY_PARAM);
-  }
-
-  if (activeCategory) {
-    params.set(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM, activeCategory);
-  } else {
-    params.delete(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM);
-  }
-
-  return params.toString();
-}
-
 function buildSearchQueryString(
-  searchParams: Pick<URLSearchParams, "toString">,
+  searchParamsString: string,
   searchQuery: string,
 ): string {
-  const params = new URLSearchParams(searchParams.toString());
+  const params = new URLSearchParams(searchParamsString);
   const trimmedSearchQuery = searchQuery.trim();
 
   if (trimmedSearchQuery.length > 0) {
@@ -94,84 +65,42 @@ function buildSearchQueryString(
   return params.toString();
 }
 
-function CollectionRouteHeader({
-  categoryCount,
-  collectionCount,
-  description,
-  fullGalleryHref,
-  title,
-  variantCount,
-}: Readonly<{
-  categoryCount: number;
-  collectionCount: number;
-  description: string;
-  fullGalleryHref: string;
-  title: string;
-  variantCount: number;
-}>) {
-  return (
-    <section className="relative px-6 pt-28 pb-16 sm:px-12 md:pt-32 md:pb-22">
-      <div className="relative z-10 mx-auto max-w-5xl">
-        <div className="
-          mb-6 flex flex-wrap items-center gap-3 text-[0.65rem] font-semibold tracking-[0.25em]
-          text-gold/70 uppercase
-        ">
-          <span>Collection</span>
-          <span className="text-gold/30">•</span>
-          <Link href="/examples" className="transition-colors hover:text-gold">
-            Examples index
-          </Link>
-          <span className="text-gold/30">•</span>
-          <Link
-            href={fullGalleryHref}
-            className="transition-colors hover:text-gold"
-          >
-            Full gallery
-          </Link>
-        </div>
-
-        <h1 className="
-          font-display text-4xl leading-[1.05] font-black tracking-tight
-          sm:text-5xl
-          md:text-6xl
-          lg:text-7xl
-        ">
-          <span className="text-foreground">{title}</span>
-        </h1>
-
-        <p className="
-          mt-6 max-w-3xl font-body-serif text-base/relaxed text-foreground/45
-          sm:text-lg/relaxed
-        ">
-          {description}
-        </p>
-
-        <div className="mt-12 flex flex-wrap items-end gap-12 sm:gap-16">
-          {[
-            { value: collectionCount, label: "Card Types" },
-            { value: variantCount, label: "Total Variants" },
-            { value: categoryCount, label: "Collections" },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <p className="font-display text-3xl leading-none font-black text-gold sm:text-4xl">
-                {stat.value}
-              </p>
-              <p className="mt-1.5 text-[0.6rem] tracking-[0.2em] text-foreground/30 uppercase">
-                {stat.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+function buildCategoryBuckets(
+  categories: readonly ExampleCategory[],
+  cardTypes: readonly ExampleCardType[],
+) {
+  const byCategory = new Map<ExampleCategory, ExampleCardType[]>(
+    categories.map((category) => [category, []]),
   );
+
+  for (const cardType of cardTypes) {
+    byCategory.get(cardType.category)?.push(cardType);
+  }
+
+  const orderedBuckets = categories.map((category) => ({
+    category,
+    cardTypes: byCategory.get(category) ?? [],
+  }));
+
+  return {
+    orderedBuckets,
+    byCategory,
+    countByCategory: new Map(
+      orderedBuckets.map((bucket) => [
+        bucket.category,
+        bucket.cardTypes.length,
+      ]),
+    ),
+  };
 }
 
 interface ExamplesPageClientProps {
   summary: ExamplesCatalogSummary;
   catalog?: ExamplesCatalogPayload;
-  routeKind: "index" | "gallery" | "collection" | "legacy";
+  routeKind: "index" | "gallery" | "collection";
   activeCategory?: ExampleCategory | null;
+  indexContent?: React.ReactNode;
+  routeHeaderContent?: React.ReactNode;
 }
 
 export default function ExamplesPageClient({
@@ -179,33 +108,20 @@ export default function ExamplesPageClient({
   catalog,
   routeKind,
   activeCategory = null,
+  indexContent,
+  routeHeaderContent,
 }: Readonly<ExamplesPageClientProps>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams.toString();
   const [hasMounted, setHasMounted] = useState(false);
   const isIndexRoute = routeKind === "index";
-  const isLegacyRoute = routeKind === "legacy";
-  const categorySet = useMemo(
-    () => new Set<ExampleCategory>(summary.categories),
-    [summary.categories],
-  );
+  const currentActiveCategory = activeCategory;
   const [searchQuery, setSearchQuery] = useState(
     () => searchParams.get(EXAMPLES_SEARCH_QUERY_PARAM) ?? "",
   );
-  const [legacyActiveCategory, setLegacyActiveCategory] =
-    useState<ExampleCategory | null>(() =>
-      isLegacyRoute
-        ? parseExampleCategory(
-            searchParams.get(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM),
-            categorySet,
-          )
-        : null,
-    );
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const previewColorPreset = usePreviewColorPreset();
-  const currentActiveCategory = isLegacyRoute
-    ? legacyActiveCategory
-    : activeCategory;
 
   useEffect(() => {
     setHasMounted(true);
@@ -213,7 +129,7 @@ export default function ExamplesPageClient({
 
   const replaceQueryString = useCallback(
     (nextQueryString: string) => {
-      if (nextQueryString === searchParams.toString()) {
+      if (nextQueryString === searchParamsString) {
         return;
       }
 
@@ -222,7 +138,7 @@ export default function ExamplesPageClient({
 
       globalThis.history.replaceState(null, "", nextUrl);
     },
-    [pathname, searchParams],
+    [pathname, searchParamsString],
   );
 
   useEffect(() => {
@@ -233,95 +149,39 @@ export default function ExamplesPageClient({
         ? currentSearchQuery
         : nextSearchQuery,
     );
+  }, [searchParams]);
 
-    if (!isLegacyRoute) {
-      setLegacyActiveCategory(null);
+  useEffect(() => {
+    const nextQueryString = buildSearchQueryString(
+      searchParamsString,
+      searchQuery,
+    );
 
-      const normalizedQueryString = buildSearchQueryString(
-        searchParams,
-        nextSearchQuery,
-      );
-
-      if (normalizedQueryString !== searchParams.toString()) {
-        replaceQueryString(normalizedQueryString);
-      }
-
+    if (nextQueryString === searchParamsString) {
       return;
     }
 
-    const nextActiveCategory = parseExampleCategory(
-      searchParams.get(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM),
-      categorySet,
-    );
+    const timeoutId = globalThis.window.setTimeout(() => {
+      replaceQueryString(nextQueryString);
+    }, SEARCH_URL_SYNC_DELAY_MS);
 
-    setLegacyActiveCategory((currentCategory) =>
-      currentCategory === nextActiveCategory
-        ? currentCategory
-        : nextActiveCategory,
-    );
+    return () => {
+      globalThis.window.clearTimeout(timeoutId);
+    };
+  }, [replaceQueryString, searchParamsString, searchQuery]);
 
-    const normalizedQueryString = buildLegacyFilterQueryString(
-      searchParams,
-      nextSearchQuery,
-      nextActiveCategory,
-    );
-
-    if (normalizedQueryString !== searchParams.toString()) {
-      replaceQueryString(normalizedQueryString);
-    }
-  }, [categorySet, isLegacyRoute, replaceQueryString, searchParams]);
-
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearchQuery(value);
-      replaceQueryString(
-        isLegacyRoute
-          ? buildLegacyFilterQueryString(
-              searchParams,
-              value,
-              currentActiveCategory,
-            )
-          : buildSearchQueryString(searchParams, value),
-      );
-    },
-    [currentActiveCategory, isLegacyRoute, replaceQueryString, searchParams],
-  );
-
-  const handleCategoryChange = useCallback(
-    (category: string | null) => {
-      if (!isLegacyRoute) {
-        return;
-      }
-
-      const nextActiveCategory =
-        category === null ? null : parseExampleCategory(category, categorySet);
-
-      setLegacyActiveCategory(nextActiveCategory);
-      replaceQueryString(
-        buildLegacyFilterQueryString(
-          searchParams,
-          searchQuery,
-          nextActiveCategory,
-        ),
-      );
-    },
-    [categorySet, isLegacyRoute, replaceQueryString, searchParams, searchQuery],
-  );
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
-    if (isLegacyRoute) {
-      setLegacyActiveCategory(null);
-      replaceQueryString(buildLegacyFilterQueryString(searchParams, "", null));
-      return;
-    }
-
-    replaceQueryString(buildSearchQueryString(searchParams, ""));
-  }, [isLegacyRoute, replaceQueryString, searchParams]);
+    replaceQueryString(buildSearchQueryString(searchParamsString, ""));
+  }, [replaceQueryString, searchParamsString]);
 
   const normalizedSearchQuery = useMemo(
-    () => normalizeExamplesSearchText(searchQuery),
-    [searchQuery],
+    () => normalizeExamplesSearchText(deferredSearchQuery),
+    [deferredSearchQuery],
   );
 
   const searchMatchedCardTypes = useMemo(() => {
@@ -338,41 +198,50 @@ export default function ExamplesPageClient({
     );
   }, [catalog, normalizedSearchQuery]);
 
-  const hasActiveFilters =
-    normalizedSearchQuery.length > 0 ||
-    (isLegacyRoute && currentActiveCategory !== null);
+  const searchMatchedCategoryBuckets = useMemo(
+    () => buildCategoryBuckets(summary.categories, searchMatchedCardTypes),
+    [searchMatchedCardTypes, summary.categories],
+  );
+
+  const hasActiveFilters = normalizedSearchQuery.length > 0;
 
   const filteredCardTypes = useMemo(() => {
     if (!currentActiveCategory) {
       return searchMatchedCardTypes;
     }
 
-    return searchMatchedCardTypes.filter(
-      (card) => card.category === currentActiveCategory,
+    return (
+      searchMatchedCategoryBuckets.byCategory.get(currentActiveCategory) ?? []
     );
-  }, [currentActiveCategory, searchMatchedCardTypes]);
+  }, [
+    currentActiveCategory,
+    searchMatchedCardTypes,
+    searchMatchedCategoryBuckets,
+  ]);
+
+  const currentSearchQuery = useMemo(() => {
+    const trimmedSearchQuery = searchQuery.trim();
+
+    return trimmedSearchQuery || undefined;
+  }, [searchQuery]);
 
   const navigationCategoryInfo = useMemo(() => {
-    const searchParam =
-      normalizedSearchQuery.length > 0 ? searchQuery : undefined;
-
     return summary.categoryInfo.map((categoryInfo) => ({
       ...categoryInfo,
       href: buildExamplesCollectionPath(categoryInfo.slug, {
-        search: searchParam,
+        search: currentSearchQuery,
       }),
       count:
         routeKind === "collection"
           ? categoryInfo.count
-          : searchMatchedCardTypes.filter(
-              (card) => card.category === categoryInfo.name,
-            ).length,
+          : (searchMatchedCategoryBuckets.countByCategory.get(
+              categoryInfo.name,
+            ) ?? 0),
     }));
   }, [
-    normalizedSearchQuery.length,
+    currentSearchQuery,
     routeKind,
-    searchMatchedCardTypes,
-    searchQuery,
+    searchMatchedCategoryBuckets,
     summary.categoryInfo,
   ]);
 
@@ -387,17 +256,16 @@ export default function ExamplesPageClient({
   const currentCategoryInfo = currentActiveCategory
     ? (categoryInfoByName.get(currentActiveCategory) ?? null)
     : null;
-  const currentDiscoverySearchQuery = useMemo(() => {
-    const nextSearchQuery = new URLSearchParams(searchParamsString).get(
-      EXAMPLES_SEARCH_QUERY_PARAM,
-    );
-    const normalizedQuery = nextSearchQuery?.trim();
-
-    return normalizedQuery || undefined;
-  }, [searchParamsString]);
+  const currentDiscoveryQueryString = useMemo(
+    () => buildSearchQueryString(searchParamsString, searchQuery),
+    [searchParamsString, searchQuery],
+  );
   const currentDiscoveryHref = useMemo(
-    () => (searchParamsString ? `${pathname}?${searchParamsString}` : pathname),
-    [pathname, searchParamsString],
+    () =>
+      currentDiscoveryQueryString
+        ? `${pathname}?${currentDiscoveryQueryString}`
+        : pathname,
+    [currentDiscoveryQueryString, pathname],
   );
   const currentDiscoveryContext = useMemo<SearchLaunchDiscoveryContextInput>(
     () => ({
@@ -407,14 +275,14 @@ export default function ExamplesPageClient({
       collectionName:
         currentCategoryInfo?.name ?? currentActiveCategory ?? undefined,
       collectionSlug: currentCategoryInfo?.slug,
-      searchQuery: currentDiscoverySearchQuery,
+      searchQuery: currentSearchQuery,
     }),
     [
       currentActiveCategory,
       currentDiscoveryHref,
       currentCategoryInfo?.name,
       currentCategoryInfo?.slug,
-      currentDiscoverySearchQuery,
+      currentSearchQuery,
       routeKind,
     ],
   );
@@ -427,9 +295,13 @@ export default function ExamplesPageClient({
   const galleryHref = useMemo(
     () =>
       buildExamplesGalleryPath({
-        search: normalizedSearchQuery.length > 0 ? searchQuery : undefined,
+        search: currentSearchQuery,
       }),
-    [normalizedSearchQuery.length, searchQuery],
+    [currentSearchQuery],
+  );
+  const allCategoriesHref = useMemo(
+    () => (currentActiveCategory ? galleryHref : currentDiscoveryHref),
+    [currentActiveCategory, currentDiscoveryHref, galleryHref],
   );
 
   const emptyStateDescription =
@@ -445,80 +317,84 @@ export default function ExamplesPageClient({
         aria-labelledby="gallery-collections-heading"
         className="space-y-10"
       >
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="mb-3 text-xs tracking-[0.4em] text-gold/55 uppercase">
-            Browse by collection
-          </p>
-          <h2
-            id="gallery-collections-heading"
-            className="font-display text-3xl tracking-[0.12em] text-foreground sm:text-4xl"
-          >
-            PICK A SLICE OF THE GALLERY
-          </h2>
-          <p className="
-            mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/42
-            sm:text-base/relaxed
-          ">
-            Open the category you care about, or load the full wall if you want
-            every preview on one gloriously oversized canvas.
-          </p>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-          {summary.categoryInfo.map((category) => (
-            <Link
-              key={category.name}
-              href={category.href}
-              className="
-                group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left transition-all
-                duration-300
-                hover:border-gold/30 hover:bg-gold/6
-                focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
-                focus-visible:ring-offset-background focus-visible:outline-none
-              "
-            >
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <span className="
-                  font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
-                ">
-                  {category.indexLabel}
-                </span>
-                <span className="text-xs text-foreground/25 tabular-nums">
-                  {category.count} types · {category.variantCount} variants
-                </span>
-              </div>
-              <h3 className="
-                font-display text-lg tracking-[0.08em] text-foreground transition-colors
-                group-hover:text-gold/90
-              ">
-                {category.name}
-              </h3>
-              <p className="mt-4 font-body-serif text-sm/relaxed text-foreground/40">
-                {category.description}
+        {indexContent ?? (
+          <>
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="mb-3 text-xs tracking-[0.4em] text-gold/55 uppercase">
+                Browse by collection
               </p>
-              <span className="
-                mt-6 inline-flex text-xs font-semibold tracking-[0.18em] text-gold uppercase
+              <h2
+                id="gallery-collections-heading"
+                className="font-display text-3xl tracking-[0.12em] text-foreground sm:text-4xl"
+              >
+                PICK A SLICE OF THE GALLERY
+              </h2>
+              <p className="
+                mx-auto mt-5 max-w-2xl font-body-serif text-sm/relaxed text-foreground/42
+                sm:text-base/relaxed
               ">
-                Open collection
-              </span>
-            </Link>
-          ))}
-        </div>
+                Open the category you care about, or load the full wall if you
+                want every preview on one gloriously oversized canvas.
+              </p>
+            </div>
 
-        <div className="flex justify-center">
-          <Link
-            href={buildExamplesGalleryPath()}
-            className="
-              border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em] text-gold
-              uppercase transition-colors
-              hover:border-gold/40 hover:bg-gold/6
-              focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
-              focus-visible:ring-offset-background focus-visible:outline-none
-            "
-          >
-            Load the full gallery
-          </Link>
-        </div>
+            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+              {summary.categoryInfo.map((category) => (
+                <Link
+                  key={category.name}
+                  href={category.href}
+                  className="
+                    group rounded-sm border border-gold/10 bg-gold/3 p-6 text-left transition-all
+                    duration-300
+                    hover:border-gold/30 hover:bg-gold/6
+                    focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                    focus-visible:ring-offset-background focus-visible:outline-none
+                  "
+                >
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <span className="
+                      font-display text-[0.65rem] tracking-[0.35em] text-gold/50 uppercase
+                    ">
+                      {category.indexLabel}
+                    </span>
+                    <span className="text-xs text-foreground/25 tabular-nums">
+                      {category.count} types · {category.variantCount} variants
+                    </span>
+                  </div>
+                  <h3 className="
+                    font-display text-lg tracking-[0.08em] text-foreground transition-colors
+                    group-hover:text-gold/90
+                  ">
+                    {category.name}
+                  </h3>
+                  <p className="mt-4 font-body-serif text-sm/relaxed text-foreground/40">
+                    {category.description}
+                  </p>
+                  <span className="
+                    mt-6 inline-flex text-xs font-semibold tracking-[0.18em] text-gold uppercase
+                  ">
+                    Open collection
+                  </span>
+                </Link>
+              ))}
+            </div>
+
+            <div className="flex justify-center">
+              <Link
+                href={buildExamplesGalleryPath()}
+                className="
+                  border border-gold/20 px-5 py-3 text-xs font-semibold tracking-[0.18em] text-gold
+                  uppercase transition-colors
+                  hover:border-gold/40 hover:bg-gold/6
+                  focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                  focus-visible:ring-offset-background focus-visible:outline-none
+                "
+              >
+                Load the full gallery
+              </Link>
+            </div>
+          </>
+        )}
       </section>
     );
   } else if (currentCategoryInfo) {
@@ -535,48 +411,48 @@ export default function ExamplesPageClient({
       />
     );
   } else if (catalog) {
-    galleryContent = catalog.categories.reduce<React.ReactNode[]>(
-      (nodes, category, categoryIndex) => {
-        const categoryCardTypes = filteredCardTypes.filter(
-          (card) => card.category === category,
-        );
-        if (categoryCardTypes.length === 0) return nodes;
-
-        if (nodes.length > 0) {
-          nodes.push(
-            <div
-              key={`divider-${category}`}
-              className="flex items-center justify-center gap-3"
-            >
-              <div className="gold-line max-w-16 flex-1" />
-              <div className="size-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
-              <div className="gold-line max-w-16 flex-1" />
-            </div>,
-          );
-        }
-
-        const sectionCategoryInfo = categoryInfoByName.get(category);
-
-        if (!sectionCategoryInfo) {
-          return nodes;
-        }
-
-        nodes.push(
-          <CategorySection
-            key={category}
-            category={category}
-            categoryInfo={sectionCategoryInfo}
-            cardTypes={categoryCardTypes}
-            isFirstCategory={categoryIndex === 0}
-            previewColorPreset={previewColorPreset}
-            discoveryContext={currentDiscoveryContext}
-            showCollectionLink={routeKind === "gallery"}
-          />,
-        );
+    galleryContent = searchMatchedCategoryBuckets.orderedBuckets.reduce<
+      React.ReactNode[]
+    >((nodes, bucket) => {
+      if (bucket.cardTypes.length === 0) {
         return nodes;
-      },
-      [],
-    );
+      }
+
+      const isFirstVisibleCategory = nodes.length === 0;
+
+      if (!isFirstVisibleCategory) {
+        nodes.push(
+          <div
+            key={`divider-${bucket.category}`}
+            className="flex items-center justify-center gap-3"
+          >
+            <div className="gold-line max-w-16 flex-1" />
+            <div className="size-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
+            <div className="gold-line max-w-16 flex-1" />
+          </div>,
+        );
+      }
+
+      const sectionCategoryInfo = categoryInfoByName.get(bucket.category);
+
+      if (!sectionCategoryInfo) {
+        return nodes;
+      }
+
+      nodes.push(
+        <CategorySection
+          key={bucket.category}
+          category={bucket.category}
+          categoryInfo={sectionCategoryInfo}
+          cardTypes={bucket.cardTypes}
+          isFirstCategory={isFirstVisibleCategory}
+          previewColorPreset={previewColorPreset}
+          discoveryContext={currentDiscoveryContext}
+          showCollectionLink={routeKind === "gallery"}
+        />,
+      );
+      return nodes;
+    }, []);
   } else {
     galleryContent = null;
   }
@@ -609,15 +485,8 @@ export default function ExamplesPageClient({
           "
         />
 
-        {routeKind === "collection" && currentCategoryInfo && catalog ? (
-          <CollectionRouteHeader
-            categoryCount={summary.categoryInfo.length}
-            collectionCount={catalog.totalCardTypes}
-            description={currentCategoryInfo.description}
-            fullGalleryHref={galleryHref}
-            title={currentCategoryInfo.name}
-            variantCount={catalog.totalVariants}
-          />
+        {routeKind === "collection" && routeHeaderContent ? (
+          routeHeaderContent
         ) : (
           <ExamplesHeroSection
             totalCardTypes={catalog?.totalCardTypes ?? summary.totalCardTypes}
@@ -665,13 +534,7 @@ export default function ExamplesPageClient({
                 <CategoryNavigation
                   categories={navigationCategoryInfo}
                   activeCategory={currentActiveCategory}
-                  {...(isLegacyRoute
-                    ? {
-                        onCategoryClick: handleCategoryChange,
-                      }
-                    : {
-                        allHref: galleryHref,
-                      })}
+                  allHref={allCategoriesHref}
                 />
               </div>
             </div>

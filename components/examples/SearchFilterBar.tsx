@@ -27,16 +27,16 @@ export function SearchFilterBar({
   const searchInputId = useId();
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-start gap-3 md:items-center">
       {/* Search input */}
-      <div className="relative flex-1">
+      <div className="relative min-w-0 flex-1 basis-full sm:basis-[min(24rem,100%)]">
         <label htmlFor={searchInputId} className="sr-only">
           Search gallery cards
         </label>
         <Search
           aria-hidden="true"
           className="
-            absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-foreground/20 transition-colors
+            absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-foreground/20 transition-colors
           "
         />
         <input
@@ -48,7 +48,7 @@ export function SearchFilterBar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className={cn(
-            "h-10 w-full border bg-transparent pr-9 pl-10 text-sm",
+            "min-h-11 w-full min-w-0 border bg-transparent pr-13 pl-11 text-sm",
             "border-gold/8 text-foreground placeholder:text-foreground/25",
             "focus:border-gold/30 focus:ring-2 focus:ring-gold/6 focus:outline-none",
             "transition-all duration-300",
@@ -64,8 +64,8 @@ export function SearchFilterBar({
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={() => onSearchChange("")}
               className="
-                absolute top-1/2 right-3 -translate-y-1/2 rounded-full text-foreground/25
-                transition-colors
+                absolute top-1/2 right-1.5 flex size-11 -translate-y-1/2 touch-manipulation-safe
+                items-center justify-center rounded-full text-foreground/25 transition-colors
                 hover:text-foreground/50
                 focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
                 focus-visible:ring-offset-2 focus-visible:ring-offset-background
@@ -74,7 +74,7 @@ export function SearchFilterBar({
               aria-controls={searchInputId}
               aria-label="Clear gallery search"
             >
-              <X aria-hidden="true" className="size-3.5" />
+              <X aria-hidden="true" className="size-4" />
             </motion.button>
           )}
         </AnimatePresence>
@@ -87,9 +87,13 @@ export function SearchFilterBar({
             initial={{ opacity: 0, width: 0 }}
             animate={{ opacity: 1, width: "auto" }}
             exit={{ opacity: 0, width: 0 }}
-            className="flex shrink-0 items-center gap-1.5 overflow-hidden"
+            className="
+              order-3 flex min-h-11 shrink-0 items-center gap-2 overflow-hidden rounded-sm border
+              border-gold/8 bg-gold/3 px-3
+              sm:order-0
+            "
           >
-            <SlidersHorizontal className="size-3 shrink-0 text-gold/40" />
+            <SlidersHorizontal className="size-3.5 shrink-0 text-gold/40" />
             <span className="text-xs whitespace-nowrap text-foreground/40 tabular-nums">
               <span className="font-semibold text-gold">{resultCount}</span>
               <span className="mx-0.5 text-foreground/15">/</span>
@@ -111,7 +115,8 @@ export function SearchFilterBar({
             onClick={onClearFilters}
             className={cn(
               `
-                shrink-0 rounded-sm px-3 py-1.5 text-[0.65rem] font-semibold tracking-widest
+                inline-flex min-h-11 min-w-11 shrink-0 touch-manipulation-safe items-center
+                justify-center rounded-sm px-4 text-[0.65rem] font-semibold tracking-widest
                 uppercase
               `,
               "border border-transparent transition-all duration-300",
