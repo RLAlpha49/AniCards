@@ -2,7 +2,7 @@ import { colorPresets } from "@/components/stat-card-generator/constants";
 import { getDefaultCardVariation, statCardTypes } from "@/lib/card-types";
 import type { GlobalCardSettings, StoredCardConfig } from "@/lib/types/records";
 import type { SettingsSnapshot } from "@/lib/user-page-settings-io";
-import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+import { clampBorderRadius, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 
 const DEFAULT_STARTER_ADVANCED_SETTINGS = {
   useStatusColors: true,
@@ -51,6 +51,11 @@ export interface EditorStarterStyle {
   snapshot: SettingsSnapshot;
 }
 
+export interface NewUserStarterWorkspaceSeed {
+  cards: StoredCardConfig[];
+  globalSettings: GlobalCardSettings;
+}
+
 export const EDITOR_STARTER_STYLES: readonly EditorStarterStyle[] = [
   {
     id: "starter:anicards-dark",
@@ -85,13 +90,60 @@ export const NEW_USER_STARTER_GLOBAL_SETTINGS: GlobalCardSettings = {
   gridRows: DEFAULT_STARTER_ADVANCED_SETTINGS.gridRows,
 };
 
-export function buildNewUserStarterCardsSnapshot(): StoredCardConfig[] {
+export function buildNewUserStarterGlobalSettings(
+  snapshot?: SettingsSnapshot | null,
+): GlobalCardSettings {
+  if (!snapshot) {
+    return { ...NEW_USER_STARTER_GLOBAL_SETTINGS };
+  }
+
+  return {
+    colorPreset: snapshot.colorPreset,
+    titleColor: snapshot.colors[0],
+    backgroundColor: snapshot.colors[1],
+    textColor: snapshot.colors[2],
+    circleColor: snapshot.colors[3],
+    borderEnabled: snapshot.borderEnabled,
+    borderColor: snapshot.borderColor,
+    borderRadius: clampBorderRadius(snapshot.borderRadius),
+    useStatusColors:
+      snapshot.advancedSettings.useStatusColors ??
+      NEW_USER_STARTER_GLOBAL_SETTINGS.useStatusColors,
+    showPiePercentages:
+      snapshot.advancedSettings.showPiePercentages ??
+      NEW_USER_STARTER_GLOBAL_SETTINGS.showPiePercentages,
+    showFavorites:
+      snapshot.advancedSettings.showFavorites ??
+      NEW_USER_STARTER_GLOBAL_SETTINGS.showFavorites,
+    gridCols:
+      snapshot.advancedSettings.gridCols ??
+      NEW_USER_STARTER_GLOBAL_SETTINGS.gridCols,
+    gridRows:
+      snapshot.advancedSettings.gridRows ??
+      NEW_USER_STARTER_GLOBAL_SETTINGS.gridRows,
+  };
+}
+
+export function buildNewUserStarterCardsSnapshot(
+  snapshot?: SettingsSnapshot | null,
+): StoredCardConfig[] {
+  const colorPreset = snapshot?.colorPreset ?? "default";
+
   return statCardTypes.map((cardType) => ({
     cardName: cardType.id,
     disabled: NEW_USER_STARTER_CARD_IDS.has(cardType.id) ? undefined : true,
     variation:
       NEW_USER_STARTER_VARIANTS[cardType.id] ??
       getDefaultCardVariation(cardType.id),
-    colorPreset: "default",
+    colorPreset,
   }));
+}
+
+export function buildNewUserStarterWorkspaceSeed(
+  snapshot: SettingsSnapshot,
+): NewUserStarterWorkspaceSeed {
+  return {
+    cards: buildNewUserStarterCardsSnapshot(snapshot),
+    globalSettings: buildNewUserStarterGlobalSettings(snapshot),
+  };
 }

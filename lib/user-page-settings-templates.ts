@@ -5,6 +5,10 @@ import {
   makeSettingsExport,
   parseSettingsExportJson,
 } from "./user-page-settings-io";
+import {
+  buildNewUserStarterWorkspaceSeed,
+  type NewUserStarterWorkspaceSeed,
+} from "./user-page-starters";
 
 export const SETTINGS_TEMPLATES_STORAGE_KEY =
   "anicards:user-page-settings-templates:v1";
@@ -59,6 +63,7 @@ export interface PendingSettingsTemplateApply {
   queuedAt: number;
   exampleContext?: PendingSettingsTemplateExampleContext;
   discoveryContext?: SearchLaunchDiscoveryContext;
+  starterWorkspaceSeed?: NewUserStarterWorkspaceSeed;
 }
 
 export interface RememberedUserPageRoute {
@@ -79,6 +84,7 @@ export interface QueueSettingsTemplateForEditorOptions {
   source?: PendingSettingsTemplateApply["source"];
   exampleContext?: PendingSettingsTemplateApply["exampleContext"];
   discoveryContext?: SearchLaunchDiscoveryContextInput | null;
+  starterWorkspaceSeed?: NewUserStarterWorkspaceSeed | null;
 }
 
 export type SettingsTemplatesStorageResult =
@@ -223,6 +229,163 @@ function parsePendingSettingsTemplateExampleContext(
   };
 }
 
+function isColorValueLike(value: unknown): boolean {
+  return typeof value === "string" || isPlainObject(value);
+}
+
+function parseStoredStarterCardConfig(
+  value: unknown,
+): NewUserStarterWorkspaceSeed["cards"][number] | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const cardName = normalizeNonBlankString(value.cardName);
+
+  if (!cardName) {
+    return null;
+  }
+
+  const borderRadius =
+    typeof value.borderRadius === "number" &&
+    Number.isFinite(value.borderRadius)
+      ? value.borderRadius
+      : undefined;
+
+  return {
+    cardName,
+    variation: normalizeNonBlankString(value.variation),
+    colorPreset: normalizeNonBlankString(value.colorPreset),
+    titleColor: isColorValueLike(value.titleColor)
+      ? (value.titleColor as NewUserStarterWorkspaceSeed["cards"][number]["titleColor"])
+      : undefined,
+    backgroundColor: isColorValueLike(value.backgroundColor)
+      ? (value.backgroundColor as NewUserStarterWorkspaceSeed["cards"][number]["backgroundColor"])
+      : undefined,
+    textColor: isColorValueLike(value.textColor)
+      ? (value.textColor as NewUserStarterWorkspaceSeed["cards"][number]["textColor"])
+      : undefined,
+    circleColor: isColorValueLike(value.circleColor)
+      ? (value.circleColor as NewUserStarterWorkspaceSeed["cards"][number]["circleColor"])
+      : undefined,
+    borderColor: normalizeNonBlankString(value.borderColor),
+    borderRadius,
+    showFavorites:
+      typeof value.showFavorites === "boolean"
+        ? value.showFavorites
+        : undefined,
+    useStatusColors:
+      typeof value.useStatusColors === "boolean"
+        ? value.useStatusColors
+        : undefined,
+    showPiePercentages:
+      typeof value.showPiePercentages === "boolean"
+        ? value.showPiePercentages
+        : undefined,
+    gridCols:
+      typeof value.gridCols === "number" && Number.isFinite(value.gridCols)
+        ? value.gridCols
+        : undefined,
+    gridRows:
+      typeof value.gridRows === "number" && Number.isFinite(value.gridRows)
+        ? value.gridRows
+        : undefined,
+    useCustomSettings:
+      typeof value.useCustomSettings === "boolean"
+        ? value.useCustomSettings
+        : undefined,
+    disabled: typeof value.disabled === "boolean" ? value.disabled : undefined,
+  };
+}
+
+function parseStarterWorkspaceGlobalSettings(
+  value: unknown,
+): NewUserStarterWorkspaceSeed["globalSettings"] | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const borderRadius =
+    typeof value.borderRadius === "number" &&
+    Number.isFinite(value.borderRadius)
+      ? value.borderRadius
+      : undefined;
+
+  return {
+    colorPreset: normalizeNonBlankString(value.colorPreset),
+    titleColor: isColorValueLike(value.titleColor)
+      ? (value.titleColor as NewUserStarterWorkspaceSeed["globalSettings"]["titleColor"])
+      : undefined,
+    backgroundColor: isColorValueLike(value.backgroundColor)
+      ? (value.backgroundColor as NewUserStarterWorkspaceSeed["globalSettings"]["backgroundColor"])
+      : undefined,
+    textColor: isColorValueLike(value.textColor)
+      ? (value.textColor as NewUserStarterWorkspaceSeed["globalSettings"]["textColor"])
+      : undefined,
+    circleColor: isColorValueLike(value.circleColor)
+      ? (value.circleColor as NewUserStarterWorkspaceSeed["globalSettings"]["circleColor"])
+      : undefined,
+    borderEnabled:
+      typeof value.borderEnabled === "boolean"
+        ? value.borderEnabled
+        : undefined,
+    borderColor: normalizeNonBlankString(value.borderColor),
+    borderRadius,
+    useStatusColors:
+      typeof value.useStatusColors === "boolean"
+        ? value.useStatusColors
+        : undefined,
+    showPiePercentages:
+      typeof value.showPiePercentages === "boolean"
+        ? value.showPiePercentages
+        : undefined,
+    showFavorites:
+      typeof value.showFavorites === "boolean"
+        ? value.showFavorites
+        : undefined,
+    gridCols:
+      typeof value.gridCols === "number" && Number.isFinite(value.gridCols)
+        ? value.gridCols
+        : undefined,
+    gridRows:
+      typeof value.gridRows === "number" && Number.isFinite(value.gridRows)
+        ? value.gridRows
+        : undefined,
+  };
+}
+
+function parseStarterWorkspaceSeed(
+  value: unknown,
+): NewUserStarterWorkspaceSeed | undefined {
+  if (!isPlainObject(value) || !Array.isArray(value.cards)) {
+    return undefined;
+  }
+
+  const cards = value.cards
+    .map((entry) => parseStoredStarterCardConfig(entry))
+    .filter(
+      (entry): entry is NewUserStarterWorkspaceSeed["cards"][number] =>
+        entry !== null,
+    );
+
+  if (cards.length !== value.cards.length) {
+    return undefined;
+  }
+
+  const globalSettings = parseStarterWorkspaceGlobalSettings(
+    value.globalSettings,
+  );
+
+  if (!globalSettings) {
+    return undefined;
+  }
+
+  return {
+    cards,
+    globalSettings,
+  };
+}
+
 function parseSearchLaunchDiscoveryContextValue(
   value: unknown,
 ): SearchLaunchDiscoveryContext | null {
@@ -355,6 +518,9 @@ function parsePendingSettingsTemplateApply(
     discoveryContext:
       parseSearchLaunchDiscoveryContextValue(parsed.discoveryContext) ??
       undefined,
+    starterWorkspaceSeed: parseStarterWorkspaceSeed(
+      parsed.starterWorkspaceSeed,
+    ),
   };
 }
 
@@ -680,6 +846,9 @@ export function queueSettingsTemplateForEditor(
     queuedAt,
     exampleContext: options.exampleContext,
     discoveryContext: discoveryContext ?? undefined,
+    starterWorkspaceSeed:
+      options.starterWorkspaceSeed ??
+      buildNewUserStarterWorkspaceSeed(template.snapshot),
   };
 
   queuePendingSettingsTemplateApply(pendingTemplateApply);

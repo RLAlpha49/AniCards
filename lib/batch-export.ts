@@ -1,5 +1,3 @@
-import JSZip from "jszip";
-
 import {
   type CardDownloadFormat,
   type ConversionFormat,
@@ -66,6 +64,11 @@ export interface BatchExportSummary {
 
 /** Max number of concurrent conversions during batch processing. @source */
 const BATCH_CONCURRENCY_LIMIT = 4;
+
+async function loadJSZipConstructor() {
+  const { default: JSZip } = await import("jszip");
+  return JSZip;
+}
 
 function createQueueCursor<T>(items: T[]): () => T | null {
   let nextIndex = 0;
@@ -227,6 +230,7 @@ export async function batchConvertAndZip(
     throw new Error("No cards available for export.");
   }
 
+  const JSZip = await loadJSZipConstructor();
   const queue = cards.map((card, index) => ({ card, index }));
   let completed = 0;
   let successCount = 0;

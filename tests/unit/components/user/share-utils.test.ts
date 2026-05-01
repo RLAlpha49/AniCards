@@ -308,4 +308,90 @@ describe("share-utils", () => {
     ).rejects.toThrow("No valid card URLs available to copy.");
     expect(consoleError).toHaveBeenCalledTimes(1);
   });
+
+  it("loads batch export only when share downloads are requested", async () => {
+    const progressSpy = mock(() => undefined);
+    const batchConvertAndZip = mock(
+      async (
+        cards: Array<{
+          cachedSvgObjectUrl?: string | null;
+          rawType: string;
+          svgUrl: string;
+          type: string;
+        }>,
+        format: string,
+        onProgress?: (progress: {
+          cardIndex: number;
+          current: number;
+          failure: number;
+          success: number;
+          total: number;
+        }) => void,
+      ) => {
+        onProgress?.({
+          cardIndex: 0,
+          current: 1,
+          failure: 0,
+          success: 1,
+          total: cards.length,
+        });
+
+        return {
+          total: cards.length,
+          exported: cards.length,
+          failed: 0,
+          failedCards: undefined,
+        };
+      },
+    );
+
+    mock.module("@/lib/batch-export", () => ({
+      batchConvertAndZip,
+    }));
+
+    const { downloadShareableCards } = await importRealShareUtils();
+
+    expect(batchConvertAndZip).not.toHaveBeenCalled();
+
+    const result = await downloadShareableCards({
+      cards: [
+        {
+          cachedSvgObjectUrl: "blob:cached-preview",
+          cardId: "animeStats",
+          rawType: "animeStats-compact",
+          url: "/api/card.svg?cardType=animeStats&variation=compact",
+        },
+      ],
+      format: "webp",
+      onProgress: progressSpy,
+    });
+
+    expect(result).toEqual({
+      total: 1,
+      exported: 1,
+      failed: 0,
+      failedCards: undefined,
+    });
+    expect(progressSpy).toHaveBeenCalledWith({
+      current: 1,
+      total: 1,
+    });
+
+    const firstCall = batchConvertAndZip.mock.calls[0];
+    if (!firstCall) {
+      throw new TypeError("Expected share downloads to load batch export.");
+    }
+
+    const [batchCards, format] = firstCall;
+
+    expect(format).toBe("webp");
+    expect(batchCards).toEqual([
+      {
+        cachedSvgObjectUrl: "blob:cached-preview",
+        rawType: "animeStats-compact",
+        svgUrl: "/api/card.svg?cardType=animeStats&variation=compact",
+        type: "animeStats",
+      },
+    ]);
+  });
 });

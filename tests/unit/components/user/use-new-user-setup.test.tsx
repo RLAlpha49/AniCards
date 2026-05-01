@@ -13,6 +13,8 @@ import {
 import { statCardTypes } from "@/lib/card-types";
 import {
   buildNewUserStarterCardsSnapshot,
+  buildNewUserStarterWorkspaceSeed,
+  EDITOR_STARTER_STYLES,
   NEW_USER_STARTER_GLOBAL_SETTINGS,
 } from "@/lib/user-page-starters";
 import {
@@ -215,6 +217,77 @@ describe("useNewUserSetup", () => {
     expect(result.current.isNewUser).toBe(true);
     expect(result.current.cardsWarning).toBeNull();
     expect(result.current.hasPendingSetup("42", null)).toBe(false);
+  });
+
+  it("uses a queued starter workspace seed when creating a first-time editor workspace", async () => {
+    const starterWorkspaceSeed = buildNewUserStarterWorkspaceSeed(
+      EDITOR_STARTER_STYLES[2].snapshot,
+    );
+    const fetchMock = mock(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const requestUrl = getRequestUrl(input);
+
+        if (requestUrl === "/api/anilist") {
+          const requestBody = parseJsonRequestBody<{ query?: string }>(
+            init?.body,
+          );
+
+          expect(requestBody.query).toBe(USER_STATS_QUERY);
+          return createJsonResponse(createAniListStatsResponse());
+        }
+
+        if (requestUrl === "/api/store-users") {
+          return createJsonResponse({ success: true });
+        }
+
+        if (requestUrl === "/api/store-cards") {
+          const requestBody = parseJsonRequestBody<{
+            cards: unknown;
+            globalSettings: unknown;
+          }>(init?.body);
+
+          expect(requestBody.cards).toEqual(starterWorkspaceSeed.cards);
+          expect(requestBody.globalSettings).toEqual(
+            starterWorkspaceSeed.globalSettings,
+          );
+
+          return createJsonResponse({ updatedAt: "2026-04-03T15:10:00.000Z" });
+        }
+
+        throw new Error(
+          `Unexpected request during seeded userId setup: ${requestUrl}`,
+        );
+      },
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useNewUserSetup({ starterWorkspaceSeed }),
+    );
+
+    let setupResult:
+      | Awaited<ReturnType<typeof result.current.startSetup>>
+      | undefined;
+
+    await act(async () => {
+      setupResult = await result.current.startSetup("42", null);
+    });
+    await flushSetup();
+
+    expect(setupResult).toEqual({
+      success: true,
+      userId: 42,
+      username: "Alpha49",
+    });
+    expect(initializeFromServerData).toHaveBeenCalledWith(
+      "42",
+      "Alpha49",
+      "https://example.com/avatar-medium.png",
+      starterWorkspaceSeed.cards,
+      starterWorkspaceSeed.globalSettings,
+      statCardTypes.map((cardType) => cardType.id),
+      "2026-04-03T15:10:00.000Z",
+    );
   });
 
   it("resolves username lookups through AniList before saving and hydrating starter cards", async () => {

@@ -158,6 +158,32 @@ describe("user-page-settings-io snapshot parsing", () => {
 });
 
 describe("user-page-settings-io JSON import parsing", () => {
+  it("accepts the minimal documented snapshot example", () => {
+    const raw = JSON.stringify({
+      colorPreset: "custom",
+      colors: ["#111111", "#222222", "#333333", "#444444"],
+      borderEnabled: false,
+      borderColor: "#e4e2e2",
+      borderRadius: 12,
+      advancedSettings: {},
+    });
+
+    expect(parseSettingsExportJson(raw)).toEqual({
+      ok: true,
+      value: {
+        kind: "snapshot",
+        snapshot: {
+          colorPreset: "custom",
+          colors: ["#111111", "#222222", "#333333", "#444444"],
+          borderEnabled: false,
+          borderColor: "#e4e2e2",
+          borderRadius: 12,
+          advancedSettings: {},
+        },
+      },
+    });
+  });
+
   it("rejects invalid JSON input", () => {
     expect(parseSettingsExportJson("{not valid json")).toEqual({
       ok: false,
@@ -400,6 +426,52 @@ describe("user-page-settings-io export round trips", () => {
 });
 
 describe("user-page-settings-io workspace backup parsing", () => {
+  it("accepts the minimal documented workspace restore example", () => {
+    const raw = JSON.stringify({
+      schemaVersion: 1,
+      scope: "workspace",
+      workspace: {
+        global: {
+          colorPreset: "custom",
+          colors: ["#111111", "#222222", "#333333", "#444444"],
+          borderEnabled: false,
+          borderColor: "#e4e2e2",
+          borderRadius: 12,
+          advancedSettings: {},
+        },
+        cardConfigs: {},
+        cardOrder: [],
+      },
+      editorState: {
+        templates: [],
+      },
+    });
+
+    expect(parseWorkspaceBackupJson(raw)).toEqual({
+      ok: true,
+      value: {
+        schemaVersion: 1,
+        scope: "workspace",
+        exportedAt: expect.any(String),
+        workspace: {
+          global: {
+            colorPreset: "custom",
+            colors: ["#111111", "#222222", "#333333", "#444444"],
+            borderEnabled: false,
+            borderColor: "#e4e2e2",
+            borderRadius: 12,
+            advancedSettings: {},
+          },
+          cardConfigs: {},
+          cardOrder: [],
+        },
+        editorState: {
+          templates: [],
+        },
+      },
+    });
+  });
+
   it("round-trips workspace backups through stringify + parse", () => {
     const backup = makeWorkspaceBackup({
       userId: "42",

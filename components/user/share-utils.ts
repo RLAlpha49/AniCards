@@ -1,4 +1,4 @@
-import { batchConvertAndZip, type BatchExportCard } from "@/lib/batch-export";
+import type { BatchExportCard, BatchExportSummary } from "@/lib/batch-export";
 import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
@@ -158,7 +158,9 @@ export async function downloadShareableCards(args: {
   cards: readonly ShareableCardDescriptor[];
   format?: CardDownloadFormat;
   onProgress?: (progress: { current: number; total: number }) => void;
-}) {
+}): Promise<BatchExportSummary> {
+  const { batchConvertAndZip } = await import("@/lib/batch-export");
+
   const batchCards: BatchExportCard[] = args.cards.map((card) => ({
     cachedSvgObjectUrl: card.cachedSvgObjectUrl,
     rawType: card.rawType,

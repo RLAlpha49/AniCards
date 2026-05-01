@@ -23,6 +23,7 @@ import type { LoadingPhase } from "@/lib/types/loading";
 import {
   buildNewUserStarterCardsSnapshot,
   NEW_USER_STARTER_GLOBAL_SETTINGS,
+  type NewUserStarterWorkspaceSeed,
 } from "@/lib/user-page-starters";
 import { getResponseErrorMessage } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ export type NewUserSetupResult =
       username: string | null;
       avatarUrl: string | null;
       initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
+      globalSettings: NewUserStarterWorkspaceSeed["globalSettings"];
       cardsUpdatedAt: string | null;
     }
   | { error: string; retryable: boolean };
@@ -283,10 +285,14 @@ async function saveUserToDatabase(
 
 async function saveInitialCards(
   userId: number,
+  starterWorkspaceSeed?: NewUserStarterWorkspaceSeed | null,
   requestOptions?: StartNewUserSetupRequestOptions,
 ) {
   try {
-    const initialCards = buildNewUserStarterCardsSnapshot();
+    const initialCards =
+      starterWorkspaceSeed?.cards ?? buildNewUserStarterCardsSnapshot();
+    const globalSettings =
+      starterWorkspaceSeed?.globalSettings ?? NEW_USER_STARTER_GLOBAL_SETTINGS;
 
     const { response: res, payload } = await requestClientJson(
       "/api/store-cards",
@@ -296,7 +302,7 @@ async function saveInitialCards(
         body: JSON.stringify({
           userId,
           cards: initialCards,
-          globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
+          globalSettings,
         }),
         signal: requestOptions?.signal,
         timeoutMs:
@@ -314,7 +320,7 @@ async function saveInitialCards(
     return {
       success: true as const,
       initialCards,
-      globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
+      globalSettings,
       updatedAt: data.updatedAt ?? null,
     };
   } catch (err) {
@@ -334,7 +340,11 @@ async function saveInitialCards(
   }
 }
 
-export function useNewUserSetup() {
+export function useNewUserSetup(
+  options: {
+    starterWorkspaceSeed?: NewUserStarterWorkspaceSeed | null;
+  } = {},
+) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [cardsWarning, setCardsWarning] = useState<string | null>(null);
   const pendingSetupRef = useRef<PendingNewUserSetupState | null>(null);
@@ -368,6 +378,7 @@ export function useNewUserSetup() {
 
         const saveCardsResult = await saveInitialCards(
           pendingSetup.userId,
+          options.starterWorkspaceSeed,
           requestOptions,
         );
 
@@ -397,6 +408,7 @@ export function useNewUserSetup() {
           username: pendingSetup.username,
           avatarUrl: pendingSetup.avatarUrl,
           initialCards: saveCardsResult.initialCards,
+          globalSettings: saveCardsResult.globalSettings,
           cardsUpdatedAt: saveCardsResult.updatedAt,
         };
       }
@@ -496,6 +508,7 @@ export function useNewUserSetup() {
 
       const saveCardsResult = await saveInitialCards(
         resolvedUserId,
+        options.starterWorkspaceSeed,
         requestOptions,
       );
 
@@ -525,10 +538,11 @@ export function useNewUserSetup() {
         username: resolvedUsername,
         avatarUrl: resolvedAvatarUrl,
         initialCards: saveCardsResult.initialCards,
+        globalSettings: saveCardsResult.globalSettings,
         cardsUpdatedAt: saveCardsResult.updatedAt,
       };
     },
-    [],
+    [options.starterWorkspaceSeed],
   );
 
   const hydrateNewUserCards = useCallback(
@@ -538,6 +552,7 @@ export function useNewUserSetup() {
         username: string | null;
         avatarUrl: string | null;
         initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
+        globalSettings: NewUserStarterWorkspaceSeed["globalSettings"];
         updatedAt: string | null;
       },
       requestOptions?: StartNewUserSetupRequestOptions,
@@ -551,7 +566,7 @@ export function useNewUserSetup() {
           params.username,
           params.avatarUrl,
           params.initialCards,
-          NEW_USER_STARTER_GLOBAL_SETTINGS,
+          params.globalSettings,
           ALL_CARD_IDS,
           params.updatedAt,
         );
@@ -601,6 +616,7 @@ export function useNewUserSetup() {
             username: setupResult.username,
             avatarUrl: setupResult.avatarUrl,
             initialCards: setupResult.initialCards,
+            globalSettings: setupResult.globalSettings,
             updatedAt: setupResult.cardsUpdatedAt,
           },
           requestOptions,

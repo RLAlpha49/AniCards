@@ -29,6 +29,7 @@ import {
   upsertSettingsTemplateInStorage,
   writeSettingsTemplatesToStorage,
 } from "@/lib/user-page-settings-templates";
+import { buildNewUserStarterWorkspaceSeed } from "@/lib/user-page-starters";
 import {
   installHappyDom,
   resetHappyDom,
@@ -132,6 +133,9 @@ afterAll(() => {
 describe("user-page settings templates continuity helpers", () => {
   it("queues templates, pending applies, and discovery context for the editor", () => {
     const template = createTemplate();
+    const starterWorkspaceSeed = buildNewUserStarterWorkspaceSeed(
+      template.snapshot,
+    );
 
     const result = queueSettingsTemplateForEditor(template, {
       source: "search-starter",
@@ -183,6 +187,7 @@ describe("user-page settings templates continuity helpers", () => {
         savedAt: mockNow,
         searchQuery: "seasonal",
       },
+      starterWorkspaceSeed,
     });
     expect(
       globalThis.window.sessionStorage.getItem(
