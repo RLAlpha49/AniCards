@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 
+import { SearchLaunchChooser } from "@/components/search/SearchCapabilities";
 import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import {
   buildFadeUpVariants,
@@ -67,7 +67,7 @@ export function HomeCTA() {
 
         <motion.div
           variants={ctaChild}
-          className="inline-block"
+          className="inline-flex justify-center"
           whileHover={getMotionSafeAnimation(prefersSimplifiedMotion, {
             scale: 1.04,
             boxShadow: "0 0 40px hsl(42 63% 55% / 0.4)",
@@ -81,13 +81,11 @@ export function HomeCTA() {
               : { type: "spring", stiffness: 400, damping: 20 }
           }
         >
-          <Link
-            href="/search"
-            onClick={handleClick}
-            className="imperial-btn imperial-btn-fill"
-          >
-            ❖ Build Your Cards ❖
-          </Link>
+          <SearchLaunchChooser
+            align="center"
+            fallbackLabel="❖ Build Your Cards ❖"
+            onFallbackSearchClick={handleClick}
+          />
         </motion.div>
       </motion.div>
     </section>

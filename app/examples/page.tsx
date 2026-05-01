@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import type { ExamplesCatalogSummary } from "@/components/examples";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import {
-  buildExamplesCollectionPath,
   buildExamplesGalleryPath,
   EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM,
   EXAMPLES_SEARCH_QUERY_PARAM,
@@ -142,22 +140,15 @@ export default async function ExamplesPage({
   const search = getSearchParamValue(
     resolvedSearchParams[EXAMPLES_SEARCH_QUERY_PARAM],
   );
-  const legacyCategory = getExampleCollectionFromLegacyValue(
-    getSearchParamValue(
-      resolvedSearchParams[EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM],
-    ),
+  const legacyCategoryValue = getSearchParamValue(
+    resolvedSearchParams[EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM],
   );
+  const legacyCategory =
+    getExampleCollectionFromLegacyValue(legacyCategoryValue);
   const summary = getExamplesCatalogSummary();
-
-  if (legacyCategory) {
-    redirect(
-      buildExamplesCollectionPath(legacyCategory.slug, {
-        search,
-      }),
-    );
-  }
-
-  const catalog = search ? getExamplesCatalog() : undefined;
+  const hasLegacyQueryState =
+    search !== undefined || legacyCategoryValue !== undefined;
+  const catalog = hasLegacyQueryState ? getExamplesCatalog() : undefined;
   const nonce = !catalog ? await getRequestNonce() : null;
 
   return (
@@ -177,7 +168,8 @@ export default async function ExamplesPage({
         {...(catalog
           ? {
               catalog,
-              routeKind: "gallery" as const,
+              routeKind: "legacy" as const,
+              activeCategory: legacyCategory?.name ?? null,
             }
           : {
               routeKind: "index" as const,

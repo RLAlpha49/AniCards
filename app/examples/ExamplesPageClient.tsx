@@ -29,15 +29,11 @@ import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
 import {
   buildExamplesCollectionPath,
   buildExamplesGalleryPath,
+  buildExamplesIndexPath,
   EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM,
   EXAMPLES_SEARCH_QUERY_PARAM,
 } from "@/lib/examples-collections";
-import {
-  rememberExamplesDiscoveryContext,
-  type SearchLaunchDiscoveryContextInput,
-} from "@/lib/user-page-settings-templates";
-
-const SEARCH_PAGE_HREF = "/search";
+import { type SearchLaunchDiscoveryContextInput } from "@/lib/user-page-settings-templates";
 const SEARCH_URL_SYNC_DELAY_MS = 180;
 
 function normalizeExamplesSearchText(value: string): string {
@@ -50,6 +46,7 @@ function normalizeExamplesSearchText(value: string): string {
 function buildSearchQueryString(
   searchParamsString: string,
   searchQuery: string,
+  legacyCategory?: ExampleCategory | null,
 ): string {
   const params = new URLSearchParams(searchParamsString);
   const trimmedSearchQuery = searchQuery.trim();
@@ -60,9 +57,41 @@ function buildSearchQueryString(
     params.delete(EXAMPLES_SEARCH_QUERY_PARAM);
   }
 
-  params.delete(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM);
+  if (legacyCategory) {
+    params.set(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM, legacyCategory);
+  } else {
+    params.delete(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM);
+  }
 
   return params.toString();
+}
+
+function normalizeQueryStringForComparison(queryString: string): string {
+  const params = new URLSearchParams(queryString);
+
+  return Array.from(params.entries())
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey === rightKey) {
+        return leftValue.localeCompare(rightValue);
+      }
+
+      return leftKey.localeCompare(rightKey);
+    })
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+    )
+    .join("&");
+}
+
+function areEquivalentQueryStrings(
+  leftQueryString: string,
+  rightQueryString: string,
+): boolean {
+  return (
+    normalizeQueryStringForComparison(leftQueryString) ===
+    normalizeQueryStringForComparison(rightQueryString)
+  );
 }
 
 function buildCategoryBuckets(
@@ -97,7 +126,7 @@ function buildCategoryBuckets(
 interface ExamplesPageClientProps {
   summary: ExamplesCatalogSummary;
   catalog?: ExamplesCatalogPayload;
-  routeKind: "index" | "gallery" | "collection";
+  routeKind: "index" | "gallery" | "collection" | "legacy";
   activeCategory?: ExampleCategory | null;
   indexContent?: React.ReactNode;
   routeHeaderContent?: React.ReactNode;
@@ -116,6 +145,7 @@ export default function ExamplesPageClient({
   const searchParamsString = searchParams.toString();
   const [hasMounted, setHasMounted] = useState(false);
   const isIndexRoute = routeKind === "index";
+  const isLegacyRoute = routeKind === "legacy";
   const currentActiveCategory = activeCategory;
   const [searchQuery, setSearchQuery] = useState(
     () => searchParams.get(EXAMPLES_SEARCH_QUERY_PARAM) ?? "",
@@ -129,7 +159,7 @@ export default function ExamplesPageClient({
 
   const replaceQueryString = useCallback(
     (nextQueryString: string) => {
-      if (nextQueryString === searchParamsString) {
+      if (areEquivalentQueryStrings(nextQueryString, searchParamsString)) {
         return;
       }
 
@@ -155,9 +185,10 @@ export default function ExamplesPageClient({
     const nextQueryString = buildSearchQueryString(
       searchParamsString,
       searchQuery,
+      isLegacyRoute ? currentActiveCategory : null,
     );
 
-    if (nextQueryString === searchParamsString) {
+    if (areEquivalentQueryStrings(nextQueryString, searchParamsString)) {
       return;
     }
 
@@ -168,7 +199,13 @@ export default function ExamplesPageClient({
     return () => {
       globalThis.window.clearTimeout(timeoutId);
     };
-  }, [replaceQueryString, searchParamsString, searchQuery]);
+  }, [
+    currentActiveCategory,
+    isLegacyRoute,
+    replaceQueryString,
+    searchParamsString,
+    searchQuery,
+  ]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -176,8 +213,19 @@ export default function ExamplesPageClient({
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
-    replaceQueryString(buildSearchQueryString(searchParamsString, ""));
-  }, [replaceQueryString, searchParamsString]);
+    replaceQueryString(
+      buildSearchQueryString(
+        searchParamsString,
+        "",
+        isLegacyRoute ? currentActiveCategory : null,
+      ),
+    );
+  }, [
+    currentActiveCategory,
+    isLegacyRoute,
+    replaceQueryString,
+    searchParamsString,
+  ]);
 
   const normalizedSearchQuery = useMemo(
     () => normalizeExamplesSearchText(deferredSearchQuery),
@@ -228,9 +276,14 @@ export default function ExamplesPageClient({
   const navigationCategoryInfo = useMemo(() => {
     return summary.categoryInfo.map((categoryInfo) => ({
       ...categoryInfo,
-      href: buildExamplesCollectionPath(categoryInfo.slug, {
-        search: currentSearchQuery,
-      }),
+      href: isLegacyRoute
+        ? buildExamplesIndexPath({
+            search: currentSearchQuery,
+            category: categoryInfo.name,
+          })
+        : buildExamplesCollectionPath(categoryInfo.slug, {
+            search: currentSearchQuery,
+          }),
       count:
         routeKind === "collection"
           ? categoryInfo.count
@@ -240,6 +293,7 @@ export default function ExamplesPageClient({
     }));
   }, [
     currentSearchQuery,
+    isLegacyRoute,
     routeKind,
     searchMatchedCategoryBuckets,
     summary.categoryInfo,
@@ -257,8 +311,13 @@ export default function ExamplesPageClient({
     ? (categoryInfoByName.get(currentActiveCategory) ?? null)
     : null;
   const currentDiscoveryQueryString = useMemo(
-    () => buildSearchQueryString(searchParamsString, searchQuery),
-    [searchParamsString, searchQuery],
+    () =>
+      buildSearchQueryString(
+        searchParamsString,
+        searchQuery,
+        isLegacyRoute ? currentActiveCategory : null,
+      ),
+    [currentActiveCategory, isLegacyRoute, searchParamsString, searchQuery],
   );
   const currentDiscoveryHref = useMemo(
     () =>
@@ -286,18 +345,19 @@ export default function ExamplesPageClient({
       routeKind,
     ],
   );
-  const handleCreateClick = useCallback(() => {
-    rememberExamplesDiscoveryContext(currentDiscoveryContext);
-  }, [currentDiscoveryContext]);
 
   const shouldRenderExpandedGallery = !isIndexRoute;
   const shouldRenderCollectionChooser = isIndexRoute;
   const galleryHref = useMemo(
     () =>
-      buildExamplesGalleryPath({
-        search: currentSearchQuery,
-      }),
-    [currentSearchQuery],
+      isLegacyRoute
+        ? buildExamplesIndexPath({
+            search: currentSearchQuery,
+          })
+        : buildExamplesGalleryPath({
+            search: currentSearchQuery,
+          }),
+    [currentSearchQuery, isLegacyRoute],
   );
   const allCategoriesHref = useMemo(
     () => (currentActiveCategory ? galleryHref : currentDiscoveryHref),
@@ -492,8 +552,7 @@ export default function ExamplesPageClient({
             totalCardTypes={catalog?.totalCardTypes ?? summary.totalCardTypes}
             totalVariants={catalog?.totalVariants ?? summary.totalVariants}
             categoryCount={summary.categories.length}
-            createHref={SEARCH_PAGE_HREF}
-            onCreateClick={handleCreateClick}
+            discoveryContext={currentDiscoveryContext}
           />
         )}
 
@@ -595,10 +654,7 @@ export default function ExamplesPageClient({
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
         >
-          <CTASection
-            createHref={SEARCH_PAGE_HREF}
-            onCreateClick={handleCreateClick}
-          />
+          <CTASection discoveryContext={currentDiscoveryContext} />
         </motion.div>
       </div>
     </ErrorBoundary>

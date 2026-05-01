@@ -129,6 +129,29 @@ function buildSearchSuffix(search?: string | null): string {
   return `?${params.toString()}`;
 }
 
+function buildIndexQueryString(options: {
+  search?: string | null;
+  category?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  const normalizedSearch = normalizeSearchQuery(options.search);
+  const normalizedCategory = getExampleCollectionFromLegacyValue(
+    options.category,
+  )?.name;
+
+  if (normalizedSearch) {
+    params.set(EXAMPLES_SEARCH_QUERY_PARAM, normalizedSearch);
+  }
+
+  if (normalizedCategory) {
+    params.set(EXAMPLES_LEGACY_CATEGORY_QUERY_PARAM, normalizedCategory);
+  }
+
+  const queryString = params.toString();
+
+  return queryString ? `?${queryString}` : "";
+}
+
 export function getExampleCollectionBySlug(
   slug: string | null | undefined,
 ): ExampleCollectionDefinition | null {
@@ -176,6 +199,12 @@ export function buildExamplesGalleryPath(
   options: { search?: string | null } = {},
 ): string {
   return `${EXAMPLES_GALLERY_PATH}${buildSearchSuffix(options.search)}`;
+}
+
+export function buildExamplesIndexPath(
+  options: { search?: string | null; category?: string | null } = {},
+): string {
+  return `${EXAMPLES_INDEX_PATH}${buildIndexQueryString(options)}`;
 }
 
 export function buildExamplesCollectionPath(

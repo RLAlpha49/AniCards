@@ -4,10 +4,15 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Loader2, Search, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
 import { EASE_OUT_EXPO } from "@/lib/animations";
 import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
 import {
@@ -16,13 +21,16 @@ import {
   getRememberedUserPageRouteLabel,
   queueSettingsTemplateForEditor,
   readSearchLaunchContinuityState,
+  rememberExamplesDiscoveryContext,
   type SearchLaunchContinuityState,
+  type SearchLaunchDiscoveryContextInput,
   subscribeSearchLaunchContinuity,
 } from "@/lib/user-page-settings-templates";
 import {
   EDITOR_STARTER_STYLES,
   type EditorStarterStyle,
 } from "@/lib/user-page-starters";
+import { cn } from "@/lib/utils";
 
 const EMPTY_CONTINUITY_STATE: SearchLaunchContinuityState = {
   pendingTemplateApply: null,
@@ -119,6 +127,392 @@ function renderResumeLastEditorButtonContent(params: {
   );
 }
 
+function getStarterQueueSuccessDescription(options: {
+  discoveryContextLabel: string | null;
+  lastRoute: SearchLaunchContinuityState["lastSuccessfulUserRoute"];
+  fallbackBehavior: "focus-search" | "route";
+}) {
+  if (options.lastRoute) {
+    return `Reopening ${getRememberedUserRouteTitle(options.lastRoute)} so AniCards can apply it there.`;
+  }
+
+  if (options.discoveryContextLabel) {
+    return options.fallbackBehavior === "focus-search"
+      ? `Use the search form above and AniCards will carry this look into the editor while keeping ${options.discoveryContextLabel} close by.`
+      : `AniCards will carry this look into the next editor you open while keeping ${options.discoveryContextLabel} ready.`;
+  }
+
+  return options.fallbackBehavior === "focus-search"
+    ? "Use the search form above and AniCards will carry this style into the editor."
+    : "AniCards will carry this style into the next editor you open.";
+}
+
+export interface SearchLaunchChooserProps {
+  align?: "start" | "center";
+  className?: string;
+  discoveryContext?: SearchLaunchDiscoveryContextInput | null;
+  fallbackHref?: string;
+  fallbackLabel?: string;
+  onFallbackSearchClick?: () => void;
+  searchFallbackBehavior?: "focus-search" | "route";
+  showDiscoveryHint?: boolean;
+}
+
+export function SearchLaunchChooser({
+  align = "start",
+  className,
+  discoveryContext,
+  fallbackHref = "/search",
+  fallbackLabel = "Search for a user",
+  onFallbackSearchClick,
+  searchFallbackBehavior = "route",
+  showDiscoveryHint = true,
+}: Readonly<SearchLaunchChooserProps>) {
+  const router = useRouter();
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const [continuityState, setContinuityState] =
+    useState<SearchLaunchContinuityState>(EMPTY_CONTINUITY_STATE);
+  const [busyActionId, setBusyActionId] = useState<string | null>(null);
+  const [isStarterMenuOpen, setIsStarterMenuOpen] = useState(false);
+
+  const syncContinuityState = useCallback(() => {
+    setContinuityState(readSearchLaunchContinuityState());
+  }, []);
+
+  useEffect(() => {
+    syncContinuityState();
+    return subscribeSearchLaunchContinuity(syncContinuityState);
+  }, [syncContinuityState]);
+
+  const effectiveDiscoveryContext =
+    discoveryContext ?? continuityState.lastDiscoveryContext ?? undefined;
+  const discoveryContextLabel = effectiveDiscoveryContext
+    ? getExamplesDiscoveryContextLabel(effectiveDiscoveryContext)
+    : null;
+  const hasLastEditor = Boolean(continuityState.lastSuccessfulUserRoute?.href);
+  const fallbackButtonClassName = cn(
+    "min-h-11 px-4 text-xs tracking-[0.15em] uppercase",
+    hasLastEditor
+      ? "border-gold/20 bg-background/70 hover:bg-gold/5"
+      : "imperial-btn imperial-btn-fill",
+  );
+
+  const rememberDiscoveryThread = useCallback(() => {
+    if (effectiveDiscoveryContext) {
+      rememberExamplesDiscoveryContext(effectiveDiscoveryContext);
+    }
+  }, [effectiveDiscoveryContext]);
+
+  const handleFallbackLinkClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      if (busyActionId !== null) {
+        event.preventDefault();
+        return;
+      }
+
+      rememberDiscoveryThread();
+      onFallbackSearchClick?.();
+
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      setBusyActionId("fallback-search");
+    },
+    [busyActionId, onFallbackSearchClick, rememberDiscoveryThread],
+  );
+
+  const handleFallbackSearch = useCallback(() => {
+    rememberDiscoveryThread();
+    onFallbackSearchClick?.();
+
+    if (searchFallbackBehavior === "focus-search") {
+      focusSearchForm(prefersReducedMotion);
+      return;
+    }
+
+    setBusyActionId("fallback-search");
+    void Promise.resolve(router.push(fallbackHref)).catch(() => {
+      setBusyActionId(null);
+      toast.error("Couldn't open search", {
+        description: "Try refreshing the page and searching again.",
+      });
+    });
+  }, [
+    fallbackHref,
+    onFallbackSearchClick,
+    prefersReducedMotion,
+    rememberDiscoveryThread,
+    router,
+    searchFallbackBehavior,
+  ]);
+
+  const handleResumeLastEditor = useCallback(() => {
+    const href = continuityState.lastSuccessfulUserRoute?.href;
+    if (!href) {
+      handleFallbackSearch();
+      return;
+    }
+
+    rememberDiscoveryThread();
+    setBusyActionId("resume-last-editor");
+    void Promise.resolve(router.push(href)).catch(() => {
+      setBusyActionId(null);
+      toast.error("Couldn't reopen the last editor", {
+        description:
+          searchFallbackBehavior === "focus-search"
+            ? "Try the search form above instead."
+            : "Try searching for a profile instead.",
+      });
+    });
+  }, [
+    continuityState.lastSuccessfulUserRoute?.href,
+    handleFallbackSearch,
+    rememberDiscoveryThread,
+    router,
+    searchFallbackBehavior,
+  ]);
+
+  const handleQueueStarterStyle = useCallback(
+    (starterStyle: EditorStarterStyle) => {
+      rememberDiscoveryThread();
+
+      const queueResult = queueSettingsTemplateForEditor(
+        buildStarterStyleTemplate(starterStyle),
+        {
+          source: "search-starter",
+          discoveryContext: effectiveDiscoveryContext,
+        },
+      );
+
+      if (!queueResult.ok) {
+        toast.error("Couldn't queue this starter style", {
+          description: queueResult.error,
+        });
+        return;
+      }
+
+      const lastRoute = continuityState.lastSuccessfulUserRoute;
+      setIsStarterMenuOpen(false);
+      toast.success("Style queued for your editor", {
+        description: getStarterQueueSuccessDescription({
+          discoveryContextLabel,
+          lastRoute,
+          fallbackBehavior: searchFallbackBehavior,
+        }),
+      });
+
+      if (lastRoute?.href) {
+        setBusyActionId(starterStyle.id);
+        void Promise.resolve(router.push(lastRoute.href)).catch(() => {
+          setBusyActionId(null);
+          toast.error("Couldn't open the last editor", {
+            description:
+              searchFallbackBehavior === "focus-search"
+                ? "The style is still queued — try the search form above instead."
+                : "The style is still queued — try searching for a profile instead.",
+          });
+        });
+        return;
+      }
+
+      handleFallbackSearch();
+    },
+    [
+      continuityState.lastSuccessfulUserRoute,
+      discoveryContextLabel,
+      effectiveDiscoveryContext,
+      handleFallbackSearch,
+      rememberDiscoveryThread,
+      router,
+      searchFallbackBehavior,
+    ],
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3",
+        align === "center" ? "items-center text-center" : undefined,
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3",
+          align === "center" ? "justify-center" : undefined,
+        )}
+      >
+        {hasLastEditor ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleResumeLastEditor}
+            disabled={
+              busyActionId !== null && busyActionId !== "resume-last-editor"
+            }
+            className="
+              imperial-btn min-h-11 imperial-btn-fill px-4 text-xs tracking-[0.15em] uppercase
+            "
+          >
+            {renderResumeLastEditorButtonContent({
+              hasLastEditor,
+              isBusy: busyActionId === "resume-last-editor",
+            })}
+          </Button>
+        ) : null}
+
+        {searchFallbackBehavior === "route" ? (
+          <Button
+            asChild
+            variant={hasLastEditor ? "outline" : undefined}
+            size="sm"
+            className={cn(
+              fallbackButtonClassName,
+              busyActionId !== null
+                ? "pointer-events-none opacity-50"
+                : undefined,
+            )}
+          >
+            <Link
+              href={fallbackHref}
+              onClick={handleFallbackLinkClick}
+              aria-disabled={busyActionId !== null ? true : undefined}
+              tabIndex={busyActionId !== null ? -1 : undefined}
+            >
+              {busyActionId === "fallback-search" ? (
+                <>
+                  <Loader2
+                    className="mr-2 size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Opening search…
+                </>
+              ) : (
+                fallbackLabel
+              )}
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant={hasLastEditor ? "outline" : undefined}
+            size="sm"
+            onClick={handleFallbackSearch}
+            disabled={
+              busyActionId !== null && busyActionId !== "fallback-search"
+            }
+            className={fallbackButtonClassName}
+          >
+            {busyActionId === "fallback-search" ? (
+              <>
+                <Loader2
+                  className="mr-2 size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Opening search…
+              </>
+            ) : (
+              fallbackLabel
+            )}
+          </Button>
+        )}
+
+        <Popover open={isStarterMenuOpen} onOpenChange={setIsStarterMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busyActionId !== null}
+              className="
+                min-h-11 border-gold/20 bg-background/70 px-4 text-xs tracking-[0.15em] uppercase
+                hover:bg-gold/5
+              "
+            >
+              <Sparkles className="mr-2 size-4" aria-hidden="true" />
+              Start with a look
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent
+            align={align === "center" ? "center" : "start"}
+            className="
+              w-[min(24rem,calc(100vw-2rem))] border-gold/15 bg-background/95 p-0 backdrop-blur-xl
+            "
+          >
+            <div className="border-b border-gold/10 px-4 py-3">
+              <p className="text-[0.68rem] tracking-[0.22em] text-gold/70 uppercase">
+                Starter looks
+              </p>
+              <p className="mt-1 text-xs/relaxed text-foreground/55">
+                Queue a ready-made look first, then open the next editor without
+                rebuilding the style by hand.
+              </p>
+            </div>
+
+            <div className="space-y-1 p-2">
+              {EDITOR_STARTER_STYLES.map((starterStyle) => (
+                <button
+                  key={starterStyle.id}
+                  type="button"
+                  onClick={() => handleQueueStarterStyle(starterStyle)}
+                  disabled={busyActionId !== null}
+                  className="
+                    flex w-full items-start justify-between gap-3 rounded-sm p-3 text-left
+                    transition-colors
+                    hover:bg-gold/6
+                    focus-visible:bg-gold/6 focus-visible:outline-none
+                  "
+                >
+                  <div>
+                    <p className="text-[0.68rem] tracking-[0.2em] text-gold/65 uppercase">
+                      {starterStyle.intentLabel}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">
+                      {starterStyle.name}
+                    </p>
+                    <p className="mt-1 text-xs/relaxed text-foreground/52">
+                      {starterStyle.description}
+                    </p>
+                  </div>
+
+                  {busyActionId === starterStyle.id ? (
+                    <Loader2
+                      className="mt-0.5 size-4 shrink-0 animate-spin text-gold"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ArrowRight
+                      className="mt-0.5 size-4 shrink-0 text-gold/75"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {showDiscoveryHint && discoveryContextLabel ? (
+        <p className="max-w-2xl text-xs/relaxed text-gold/80">
+          AniCards will keep{" "}
+          <span className="font-semibold">{discoveryContextLabel}</span> ready
+          while you launch, so the examples thread survives the detour.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SearchCapabilities() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion() ?? false;
@@ -134,26 +528,6 @@ export function SearchCapabilities() {
     syncContinuityState();
     return subscribeSearchLaunchContinuity(syncContinuityState);
   }, [syncContinuityState]);
-
-  const handleResumeLastEditor = useCallback(() => {
-    const href = continuityState.lastSuccessfulUserRoute?.href;
-    if (!href) {
-      focusSearchForm(prefersReducedMotion);
-      return;
-    }
-
-    setBusyActionId("resume-last-editor");
-    void Promise.resolve(router.push(href)).catch(() => {
-      setBusyActionId(null);
-      toast.error("Couldn't reopen the last editor", {
-        description: "Try the search form above instead.",
-      });
-    });
-  }, [
-    continuityState.lastSuccessfulUserRoute?.href,
-    prefersReducedMotion,
-    router,
-  ]);
 
   const handleQueueStarterStyle = useCallback(
     (starterStyle: EditorStarterStyle) => {
@@ -193,7 +567,12 @@ export function SearchCapabilities() {
 
       focusSearchForm(prefersReducedMotion);
     },
-    [continuityState.lastSuccessfulUserRoute, prefersReducedMotion, router],
+    [
+      continuityState.lastDiscoveryContext,
+      continuityState.lastSuccessfulUserRoute,
+      prefersReducedMotion,
+      router,
+    ],
   );
 
   const hasLastEditor = Boolean(continuityState.lastSuccessfulUserRoute?.href);
@@ -206,10 +585,6 @@ export function SearchCapabilities() {
     pendingTemplateName,
     discoveryContextLabel,
   );
-  const resumeLastEditorButtonContent = renderResumeLastEditorButtonContent({
-    hasLastEditor,
-    isBusy: busyActionId === "resume-last-editor",
-  });
   const additionalRecentUserRoutes = continuityState.recentSuccessfulUserRoutes
     .filter(
       (route) => route.href !== continuityState.lastSuccessfulUserRoute?.href,
@@ -346,19 +721,14 @@ export function SearchCapabilities() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleResumeLastEditor}
-              disabled={
-                busyActionId !== null && busyActionId !== "resume-last-editor"
+            <SearchLaunchChooser
+              discoveryContext={
+                continuityState.lastDiscoveryContext ?? undefined
               }
-              className="
-                imperial-btn min-h-11 imperial-btn-fill px-4 text-xs tracking-[0.15em] uppercase
-              "
-            >
-              {resumeLastEditorButtonContent}
-            </Button>
+              fallbackLabel="Focus search form"
+              searchFallbackBehavior="focus-search"
+              showDiscoveryHint={false}
+            />
 
             <Button
               asChild

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { SearchLaunchChooser } from "@/components/search/SearchCapabilities";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import {
   buildFadeUpVariants,
@@ -135,20 +136,20 @@ export function HeroSection({
             analytics, bold visuals — and every detail is yours to tweak.
           </motion.p>
 
-          <motion.div
-            variants={fadeUp}
-            className="flex flex-col gap-4 sm:flex-row"
-          >
-            <Link
-              href="/search"
-              onClick={handleGetStartedClick}
-              className="imperial-btn imperial-btn-fill"
-            >
-              Get Started
-            </Link>
-            <Link href="/examples" className="imperial-btn imperial-btn-ghost">
-              View Gallery
-            </Link>
+          <motion.div variants={fadeUp} className="flex flex-col gap-4">
+            <SearchLaunchChooser
+              fallbackLabel="Get Started"
+              onFallbackSearchClick={handleGetStartedClick}
+            />
+
+            <div className="flex flex-wrap gap-4">
+              <Link
+                href="/examples"
+                className="imperial-btn imperial-btn-ghost"
+              >
+                View Gallery
+              </Link>
+            </div>
           </motion.div>
 
           <motion.div

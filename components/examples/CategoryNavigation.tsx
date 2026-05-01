@@ -10,7 +10,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
@@ -38,6 +38,7 @@ export function CategoryNavigation({
   allHref,
   onCategoryClick,
 }: Readonly<CategoryNavigationProps>) {
+  const router = useRouter();
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
   const items = [
@@ -121,25 +122,21 @@ export function CategoryNavigation({
             </>
           );
 
-          if (item.href && !onCategoryClick) {
-            return (
-              <Link
-                key={item.key ?? item.name}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className={className}
-              >
-                {content}
-              </Link>
-            );
-          }
-
           return (
             <button
               type="button"
               key={item.key ?? item.name}
               aria-pressed={isActive}
-              onClick={() => onCategoryClick?.(item.key)}
+              onClick={() => {
+                if (onCategoryClick) {
+                  onCategoryClick(item.key);
+                  return;
+                }
+
+                if (item.href && !isActive) {
+                  router.push(item.href);
+                }
+              }}
               className={className}
             >
               {content}

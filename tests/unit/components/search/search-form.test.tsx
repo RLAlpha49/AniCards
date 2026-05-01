@@ -248,21 +248,22 @@ mock.module("@/components/search/SearchHeroSection", () => ({
       <button type="button" onClick={() => onResumeLastEditor?.()}>
         Resume last editor
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          if (!lookupResult) {
-            return;
-          }
-
-          onOpenResolvedLookup?.(
-            lookupResult.href,
-            lookupResult.trackingSource,
-          );
-        }}
-      >
-        Open resolved lookup
-      </button>
+      {lookupResult ? (
+        <a
+          href={lookupResult.href}
+          onClick={(event) => {
+            event.preventDefault();
+            onOpenResolvedLookup?.(
+              lookupResult.href,
+              lookupResult.trackingSource,
+            );
+          }}
+        >
+          Open resolved lookup
+        </a>
+      ) : (
+        <button type="button">Open resolved lookup</button>
+      )}
       <output data-testid="last-editor-href">
         {lastSuccessfulUserRoute?.href ?? ""}
       </output>
@@ -819,13 +820,21 @@ describe("SearchForm", () => {
       "@Alpha49",
     );
 
-    fireEvent.click(
-      view.getByRole("button", { name: /open resolved lookup/i }),
-    );
+    const openResolvedLookupLink = view.getByRole("link", {
+      name: /open resolved lookup/i,
+    });
+
+    expect(openResolvedLookupLink.getAttribute("href")).toBe("/user/Alpha49");
+
+    fireEvent.click(openResolvedLookupLink);
 
     await waitFor(() => {
-      expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
+      expect(
+        view.getByRole("dialog", { name: /working on your anilist lookup/i }),
+      ).toBeTruthy();
     });
+
+    expect(routerPush.mock.calls).toHaveLength(0);
   });
 
   it("keeps the direct editor fallback when the bootstrap lookup is missing", async () => {

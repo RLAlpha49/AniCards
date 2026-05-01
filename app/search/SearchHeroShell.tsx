@@ -281,10 +281,11 @@ export default function SearchHeroShell({
   );
 
   const handleOpenLookupResult = useCallback(
-    (href: string, trackingSource: string) => {
-      handleOpenEditorRoute(href, trackingSource);
+    (_href: string, trackingSource: string) => {
+      setLoading(true);
+      safeTrack(() => trackNavigation("user_page", trackingSource));
     },
-    [handleOpenEditorRoute],
+    [],
   );
 
   return (

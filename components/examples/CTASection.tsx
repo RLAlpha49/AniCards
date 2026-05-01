@@ -1,18 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+
+import { SearchLaunchChooser } from "@/components/search/SearchCapabilities";
+import type { SearchLaunchDiscoveryContextInput } from "@/lib/user-page-settings-templates";
 
 interface CTASectionProps {
-  createHref: string;
-  onCreateClick?: () => void;
+  discoveryContext?: SearchLaunchDiscoveryContextInput | null;
 }
 
-export function CTASection({
-  createHref,
-  onCreateClick,
-}: Readonly<CTASectionProps>) {
+export function CTASection({ discoveryContext }: Readonly<CTASectionProps>) {
   return (
     <section className="relative overflow-x-clip px-6 py-24 sm:px-12 lg:py-32">
       {/* Atmospheric glow */}
@@ -60,17 +57,13 @@ export function CTASection({
           cards — no cost, no wait, and you control every detail.
         </p>
 
-        <Link
-          href={createHref}
-          onClick={onCreateClick}
-          className="group imperial-btn inline-flex imperial-btn-fill items-center"
-        >
-          Start Building
-          <ArrowRight className="
-            ml-2 size-4 transition-transform duration-300
-            group-hover:translate-x-1
-          " />
-        </Link>
+        <div className="flex justify-center">
+          <SearchLaunchChooser
+            align="center"
+            discoveryContext={discoveryContext}
+            fallbackLabel="Start Building"
+          />
+        </div>
       </motion.div>
     </section>
   );

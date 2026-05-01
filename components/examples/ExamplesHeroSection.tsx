@@ -7,23 +7,23 @@ import {
   useSpring,
   useTransform,
 } from "framer-motion";
-import { ArrowDown, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { ArrowDown } from "lucide-react";
 import { type MouseEvent, useEffect, useRef } from "react";
 
+import { SearchLaunchChooser } from "@/components/search/SearchCapabilities";
 import {
   buildFadeUpVariants,
   buildMotionSafeStaggerContainer,
   buildScaleInVariants,
   getMotionSafeScrollBehavior,
 } from "@/lib/animations";
+import type { SearchLaunchDiscoveryContextInput } from "@/lib/user-page-settings-templates";
 
 interface HeroSectionProps {
   totalCardTypes: number;
   totalVariants: number;
   categoryCount: number;
-  createHref: string;
-  onCreateClick?: () => void;
+  discoveryContext?: SearchLaunchDiscoveryContextInput | null;
 }
 
 const GALLERY_SECTION_ID = "card-gallery";
@@ -64,8 +64,7 @@ export function ExamplesHeroSection({
   totalCardTypes,
   totalVariants,
   categoryCount,
-  createHref,
-  onCreateClick,
+  discoveryContext,
 }: Readonly<HeroSectionProps>) {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const orchestrate = buildMotionSafeStaggerContainer({
@@ -292,16 +291,13 @@ export function ExamplesHeroSection({
         {/* Actions */}
         <motion.div
           variants={riseIn}
-          className="mt-12 flex flex-wrap items-center gap-4"
+          className="mt-12 flex flex-col items-start gap-4"
         >
-          <Link
-            href={createHref}
-            onClick={onCreateClick}
-            className="imperial-btn inline-flex imperial-btn-fill items-center"
-          >
-            <Sparkles className="mr-2 size-4" />
-            Create Yours
-          </Link>
+          <SearchLaunchChooser
+            discoveryContext={discoveryContext}
+            fallbackLabel="Create Yours"
+          />
+
           <a
             href="#card-gallery"
             onClick={handleBrowseGalleryClick}

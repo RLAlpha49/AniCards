@@ -152,7 +152,6 @@ export function SearchHeroSection({
         return;
       }
 
-      event.preventDefault();
       onOpenResolvedLookup?.(lookupResult.href, lookupResult.trackingSource);
     },
     [lookupResult, onOpenResolvedLookup],
@@ -542,7 +541,7 @@ export function SearchHeroSection({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <a
+                <Link
                   href={lookupResult.href}
                   data-testid="search-lookup-cta"
                   onClick={handleLookupLinkClick}
@@ -553,7 +552,7 @@ export function SearchHeroSection({
                 >
                   {lookupResult.ctaLabel}
                   <ArrowRight className="size-4" aria-hidden="true" />
-                </a>
+                </Link>
               </div>
             </div>
           </motion.div>
