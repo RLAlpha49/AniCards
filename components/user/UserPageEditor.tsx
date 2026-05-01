@@ -116,6 +116,7 @@ import {
   consumePendingSettingsTemplateApply,
   getExamplesDiscoveryContextLabel,
   type PendingSettingsTemplateApply,
+  readPendingSettingsTemplateApply,
   readSettingsTemplatesFromStorage,
   rememberLastSuccessfulUserPageRoute,
 } from "@/lib/user-page-settings-templates";
@@ -476,6 +477,18 @@ const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
 type VisibilityFilter = "all" | "enabled" | "disabled";
 
+export type EditorFilterState = {
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  customFilter: CustomFilter;
+};
+
+export type ReorderModeFilterSession = Pick<
+  EditorFilterState,
+  "query" | "visibility" | "customFilter"
+>;
+
 function parseVisibilityParam(v: string | null): VisibilityFilter {
   return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
 }
@@ -490,6 +503,49 @@ function hasReorderModeBlockingFilters(params: {
     params.visibility !== "all" ||
     params.customFilter !== "all"
   );
+}
+
+export function captureReorderModeFilterSession(params: {
+  query: string;
+  visibility: VisibilityFilter;
+  customFilter: CustomFilter;
+}): ReorderModeFilterSession | null {
+  if (!hasReorderModeBlockingFilters(params)) {
+    return null;
+  }
+
+  return {
+    query: params.query,
+    visibility: params.visibility,
+    customFilter: params.customFilter,
+  };
+}
+
+export function clearReorderModeBlockingFilters(
+  state: EditorFilterState,
+): EditorFilterState {
+  return {
+    ...state,
+    query: "",
+    visibility: "all",
+    customFilter: "all",
+  };
+}
+
+export function restoreReorderModeFilterSession(params: {
+  currentState: EditorFilterState;
+  session: ReorderModeFilterSession | null;
+}): EditorFilterState {
+  if (!params.session) {
+    return params.currentState;
+  }
+
+  return {
+    ...params.currentState,
+    query: params.session.query,
+    visibility: params.session.visibility,
+    customFilter: params.session.customFilter,
+  };
 }
 
 export type SearchParamsLike = { get: (key: string) => string | null };
@@ -986,9 +1042,9 @@ function shouldBlockBrowserShortcutDefault(key: string, shiftKey: boolean) {
 function handleEditorEscapeShortcut(params: {
   clearSelection: () => void;
   event: KeyboardEvent;
+  exitReorderMode: () => void;
   isReorderMode: boolean;
   key: string;
-  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
 }): boolean {
   if (params.key !== "escape") {
     return false;
@@ -1009,7 +1065,7 @@ function handleEditorEscapeShortcut(params: {
     return true;
   }
 
-  params.setIsReorderMode(false);
+  params.exitReorderMode();
   return true;
 }
 
@@ -1078,8 +1134,8 @@ function handleEditorModChord(params: {
 
 function useUserPageEditorKeyboardShortcuts(opts: {
   canEnterReorderMode: boolean;
+  exitReorderMode: () => void;
   isReorderMode: boolean;
-  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
   clearSelection: () => void;
   selectAllEnabled: () => void;
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
@@ -1088,6 +1144,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
   setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
   searchRef: React.RefObject<HTMLInputElement | null>;
   groupFilterTriggerId: string;
+  toggleReorderMode: () => void;
 }): void {
   useEffect(() => {
     const handleHelpShortcut = (e: KeyboardEvent) => {
@@ -1110,8 +1167,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
       }
 
       e.preventDefault();
-      const next = opts.isReorderMode ? false : opts.canEnterReorderMode;
-      opts.setIsReorderMode(next);
+      opts.toggleReorderMode();
     };
 
     const handleSelectAllShortcut = (e: KeyboardEvent) => {
@@ -1147,9 +1203,9 @@ function useUserPageEditorKeyboardShortcuts(opts: {
         handleEditorEscapeShortcut({
           clearSelection: opts.clearSelection,
           event: e,
+          exitReorderMode: opts.exitReorderMode,
           isReorderMode: opts.isReorderMode,
           key,
-          setIsReorderMode: opts.setIsReorderMode,
         })
       ) {
         return;
@@ -1170,6 +1226,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
   }, [
     opts.canEnterReorderMode,
     opts.clearSelection,
+    opts.exitReorderMode,
     opts.groupFilterTriggerId,
     opts.isReorderMode,
     opts.openHelpDialog,
@@ -1177,8 +1234,8 @@ function useUserPageEditorKeyboardShortcuts(opts: {
     opts.searchRef,
     opts.selectAllEnabled,
     opts.setIsCommandPaletteOpen,
-    opts.setIsReorderMode,
     opts.setVisibility,
+    opts.toggleReorderMode,
   ]);
 }
 
@@ -1573,13 +1630,13 @@ function useEditorPersistenceActions(params: {
 function useReorderModeAvailability(opts: {
   canEnterReorderMode: boolean;
   isReorderMode: boolean;
-  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+  onAvailabilityLoss: () => void;
 }) {
   useEffect(() => {
     if (opts.isReorderMode && !opts.canEnterReorderMode) {
-      opts.setIsReorderMode(false);
+      opts.onAvailabilityLoss();
     }
-  }, [opts.canEnterReorderMode, opts.isReorderMode, opts.setIsReorderMode]);
+  }, [opts.canEnterReorderMode, opts.isReorderMode, opts.onAvailabilityLoss]);
 }
 
 function usePendingSettingsTemplateApplication(params: {
@@ -2025,6 +2082,7 @@ type EditorBulkActionsProps = {
   expandAll: () => void;
   collapseAll: () => void;
   isReorderMode: boolean;
+  willRestoreReorderFilters: boolean;
   canEnterReorderMode: boolean;
   onToggleReorderMode: () => void;
   undoBulk: () => void;
@@ -2059,6 +2117,7 @@ function EditorBulkActions({
   expandAll,
   collapseAll,
   isReorderMode,
+  willRestoreReorderFilters,
   canEnterReorderMode,
   onToggleReorderMode,
   undoBulk,
@@ -2590,7 +2649,10 @@ function EditorBulkActions({
       />
 
       <BulkActionLiveRegion message={bulkLastMessage} />
-      <ReorderModeHint isVisible={isReorderMode} />
+      <ReorderModeHint
+        isVisible={isReorderMode}
+        willRestoreFilters={willRestoreReorderFilters}
+      />
     </>
   );
 }
@@ -2945,8 +3007,61 @@ export function UserPageEditor({
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [reorderFilterSession, setReorderFilterSession] =
+    useState<ReorderModeFilterSession | null>(null);
 
   const groupFilterTriggerId = "card-group-filter";
+  const currentFilterState = useMemo<EditorFilterState>(
+    () => ({
+      query,
+      visibility,
+      selectedGroup,
+      customFilter,
+    }),
+    [customFilter, query, selectedGroup, visibility],
+  );
+
+  const applyFilterState = useCallback(
+    (nextState: EditorFilterState) => {
+      if (nextState.query !== query) {
+        setQuery(nextState.query);
+      }
+
+      if (nextState.visibility !== visibility) {
+        setVisibility(nextState.visibility);
+      }
+
+      if (nextState.selectedGroup !== selectedGroup) {
+        setSelectedGroup(nextState.selectedGroup);
+      }
+
+      if (nextState.customFilter !== customFilter) {
+        setCustomFilter(nextState.customFilter);
+      }
+    },
+    [customFilter, query, selectedGroup, visibility],
+  );
+
+  const exitReorderMode = useCallback(() => {
+    const nextState = restoreReorderModeFilterSession({
+      currentState: currentFilterState,
+      session: reorderFilterSession,
+    });
+
+    setReorderFilterSession(null);
+    setIsReorderMode(false);
+
+    if (!reorderFilterSession) {
+      return;
+    }
+
+    applyFilterState(nextState);
+    toast("Filter view restored", {
+      id: "reorder-mode-restored-filters",
+      description:
+        "Your search, visibility, and customization filters are back where you left them.",
+    });
+  }, [applyFilterState, currentFilterState, reorderFilterSession]);
 
   const hasReorderBlockingFilters = useMemo(
     () =>
@@ -2958,11 +3073,19 @@ export function UserPageEditor({
     [query, visibility, customFilter],
   );
   const canEnterReorderMode = !hasReorderBlockingFilters;
+  const handleReorderAvailabilityLoss = useCallback(() => {
+    setReorderFilterSession(null);
+    setIsReorderMode(false);
+  }, []);
   useReorderModeAvailability({
     canEnterReorderMode,
     isReorderMode,
-    setIsReorderMode,
+    onAvailabilityLoss: handleReorderAvailabilityLoss,
   });
+  const pendingNewUserStarterWorkspaceSeed = useMemo(
+    () => readPendingSettingsTemplateApply()?.starterWorkspaceSeed ?? null,
+    [],
+  );
 
   const {
     isNewUser,
@@ -2971,7 +3094,9 @@ export function UserPageEditor({
     setCardsWarning,
     startSetup,
     hasPendingSetup,
-  } = useNewUserSetup();
+  } = useNewUserSetup({
+    starterWorkspaceSeed: pendingNewUserStarterWorkspaceSeed,
+  });
 
   const prefetchHelpDialog = useCallback(() => {
     void loadUserHelpDialog();
@@ -3116,20 +3241,6 @@ export function UserPageEditor({
       setCustomFilter,
     });
   }, [customFilter, query, searchParams, selectedGroup, visibility]);
-
-  useUserPageEditorKeyboardShortcuts({
-    canEnterReorderMode,
-    isReorderMode,
-    setIsReorderMode,
-    clearSelection,
-    selectAllEnabled,
-    setVisibility,
-    saveNow,
-    openHelpDialog,
-    setIsCommandPaletteOpen,
-    searchRef,
-    groupFilterTriggerId,
-  });
 
   const {
     draftRecord,
@@ -3288,29 +3399,46 @@ export function UserPageEditor({
   }, []);
 
   const handleClearReorderBlockersAndEnter = useCallback(() => {
-    if (query.trim().length > 0) {
-      setQuery("");
-    }
-
-    if (visibility !== "all") {
-      setVisibility("all");
-    }
-
-    if (customFilter !== "all") {
-      setCustomFilter("all");
-    }
-
+    setReorderFilterSession(
+      captureReorderModeFilterSession({
+        query,
+        visibility,
+        customFilter,
+      }),
+    );
+    applyFilterState(clearReorderModeBlockingFilters(currentFilterState));
     setIsReorderMode(true);
     toast("Reorder mode is ready", {
       id: "reorder-mode-prepared",
       description:
-        "Cleared the filters that block reordering. Category focus stays in place.",
+        "Cleared the filters that block reordering. Finish reordering to restore your search, visibility, and customization view. Category focus stays in place.",
     });
-  }, [customFilter, query, visibility]);
+  }, [applyFilterState, currentFilterState, customFilter, query, visibility]);
 
   const handleToggleReorderMode = useCallback(() => {
-    setIsReorderMode((prev) => !prev);
-  }, []);
+    if (isReorderMode) {
+      exitReorderMode();
+      return;
+    }
+
+    setReorderFilterSession(null);
+    setIsReorderMode(true);
+  }, [exitReorderMode, isReorderMode]);
+
+  useUserPageEditorKeyboardShortcuts({
+    canEnterReorderMode,
+    exitReorderMode,
+    isReorderMode,
+    clearSelection,
+    selectAllEnabled,
+    setVisibility,
+    saveNow,
+    openHelpDialog,
+    setIsCommandPaletteOpen,
+    searchRef,
+    groupFilterTriggerId,
+    toggleReorderMode: handleToggleReorderMode,
+  });
 
   const { recentActionsStorageKey, commandPaletteCommands } =
     useUserPageEditorCommandPalette({
@@ -3374,13 +3502,14 @@ export function UserPageEditor({
         supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
         supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
         isFavoritesGrid={cardType.id === "favoritesGrid"}
+        spotlightSettingsTools={!cardCustomizedById[cardType.id]}
         dragHandleProps={isReorderMode ? ctx?.dragHandleProps : undefined}
         reorderControls={isReorderMode ? ctx?.reorderControls : undefined}
         isDragging={isReorderMode ? ctx?.isDragging : false}
         preferTapInfoDisclosure={prefersCoarsePointer}
       />
     ),
-    [isReorderMode, prefersCoarsePointer],
+    [cardCustomizedById, isReorderMode, prefersCoarsePointer],
   );
 
   const saveState = useMemo(
@@ -4057,6 +4186,7 @@ export function UserPageEditor({
                   expandAll={expandAll}
                   collapseAll={collapseAll}
                   isReorderMode={isReorderMode}
+                  willRestoreReorderFilters={reorderFilterSession != null}
                   canEnterReorderMode={canEnterReorderMode}
                   onToggleReorderMode={handleToggleReorderMode}
                   undoBulk={undoBulk}

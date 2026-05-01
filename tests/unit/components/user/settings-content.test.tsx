@@ -229,6 +229,35 @@ async function renderSettingsContent(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createSharedSettingsContentProps() {
+  return {
+    colors: ["#111111", "#222222", "#333333", "#444444"] as [
+      string,
+      string,
+      string,
+      string,
+    ],
+    colorPreset: "default",
+    onColorChange: mock(() => undefined),
+    onPresetChange: mock(() => undefined),
+    borderEnabled: false,
+    onBorderEnabledChange: mock(() => undefined),
+    borderColor: "#e4e2e2",
+    onBorderColorChange: mock(() => undefined),
+    borderRadius: 0,
+    onBorderRadiusChange: mock(() => undefined),
+    advancedSettings: {
+      useStatusColors: false,
+      showPiePercentages: false,
+      showFavorites: false,
+      gridCols: 3,
+      gridRows: 3,
+    },
+    onAdvancedSettingChange: mock(() => undefined),
+    onReset: mock(() => undefined),
+  };
+}
+
 describe("SettingsContent", () => {
   it("wires collapsible section toggles to stable controlled panels", async () => {
     const view = await renderSettingsContent();
@@ -392,5 +421,45 @@ describe("SettingsContent", () => {
 
     expect(onPresetChange.mock.calls).toEqual([["default"], ["anilistLight"]]);
     view.getByRole("button", { name: /reset card settings/i });
+  });
+
+  it("turns the card settings empty state into guided actions", async () => {
+    const { CardSettingsPanel } =
+      await import("@/components/user/CardSettingsPanel");
+
+    const view = render(
+      <CardSettingsPanel
+        mode="card"
+        idPrefix="anime-stats"
+        title="Anime Stats Settings"
+        description="Customize this card's appearance."
+        useCustomSettings={false}
+        onUseCustomSettingsChange={mock(() => undefined)}
+        emptyStateActions={
+          <>
+            <button type="button">Use custom settings</button>
+            <button type="button">Copy another card</button>
+            <button type="button">Apply template</button>
+            <button type="button">Import JSON</button>
+          </>
+        }
+        settingsContentProps={createSharedSettingsContentProps()}
+      />,
+    );
+
+    expect(
+      view.getByText(/currently following your global settings/i),
+    ).toBeTruthy();
+    expect(view.getByRole("switch", { name: /use custom settings/i })).toBe(
+      view.getByRole("switch", { name: /use custom settings/i }),
+    );
+    expect(
+      view.getByRole("button", { name: /copy another card/i }),
+    ).toBeTruthy();
+    expect(view.getByRole("button", { name: /apply template/i })).toBeTruthy();
+    expect(view.getByRole("button", { name: /import json/i })).toBeTruthy();
+    expect(
+      view.getByText(/automatically gives this card its own starting point/i),
+    ).toBeTruthy();
   });
 });

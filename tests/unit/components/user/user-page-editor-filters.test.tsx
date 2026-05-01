@@ -77,6 +77,9 @@ installHappyDom("https://anicards.test/user/Alpha49");
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const {
   buildEditorUrl,
+  captureReorderModeFilterSession,
+  clearReorderModeBlockingFilters,
+  restoreReorderModeFilterSession,
   shouldPromptForEditorNavigation,
   shouldWarnBeforeLeavingEditor,
   syncFiltersFromSearchParams,
@@ -429,6 +432,67 @@ describe("editor filter URL semantics", () => {
         customFilter: "all",
       }),
     ).toBe("/user/Alpha49");
+  });
+
+  it("captures only the filters that reorder mode needs to clear", () => {
+    expect(
+      captureReorderModeFilterSession({
+        query: "seasonal",
+        visibility: "enabled",
+        customFilter: "customized",
+      }),
+    ).toEqual({
+      query: "seasonal",
+      visibility: "enabled",
+      customFilter: "customized",
+    });
+
+    expect(
+      captureReorderModeFilterSession({
+        query: "",
+        visibility: "all",
+        customFilter: "all",
+      }),
+    ).toBeNull();
+  });
+
+  it("clears only reorder blockers and preserves the active group focus", () => {
+    expect(
+      clearReorderModeBlockingFilters({
+        query: "seasonal",
+        visibility: "enabled",
+        selectedGroup: "Core Stats",
+        customFilter: "customized",
+      }),
+    ).toEqual({
+      query: "",
+      visibility: "all",
+      selectedGroup: "Core Stats",
+      customFilter: "all",
+    });
+  });
+
+  it("restores cleared reorder filters without overwriting later group focus", () => {
+    expect(
+      restoreReorderModeFilterSession({
+        currentState: {
+          query: "",
+          visibility: "all",
+          selectedGroup: "Anime Deep Dive",
+          customFilter: "all",
+        },
+        session: {
+          query: "seasonal",
+          visibility: "enabled",
+          customFilter: "customized",
+        },
+      }),
+    ).toEqual({
+      query: "seasonal",
+      visibility: "enabled",
+      selectedGroup: "Anime Deep Dive",
+      customFilter: "customized",
+    });
   });
 
   it("debounces router replacements when editor filters change", async () => {

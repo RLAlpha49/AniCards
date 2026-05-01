@@ -2,7 +2,8 @@
 
 export function ReorderModeHint({
   isVisible,
-}: Readonly<{ isVisible: boolean }>) {
+  willRestoreFilters = false,
+}: Readonly<{ isVisible: boolean; willRestoreFilters?: boolean }>) {
   if (!isVisible) return null;
 
   return (
@@ -13,6 +14,13 @@ export function ReorderModeHint({
       <span className="font-semibold">Reorder mode:</span> drag cards by the
       handle <span aria-label="three horizontal lines icon">(≡)</span> to change
       their order.
+      {willRestoreFilters ? (
+        <span className="text-muted-foreground">
+          {" "}
+          Finish reordering to bring back your earlier search, visibility, and
+          customization filters.
+        </span>
+      ) : null}
     </div>
   );
 }

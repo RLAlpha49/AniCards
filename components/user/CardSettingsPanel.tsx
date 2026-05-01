@@ -28,6 +28,7 @@ interface BasePanelProps {
   title: string;
   description: string;
   settingsContentProps: SharedSettingsContentProps;
+  emptyStateActions?: React.ReactNode;
   tools?: React.ReactNode;
   className?: string;
 }
@@ -84,11 +85,29 @@ function SettingsBody({
   }
 
   return (
-    <div className="
-      border border-dashed border-border/50 py-10 text-center text-sm text-muted-foreground
-    ">
-      {cardProps?.customSettingsDisabledMessage ??
-        "Enable custom settings above to customize this card's appearance."}
+    <div className="border border-dashed border-border/50 bg-muted/10 p-5 text-left">
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-foreground">
+            This card is currently following your global settings.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {cardProps?.customSettingsDisabledMessage ??
+              "Keep it linked to your global theme, or start a custom version with the shortcuts below."}
+          </p>
+        </div>
+
+        {cardProps?.emptyStateActions ? (
+          <div className="flex flex-wrap gap-2">
+            {cardProps.emptyStateActions}
+          </div>
+        ) : null}
+
+        <p className="text-xs text-muted-foreground">
+          Tip: copying another card, applying a template, or importing JSON
+          automatically gives this card its own starting point.
+        </p>
+      </div>
     </div>
   );
 }

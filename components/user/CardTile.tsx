@@ -80,6 +80,8 @@ interface CardTileProps {
   reorderControls?: CardTileReorderControls;
   /** Whether the tile is currently being dragged. */
   isDragging?: boolean;
+  /** Whether first-time settings actions should be spotlighted in the card settings dialog. */
+  spotlightSettingsTools?: boolean;
   /** Prefer tap/click disclosures over hover-only tooltips. */
   preferTapInfoDisclosure?: boolean;
 }
@@ -463,6 +465,7 @@ export const CardTile = memo(function CardTile({
   dragHandleProps,
   reorderControls,
   isDragging = false,
+  spotlightSettingsTools = false,
   preferTapInfoDisclosure = false,
 }: Readonly<CardTileProps>) {
   const { prefersSimplifiedMotion } = useMotionPreferences();
@@ -910,6 +913,7 @@ export const CardTile = memo(function CardTile({
             supportsFavorites={supportsFavorites}
             isFavoritesGrid={isFavoritesGrid}
             currentVariant={config.variant}
+            spotlightSettingsTools={spotlightSettingsTools}
           />
 
           <ExpandedPreviewDialog

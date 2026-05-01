@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
+import { Button } from "@/components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
-import { SettingsTools } from "@/components/user/SettingsTools";
+import {
+  SettingsTools,
+  type SettingsToolsActionRequest,
+} from "@/components/user/SettingsTools";
 import {
   type CardAdvancedSettings,
   DEFAULT_BORDER_COLOR,
@@ -31,6 +35,7 @@ interface CardSettingsDialogProps {
   supportsFavorites?: boolean;
   isFavoritesGrid?: boolean;
   currentVariant?: string;
+  spotlightSettingsTools?: boolean;
 }
 
 export function CardSettingsDialog({
@@ -43,6 +48,7 @@ export function CardSettingsDialog({
   supportsFavorites = false,
   isFavoritesGrid = false,
   currentVariant = "default",
+  spotlightSettingsTools = false,
 }: Readonly<CardSettingsDialogProps>) {
   const {
     configFromStore,
@@ -109,6 +115,8 @@ export function CardSettingsDialog({
   const isCustomized = isCardCustomized(config);
 
   const isPieVariation = currentVariant === "pie" || currentVariant === "donut";
+  const [requestedToolsAction, setRequestedToolsAction] =
+    useState<SettingsToolsActionRequest | null>(null);
 
   const handleToggleCustomSettings = useCallback(
     (enabled: boolean) => {
@@ -186,6 +194,50 @@ export function CardSettingsDialog({
     showGridSize: isFavoritesGrid,
   };
 
+  const requestToolsAction = useCallback(
+    (action: SettingsToolsActionRequest) => {
+      setRequestedToolsAction(action);
+    },
+    [],
+  );
+
+  const emptyStateActions = (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        size="sm"
+        className="bg-gold text-white shadow-sm hover:bg-gold/90"
+        onClick={() => handleToggleCustomSettings(true)}
+      >
+        Use custom settings
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => requestToolsAction("copy-from-card")}
+      >
+        Copy another card
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => requestToolsAction("templates")}
+      >
+        Apply template
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => requestToolsAction("import")}
+      >
+        Import JSON
+      </Button>
+    </div>
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="
@@ -206,8 +258,21 @@ export function CardSettingsDialog({
           idPrefix={cardId}
           title={`${label} Settings`}
           description="Customize this card's appearance. Settings Tools below can copy, import, export, or save reusable looks."
+          emptyStateActions={emptyStateActions}
           tools={
-            <SettingsTools mode="card" cardId={cardId} cardLabel={label} />
+            <SettingsTools
+              mode="card"
+              cardId={cardId}
+              cardLabel={label}
+              defaultExpanded={spotlightSettingsTools}
+              spotlightMessage={
+                spotlightSettingsTools
+                  ? "First custom look? Start with Copy from another card, Templates, or Import / Export below."
+                  : undefined
+              }
+              requestedAction={requestedToolsAction}
+              onRequestedActionHandled={() => setRequestedToolsAction(null)}
+            />
           }
           isCustomized={isCustomized}
           useCustomSettings={useCustomSettings}

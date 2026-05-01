@@ -88,10 +88,26 @@ type SettingsToolsProps =
       mode: "card";
       cardId: string;
       cardLabel: string;
+      defaultExpanded?: boolean;
+      onRequestedActionHandled?: (action: SettingsToolsActionRequest) => void;
+      requestedAction?: SettingsToolsActionRequest | null;
+      spotlightMessage?: string;
     }
   | {
       mode: "global";
+      defaultExpanded?: boolean;
+      onRequestedActionHandled?: (action: SettingsToolsActionRequest) => void;
+      requestedAction?: SettingsToolsActionRequest | null;
+      spotlightMessage?: string;
     };
+
+export type SettingsToolsActionRequest =
+  | "copy-from-card"
+  | "templates"
+  | "import"
+  | "workspace-restore";
+
+type SettingsToolsArea = "copy" | "templates" | "import" | "workspace";
 
 type ExportKind = "current" | "templates" | "all";
 
@@ -151,6 +167,43 @@ const EMPTY_SETTINGS_TOOLS_SHARE_DATA: SettingsToolsShareData = {
   shareableCards: [],
   skippedDisabledCards: [],
 };
+
+const SETTINGS_IMPORT_EXAMPLE = JSON.stringify(
+  {
+    colorPreset: "custom",
+    colors: ["#111111", "#222222", "#333333", "#444444"],
+    borderEnabled: false,
+    borderColor: "#e4e2e2",
+    borderRadius: 12,
+    advancedSettings: {},
+  },
+  null,
+  2,
+);
+
+const WORKSPACE_RESTORE_EXAMPLE = JSON.stringify(
+  {
+    schemaVersion: 1,
+    scope: "workspace",
+    workspace: {
+      global: {
+        colorPreset: "custom",
+        colors: ["#111111", "#222222", "#333333", "#444444"],
+        borderEnabled: false,
+        borderColor: "#e4e2e2",
+        borderRadius: 12,
+        advancedSettings: {},
+      },
+      cardConfigs: {},
+      cardOrder: [],
+    },
+    editorState: {
+      templates: [],
+    },
+  },
+  null,
+  2,
+);
 
 function clearTimeoutRef(timerRef: {
   current: ReturnType<typeof setTimeout> | null;
@@ -213,6 +266,48 @@ function getSettingsToolsFeedbackNode(options: {
   }
 
   return options.defaultMessage;
+}
+
+function getSettingsToolsAreaForRequest(
+  request: SettingsToolsActionRequest,
+): SettingsToolsArea {
+  switch (request) {
+    case "copy-from-card":
+      return "copy";
+    case "templates":
+      return "templates";
+    case "workspace-restore":
+      return "workspace";
+    case "import":
+    default:
+      return "import";
+  }
+}
+
+function SettingsToolsJsonExampleBlock(
+  props: Readonly<{
+    children?: React.ReactNode;
+    example: string;
+    title: string;
+  }>,
+) {
+  return (
+    <div className="
+      space-y-2 rounded-sm border border-gold/15 bg-gold/3 p-3 text-xs
+      dark:border-gold/12
+    ">
+      <div className="space-y-1">
+        <p className="font-semibold text-foreground">{props.title}</p>
+        {props.children}
+      </div>
+      <pre className="
+        overflow-x-auto border border-border/60 bg-background p-3 font-mono text-[11px]
+        text-foreground
+      ">
+        {props.example}
+      </pre>
+    </div>
+  );
 }
 
 function TemplateFeedbackMessage(
@@ -1043,11 +1138,20 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     null,
   );
 
-  const [isExpanded, setIsExpanded] = useState(props.mode === "global");
+  const [isExpanded, setIsExpanded] = useState(
+    props.mode === "global" || Boolean(props.defaultExpanded),
+  );
+  const [highlightedArea, setHighlightedArea] =
+    useState<SettingsToolsArea | null>(null);
   const shareCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareDownloadSummaryTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copySectionRef = useRef<HTMLDivElement | null>(null);
+  const templatesSectionRef = useRef<HTMLDivElement | null>(null);
+  const importSectionRef = useRef<HTMLDivElement | null>(null);
+  const workspaceSectionRef = useRef<HTMLDivElement | null>(null);
 
   const {
     userId,
@@ -1103,8 +1207,78 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     return () => {
       clearTimeoutRef(shareCopyTimerRef);
       clearTimeoutRef(shareDownloadSummaryTimerRef);
+      clearTimeoutRef(highlightTimerRef);
     };
   }, []);
+
+  useEffect(() => {
+    if (!props.defaultExpanded) {
+      return;
+    }
+
+    setIsExpanded(true);
+  }, [props.defaultExpanded]);
+
+  const highlightArea = useCallback((area: SettingsToolsArea) => {
+    setHighlightedArea(area);
+    clearTimeoutRef(highlightTimerRef);
+    highlightTimerRef.current = globalThis.setTimeout(() => {
+      setHighlightedArea(null);
+      highlightTimerRef.current = null;
+    }, 2500);
+  }, []);
+
+  const focusToolArea = useCallback((area: SettingsToolsArea) => {
+    const targetMap: Record<SettingsToolsArea, HTMLDivElement | null> = {
+      copy: copySectionRef.current,
+      templates: templatesSectionRef.current,
+      import: importSectionRef.current,
+      workspace: workspaceSectionRef.current,
+    };
+
+    const target = targetMap[area];
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ block: "nearest" });
+    const focusTarget = target.querySelector<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [role="combobox"]',
+    );
+    focusTarget?.focus();
+  }, []);
+
+  const revealToolArea = useCallback(
+    (area: SettingsToolsArea) => {
+      setIsExpanded(true);
+      highlightArea(area);
+
+      globalThis.setTimeout(() => {
+        focusToolArea(area);
+      }, 0);
+    },
+    [focusToolArea, highlightArea],
+  );
+
+  useEffect(() => {
+    const requestedAction = props.requestedAction;
+    if (!requestedAction) {
+      return;
+    }
+
+    const area = getSettingsToolsAreaForRequest(requestedAction);
+    revealToolArea(area);
+
+    if (requestedAction === "import") {
+      setImportOpen(true);
+    }
+
+    if (requestedAction === "workspace-restore" && props.mode === "global") {
+      setWorkspaceImportOpen(true);
+    }
+
+    props.onRequestedActionHandled?.(requestedAction);
+  }, [props, revealToolArea]);
 
   const templateOptions = useMemo(() => {
     return [...settingsTemplates].sort((a, b) => a.name.localeCompare(b.name));
@@ -1498,24 +1672,40 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             className="overflow-hidden"
           >
             <div className="space-y-5 border-t border-border/40 p-4">
+              {props.spotlightMessage ? (
+                <div className="
+                  rounded-sm border border-gold/20 bg-gold/4 p-3 text-xs text-muted-foreground
+                  dark:border-gold/12
+                ">
+                  <p className="font-semibold text-foreground">
+                    Guided next steps
+                  </p>
+                  <p className="mt-1">{props.spotlightMessage}</p>
+                </div>
+              ) : null}
+
               {/* ── Copy from Card ─────────────────────────── */}
               {isCardMode && (
                 <SettingsToolsCopyFromCardSection
                   cardOptions={cardOptions}
                   copyFromCardId={copyFromCardId}
+                  highlighted={highlightedArea === "copy"}
                   onCopyFromCard={handleCopyFromCard}
                   onCopyFromCardIdChange={setCopyFromCardId}
+                  sectionRef={copySectionRef}
                 />
               )}
 
               {/* ── Templates ─────────────────────────────── */}
               <SettingsToolsTemplatesSection
                 feedbackNode={templateFeedbackNode}
+                highlighted={highlightedArea === "templates"}
                 onApplyTemplate={handleApplyTemplate}
                 onDeleteTemplate={handleDeleteTemplate}
                 onSaveTemplate={handleSaveTemplate}
                 onSelectedTemplateIdChange={setSelectedTemplateId}
                 onTemplateNameChange={setTemplateName}
+                sectionRef={templatesSectionRef}
                 selectedTemplateId={selectedTemplateId}
                 templateName={templateName}
                 templateOptions={templateOptions}
@@ -1543,12 +1733,14 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                   />
                   <SettingsToolsWorkspaceBackupSection
                     feedbackNode={workspaceFeedbackNode}
+                    highlighted={highlightedArea === "workspace"}
                     onCopyWorkspaceBackup={handleCopyWorkspaceBackup}
                     onDownloadWorkspaceBackup={handleDownloadWorkspaceBackup}
                     onWorkspaceImportFile={handleWorkspaceImportFile}
                     onWorkspaceImportOpenChange={setWorkspaceImportOpen}
                     onWorkspaceImportString={handleWorkspaceImportString}
                     onWorkspaceImportTextChange={setWorkspaceImportText}
+                    sectionRef={workspaceSectionRef}
                     workspaceImportError={workspaceImportError}
                     workspaceImportOpen={workspaceImportOpen}
                     workspaceImportSuccess={workspaceImportSuccess}
@@ -1558,7 +1750,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
               )}
 
               {/* ── Import / Export ────────────────────────── */}
-              <ToolGroup label="Import / Export (JSON)">
+              <ToolGroup
+                label="Import / Export (JSON)"
+                highlighted={highlightedArea === "import"}
+                sectionRef={importSectionRef}
+              >
                 <div className="space-y-2.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Select
@@ -1649,6 +1845,30 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                             />
                           </div>
 
+                          <SettingsToolsJsonExampleBlock
+                            title="Accepted shapes + apply behavior"
+                            example={SETTINGS_IMPORT_EXAMPLE}
+                          >
+                            <ul className="space-y-1 text-muted-foreground">
+                              <li>
+                                Bare snapshots like this one apply immediately
+                                to the current target.
+                              </li>
+                              <li>
+                                Wrapped exports with{" "}
+                                <code>scope: "global"</code>
+                                or <code>scope: "card"</code> also apply to the
+                                current target.
+                              </li>
+                              <li>
+                                <code>scope: "templates"</code> merges templates
+                                into your saved library, while
+                                <code> scope: "all"</code> applies global
+                                settings and then merges templates.
+                              </li>
+                            </ul>
+                          </SettingsToolsJsonExampleBlock>
+
                           <div className="space-y-2">
                             <Label
                               htmlFor="settings-import-text"
@@ -1728,12 +1948,18 @@ function SettingsToolsCopyFromCardSection(
   props: Readonly<{
     cardOptions: SettingsToolsCardOption[];
     copyFromCardId: string;
+    highlighted?: boolean;
     onCopyFromCard: () => void;
     onCopyFromCardIdChange: (value: string) => void;
+    sectionRef?: React.RefObject<HTMLDivElement | null>;
   }>,
 ) {
   return (
-    <ToolGroup label="Copy from another card">
+    <ToolGroup
+      label="Copy from another card"
+      highlighted={props.highlighted}
+      sectionRef={props.sectionRef}
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select
           value={props.copyFromCardId}
@@ -1770,18 +1996,24 @@ function SettingsToolsCopyFromCardSection(
 function SettingsToolsTemplatesSection(
   props: Readonly<{
     feedbackNode: React.ReactNode;
+    highlighted?: boolean;
     onApplyTemplate: () => void;
     onDeleteTemplate: () => void;
     onSaveTemplate: () => void;
     onSelectedTemplateIdChange: (value: string) => void;
     onTemplateNameChange: (value: string) => void;
+    sectionRef?: React.RefObject<HTMLDivElement | null>;
     selectedTemplateId: string;
     templateName: string;
     templateOptions: SettingsTemplateV1[];
   }>,
 ) {
   return (
-    <ToolGroup label="Templates">
+    <ToolGroup
+      label="Templates"
+      highlighted={props.highlighted}
+      sectionRef={props.sectionRef}
+    >
       <div className="space-y-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
@@ -1949,12 +2181,14 @@ function SettingsToolsProfileSharingSection(
 function SettingsToolsWorkspaceBackupSection(
   props: Readonly<{
     feedbackNode: React.ReactNode;
+    highlighted?: boolean;
     onCopyWorkspaceBackup: () => void | Promise<void>;
     onDownloadWorkspaceBackup: () => void;
     onWorkspaceImportFile: (file: File) => void | Promise<void>;
     onWorkspaceImportOpenChange: (value: boolean) => void;
     onWorkspaceImportString: (raw: string) => void;
     onWorkspaceImportTextChange: (value: string) => void;
+    sectionRef?: React.RefObject<HTMLDivElement | null>;
     workspaceImportError: string | null;
     workspaceImportOpen: boolean;
     workspaceImportSuccess: string | null;
@@ -1962,7 +2196,11 @@ function SettingsToolsWorkspaceBackupSection(
   }>,
 ) {
   return (
-    <ToolGroup label="Workspace backup / restore">
+    <ToolGroup
+      label="Workspace backup / restore"
+      highlighted={props.highlighted}
+      sectionRef={props.sectionRef}
+    >
       <div className="space-y-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button
@@ -2031,6 +2269,24 @@ function SettingsToolsWorkspaceBackupSection(
                     }}
                   />
                 </div>
+
+                <SettingsToolsJsonExampleBlock
+                  title="Restore behavior + minimal valid backup"
+                  example={WORKSPACE_RESTORE_EXAMPLE}
+                >
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li>
+                      Restore is destructive: it replaces the current in-browser
+                      workspace view, card order, template library, and local
+                      recovery state.
+                    </li>
+                    <li>
+                      Use <strong>Copy backup JSON</strong> or
+                      <strong> Download backup</strong> first if you want a
+                      rollback point.
+                    </li>
+                  </ul>
+                </SettingsToolsJsonExampleBlock>
 
                 <div className="space-y-2">
                   <Label htmlFor="workspace-import-text" className="text-xs">
@@ -2109,10 +2365,23 @@ function SettingsToolsWorkspaceBackupSection(
 
 function ToolGroup({
   label,
+  highlighted = false,
+  sectionRef,
   children,
-}: Readonly<{ label: string; children: React.ReactNode }>) {
+}: Readonly<{
+  label: string;
+  highlighted?: boolean;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}>) {
   return (
-    <div className="space-y-2">
+    <div
+      ref={sectionRef}
+      className={cn(
+        "space-y-2 rounded-sm border border-transparent p-2 transition-colors",
+        highlighted && "border-gold/25 bg-gold/4 dark:border-gold/18",
+      )}
+    >
       <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
         {label}
       </Label>
