@@ -54,6 +54,10 @@ interface BatchConversionImage {
   format: CardDownloadFormat;
 }
 
+interface BatchExportPreflight {
+  preloadedSvgMarkupByIndex?: Map<number, string>;
+}
+
 /** Summary after exporting a batch of converted images. @source */
 export interface BatchExportSummary {
   total: number;
@@ -64,6 +68,88 @@ export interface BatchExportSummary {
 
 /** Max number of concurrent conversions during batch processing. @source */
 const BATCH_CONCURRENCY_LIMIT = 4;
+const MAX_BATCH_EXPORT_CARD_COUNT = 40;
+const MAX_BATCH_EXPORT_WORKING_SET_BYTES = 64 * 1024 * 1024;
+const SVG_EXPORT_WORKING_SET_MULTIPLIER = 2;
+const RASTER_EXPORT_WORKING_SET_MULTIPLIER = 4;
+const PRECHECK_FALLBACK_SOURCE_BYTES = 256 * 1024;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function getEstimatedBatchExportWorkingSetBytes(
+  totalSourceBytes: number,
+  format: CardDownloadFormat,
+): number {
+  return (
+    totalSourceBytes *
+    (format === "svg"
+      ? SVG_EXPORT_WORKING_SET_MULTIPLIER
+      : RASTER_EXPORT_WORKING_SET_MULTIPLIER)
+  );
+}
+
+function assertBatchExportCardCount(cards: readonly BatchExportCard[]): void {
+  if (cards.length <= MAX_BATCH_EXPORT_CARD_COUNT) {
+    return;
+  }
+
+  throw new Error(
+    `Batch exports are limited to ${MAX_BATCH_EXPORT_CARD_COUNT} cards at a time. Reduce the selection and export smaller batches.`,
+  );
+}
+
+async function preflightBatchExport(
+  cards: readonly BatchExportCard[],
+  format: CardDownloadFormat,
+): Promise<BatchExportPreflight> {
+  assertBatchExportCardCount(cards);
+
+  const preloadedSvgMarkupByIndex =
+    format === "svg" ? new Map<number, string>() : undefined;
+  let totalSourceBytes = 0;
+
+  for (const [index, card] of cards.entries()) {
+    try {
+      const svgMarkup = await readRawSvgMarkup(card);
+      totalSourceBytes += new Blob([svgMarkup]).size;
+      preloadedSvgMarkupByIndex?.set(index, svgMarkup);
+    } catch (error) {
+      totalSourceBytes += PRECHECK_FALLBACK_SOURCE_BYTES;
+      console.warn(
+        `Failed to estimate export size for ${card.rawType || card.type}; using a conservative fallback budget.`,
+        error,
+      );
+    }
+
+    const estimatedWorkingSetBytes = getEstimatedBatchExportWorkingSetBytes(
+      totalSourceBytes,
+      format,
+    );
+
+    if (estimatedWorkingSetBytes > MAX_BATCH_EXPORT_WORKING_SET_BYTES) {
+      throw new Error(
+        `Batch export is too large to build safely in the browser (${formatBytes(estimatedWorkingSetBytes)} estimated over a ${formatBytes(MAX_BATCH_EXPORT_WORKING_SET_BYTES)} budget). Reduce the selection and export smaller batches.`,
+      );
+    }
+  }
+
+  return preloadedSvgMarkupByIndex ? { preloadedSvgMarkupByIndex } : {};
+}
 
 async function loadJSZipConstructor() {
   const { default: JSZip } = await import("jszip");
@@ -102,9 +188,10 @@ async function readRawSvgMarkup(card: BatchExportCard): Promise<string> {
 async function convertCardToBlob(
   card: BatchExportCard,
   format: CardDownloadFormat,
+  preloadedSvgMarkup?: string,
 ): Promise<Blob> {
   if (format === "svg") {
-    const svgMarkup = await readRawSvgMarkup(card);
+    const svgMarkup = preloadedSvgMarkup ?? (await readRawSvgMarkup(card));
     return new Blob([svgMarkup], { type: "image/svg+xml" });
   }
 
@@ -230,6 +317,7 @@ export async function batchConvertAndZip(
     throw new Error("No cards available for export.");
   }
 
+  const preflight = await preflightBatchExport(cards, format);
   const JSZip = await loadJSZipConstructor();
   const queue = cards.map((card, index) => ({ card, index }));
   let completed = 0;
@@ -274,7 +362,11 @@ export async function batchConvertAndZip(
     index: number,
   ): Promise<void> => {
     try {
-      const blob = await convertCardToBlob(card, format);
+      const blob = await convertCardToBlob(
+        card,
+        format,
+        preflight.preloadedSvgMarkupByIndex?.get(index),
+      );
       successCount += 1;
       pendingZipEntries.set(index, {
         filename: `${card.rawType || card.type}.${format}`,

@@ -442,4 +442,40 @@ describe("batch-export queue scheduling", () => {
     expect(createdAnchor.download).toMatch(/^anicards-export-.*\.zip$/);
     expect(createdAnchor.href).toBe("blob:zip-download");
   });
+
+  it("blocks oversized batch archives before conversion work begins", async () => {
+    readSvgMarkupFromUrl.mockImplementation(async () => {
+      return `<svg>${"x".repeat(6 * 1024 * 1024)}</svg>`;
+    });
+
+    await expect(
+      batchConvertAndZip(
+        [
+          { rawType: "raw-0", svgUrl: "card-0", type: "type-0" },
+          { rawType: "raw-1", svgUrl: "card-1", type: "type-1" },
+          { rawType: "raw-2", svgUrl: "card-2", type: "type-2" },
+        ],
+        "png",
+      ),
+    ).rejects.toThrow(
+      "Batch export is too large to build safely in the browser",
+    );
+    expect(convertSvgToBlob).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("blocks exports that exceed the batch card count limit", async () => {
+    await expect(
+      batchConvertAndZip(
+        Array.from({ length: 41 }, (_, index) => ({
+          rawType: `raw-${index}`,
+          svgUrl: `card-${index}`,
+          type: `type-${index}`,
+        })),
+        "svg",
+      ),
+    ).rejects.toThrow("Batch exports are limited to 40 cards at a time");
+    expect(readSvgMarkupFromUrl).not.toHaveBeenCalled();
+    expect(convertSvgToBlob).not.toHaveBeenCalled();
+  });
 });
