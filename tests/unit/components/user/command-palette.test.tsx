@@ -23,18 +23,16 @@ installHappyDom("https://anicards.test/user/Alpha49");
 
 type DialogProps = {
   children?: ReactNode;
-  onOpenChange?: (open: boolean) => void;
   open?: boolean;
 };
 
-type DialogContentProps = ComponentProps<"div"> & {
+type DialogContentProps = ComponentProps<"dialog"> & {
   hideCloseButton?: boolean;
 };
 
 type CommandRootProps = {
   children?: ReactNode;
   className?: string;
-  onValueChange?: (value: string) => void;
   value?: string;
 };
 
@@ -52,11 +50,19 @@ type CommandItemProps = {
   children?: ReactNode;
   className?: string;
   disabled?: boolean;
-  keywords?: string[];
   onPointerDown?: ComponentProps<"button">["onPointerDown"];
   onSelect?: () => void;
   value?: string;
 };
+
+function getDialogElementProps(
+  props: DialogContentProps,
+): Omit<DialogContentProps, "children" | "hideCloseButton"> {
+  const dialogProps = { ...props };
+  delete dialogProps.children;
+  delete dialogProps.hideCloseButton;
+  return dialogProps;
+}
 
 type TestCommand = {
   description?: string;
@@ -72,19 +78,11 @@ type TestCommand = {
 mock.module("@/components/ui/Dialog", () => ({
   Dialog: ({ children, open = false }: DialogProps) =>
     open ? <div data-testid="dialog-shell">{children}</div> : null,
-  DialogContent: ({
-    children,
-    hideCloseButton: _hideCloseButton,
-    ...props
-  }: DialogContentProps) => {
-    void _hideCloseButton;
-
-    return (
-      <div role="dialog" aria-modal="true" {...props}>
-        {children}
-      </div>
-    );
-  },
+  DialogContent: (props: DialogContentProps) => (
+    <dialog open {...getDialogElementProps(props)}>
+      {props.children}
+    </dialog>
+  ),
   DialogDescription: ({ children, ...props }: ComponentProps<"p">) => (
     <p {...props}>{children}</p>
   ),
@@ -135,19 +133,15 @@ mock.module("cmdk", () => {
     children,
     className,
     disabled,
-    keywords: _keywords,
     onPointerDown,
     onSelect,
     value,
   }: CommandItemProps) => {
-    void _keywords;
-
     return (
       <button
         type="button"
-        role="option"
-        aria-disabled={disabled ? "true" : undefined}
         className={className}
+        data-disabled={disabled ? "true" : undefined}
         data-value={value ?? ""}
         disabled={disabled}
         onClick={() => {
@@ -289,10 +283,10 @@ describe("CommandPalette", () => {
       expect(view.getByText("Recent")).toBeTruthy();
     });
 
-    expect(view.getAllByRole("option", { name: /bulk actions/i })).toHaveLength(
+    expect(view.getAllByRole("button", { name: /bulk actions/i })).toHaveLength(
       2,
     );
-    expect(view.queryByRole("option", { name: /removed command/i })).toBeNull();
+    expect(view.queryByRole("button", { name: /removed command/i })).toBeNull();
     expect(view.getByText("Editor")).toBeTruthy();
     expect(view.getByText("Bulk Operations")).toBeTruthy();
     expect(view.getByText("Help & Guides")).toBeTruthy();
@@ -311,7 +305,7 @@ describe("CommandPalette", () => {
     });
 
     expect(view.queryByText("Recent")).toBeNull();
-    expect(view.getByRole("option", { name: /save layout/i })).toBeTruthy();
+    expect(view.getByRole("button", { name: /save layout/i })).toBeTruthy();
   });
 
   it("closes, stores recents, and runs commands asynchronously after selection", async () => {
@@ -324,7 +318,7 @@ describe("CommandPalette", () => {
       recentStorageKey,
     });
 
-    fireEvent.click(view.getByRole("option", { name: /bulk actions/i }));
+    fireEvent.click(view.getByRole("button", { name: /bulk actions/i }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(mocks.bulkActions).not.toHaveBeenCalled();
@@ -365,7 +359,7 @@ describe("CommandPalette", () => {
         onOpenChange,
       });
 
-      fireEvent.click(view.getByRole("option", { name: /explode/i }));
+      fireEvent.click(view.getByRole("button", { name: /explode/i }));
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
