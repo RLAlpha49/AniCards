@@ -309,6 +309,112 @@ describe("share-utils", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
   });
 
+  it("builds ordered showcase clipboard exports for markdown, html, and manifests", async () => {
+    const { copyShareableCardUrlsToClipboard } = await importRealShareUtils();
+    const clipboardWrite = getClipboardWriteMock();
+
+    const markdown = await copyShareableCardUrlsToClipboard(
+      [
+        {
+          cardId: "animeStats",
+          rawType: "animeStats-compact",
+          url: "/card.svg?cardType=animeStats&variation=compact",
+        },
+        {
+          cardId: "animeGenres",
+          rawType: "animeGenres-radar",
+          url: "https://cdn.example.test/cards/animeGenres-radar.svg",
+        },
+      ],
+      "markdown",
+    );
+
+    expect(markdown).toEqual({
+      copiedCount: 2,
+      lines: [
+        "[![AniCards animeStats-compact](https://anicards.test/card.svg?cardType=animeStats&variation=compact)](https://anicards.test/card.svg?cardType=animeStats&variation=compact)",
+        "[![AniCards animeGenres-radar](https://cdn.example.test/cards/animeGenres-radar.svg)](https://cdn.example.test/cards/animeGenres-radar.svg)",
+      ],
+    });
+    expect(clipboardWrite).toHaveBeenLastCalledWith(markdown.lines.join("\n"));
+
+    const html = await copyShareableCardUrlsToClipboard(
+      [
+        {
+          cardId: "animeStats",
+          rawType: "animeStats-compact",
+          url: "/card.svg?cardType=animeStats&variation=compact",
+        },
+      ],
+      "html",
+    );
+
+    expect(html).toEqual({
+      copiedCount: 1,
+      lines: [
+        '<section class="anicards-showcase">',
+        '  <a href="https://anicards.test/card.svg?cardType=animeStats&amp;variation=compact" data-card-id="animeStats" data-card-raw-type="animeStats-compact">',
+        '    <img src="https://anicards.test/card.svg?cardType=animeStats&amp;variation=compact" alt="AniCards animeStats-compact" loading="lazy" />',
+        "  </a>",
+        "</section>",
+      ],
+    });
+    expect(clipboardWrite).toHaveBeenLastCalledWith(html.lines.join("\n"));
+
+    const manifest = await copyShareableCardUrlsToClipboard(
+      [
+        {
+          cardId: "animeStats",
+          rawType: "animeStats-compact",
+          url: "/card.svg?cardType=animeStats&variation=compact",
+        },
+        {
+          cardId: "animeGenres",
+          rawType: "animeGenres-radar",
+          url: "https://cdn.example.test/cards/animeGenres-radar.svg",
+        },
+      ],
+      "manifest",
+    );
+
+    expect(manifest).toEqual({
+      copiedCount: 2,
+      lines: [
+        "{",
+        '  "schemaVersion": 1,',
+        '  "kind": "anicards-showcase",',
+        '  "cards": [',
+        "    {",
+        '      "order": 1,',
+        '      "cardId": "animeStats",',
+        '      "rawType": "animeStats-compact",',
+        '      "url": "https://anicards.test/card.svg?cardType=animeStats&variation=compact"',
+        "    },",
+        "    {",
+        '      "order": 2,',
+        '      "cardId": "animeGenres",',
+        '      "rawType": "animeGenres-radar",',
+        '      "url": "https://cdn.example.test/cards/animeGenres-radar.svg"',
+        "    }",
+        "  ]",
+        "}",
+      ],
+    });
+    expect(clipboardWrite).toHaveBeenLastCalledWith(manifest.lines.join("\n"));
+  });
+
+  it("orders card ids with cardOrder first and alphabetic fallback while honoring filters", async () => {
+    const { getOrderedCardIds } = await importRealShareUtils();
+
+    const ordered = getOrderedCardIds({
+      cardConfigs: createConfigs(),
+      cardOrder: ["animeGenres", "missingCard", "animeStats"],
+      includeCardId: (cardId) => cardId !== "profileOverview",
+    });
+
+    expect(ordered).toEqual(["animeGenres", "animeStats"]);
+  });
+
   it("loads batch export only when share downloads are requested", async () => {
     const progressSpy = mock(() => undefined);
     const batchConvertAndZip = mock(

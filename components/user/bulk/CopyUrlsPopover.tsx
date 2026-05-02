@@ -1,6 +1,15 @@
 "use client";
 
-import { Check, ChevronDown, Copy, ImageIcon, Link } from "lucide-react";
+import {
+  Braces,
+  Check,
+  ChevronDown,
+  Code2,
+  Copy,
+  ImageIcon,
+  Link,
+  NotebookText,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -10,9 +19,11 @@ import {
 } from "@/components/ui/Popover";
 import { cn } from "@/lib/utils";
 
+import type { ShareCardUrlFormat } from "../share-utils";
+
 interface CopyUrlsPopoverProps {
-  copiedFormat: "url" | "anilist" | "failed-list" | null;
-  handleCopyUrls: (format: "url" | "anilist") => Promise<void> | void;
+  copiedFormat: ShareCardUrlFormat | "failed-list" | null;
+  handleCopyUrls: (format: ShareCardUrlFormat) => Promise<void> | void;
 }
 
 /**
@@ -25,8 +36,15 @@ export function CopyUrlsPopover({
   const ariaLabel = (() => {
     if (copiedFormat === "url") return "URLs copied to clipboard";
     if (copiedFormat === "anilist") return "AniList format copied to clipboard";
+    if (copiedFormat === "markdown") {
+      return "Markdown showcase copied to clipboard";
+    }
+    if (copiedFormat === "html") return "HTML showcase copied to clipboard";
+    if (copiedFormat === "manifest") {
+      return "Showcase manifest copied to clipboard";
+    }
     if (copiedFormat) return "Copied to clipboard";
-    return "Copy card URLs";
+    return "Copy share export";
   })();
 
   return (
@@ -54,14 +72,14 @@ export function CopyUrlsPopover({
           ) : (
             <>
               <Copy className="size-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Copy URLs</span>
+              <span className="hidden sm:inline">Copy share</span>
               <ChevronDown className="size-3" aria-hidden="true" />
             </>
           )}
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-48 p-1.5" align="center" side="top">
+      <PopoverContent className="w-56 p-1.5" align="center" side="top">
         <div className="flex flex-col gap-0.5">
           <Button
             variant="ghost"
@@ -98,6 +116,69 @@ export function CopyUrlsPopover({
             />
             <span>AniList Format</span>
             {copiedFormat === "anilist" && (
+              <Check
+                className="ml-auto size-4 text-green-600"
+                aria-hidden="true"
+              />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
+            onClick={() => {
+              handleCopyUrls("markdown");
+            }}
+          >
+            <NotebookText
+              className="size-4 text-gold-dim dark:text-gold"
+              aria-hidden="true"
+            />
+            <span>Markdown Showcase</span>
+            {copiedFormat === "markdown" && (
+              <Check
+                className="ml-auto size-4 text-green-600"
+                aria-hidden="true"
+              />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
+            onClick={() => {
+              handleCopyUrls("html");
+            }}
+          >
+            <Code2
+              className="size-4 text-gold-dim dark:text-gold"
+              aria-hidden="true"
+            />
+            <span>HTML Showcase</span>
+            {copiedFormat === "html" && (
+              <Check
+                className="ml-auto size-4 text-green-600"
+                aria-hidden="true"
+              />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
+            onClick={() => {
+              handleCopyUrls("manifest");
+            }}
+          >
+            <Braces
+              className="size-4 text-gold-dim dark:text-gold"
+              aria-hidden="true"
+            />
+            <span>Ordered Manifest</span>
+            {copiedFormat === "manifest" && (
               <Check
                 className="ml-auto size-4 text-green-600"
                 aria-hidden="true"

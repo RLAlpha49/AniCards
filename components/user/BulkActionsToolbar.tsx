@@ -53,6 +53,8 @@ import {
   buildShareableCards,
   copyShareableCardUrlsToClipboard,
   downloadShareableCards,
+  getOrderedCardIds,
+  type ShareCardUrlFormat,
 } from "./share-utils";
 
 interface BulkActionsToolbarProps {
@@ -65,7 +67,7 @@ export function BulkActionsToolbar({
 }: Readonly<BulkActionsToolbarProps>) {
   const { prefersSimplifiedMotion } = useMotionPreferences();
   const [copiedFormat, setCopiedFormat] = useState<
-    "url" | "anilist" | "failed-list" | null
+    ShareCardUrlFormat | "failed-list" | null
   >(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({
@@ -104,6 +106,7 @@ export function BulkActionsToolbar({
     selectedCardIds,
     selectedCount,
     cardConfigs,
+    cardOrder,
     globalColorPreset,
     globalAdvancedSettings,
     bulkPastLength,
@@ -126,6 +129,7 @@ export function BulkActionsToolbar({
       selectedCardIds: state.selectedCardIds,
       selectedCount: state.selectedCardIds.size,
       cardConfigs: state.cardConfigs,
+      cardOrder: state.cardOrder,
       globalColorPreset: state.globalColorPreset,
       globalAdvancedSettings: state.globalAdvancedSettings,
       bulkPastLength: state.bulkPast.length,
@@ -145,10 +149,13 @@ export function BulkActionsToolbar({
     })),
   );
 
-  const selectedIds = useMemo(
-    () => Array.from(selectedCardIds),
-    [selectedCardIds],
-  );
+  const selectedIds = useMemo(() => {
+    return getOrderedCardIds({
+      cardConfigs,
+      cardOrder,
+      includeCardId: (cardId) => selectedCardIds.has(cardId),
+    });
+  }, [cardConfigs, cardOrder, selectedCardIds]);
 
   const canUndo = bulkPastLength > 0;
   const canRedo = bulkFutureLength > 0;
@@ -339,7 +346,7 @@ export function BulkActionsToolbar({
   }, [resetSelectedCardsToGlobal, selectedIds]);
 
   const handleCopyUrls = useCallback(
-    async (format: "url" | "anilist" = "url") => {
+    async (format: ShareCardUrlFormat = "url") => {
       if (selectedCards.length === 0) return;
 
       try {

@@ -81,6 +81,8 @@ import {
   buildShareableCards,
   copyShareableCardUrlsToClipboard,
   downloadShareableCards,
+  getOrderedCardIds,
+  type ShareCardUrlFormat,
 } from "./share-utils";
 
 type SettingsToolsProps =
@@ -161,7 +163,7 @@ type SettingsToolsDownloadProgressSetter = React.Dispatch<
     total: number;
   }>
 >;
-type SettingsToolsCopiedShareFormat = "url" | "anilist" | "failed-list" | null;
+type SettingsToolsCopiedShareFormat = ShareCardUrlFormat | "failed-list" | null;
 
 const EMPTY_SETTINGS_TOOLS_SHARE_DATA: SettingsToolsShareData = {
   shareableCards: [],
@@ -226,30 +228,6 @@ function getSettingsToolsInitialExportKind(
   mode: SettingsToolsProps["mode"],
 ): ExportKind {
   return mode === "global" ? "all" : "current";
-}
-
-function getSettingsToolsOrderedCardIds(options: {
-  cardConfigs: UserPageEditorStoreState["cardConfigs"];
-  cardOrder: UserPageEditorStoreState["cardOrder"];
-}): string[] {
-  const seen = new Set<string>();
-  const orderedIds: string[] = [];
-
-  for (const cardId of options.cardOrder) {
-    if (!options.cardConfigs[cardId] || seen.has(cardId)) continue;
-    seen.add(cardId);
-    orderedIds.push(cardId);
-  }
-
-  for (const cardId of Object.keys(options.cardConfigs).sort((a, b) =>
-    a.localeCompare(b),
-  )) {
-    if (seen.has(cardId)) continue;
-    seen.add(cardId);
-    orderedIds.push(cardId);
-  }
-
-  return orderedIds;
 }
 
 function getSettingsToolsFeedbackNode(options: {
@@ -399,7 +377,7 @@ async function copySettingsToolsJsonToClipboard(options: {
 }
 
 async function copySettingsToolsProfileShareUrlsWithFeedback(options: {
-  format: "url" | "anilist";
+  format: ShareCardUrlFormat;
   profileShareCards: SettingsToolsShareBuildResult["shareableCards"];
   setCopiedShareFormat: (value: SettingsToolsCopiedShareFormat) => void;
   shareCopyTimerRef: {
@@ -1319,7 +1297,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   );
 
   const orderedCardIds = useMemo(() => {
-    return getSettingsToolsOrderedCardIds({
+    return getOrderedCardIds({
       cardConfigs,
       cardOrder,
     });
@@ -1413,7 +1391,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [buildExport]);
 
   const handleCopyProfileShareUrls = useCallback(
-    (format: "url" | "anilist" = "url") =>
+    (format: ShareCardUrlFormat = "url") =>
       copySettingsToolsProfileShareUrlsWithFeedback({
         format,
         profileShareCards,
@@ -2113,7 +2091,7 @@ function SettingsToolsProfileSharingSection(
     downloadSummary: DownloadSummary | null;
     isDownloading: boolean;
     onCopyShareList: (list: string[]) => void | Promise<void>;
-    onCopyUrls: (format?: "url" | "anilist") => void | Promise<void>;
+    onCopyUrls: (format?: ShareCardUrlFormat) => void | Promise<void>;
     onDownloadAll: (format?: CardDownloadFormat) => void | Promise<void>;
     orderedCardIds: string[];
     profileShareCards: SettingsToolsShareBuildResult["shareableCards"];
