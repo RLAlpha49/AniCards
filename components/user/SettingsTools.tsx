@@ -1834,14 +1834,14 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                               </li>
                               <li>
                                 Wrapped exports with{" "}
-                                <code>scope: "global"</code>
-                                or <code>scope: "card"</code> also apply to the
+                                <code>scope: "global"</code> or{" "}
+                                <code>scope: "card"</code> also apply to the
                                 current target.
                               </li>
                               <li>
                                 <code>scope: "templates"</code> merges templates
-                                into your saved library, while
-                                <code> scope: "all"</code> applies global
+                                into your saved library, while{" "}
+                                <code>scope: "all"</code> applies global
                                 settings and then merges templates.
                               </li>
                             </ul>
@@ -2259,8 +2259,8 @@ function SettingsToolsWorkspaceBackupSection(
                       recovery state.
                     </li>
                     <li>
-                      Use <strong>Copy backup JSON</strong> or
-                      <strong> Download backup</strong> first if you want a
+                      Use <strong>Copy backup JSON</strong> or{" "}
+                      <strong>Download backup</strong> first if you want a
                       rollback point.
                     </li>
                   </ul>
