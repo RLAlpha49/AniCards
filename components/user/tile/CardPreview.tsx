@@ -6,17 +6,16 @@
 
 import { ExternalLink, Eye, MoreHorizontal, RotateCw } from "lucide-react";
 import {
+  type CSSProperties,
   memo,
   type ReactNode,
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 
-import { useCspNonce } from "@/components/CspNonceContext";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
@@ -267,8 +266,6 @@ export const CardPreview = memo(function CardPreview({
   prefersCoarsePointer = false,
   fetchPriority = "visible",
 }: Readonly<CardPreviewProps>) {
-  const nonce = useCspNonce();
-  const previewRadiusScopeId = useId().replaceAll(":", "");
   const { downloadTitle, downloadDescrId } = getDownloadA11yState({
     previewUrl,
     isDownloading,
@@ -355,13 +352,24 @@ export const CardPreview = memo(function CardPreview({
     () => normalizeBorderRadiusValue(borderRadiusValue),
     [borderRadiusValue],
   );
-  const previewRadiusStyleText = useMemo(() => {
+  const previewCssVars = useMemo<CSSProperties | undefined>(() => {
     if (!normalizedBorderRadius) {
-      return "";
+      return undefined;
     }
 
-    return `[data-card-preview-radius="${previewRadiusScopeId}"] [data-card-preview-image="true"] { border-radius: ${normalizedBorderRadius}; }`;
-  }, [normalizedBorderRadius, previewRadiusScopeId]);
+    return {
+      ["--card-preview-border-radius" as const]: normalizedBorderRadius,
+    } as CSSProperties;
+  }, [normalizedBorderRadius]);
+  const previewImageStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!normalizedBorderRadius) {
+      return undefined;
+    }
+
+    return {
+      borderRadius: "var(--card-preview-border-radius)",
+    };
+  }, [normalizedBorderRadius]);
 
   const handleRefresh = useCallback(() => {
     void (async () => {
@@ -426,6 +434,7 @@ export const CardPreview = memo(function CardPreview({
           alt={`${label} preview`}
           loading="lazy"
           decoding="async"
+          style={previewImageStyle}
           className={cn(
             "absolute inset-0 size-full object-contain blur-none brightness-100",
             paddingClass,
@@ -626,13 +635,7 @@ export const CardPreview = memo(function CardPreview({
   };
 
   return (
-    <div
-      data-card-preview-radius={previewRadiusScopeId}
-      className="bg-gold/3 dark:bg-gold/2"
-    >
-      {previewRadiusStyleText ? (
-        <style nonce={nonce}>{previewRadiusStyleText}</style>
-      ) : null}
+    <div className="bg-gold/3 dark:bg-gold/2" style={previewCssVars}>
       <div
         ref={previewRootRef}
         data-tour="card-preview"

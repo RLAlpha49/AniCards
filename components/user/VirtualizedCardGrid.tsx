@@ -2,18 +2,17 @@
 
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
+  type CSSProperties,
   type Key,
   type ReactNode,
   type RefObject,
   useCallback,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 
-import { useCspNonce } from "@/components/CspNonceContext";
 import { cn } from "@/lib/utils";
 
 function formatCssPixelValue(value: number): string {
@@ -21,23 +20,6 @@ function formatCssPixelValue(value: number): string {
   return Number.isInteger(roundedValue)
     ? `${roundedValue}px`
     : `${roundedValue.toFixed(2)}px`;
-}
-
-function buildVirtualizedGridStyleText(args: {
-  scopeId: string;
-  totalSize: number;
-  virtualRows: ReadonlyArray<{ index: number; start: number }>;
-  scrollMargin: number;
-}): string {
-  const ruleLines = [
-    `[data-virtual-grid="${args.scopeId}"] [data-virtual-grid-inner="true"] { height: ${formatCssPixelValue(args.totalSize)}; }`,
-    ...args.virtualRows.map(
-      (virtualRow) =>
-        `[data-virtual-grid="${args.scopeId}"] [data-virtual-grid-row="${virtualRow.index}"] { transform: translateY(${formatCssPixelValue(virtualRow.start - args.scrollMargin)}); }`,
-    ),
-  ];
-
-  return ruleLines.join("\n");
 }
 
 function getBreakpointColumnCount(containerWidth: number): number {
@@ -107,9 +89,7 @@ export function VirtualizedCardGrid<TItem>({
   scrollMarginKey,
   className,
 }: Readonly<VirtualizedCardGridProps<TItem>>) {
-  const nonce = useCspNonce();
   const containerRef = useRef<HTMLDivElement>(null);
-  const styleScopeId = useId().replaceAll(":", "");
   const containerWidth = useElementWidth(containerRef);
 
   const columnCount = useMemo(
@@ -163,34 +143,35 @@ export function VirtualizedCardGrid<TItem>({
   const keyFn = getItemKey;
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
-  const dynamicGridStyles = useMemo(
-    () =>
-      buildVirtualizedGridStyleText({
-        scopeId: styleScopeId,
-        totalSize,
-        virtualRows,
-        scrollMargin,
-      }),
-    [scrollMargin, styleScopeId, totalSize, virtualRows],
+  const innerStyle = useMemo<CSSProperties>(
+    () => ({ height: formatCssPixelValue(totalSize) }),
+    [totalSize],
   );
 
   return (
     <div
       ref={containerRef}
-      data-virtual-grid={styleScopeId}
+      data-virtual-grid="true"
       className={cn("w-full", className)}
     >
-      <style nonce={nonce}>{dynamicGridStyles}</style>
-      <div data-virtual-grid-inner="true" className="relative w-full">
+      <div
+        data-virtual-grid-inner="true"
+        className="relative w-full"
+        style={innerStyle}
+      >
         {virtualRows.map((virtualRow) => {
           const startIndex = virtualRow.index * columnCount;
           const endIndex = Math.min(startIndex + columnCount, items.length);
+          const rowStyle = {
+            transform: `translateY(${formatCssPixelValue(virtualRow.start - scrollMargin)})`,
+          } satisfies CSSProperties;
 
           return (
             <div
               key={virtualRow.key}
               data-virtual-grid-row={virtualRow.index}
               ref={rowVirtualizer.measureElement}
+              style={rowStyle}
               className="
                 absolute top-0 left-0 grid w-full grid-cols-1 gap-4
                 sm:grid-cols-2

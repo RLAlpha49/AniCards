@@ -186,7 +186,7 @@ afterAll(() => {
 });
 
 describe("VirtualizedCardGrid", () => {
-  it("renders one-column virtual rows with nonce-scoped dynamic styles", async () => {
+  it("renders one-column virtual rows with direct inline sizing and transforms", async () => {
     if (!VirtualizedCardGrid) {
       throw new TypeError("Expected VirtualizedCardGrid to be loaded.");
     }
@@ -207,11 +207,14 @@ describe("VirtualizedCardGrid", () => {
       expect(latestOptions?.scrollMargin).toBe(140);
     });
 
-    const style = view.container.querySelector("style");
-    expect(style?.getAttribute("nonce")).toBe("nonce-123");
-    expect(style?.textContent).toContain("height: 900px");
-    expect(style?.textContent).toContain("translateY(0px)");
-    expect(style?.textContent).toContain("translateY(240px)");
+    expect(view.container.querySelector("style")).toBeNull();
+    const inner = view.container.querySelector(
+      '[data-virtual-grid-inner="true"]',
+    );
+    const rows = view.container.querySelectorAll("[data-virtual-grid-row]");
+    expect(inner?.getAttribute("style")).toContain("height: 900px");
+    expect(rows[0]?.getAttribute("style")).toContain("translateY(0px)");
+    expect(rows[1]?.getAttribute("style")).toContain("translateY(240px)");
     expect(view.getByTestId("grid-item-0").textContent).toBe("Alpha");
     expect(view.getByTestId("grid-item-1").textContent).toBe("Beta");
     expect(view.getByTestId("grid-item-2").textContent).toBe("Gamma");
