@@ -233,6 +233,20 @@ function isColorValueLike(value: unknown): boolean {
   return typeof value === "string" || isPlainObject(value);
 }
 
+function getOptionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function getOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function getOptionalStarterColorValue<T>(value: unknown): T | undefined {
+  return isColorValueLike(value) ? (value as T) : undefined;
+}
+
 function parseStoredStarterCardConfig(
   value: unknown,
 ): NewUserStarterWorkspaceSeed["cards"][number] | null {
@@ -246,55 +260,31 @@ function parseStoredStarterCardConfig(
     return null;
   }
 
-  const borderRadius =
-    typeof value.borderRadius === "number" &&
-    Number.isFinite(value.borderRadius)
-      ? value.borderRadius
-      : undefined;
-
   return {
     cardName,
     variation: normalizeNonBlankString(value.variation),
     colorPreset: normalizeNonBlankString(value.colorPreset),
-    titleColor: isColorValueLike(value.titleColor)
-      ? (value.titleColor as NewUserStarterWorkspaceSeed["cards"][number]["titleColor"])
-      : undefined,
-    backgroundColor: isColorValueLike(value.backgroundColor)
-      ? (value.backgroundColor as NewUserStarterWorkspaceSeed["cards"][number]["backgroundColor"])
-      : undefined,
-    textColor: isColorValueLike(value.textColor)
-      ? (value.textColor as NewUserStarterWorkspaceSeed["cards"][number]["textColor"])
-      : undefined,
-    circleColor: isColorValueLike(value.circleColor)
-      ? (value.circleColor as NewUserStarterWorkspaceSeed["cards"][number]["circleColor"])
-      : undefined,
+    titleColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["cards"][number]["titleColor"]
+    >(value.titleColor),
+    backgroundColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["cards"][number]["backgroundColor"]
+    >(value.backgroundColor),
+    textColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["cards"][number]["textColor"]
+    >(value.textColor),
+    circleColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["cards"][number]["circleColor"]
+    >(value.circleColor),
     borderColor: normalizeNonBlankString(value.borderColor),
-    borderRadius,
-    showFavorites:
-      typeof value.showFavorites === "boolean"
-        ? value.showFavorites
-        : undefined,
-    useStatusColors:
-      typeof value.useStatusColors === "boolean"
-        ? value.useStatusColors
-        : undefined,
-    showPiePercentages:
-      typeof value.showPiePercentages === "boolean"
-        ? value.showPiePercentages
-        : undefined,
-    gridCols:
-      typeof value.gridCols === "number" && Number.isFinite(value.gridCols)
-        ? value.gridCols
-        : undefined,
-    gridRows:
-      typeof value.gridRows === "number" && Number.isFinite(value.gridRows)
-        ? value.gridRows
-        : undefined,
-    useCustomSettings:
-      typeof value.useCustomSettings === "boolean"
-        ? value.useCustomSettings
-        : undefined,
-    disabled: typeof value.disabled === "boolean" ? value.disabled : undefined,
+    borderRadius: getOptionalFiniteNumber(value.borderRadius),
+    showFavorites: getOptionalBoolean(value.showFavorites),
+    useStatusColors: getOptionalBoolean(value.useStatusColors),
+    showPiePercentages: getOptionalBoolean(value.showPiePercentages),
+    gridCols: getOptionalFiniteNumber(value.gridCols),
+    gridRows: getOptionalFiniteNumber(value.gridRows),
+    useCustomSettings: getOptionalBoolean(value.useCustomSettings),
+    disabled: getOptionalBoolean(value.disabled),
   };
 }
 
@@ -305,52 +295,28 @@ function parseStarterWorkspaceGlobalSettings(
     return null;
   }
 
-  const borderRadius =
-    typeof value.borderRadius === "number" &&
-    Number.isFinite(value.borderRadius)
-      ? value.borderRadius
-      : undefined;
-
   return {
     colorPreset: normalizeNonBlankString(value.colorPreset),
-    titleColor: isColorValueLike(value.titleColor)
-      ? (value.titleColor as NewUserStarterWorkspaceSeed["globalSettings"]["titleColor"])
-      : undefined,
-    backgroundColor: isColorValueLike(value.backgroundColor)
-      ? (value.backgroundColor as NewUserStarterWorkspaceSeed["globalSettings"]["backgroundColor"])
-      : undefined,
-    textColor: isColorValueLike(value.textColor)
-      ? (value.textColor as NewUserStarterWorkspaceSeed["globalSettings"]["textColor"])
-      : undefined,
-    circleColor: isColorValueLike(value.circleColor)
-      ? (value.circleColor as NewUserStarterWorkspaceSeed["globalSettings"]["circleColor"])
-      : undefined,
-    borderEnabled:
-      typeof value.borderEnabled === "boolean"
-        ? value.borderEnabled
-        : undefined,
+    titleColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["globalSettings"]["titleColor"]
+    >(value.titleColor),
+    backgroundColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["globalSettings"]["backgroundColor"]
+    >(value.backgroundColor),
+    textColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["globalSettings"]["textColor"]
+    >(value.textColor),
+    circleColor: getOptionalStarterColorValue<
+      NewUserStarterWorkspaceSeed["globalSettings"]["circleColor"]
+    >(value.circleColor),
+    borderEnabled: getOptionalBoolean(value.borderEnabled),
     borderColor: normalizeNonBlankString(value.borderColor),
-    borderRadius,
-    useStatusColors:
-      typeof value.useStatusColors === "boolean"
-        ? value.useStatusColors
-        : undefined,
-    showPiePercentages:
-      typeof value.showPiePercentages === "boolean"
-        ? value.showPiePercentages
-        : undefined,
-    showFavorites:
-      typeof value.showFavorites === "boolean"
-        ? value.showFavorites
-        : undefined,
-    gridCols:
-      typeof value.gridCols === "number" && Number.isFinite(value.gridCols)
-        ? value.gridCols
-        : undefined,
-    gridRows:
-      typeof value.gridRows === "number" && Number.isFinite(value.gridRows)
-        ? value.gridRows
-        : undefined,
+    borderRadius: getOptionalFiniteNumber(value.borderRadius),
+    useStatusColors: getOptionalBoolean(value.useStatusColors),
+    showPiePercentages: getOptionalBoolean(value.showPiePercentages),
+    showFavorites: getOptionalBoolean(value.showFavorites),
+    gridCols: getOptionalFiniteNumber(value.gridCols),
+    gridRows: getOptionalFiniteNumber(value.gridRows),
   };
 }
 
