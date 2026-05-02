@@ -1,17 +1,23 @@
 # Agent Guidelines
 
-**NEVER** end your response until you have fully completed/implemented the user's request. Always provide a complete and thorough response that fully addresses the user's request. If you need to ask clarifying questions, use the `vscode_askQuestions` tool, but do not end your response until you have received the answers and can provide a complete response.
-
-At any point, use the `vscode_askQuestions` tool to clarify ambiguous requirements or confirm high-risk decisions.
-
 Project-specific guidance for areas to avoid surfacing lives in `.github/instructions/roadmap-guardrails.instructions.md`.
 
-## Contributor onboarding anchors
+## `vscode_askQuestions`
 
-- Use `docs/DEVELOPMENT.md` as the Bun-first source of truth for install, env setup, validation, contributor workflow, instruction discovery, the shared alias map, and `.drawio` workflow. Prefer the repo's exact `bun run ...` entrypoints from that doc and `package.json`; do not translate examples to npm, yarn, or pnpm.
-- Read the applicable `.github/instructions/*.instructions.md` files before editing. Use `docs/DEVELOPMENT.md#contributor-guardrails-and-instruction-discovery` as the canonical discovery map, including `typescript.instructions.md`.
-- Treat `components.json` as the UI scaffolding source of truth for shared `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`).
-- Use `docs/README.md#stable-contract-index` as the jump table for durable API, architecture, security, and privacy contract sections when public behavior or docs change.
+Use `vscode_askQuestions` only for real ambiguity, meaningful trade-offs, or irreversible / high-risk choices — not to ask permission for the obvious next step.
+
+- **NEVER** end your response just because you asked a question. Continue the work in the same run once the answer arrives unless the missing input is a true blocker.
+- Prefer concise options, allow freeform override when helpful, and mark **exactly one** option as recommended.
+- When one option is clearly better for safety, speed, token efficiency, or lower rework, recommend it directly instead of asking an open-ended question.
+- If the response contains no explicit selection and instead says the user is unavailable (for example: `The user is not available to respond and will review your work later. Work autonomously and make good decisions.`), treat that as acceptance of the single recommended option and continue autonomously.
+- If there is no single recommended option, or the answer still leaves multiple next steps open, stop and report the exact decision still needed instead of guessing.
+
+### Decision Defaults
+
+- Prefer acting over asking when the next step is obvious, reversible, and low-risk.
+- Prefer asking when the choice changes implementation grouping, commit boundaries, destructive actions, or user-visible behavior in a non-trivial way.
+- For grouped implementation work, present the main viable options and recommend one instead of asking an open-ended "what should I do?" question.
+- For commit decisions, if the user is unavailable and you asked a yes/no or grouped-commit question with one recommended answer, follow the recommended answer automatically.
 
 ---
 
