@@ -205,6 +205,64 @@ describe("lib/api/validation", () => {
     });
   });
 
+  it("accepts sparse patch entries without variation but rejects empty variation values", async () => {
+    const sparsePatchResult = validateCardData(
+      [
+        {
+          cardName: "animeStats",
+        },
+      ],
+      42,
+      endpoint,
+      request,
+    );
+    const emptyVariationResult = validateCardData(
+      [
+        {
+          cardName: "animeStats",
+          variation: "",
+        },
+      ],
+      42,
+      endpoint,
+      request,
+    );
+
+    expect(sparsePatchResult).toEqual({
+      success: true,
+      cards: [
+        {
+          cardName: "animeStats",
+          variation: undefined,
+          colorPreset: undefined,
+          titleColor: undefined,
+          backgroundColor: undefined,
+          textColor: undefined,
+          circleColor: undefined,
+          borderColor: undefined,
+          borderRadius: undefined,
+          showFavorites: undefined,
+          useStatusColors: undefined,
+          showPiePercentages: undefined,
+          gridCols: undefined,
+          gridRows: undefined,
+          useCustomSettings: undefined,
+          disabled: undefined,
+        },
+      ],
+    });
+
+    expect(emptyVariationResult.success).toBe(false);
+    if (emptyVariationResult.success) {
+      throw new Error("Expected empty variation to fail validation.");
+    }
+
+    expect(await readApiError(emptyVariationResult.error)).toMatchObject({
+      error: "Invalid data",
+      status: 400,
+    });
+  });
+
   it("rejects invalid card type names with fuzzy suggestions", async () => {
     const result = validateCardData(
       [

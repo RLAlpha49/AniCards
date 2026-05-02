@@ -2538,6 +2538,77 @@ describe("Store Cards API POST Endpoint", () => {
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
+    it("should preserve existing variation when a sparse patch omits it", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const existingUpdatedAt = new Date().toISOString();
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 778,
+          cards: [
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              showPiePercentages: true,
+            },
+          ],
+          updatedAt: existingUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId: 778,
+        statsData: {},
+        ifMatchUpdatedAt: existingUpdatedAt,
+        cards: [
+          {
+            cardName: "animeGenres",
+            titleColor: "#222",
+            backgroundColor: "#fff",
+            textColor: "#000",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(getStoredCard(stored, "animeGenres")).toMatchObject({
+        cardName: "animeGenres",
+        variation: "pie",
+        showPiePercentages: true,
+      });
+    });
+
+    it("should reject enabled new cards when variation cannot be resolved after merge", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createRequest({
+        userId: 779,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            titleColor: "#222",
+            backgroundColor: "#fff",
+            textColor: "#000",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toMatchObject({
+        error: "Invalid data",
+        category: "invalid_data",
+        retryable: false,
+        status: 400,
+      });
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+    });
+
     it("should update existing card when same cardName is provided", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingUpdatedAt = new Date().toISOString();

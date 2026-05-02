@@ -875,10 +875,8 @@ function invalidCardDataResponse(
   });
 }
 
-function getRequiredCardStringFields(
-  card: Record<string, unknown>,
-): readonly string[] {
-  return card.disabled === true ? ["cardName"] : ["cardName", "variation"];
+function getRequiredCardStringFields(): readonly string[] {
+  return ["cardName"];
 }
 
 function validateRequiredCardStringFields(
@@ -887,7 +885,7 @@ function validateRequiredCardStringFields(
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  for (const field of getRequiredCardStringFields(card)) {
+  for (const field of getRequiredCardStringFields()) {
     const value = card[field];
     if (typeof value !== "string") {
       logValidationWarning(
@@ -915,6 +913,48 @@ function validateRequiredCardStringFields(
       );
       return invalidCardDataResponse(request);
     }
+  }
+
+  return null;
+}
+
+function validateOptionalCardStringField(
+  card: Record<string, unknown>,
+  field: string,
+  cardIndex: number,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  const value = card[field];
+  if (value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    logValidationWarning(
+      endpoint,
+      "Card optional string field must be string when provided",
+      request,
+      {
+        cardIndex,
+        field,
+        valueType: describeValueType(value),
+      },
+    );
+    return invalidCardDataResponse(request);
+  }
+
+  if (value.length === 0 || value.length > 100) {
+    logValidationWarning(
+      endpoint,
+      "Card optional string field exceeded length constraints",
+      request,
+      {
+        cardIndex,
+        field,
+      },
+    );
+    return invalidCardDataResponse(request);
   }
 
   return null;
@@ -1020,6 +1060,17 @@ function validateCardRequiredFields(
   );
   if (requiredFieldError) {
     return requiredFieldError;
+  }
+
+  const variationFieldError = validateOptionalCardStringField(
+    card,
+    "variation",
+    cardIndex,
+    endpoint,
+    request,
+  );
+  if (variationFieldError) {
+    return variationFieldError;
   }
 
   const cardTypeError = validateCardTypeField(

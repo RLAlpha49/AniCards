@@ -351,6 +351,59 @@ function filterSupportedStoredCards(
 }
 
 /**
+ * Validate that enabled stored cards still resolve to an effective variation
+ * after sparse patches are merged with any existing record.
+ */
+async function validateMergedCardVariations(
+  orderedStoredCards: StoredCardConfig[],
+  endpoint: string,
+  endpointKey: string,
+  request: Request,
+  startTime: number,
+): Promise<NextResponse | undefined> {
+  for (const [cardIndex, card] of orderedStoredCards.entries()) {
+    if (card.disabled === true) {
+      continue;
+    }
+
+    if (
+      typeof card.variation === "string" &&
+      card.variation.length > 0 &&
+      card.variation.length <= 100
+    ) {
+      continue;
+    }
+
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Enabled card missing effective variation after merge",
+      {
+        cardIndex,
+        cardName: card.cardName,
+      },
+      request,
+    );
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "failed_requests",
+      request,
+      {
+        durationMs: Date.now() - startTime,
+        reasonCode: "payload_rejected",
+      },
+    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
+  }
+
+  return undefined;
+}
+
+/**
  * Computes the effective border radius from incoming and previous values.
  * @source
  */
@@ -1554,6 +1607,19 @@ async function prepareStoreCardsRecordForWrite(params: {
 
   const { orderedStoredCards, mergedGlobalSettings, persistedCardOrder } =
     assembly;
+
+  const mergedVariationValidationError = await validateMergedCardVariations(
+    orderedStoredCards,
+    routeContext.endpoint,
+    routeContext.endpointKey,
+    routeContext.request,
+    routeContext.startTime,
+  );
+  if (mergedVariationValidationError) {
+    return {
+      errorResponse: mergedVariationValidationError,
+    };
+  }
 
   const colorValidationError = await validateCardColors(
     orderedStoredCards,

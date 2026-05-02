@@ -3645,8 +3645,10 @@ components:
         include legacy unsupported `cardName` values that are preserved for
         compatibility until the next successful write. `/api/store-cards`
         accepts partial patch entries and merges them with the existing stored
-        record, so most fields are optional even for enabled cards. Disabled
-        entries may omit `variation` and all per-card colors.
+        record, so most fields are optional even for enabled cards. Sparse
+        patch entries may omit `variation` when an existing stored config can
+        supply it, but enabled cards still need an effective variation after
+        merge. Disabled entries may omit `variation` and all per-card colors.
 
     StoreCardsPatchCard:
       allOf:
@@ -3659,7 +3661,9 @@ components:
             - cardName
       description: >-
         Incoming card patch entry for `/api/store-cards`. Writes only accept
-        currently supported `CardType` values.
+        currently supported `CardType` values. Clients may omit fields they
+        are not changing, including `variation`, when the existing stored card
+        already provides the effective value needed after merge.
 
     GlobalCardSettings:
       type: object
@@ -3760,7 +3764,9 @@ components:
         preserves omitted card settings, and stores only the minimal authored
         `cardOrder` signal needed to reconstruct the full supported order at
         read/editor time. The `cards` array is therefore a sparse patch set,
-        not a materialized full ordered list of every supported card.
+        not a materialized full ordered list of every supported card. Sparse
+        patch entries may omit `variation` when they target an existing stored
+        card whose merged result still has an effective variation.
         Production writes are accepted only when the browser also presents a
         matching per-user protected write grant. Optional `statsData` is
         accepted only as a deprecated compatibility field and is ignored by the
