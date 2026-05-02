@@ -269,6 +269,7 @@ function PreviewControlsBar({
 }
 
 type ExpandedPreviewDialogProps = {
+  cardId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
@@ -281,7 +282,6 @@ type ExpandedPreviewDialogProps = {
   previewUrl: string | null;
   comparePreviewUrl: string | null;
   primaryActions: CardPreviewActionProps;
-  compareActions: CardPreviewActionProps;
   previewUnavailableId: string;
   convertingId: string;
   borderRadiusValue?: string | number;
@@ -294,6 +294,7 @@ type ExpandedPreviewDialogProps = {
 };
 
 function ExpandedPreviewDialog({
+  cardId,
   open,
   onOpenChange,
   label,
@@ -306,7 +307,6 @@ function ExpandedPreviewDialog({
   previewUrl,
   comparePreviewUrl,
   primaryActions,
-  compareActions,
   previewUnavailableId,
   convertingId,
   borderRadiusValue,
@@ -318,6 +318,85 @@ function ExpandedPreviewDialog({
   prefersSimplifiedMotion,
 }: Readonly<ExpandedPreviewDialogProps>) {
   const isComparing = compareEnabled && Boolean(comparePreviewUrl);
+  const [compareCopyPopoverOpen, setCompareCopyPopoverOpen] = useState(false);
+  const [compareDownloadPopoverOpen, setCompareDownloadPopoverOpen] =
+    useState(false);
+  const isAnyComparePopoverOpen =
+    compareCopyPopoverOpen || compareDownloadPopoverOpen;
+
+  const {
+    copiedFormat: compareCopiedFormat,
+    handleCopy: handleCompareCopy,
+    error: compareCopyError,
+  } = useCopyFeedback(comparePreviewUrl);
+
+  const handleCompareCopyUrl = useCallback(
+    () => handleCompareCopy("url"),
+    [handleCompareCopy],
+  );
+  const handleCompareCopyAniList = useCallback(
+    () => handleCompareCopy("anilist"),
+    [handleCompareCopy],
+  );
+
+  const {
+    isDownloading: isCompareDownloading,
+    error: compareDownloadError,
+    handleDownload: handleCompareDownload,
+    status: compareDownloadStatus,
+  } = useDownload(comparePreviewUrl, {
+    cardId,
+    variant: compareVariant,
+  });
+
+  useEffect(() => {
+    if (!comparePreviewUrl) {
+      setCompareCopyPopoverOpen(false);
+      setCompareDownloadPopoverOpen(false);
+    }
+  }, [comparePreviewUrl]);
+
+  useEffect(() => {
+    if (compareDownloadStatus === "success") {
+      setCompareDownloadPopoverOpen(false);
+    }
+  }, [compareDownloadStatus]);
+
+  const compareDownloadErrorMessage = compareDownloadError
+    ? "Couldn't prepare this card for download."
+    : null;
+  const compareActions = useMemo<CardPreviewActionProps>(
+    () => ({
+      isDownloading: isCompareDownloading,
+      copiedFormat: compareCopiedFormat,
+      copyError: compareCopyError,
+      downloadError: compareDownloadErrorMessage,
+      copyPopoverOpen: compareCopyPopoverOpen,
+      setCopyPopoverOpen: setCompareCopyPopoverOpen,
+      downloadPopoverOpen: compareDownloadPopoverOpen,
+      setDownloadPopoverOpen: setCompareDownloadPopoverOpen,
+      onCopyUrl: handleCompareCopyUrl,
+      onCopyAniList: handleCompareCopyAniList,
+      onDownload: handleCompareDownload,
+      isAnyPopoverOpen: isAnyComparePopoverOpen,
+      forceActionsVisible: isAnyComparePopoverOpen,
+      prefersCoarsePointer: preferTapInfoDisclosure,
+      fetchPriority: "active",
+    }),
+    [
+      compareCopiedFormat,
+      compareCopyError,
+      compareCopyPopoverOpen,
+      compareDownloadErrorMessage,
+      compareDownloadPopoverOpen,
+      handleCompareCopyAniList,
+      handleCompareCopyUrl,
+      handleCompareDownload,
+      isAnyComparePopoverOpen,
+      isCompareDownloading,
+      preferTapInfoDisclosure,
+    ],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -471,11 +550,10 @@ export const CardTile = memo(function CardTile({
   const { prefersSimplifiedMotion } = useMotionPreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewExpandedOpen, setPreviewExpandedOpen] = useState(false);
+  const [shouldRenderExpandedDialog, setShouldRenderExpandedDialog] =
+    useState(false);
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
   const [downloadPopoverOpen, setDownloadPopoverOpen] = useState(false);
-  const [compareCopyPopoverOpen, setCompareCopyPopoverOpen] = useState(false);
-  const [compareDownloadPopoverOpen, setCompareDownloadPopoverOpen] =
-    useState(false);
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [isPreviewHovered, setIsPreviewHovered] = useState(false);
   const [compareVariant, setCompareVariant] = useState<string>(() => {
@@ -485,10 +563,7 @@ export const CardTile = memo(function CardTile({
   });
 
   const isAnyPopoverOpen = copyPopoverOpen || downloadPopoverOpen;
-  const isAnyComparePopoverOpen =
-    compareCopyPopoverOpen || compareDownloadPopoverOpen;
   const forcePreviewActionsVisible = isAnyPopoverOpen;
-  const forceComparePreviewActionsVisible = isAnyComparePopoverOpen;
 
   const tooltipContent = useMemo(
     () => infoTooltip ?? getCardInfoTooltip(cardId),
@@ -714,31 +789,6 @@ export const CardTile = memo(function CardTile({
     cardId,
     variant: config.variant,
   });
-
-  const {
-    copiedFormat: compareCopiedFormat,
-    handleCopy: handleCompareCopy,
-    error: compareCopyError,
-  } = useCopyFeedback(comparePreviewUrl);
-
-  const handleCompareCopyUrl = useCallback(
-    () => handleCompareCopy("url"),
-    [handleCompareCopy],
-  );
-  const handleCompareCopyAniList = useCallback(
-    () => handleCompareCopy("anilist"),
-    [handleCompareCopy],
-  );
-
-  const {
-    isDownloading: isCompareDownloading,
-    error: compareDownloadError,
-    handleDownload: handleCompareDownload,
-    status: compareDownloadStatus,
-  } = useDownload(comparePreviewUrl, {
-    cardId,
-    variant: compareVariant,
-  });
   const borderRadiusValue = useMemo(
     () => getCardBorderRadius(effectiveBorderRadius),
     [effectiveBorderRadius],
@@ -755,28 +805,40 @@ export const CardTile = memo(function CardTile({
   }, [previewUrl]);
 
   useEffect(() => {
-    if (!comparePreviewUrl) {
-      setCompareCopyPopoverOpen(false);
-      setCompareDownloadPopoverOpen(false);
-    }
-  }, [comparePreviewUrl]);
-
-  useEffect(() => {
     if (downloadStatus === "success") {
       setDownloadPopoverOpen(false);
     }
   }, [downloadStatus]);
 
   useEffect(() => {
-    if (compareDownloadStatus === "success") {
-      setCompareDownloadPopoverOpen(false);
+    if (previewExpandedOpen) {
+      setShouldRenderExpandedDialog(true);
+      return;
     }
-  }, [compareDownloadStatus]);
+
+    if (!shouldRenderExpandedDialog) {
+      return;
+    }
+
+    if (prefersSimplifiedMotion) {
+      setShouldRenderExpandedDialog(false);
+      return;
+    }
+
+    const teardownId = globalThis.setTimeout(() => {
+      setShouldRenderExpandedDialog(false);
+    }, 250);
+
+    return () => {
+      globalThis.clearTimeout(teardownId);
+    };
+  }, [
+    previewExpandedOpen,
+    prefersSimplifiedMotion,
+    shouldRenderExpandedDialog,
+  ]);
 
   const downloadErrorMessage = downloadError
-    ? "Couldn't prepare this card for download."
-    : null;
-  const compareDownloadErrorMessage = compareDownloadError
     ? "Couldn't prepare this card for download."
     : null;
 
@@ -903,75 +965,63 @@ export const CardTile = memo(function CardTile({
             preferTapInfoDisclosure={preferTapInfoDisclosure}
           />
 
-          <CardSettingsDialog
-            isOpen={settingsOpen}
-            onClose={closeSettings}
-            cardId={cardId}
-            label={label}
-            supportsStatusColors={supportsStatusColors}
-            supportsPiePercentages={supportsPiePercentages}
-            supportsFavorites={supportsFavorites}
-            isFavoritesGrid={isFavoritesGrid}
-            currentVariant={config.variant}
-            spotlightSettingsTools={spotlightSettingsTools}
-          />
+          {settingsOpen ? (
+            <CardSettingsDialog
+              isOpen={settingsOpen}
+              onClose={closeSettings}
+              cardId={cardId}
+              label={label}
+              supportsStatusColors={supportsStatusColors}
+              supportsPiePercentages={supportsPiePercentages}
+              supportsFavorites={supportsFavorites}
+              isFavoritesGrid={isFavoritesGrid}
+              currentVariant={config.variant}
+              spotlightSettingsTools={spotlightSettingsTools}
+            />
+          ) : null}
 
-          <ExpandedPreviewDialog
-            open={previewExpandedOpen}
-            onOpenChange={setPreviewExpandedOpen}
-            label={label}
-            hasVariantOptions={hasVariantOptions}
-            primaryVariantLabel={primaryVariantLabel}
-            compareVariant={compareVariant}
-            compareVariantLabel={compareVariantLabel}
-            compareControls={compareControlsProps}
-            compareEnabled={compareEnabled}
-            previewUrl={previewUrl}
-            comparePreviewUrl={comparePreviewUrl}
-            primaryActions={{
-              isDownloading,
-              copiedFormat,
-              copyError,
-              downloadError: downloadErrorMessage,
-              copyPopoverOpen,
-              setCopyPopoverOpen,
-              downloadPopoverOpen,
-              setDownloadPopoverOpen,
-              onCopyUrl: handleCopyUrl,
-              onCopyAniList: handleCopyAniList,
-              onDownload: handleDownload,
-              isAnyPopoverOpen,
-              forceActionsVisible: forcePreviewActionsVisible,
-              prefersCoarsePointer: preferTapInfoDisclosure,
-              fetchPriority: "active",
-            }}
-            compareActions={{
-              isDownloading: isCompareDownloading,
-              copiedFormat: compareCopiedFormat,
-              copyError: compareCopyError,
-              downloadError: compareDownloadErrorMessage,
-              copyPopoverOpen: compareCopyPopoverOpen,
-              setCopyPopoverOpen: setCompareCopyPopoverOpen,
-              downloadPopoverOpen: compareDownloadPopoverOpen,
-              setDownloadPopoverOpen: setCompareDownloadPopoverOpen,
-              onCopyUrl: handleCompareCopyUrl,
-              onCopyAniList: handleCompareCopyAniList,
-              onDownload: handleCompareDownload,
-              isAnyPopoverOpen: isAnyComparePopoverOpen,
-              forceActionsVisible: forceComparePreviewActionsVisible,
-              prefersCoarsePointer: preferTapInfoDisclosure,
-              fetchPriority: "active",
-            }}
-            previewUnavailableId={`${previewUnavailableId}-expanded`}
-            convertingId={`${convertingId}-expanded`}
-            borderRadiusValue={borderRadiusValue}
-            variations={variations}
-            currentVariant={config.variant}
-            onVariantChange={handleVariantChange}
-            getVariantTooltipForCard={getVariantTooltipForCard}
-            preferTapInfoDisclosure={preferTapInfoDisclosure}
-            prefersSimplifiedMotion={prefersSimplifiedMotion}
-          />
+          {shouldRenderExpandedDialog ? (
+            <ExpandedPreviewDialog
+              cardId={cardId}
+              open={previewExpandedOpen}
+              onOpenChange={setPreviewExpandedOpen}
+              label={label}
+              hasVariantOptions={hasVariantOptions}
+              primaryVariantLabel={primaryVariantLabel}
+              compareVariant={compareVariant}
+              compareVariantLabel={compareVariantLabel}
+              compareControls={compareControlsProps}
+              compareEnabled={compareEnabled}
+              previewUrl={previewUrl}
+              comparePreviewUrl={comparePreviewUrl}
+              primaryActions={{
+                isDownloading,
+                copiedFormat,
+                copyError,
+                downloadError: downloadErrorMessage,
+                copyPopoverOpen,
+                setCopyPopoverOpen,
+                downloadPopoverOpen,
+                setDownloadPopoverOpen,
+                onCopyUrl: handleCopyUrl,
+                onCopyAniList: handleCopyAniList,
+                onDownload: handleDownload,
+                isAnyPopoverOpen,
+                forceActionsVisible: forcePreviewActionsVisible,
+                prefersCoarsePointer: preferTapInfoDisclosure,
+                fetchPriority: "active",
+              }}
+              previewUnavailableId={`${previewUnavailableId}-expanded`}
+              convertingId={`${convertingId}-expanded`}
+              borderRadiusValue={borderRadiusValue}
+              variations={variations}
+              currentVariant={config.variant}
+              onVariantChange={handleVariantChange}
+              getVariantTooltipForCard={getVariantTooltipForCard}
+              preferTapInfoDisclosure={preferTapInfoDisclosure}
+              prefersSimplifiedMotion={prefersSimplifiedMotion}
+            />
+          ) : null}
         </>
       ) : null}
 
