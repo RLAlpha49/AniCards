@@ -65,7 +65,9 @@ function escapeHtmlAttribute(value: string): string {
 }
 
 function escapeMarkdownText(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
+  return value
+    .replaceAll(/\\/g, String.raw`\\`)
+    .replaceAll("]", String.raw`\]`);
 }
 
 function resolveShareableCardUrls(
