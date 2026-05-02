@@ -490,7 +490,10 @@ export interface ExampleCatalogRouteLink {
   href: string;
 }
 
-const EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE = new Map(
+const EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE = new Map<
+  string,
+  ExampleCatalogRouteLink
+>(
   EXAMPLES_CARD_TYPES.map((cardType) => {
     const collection = getExampleCollectionByCategory(cardType.category);
 
@@ -520,9 +523,7 @@ export function getExamplesCatalog(): ExamplesCatalogPayload {
 export function getExampleCatalogRouteLink(
   cardTypeId: string,
 ): ExampleCatalogRouteLink | null {
-  const link = EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE.get(
-    cardTypeId as ExampleCardType["id"],
-  );
+  const link = EXAMPLES_ROUTE_LINKS_BY_CARD_TYPE.get(cardTypeId);
 
   return link ? { ...link } : null;
 }

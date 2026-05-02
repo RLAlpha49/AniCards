@@ -149,7 +149,7 @@ export default async function ExamplesPage({
   const hasLegacyQueryState =
     search !== undefined || legacyCategoryValue !== undefined;
   const catalog = hasLegacyQueryState ? getExamplesCatalog() : undefined;
-  const nonce = !catalog ? await getRequestNonce() : null;
+  const nonce = catalog ? null : await getRequestNonce();
 
   return (
     <>

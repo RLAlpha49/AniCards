@@ -118,6 +118,245 @@ function getQueuedStyleSuccessDescription(options: {
   return "Pick a user and AniCards will apply this example as a reusable template.";
 }
 
+function buildExampleSettingsTemplate(options: {
+  cardTypeId: string;
+  cardTypeTitle: string;
+  selectedSettingsSnapshot: SettingsTemplateV1["snapshot"];
+  themeLabel: string;
+  variantName: string;
+}): SettingsTemplateV1 {
+  const now = Date.now();
+
+  return {
+    id: buildExampleTemplateId(
+      options.cardTypeId,
+      options.variantName,
+      options.themeLabel,
+    ),
+    name: `${options.cardTypeTitle} — ${options.variantName} (${options.themeLabel})`,
+    snapshot: options.selectedSettingsSnapshot,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function queueExampleStyleForEditor(options: {
+  cardTypeId: string;
+  cardTypeTitle: string;
+  discoveryContext?: SearchLaunchDiscoveryContextInput;
+  selectedSettingsSnapshot: SettingsTemplateV1["snapshot"];
+  themeLabel: string;
+  variantName: string;
+}):
+  | {
+      ok: true;
+      nextRoute: string;
+      successDescription: string;
+    }
+  | {
+      error: string;
+      ok: false;
+    } {
+  const template = buildExampleSettingsTemplate({
+    cardTypeId: options.cardTypeId,
+    cardTypeTitle: options.cardTypeTitle,
+    selectedSettingsSnapshot: options.selectedSettingsSnapshot,
+    themeLabel: options.themeLabel,
+    variantName: options.variantName,
+  });
+
+  const queueResult = queueSettingsTemplateForEditor(template, {
+    source: "examples",
+    exampleContext: {
+      cardTypeId: options.cardTypeId,
+      cardTitle: options.cardTypeTitle,
+      variantName: options.variantName,
+      themeLabel: options.themeLabel,
+    },
+    discoveryContext: options.discoveryContext,
+  });
+
+  if (!queueResult.ok) {
+    return {
+      ok: false,
+      error: queueResult.error,
+    };
+  }
+
+  const rememberedUserRoute = readLastSuccessfulUserPageRoute();
+
+  return {
+    ok: true,
+    nextRoute: rememberedUserRoute?.href ?? "/search",
+    successDescription: getQueuedStyleSuccessDescription({
+      discoveryContext: options.discoveryContext,
+      rememberedUserRoute,
+    }),
+  };
+}
+
+function ExampleCardPreviewArea(
+  props: Readonly<{
+    cardTypeTitle: string;
+    isPreviewReady: boolean;
+    prefersReducedMotion: boolean;
+    previewHref?: string;
+    variant: ExampleCardVariant;
+  }>,
+) {
+  return (
+    <div className="
+      relative overflow-hidden bg-[hsl(var(--foreground)/0.02)]
+      dark:bg-[hsl(var(--foreground)/0.02)]
+    ">
+      {!props.prefersReducedMotion && (
+        <div className="
+          pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
+          group-hover/card:opacity-100
+          group-focus-visible/card:opacity-100
+        ">
+          <div className="
+            size-full
+            bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
+          " />
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "flex justify-center p-4",
+          !props.prefersReducedMotion &&
+            `
+              transition-transform duration-700 ease-out
+              group-hover/card:scale-[1.03]
+              group-focus-visible/card:scale-[1.03]
+            `,
+        )}
+      >
+        {props.isPreviewReady && props.previewHref ? (
+          <ImageWithSkeleton
+            src={props.previewHref}
+            alt={`${props.cardTypeTitle} - ${props.variant.name}`}
+            className="h-auto w-full"
+            width={props.variant.width}
+            height={props.variant.height}
+            mode="default"
+          />
+        ) : (
+          <CardPreviewPlaceholder
+            className="w-full"
+            aspectRatio={
+              props.variant.width && props.variant.height
+                ? props.variant.width / props.variant.height
+                : undefined
+            }
+          />
+        )}
+      </div>
+
+      {!props.prefersReducedMotion &&
+        props.isPreviewReady &&
+        props.previewHref && (
+          <div className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center">
+            <motion.div className="
+              flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
+              font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
+              transition-all [transition-delay:50ms] duration-400
+              group-hover/card:opacity-100
+              group-focus-visible/card:opacity-100
+            ">
+              <ExternalLink className="size-3" />
+              Open Full Size
+            </motion.div>
+          </div>
+        )}
+    </div>
+  );
+}
+
+function ExampleCardFooter(
+  props: Readonly<{
+    buttonLabels: ReturnType<typeof buildButtonLabels>;
+    canCopyPreview: boolean;
+    copied: boolean;
+    editorButtonTitle: string;
+    handleCopy: (event: React.MouseEvent) => void;
+    handleUseInEditor: (event: React.MouseEvent) => void;
+    hasSelectedSettingsSnapshot: boolean;
+    isPreviewReady: boolean;
+    queuedForEditor: boolean;
+    variantName: string;
+  }>,
+) {
+  return (
+    <div className="
+      flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)]
+      bg-[hsl(var(--gold)/0.01)] px-4 py-3
+    ">
+      <p className="line-clamp-1 text-xs font-medium tracking-wide text-foreground/55">
+        {props.variantName}
+      </p>
+      <div className="relative z-20 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={props.handleUseInEditor}
+          className={cn(
+            `
+              pointer-events-auto inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1
+              text-[10px] font-semibold tracking-[0.18em] uppercase transition-all duration-200
+              focus-visible:border-gold/35 focus-visible:ring-2 focus-visible:ring-gold/50
+              focus-visible:ring-offset-2 focus-visible:ring-offset-background
+              focus-visible:outline-none
+            `,
+            !props.hasSelectedSettingsSnapshot &&
+              "cursor-not-allowed opacity-50",
+            props.queuedForEditor
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : `
+                border-gold/20 bg-gold/8 text-gold-dim
+                hover:border-gold/35 hover:bg-gold/12
+                dark:text-gold
+              `,
+          )}
+          aria-label={props.buttonLabels.editor}
+          title={props.editorButtonTitle}
+          disabled={!props.hasSelectedSettingsSnapshot}
+        >
+          <Sparkles className="size-3" />
+          <span className="hidden sm:inline" aria-hidden="true">
+            {props.queuedForEditor ? "Queued" : "Use in editor"}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={props.handleCopy}
+          className={cn(
+            `
+              pointer-events-auto shrink-0 rounded-full p-1.5 transition-all duration-200
+              focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+              focus-visible:ring-offset-2 focus-visible:ring-offset-background
+              focus-visible:outline-none
+            `,
+            !props.isPreviewReady && "cursor-not-allowed opacity-50",
+            props.copied
+              ? "text-emerald-500 dark:text-emerald-400"
+              : "text-foreground/15 hover:text-gold",
+          )}
+          aria-label={props.buttonLabels.copy}
+          disabled={!props.canCopyPreview}
+        >
+          {props.copied ? (
+            <Check className="size-3.5" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ExampleCard({
   cardTypeId,
   variant,
@@ -195,28 +434,19 @@ export function ExampleCard({
       e.stopPropagation();
       e.preventDefault();
 
-      if (!selectedSettingsSnapshot || !previewColorPreset) return;
+      if (!selectedSettingsSnapshot || !previewColorPreset) {
+        return;
+      }
 
       const themeLabel =
         previewColorPreset === DARK_PREVIEW_COLOR_PRESET ? "Dark" : "Light";
-      const now = Date.now();
-      const template: SettingsTemplateV1 = {
-        id: buildExampleTemplateId(cardTypeId, variant.name, themeLabel),
-        name: `${cardTypeTitle} — ${variant.name} (${themeLabel})`,
-        snapshot: selectedSettingsSnapshot,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const queueResult = queueSettingsTemplateForEditor(template, {
-        source: "examples",
-        exampleContext: {
-          cardTypeId,
-          cardTitle: cardTypeTitle,
-          variantName: variant.name,
-          themeLabel,
-        },
+      const queueResult = queueExampleStyleForEditor({
+        cardTypeId,
+        cardTypeTitle,
         discoveryContext,
+        selectedSettingsSnapshot,
+        themeLabel,
+        variantName: variant.name,
       });
 
       if (!queueResult.ok) {
@@ -226,18 +456,11 @@ export function ExampleCard({
         return;
       }
 
-      const rememberedUserRoute = readLastSuccessfulUserPageRoute();
-      const nextRoute = rememberedUserRoute?.href ?? "/search";
-      const successDescription = getQueuedStyleSuccessDescription({
-        discoveryContext,
-        rememberedUserRoute,
-      });
-
       setQueuedForEditor(true);
       toast.success("Style queued for your editor", {
-        description: successDescription,
+        description: queueResult.successDescription,
       });
-      router.push(nextRoute);
+      router.push(queueResult.nextRoute);
     },
     [
       cardTypeId,
@@ -297,141 +520,26 @@ export function ExampleCard({
           />
         )}
 
-        {/* Image area with cinematic treatment */}
-        <div className="
-          relative overflow-hidden bg-[hsl(var(--foreground)/0.02)]
-          dark:bg-[hsl(var(--foreground)/0.02)]
-        ">
-          {/* Subtle vignette on hover */}
-          {!prefersReducedMotion && (
-            <div className="
-              pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
-              group-hover/card:opacity-100
-              group-focus-visible/card:opacity-100
-            ">
-              <div className="
-                size-full
-                bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
-              " />
-            </div>
-          )}
+        <ExampleCardPreviewArea
+          cardTypeTitle={cardTypeTitle}
+          isPreviewReady={isPreviewReady}
+          prefersReducedMotion={prefersReducedMotion}
+          previewHref={previewHref}
+          variant={variant}
+        />
 
-          <div
-            className={cn(
-              "flex justify-center p-4",
-              !prefersReducedMotion &&
-                `
-                  transition-transform duration-700 ease-out
-                  group-hover/card:scale-[1.03]
-                  group-focus-visible/card:scale-[1.03]
-                `,
-            )}
-          >
-            {isPreviewReady && previewHref ? (
-              <ImageWithSkeleton
-                src={previewHref}
-                alt={`${cardTypeTitle} - ${variant.name}`}
-                className="h-auto w-full"
-                width={variant.width}
-                height={variant.height}
-                mode="default"
-              />
-            ) : (
-              <CardPreviewPlaceholder
-                className="w-full"
-                aspectRatio={
-                  variant.width && variant.height
-                    ? variant.width / variant.height
-                    : undefined
-                }
-              />
-            )}
-          </div>
-
-          {/* Hover action badge */}
-          {!prefersReducedMotion && isPreviewReady && previewHref && (
-            <div className="
-              pointer-events-none absolute inset-0 z-3 flex items-center justify-center
-            ">
-              <motion.div className="
-                flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
-                font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
-                transition-all [transition-delay:50ms] duration-400
-                group-hover/card:opacity-100
-                group-focus-visible/card:opacity-100
-              ">
-                <ExternalLink className="size-3" />
-                Open Full Size
-              </motion.div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer bar */}
-        <div className="
-          flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)]
-          bg-[hsl(var(--gold)/0.01)] px-4 py-3
-        ">
-          <p className="line-clamp-1 text-xs font-medium tracking-wide text-foreground/55">
-            {variant.name}
-          </p>
-          <div className="relative z-20 flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleUseInEditor}
-              className={cn(
-                `
-                  pointer-events-auto inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1
-                  text-[10px] font-semibold tracking-[0.18em] uppercase transition-all duration-200
-                  focus-visible:border-gold/35 focus-visible:ring-2 focus-visible:ring-gold/50
-                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                  focus-visible:outline-none
-                `,
-                !selectedSettingsSnapshot && "cursor-not-allowed opacity-50",
-                queuedForEditor
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                  : `
-                    border-gold/20 bg-gold/8 text-gold-dim
-                    hover:border-gold/35 hover:bg-gold/12
-                    dark:text-gold
-                  `,
-              )}
-              aria-label={buttonLabels.editor}
-              title={editorButtonTitle}
-              disabled={!selectedSettingsSnapshot}
-            >
-              <Sparkles className="size-3" />
-              <span className="hidden sm:inline" aria-hidden="true">
-                {queuedForEditor ? "Queued" : "Use in editor"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={cn(
-                `
-                  pointer-events-auto shrink-0 rounded-full p-1.5 transition-all duration-200
-                  focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
-                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                  focus-visible:outline-none
-                `,
-                !isPreviewReady && "cursor-not-allowed opacity-50",
-                copied
-                  ? "text-emerald-500 dark:text-emerald-400"
-                  : "text-foreground/15 hover:text-gold",
-              )}
-              aria-label={buttonLabels.copy}
-              disabled={!canCopyPreview}
-            >
-              {copied ? (
-                <Check className="size-3.5" />
-              ) : (
-                <Copy className="size-3.5" />
-              )}
-            </button>
-          </div>
-        </div>
+        <ExampleCardFooter
+          buttonLabels={buttonLabels}
+          canCopyPreview={canCopyPreview}
+          copied={copied}
+          editorButtonTitle={editorButtonTitle}
+          handleCopy={handleCopy}
+          handleUseInEditor={handleUseInEditor}
+          hasSelectedSettingsSnapshot={Boolean(selectedSettingsSnapshot)}
+          isPreviewReady={isPreviewReady}
+          queuedForEditor={queuedForEditor}
+          variantName={variant.name}
+        />
       </div>
     </motion.div>
   );
