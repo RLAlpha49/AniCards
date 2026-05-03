@@ -9,6 +9,7 @@
       "flatted": "Keeps flat-cache on a patched transitive release while upstream ranges still allow older versions.",
       "minimatch": "Applies a minimum safe floor for legacy transitive consumers that still request older vulnerable 3.x releases.",
       "picomatch": "Applies a minimum safe floor for tooling transitive consumers while upstream ranges still allow older 4.x releases.",
+      "postcss": "Pins all transitive PostCSS consumers to the patched 8.5.13 release while Next.js still requests 8.4.31.",
       "smol-toml": "Keeps Knip's TOML parser dependency on a patched minimum release.",
       "yaml": "Applies a minimum safe floor for CLI and tooling consumers such as Knip and lint-staged."
     }
@@ -130,6 +131,7 @@
     "flatted": "3.4.2",
     "minimatch": ">=3.1.6",
     "picomatch": ">=4.0.4",
+    "postcss": "8.5.13",
     "smol-toml": ">=1.6.1",
     "uuid": "14.0.0",
     "yaml": ">=2.8.3"
