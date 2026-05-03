@@ -206,6 +206,158 @@ function queueStarterStyleForSearchLaunch(options: {
   return { ok: true };
 }
 
+function SearchLaunchFallbackAction(
+  props: Readonly<{
+    fallbackButtonClassName: string;
+    fallbackHref: string;
+    fallbackLabel: string;
+    fallbackDisabled: boolean;
+    handleFallbackLinkClick: (event: MouseEvent<HTMLAnchorElement>) => void;
+    handleFallbackSearch: () => void;
+    hasBusyAction: boolean;
+    hasLastEditor: boolean;
+    isFallbackBusy: boolean;
+    searchFallbackBehavior: SearchLaunchChooserProps["searchFallbackBehavior"];
+  }>,
+) {
+  const fallbackContent = props.isFallbackBusy ? (
+    <>
+      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+      Opening search…
+    </>
+  ) : (
+    props.fallbackLabel
+  );
+
+  if (props.searchFallbackBehavior === "route") {
+    return (
+      <Button
+        asChild
+        variant={props.hasLastEditor ? "outline" : undefined}
+        size="sm"
+        className={cn(
+          props.fallbackButtonClassName,
+          props.hasBusyAction ? "pointer-events-none opacity-50" : undefined,
+        )}
+      >
+        <Link
+          href={props.fallbackHref}
+          onClick={props.handleFallbackLinkClick}
+          aria-disabled={props.hasBusyAction || undefined}
+          tabIndex={props.hasBusyAction ? -1 : undefined}
+        >
+          {fallbackContent}
+        </Link>
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant={props.hasLastEditor ? "outline" : undefined}
+      size="sm"
+      onClick={props.handleFallbackSearch}
+      disabled={props.fallbackDisabled}
+      className={props.fallbackButtonClassName}
+    >
+      {fallbackContent}
+    </Button>
+  );
+}
+
+function SearchLaunchStarterMenu(
+  props: Readonly<{
+    align: SearchLaunchChooserProps["align"];
+    busyActionId: string | null;
+    handleQueueStarterStyle: (starterStyle: EditorStarterStyle) => void;
+    hasBusyAction: boolean;
+    isStarterMenuOpen: boolean;
+    setIsStarterMenuOpen: (value: boolean) => void;
+  }>,
+) {
+  return (
+    <Popover
+      open={props.isStarterMenuOpen}
+      onOpenChange={props.setIsStarterMenuOpen}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={props.hasBusyAction}
+          className="
+            min-h-11 border-gold/20 bg-background/70 px-4 text-xs tracking-[0.15em] uppercase
+            hover:bg-gold/5
+          "
+        >
+          <Sparkles className="mr-2 size-4" aria-hidden="true" />
+          Start with a look
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align={props.align === "center" ? "center" : "start"}
+        className="
+          w-[min(24rem,calc(100vw-2rem))] border-gold/15 bg-background/95 p-0 backdrop-blur-xl
+        "
+      >
+        <div className="border-b border-gold/10 px-4 py-3">
+          <p className="text-[0.68rem] tracking-[0.22em] text-gold/70 uppercase">
+            Starter looks
+          </p>
+          <p className="mt-1 text-xs/relaxed text-foreground/55">
+            Queue a ready-made look first, then open the next editor without
+            rebuilding the style by hand.
+          </p>
+        </div>
+
+        <div className="space-y-1 p-2">
+          {EDITOR_STARTER_STYLES.map((starterStyle) => (
+            <button
+              key={starterStyle.id}
+              type="button"
+              onClick={() => props.handleQueueStarterStyle(starterStyle)}
+              disabled={props.hasBusyAction}
+              className="
+                flex w-full items-start justify-between gap-3 rounded-sm p-3 text-left
+                transition-colors
+                hover:bg-gold/6
+                focus-visible:bg-gold/6 focus-visible:outline-none
+              "
+            >
+              <div>
+                <p className="text-[0.68rem] tracking-[0.2em] text-gold/65 uppercase">
+                  {starterStyle.intentLabel}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {starterStyle.name}
+                </p>
+                <p className="mt-1 text-xs/relaxed text-foreground/52">
+                  {starterStyle.description}
+                </p>
+              </div>
+
+              {props.busyActionId === starterStyle.id ? (
+                <Loader2
+                  className="mt-0.5 size-4 shrink-0 animate-spin text-gold"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowRight
+                  className="mt-0.5 size-4 shrink-0 text-gold/75"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SearchLaunchChooserActions(
   props: Readonly<{
     align: SearchLaunchChooserProps["align"];
@@ -253,136 +405,27 @@ function SearchLaunchChooserActions(
         </Button>
       ) : null}
 
-      {props.searchFallbackBehavior === "route" ? (
-        <Button
-          asChild
-          variant={props.hasLastEditor ? "outline" : undefined}
-          size="sm"
-          className={cn(
-            props.fallbackButtonClassName,
-            hasBusyAction ? "pointer-events-none opacity-50" : undefined,
-          )}
-        >
-          <Link
-            href={props.fallbackHref}
-            onClick={props.handleFallbackLinkClick}
-            aria-disabled={hasBusyAction || undefined}
-            tabIndex={hasBusyAction ? -1 : undefined}
-          >
-            {isFallbackBusy ? (
-              <>
-                <Loader2
-                  className="mr-2 size-4 animate-spin"
-                  aria-hidden="true"
-                />
-                Opening search…
-              </>
-            ) : (
-              props.fallbackLabel
-            )}
-          </Link>
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant={props.hasLastEditor ? "outline" : undefined}
-          size="sm"
-          onClick={props.handleFallbackSearch}
-          disabled={fallbackDisabled}
-          className={props.fallbackButtonClassName}
-        >
-          {isFallbackBusy ? (
-            <>
-              <Loader2
-                className="mr-2 size-4 animate-spin"
-                aria-hidden="true"
-              />
-              Opening search…
-            </>
-          ) : (
-            props.fallbackLabel
-          )}
-        </Button>
-      )}
+      <SearchLaunchFallbackAction
+        fallbackButtonClassName={props.fallbackButtonClassName}
+        fallbackDisabled={fallbackDisabled}
+        fallbackHref={props.fallbackHref}
+        fallbackLabel={props.fallbackLabel}
+        handleFallbackLinkClick={props.handleFallbackLinkClick}
+        handleFallbackSearch={props.handleFallbackSearch}
+        hasBusyAction={hasBusyAction}
+        hasLastEditor={props.hasLastEditor}
+        isFallbackBusy={isFallbackBusy}
+        searchFallbackBehavior={props.searchFallbackBehavior}
+      />
 
-      <Popover
-        open={props.isStarterMenuOpen}
-        onOpenChange={props.setIsStarterMenuOpen}
-      >
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={hasBusyAction}
-            className="
-              min-h-11 border-gold/20 bg-background/70 px-4 text-xs tracking-[0.15em] uppercase
-              hover:bg-gold/5
-            "
-          >
-            <Sparkles className="mr-2 size-4" aria-hidden="true" />
-            Start with a look
-          </Button>
-        </PopoverTrigger>
-
-        <PopoverContent
-          align={props.align === "center" ? "center" : "start"}
-          className="
-            w-[min(24rem,calc(100vw-2rem))] border-gold/15 bg-background/95 p-0 backdrop-blur-xl
-          "
-        >
-          <div className="border-b border-gold/10 px-4 py-3">
-            <p className="text-[0.68rem] tracking-[0.22em] text-gold/70 uppercase">
-              Starter looks
-            </p>
-            <p className="mt-1 text-xs/relaxed text-foreground/55">
-              Queue a ready-made look first, then open the next editor without
-              rebuilding the style by hand.
-            </p>
-          </div>
-
-          <div className="space-y-1 p-2">
-            {EDITOR_STARTER_STYLES.map((starterStyle) => (
-              <button
-                key={starterStyle.id}
-                type="button"
-                onClick={() => props.handleQueueStarterStyle(starterStyle)}
-                disabled={hasBusyAction}
-                className="
-                  flex w-full items-start justify-between gap-3 rounded-sm p-3 text-left
-                  transition-colors
-                  hover:bg-gold/6
-                  focus-visible:bg-gold/6 focus-visible:outline-none
-                "
-              >
-                <div>
-                  <p className="text-[0.68rem] tracking-[0.2em] text-gold/65 uppercase">
-                    {starterStyle.intentLabel}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">
-                    {starterStyle.name}
-                  </p>
-                  <p className="mt-1 text-xs/relaxed text-foreground/52">
-                    {starterStyle.description}
-                  </p>
-                </div>
-
-                {props.busyActionId === starterStyle.id ? (
-                  <Loader2
-                    className="mt-0.5 size-4 shrink-0 animate-spin text-gold"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowRight
-                    className="mt-0.5 size-4 shrink-0 text-gold/75"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <SearchLaunchStarterMenu
+        align={props.align}
+        busyActionId={props.busyActionId}
+        handleQueueStarterStyle={props.handleQueueStarterStyle}
+        hasBusyAction={hasBusyAction}
+        isStarterMenuOpen={props.isStarterMenuOpen}
+        setIsStarterMenuOpen={props.setIsStarterMenuOpen}
+      />
     </div>
   );
 }
