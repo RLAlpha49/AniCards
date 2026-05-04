@@ -312,6 +312,29 @@ async function flushAnimationFrames(count = 2) {
   }
 }
 
+function createUser() {
+  return userEvent.setup({ document: globalThis.document });
+}
+
+function expectTrackedEvent(
+  index: number,
+  action: string,
+  expectedParams?: Partial<Record<string, unknown>>,
+) {
+  const call = gtagMock.mock.calls[index];
+
+  if (!call) {
+    throw new Error(`Expected analytics event at index ${index}.`);
+  }
+
+  expect(call[0]).toBe("event");
+  expect(call[1]).toBe(action);
+
+  if (expectedParams) {
+    expect(call[2]).toMatchObject(expectedParams);
+  }
+}
+
 describe("SearchForm", () => {
   beforeAll(async () => {
     ({ SearchForm } = await import("@/components/search/SearchForm"));
@@ -384,10 +407,8 @@ describe("SearchForm", () => {
     mock.restore();
   });
 
-  it("shows a validation error, restores focus, and records a failed search when the input is blank", async () => {
-    const onLoadingChange = mock((loading: boolean) => loading);
-
-    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+  it("shows the blank-search validation error and restores focus to the username field", async () => {
+    const view = render(<SearchForm />);
     submitSearchForm();
 
     const errorMessages = await view.findAllByText(
@@ -397,18 +418,30 @@ describe("SearchForm", () => {
       "AniList Username",
     ) as HTMLInputElement;
 
-    expect(errorMessages.length).toBeGreaterThan(0);
+    expect(errorMessages).toHaveLength(2);
     expect(errorMessages[0]?.textContent).toBe(
       "You'll need to enter an AniList username, profile link, or user ID first.",
     );
+
     await flushAnimationFrames();
-    expect(document.activeElement === usernameInput).toBe(true);
+
+    expect(document.activeElement).toBe(usernameInput);
+  });
+
+  it("records a failed blank-search submission without starting navigation", async () => {
+    const onLoadingChange = mock((loading: boolean) => loading);
+
+    const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
+    submitSearchForm();
+
+    await view.findAllByText(
+      "You'll need to enter an AniList username, profile link, or user ID first.",
+    );
+
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
     expect(gtagMock).toHaveBeenCalledTimes(1);
-    expect(gtagMock.mock.calls[0]?.[0]).toBe("event");
-    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_error");
-    expect(gtagMock.mock.calls[0]?.[2]).toMatchObject({
+    expectTrackedEvent(0, "form_submitted_error", {
       event_category: "conversion",
       event_label: "user_search",
       send_to: "G-TEST123",
@@ -497,7 +530,7 @@ describe("SearchForm", () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), "54two24");
@@ -518,14 +551,14 @@ describe("SearchForm", () => {
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
     expect(gtagMock).toHaveBeenCalledTimes(1);
-    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_error");
+    expectTrackedEvent(0, "form_submitted_error");
   });
 
   it("normalizes AniList profile URLs before navigating from username mode", async () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     await user.type(
       view.getByLabelText("AniList Username"),
@@ -544,7 +577,7 @@ describe("SearchForm", () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     await user.type(view.getByLabelText("AniList Username"), "000542244");
     submitSearchForm();
@@ -562,7 +595,7 @@ describe("SearchForm", () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), " 000542244 ");
@@ -576,15 +609,15 @@ describe("SearchForm", () => {
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
     expect(gtagMock).toHaveBeenCalledTimes(2);
-    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_success");
-    expect(gtagMock.mock.calls[1]?.[1]).toBe("navigation");
+    expectTrackedEvent(0, "form_submitted_success");
+    expectTrackedEvent(1, "navigation");
   });
 
   it("routes successful username lookups after paint and keeps the loading state visible", async () => {
     const onLoadingChange = mock((loading: boolean) => loading);
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     await user.type(view.getByLabelText("AniList Username"), "  @Alpha49  ");
     submitSearchForm();
@@ -595,23 +628,22 @@ describe("SearchForm", () => {
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
     expect(gtagMock).toHaveBeenCalledTimes(2);
-    expect(gtagMock.mock.calls[0]?.[0]).toBe("event");
-    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_success");
-    expect(gtagMock.mock.calls[0]?.[2]).toMatchObject({
+    expectTrackedEvent(0, "form_submitted_success", {
       event_category: "conversion",
       event_label: "user_search",
       send_to: "G-TEST123",
     });
-    expect(gtagMock.mock.calls[1]?.[0]).toBe("event");
-    expect(gtagMock.mock.calls[1]?.[1]).toBe("navigation");
-    expect(gtagMock.mock.calls[1]?.[2]).toMatchObject({
+    expectTrackedEvent(1, "navigation", {
       event_category: "engagement",
       event_label: "search_form_to_search",
       send_to: "G-TEST123",
     });
-    expect(
-      view.getByRole("button", { name: /checking profile/i }),
-    ).toBeTruthy();
+
+    const loadingButton = view.getByRole("button", {
+      name: /checking profile/i,
+    }) as HTMLButtonElement;
+
+    expect(loadingButton.disabled).toBe(true);
   });
 
   it("surfaces navigation failures and restores the non-loading form state", async () => {
@@ -619,7 +651,7 @@ describe("SearchForm", () => {
     rejectNextPush = true;
 
     const view = render(<SearchForm onLoadingChange={onLoadingChange} />);
-    const user = userEvent.setup({ document: globalThis.document });
+    const user = createUser();
 
     switchToUserIdMode(view);
     await user.type(view.getByLabelText("AniList User ID"), "542244");
@@ -639,7 +671,12 @@ describe("SearchForm", () => {
       "Something went wrong with navigation. Try again?",
     );
     expect(onLoadingChange.mock.calls).toEqual([[true], [false]]);
-    expect(view.getByRole("button", { name: /find profile/i })).toBeTruthy();
+
+    const submitButton = view.getByRole("button", {
+      name: /find profile/i,
+    }) as HTMLButtonElement;
+
+    expect(submitButton.disabled).toBe(false);
   });
 
   it("treats the blocking search overlay like a modal status region and restores focus when loading ends", async () => {
@@ -736,9 +773,11 @@ describe("SearchForm", () => {
       expect(routerPush.mock.calls).toContainEqual(["/user/Alpha49"]);
     });
 
-    expect(
-      view.getByRole("dialog", { name: /working on your anilist lookup/i }),
-    ).toBeTruthy();
+    const loadingDialog = await view.findByRole("dialog", {
+      name: /working on your anilist lookup/i,
+    });
+
+    expect(loadingDialog.getAttribute("aria-modal")).toBe("true");
   });
 
   it("surfaces remembered editor continuity even without a queued template", async () => {
@@ -828,11 +867,11 @@ describe("SearchForm", () => {
 
     fireEvent.click(openResolvedLookupLink);
 
-    await waitFor(() => {
-      expect(
-        view.getByRole("dialog", { name: /working on your anilist lookup/i }),
-      ).toBeTruthy();
+    const loadingDialog = await view.findByRole("dialog", {
+      name: /working on your anilist lookup/i,
     });
+
+    expect(loadingDialog.getAttribute("aria-modal")).toBe("true");
 
     expect(routerPush.mock.calls).toHaveLength(0);
   });
