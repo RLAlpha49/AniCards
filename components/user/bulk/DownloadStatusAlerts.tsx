@@ -1,10 +1,10 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { Info } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { AnimatePresence, motion } from "@/components/ui/Motion";
 import { cn } from "@/lib/utils";
 
 export interface DownloadSummary {

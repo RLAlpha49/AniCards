@@ -1,9 +1,30 @@
-import { describe, expect, it } from "bun:test";
+import { beforeAll, describe, expect, it, mock } from "bun:test";
+import type { ComponentProps, ReactNode } from "react";
+import { createElement } from "react";
 
-import {
-  createDownloadSummary,
-  getDownloadSummaryTitle,
-} from "@/components/user/bulk/DownloadStatusAlerts";
+type MotionDivProps = ComponentProps<"div"> & {
+  animate?: unknown;
+  exit?: unknown;
+  initial?: unknown;
+  transition?: unknown;
+};
+
+mock.module("@/components/ui/Motion", () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => children,
+  motion: {
+    div: ({ children, ...props }: MotionDivProps) =>
+      createElement("div", props, children),
+  },
+  NO_MOTION_TRANSITION: { duration: 0 },
+}));
+
+let createDownloadSummary: typeof import("@/components/user/bulk/DownloadStatusAlerts").createDownloadSummary;
+let getDownloadSummaryTitle: typeof import("@/components/user/bulk/DownloadStatusAlerts").getDownloadSummaryTitle;
+
+beforeAll(async () => {
+  ({ createDownloadSummary, getDownloadSummaryTitle } =
+    await import("@/components/user/bulk/DownloadStatusAlerts"));
+});
 
 describe("bulk download feedback summary", () => {
   it("keeps skipped disabled cards separate from failed conversions", () => {
