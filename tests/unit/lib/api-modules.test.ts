@@ -39,12 +39,7 @@ import {
   buildLatencyBucketMetricKeys,
   flushScheduledTelemetryTasksForTests,
   incrementAnalytics,
-  incrementAnalyticsBatch,
-  incrementAnalyticsBatchCounts,
   normalizeAnalyticsReasonCode,
-  scheduleDeferredAnalyticsBatch,
-  scheduleLowValueAnalyticsIncrement,
-  scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
