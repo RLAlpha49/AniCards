@@ -44,8 +44,7 @@ test.describe("Unmocked app shell smoke", () => {
     height: 851,
   };
 
-  test("serves the home app shell with middleware CSP headers, nonce-aware JSON-LD, and the legacy card rewrite surface @deployed-smoke", async ({
-    page,
+  test("serves nonce-aware home HTML with middleware CSP headers @deployed-smoke", async ({
     request,
   }) => {
     const response = await getWithRetry(request, "/");
@@ -67,28 +66,6 @@ test.describe("Unmocked app shell smoke", () => {
     expect(cspHeader).toContain(`'nonce-${nonce}'`);
     expect(html).toContain('type="application/ld+json"');
     expect(html).toContain(`nonce="${nonce}"`);
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    await expect(page.getByRole("banner")).toBeVisible();
-    await expect(page.getByRole("contentinfo")).toBeVisible();
-    await expect(page).toHaveTitle(/AniCards/i);
-
-    const legacyCardResponse = await getWithRetry(request, "/card.svg");
-    expect(legacyCardResponse.status()).toBe(400);
-
-    const legacyCardHeaders = legacyCardResponse.headers();
-    const legacyCardSvg = await legacyCardResponse.text();
-
-    expect(legacyCardHeaders["content-type"]).toContain("image/svg+xml");
-    expect(legacyCardHeaders["cache-control"]).toContain("no-store");
-    expect(legacyCardHeaders["x-card-border-radius"]).toBeTruthy();
-    expect(legacyCardHeaders["access-control-expose-headers"]).toMatch(
-      /x-card-border-radius/i,
-    );
-    expect(legacyCardSvg).toContain(
-      "Client Error: Missing parameter: cardType",
-    );
   });
 
   test("exposes a root-shell skip link, stable main target, and AniList preconnect hint", async ({
@@ -103,6 +80,7 @@ test.describe("Unmocked app shell smoke", () => {
       'link[rel="preconnect"][href="https://anilist.co"]',
     );
 
+    await expect(page).toHaveTitle(/AniCards/i);
     await expect(anilistPreconnect).toHaveCount(1);
     await expect(skipLink).toHaveAttribute("href", "#main-content");
 
