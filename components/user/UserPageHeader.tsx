@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { memo, useEffect, useReducer, useState } from "react";
 
-import { baseVariants } from "@/components/PageShell";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,23 +42,6 @@ interface UserPageHeaderProps {
   /** Save state for displaying status */
   saveState?: SaveState;
 }
-
-const containerVariants = {
-  ...baseVariants,
-  visible: {
-    ...baseVariants.visible,
-    transition: { staggerChildren: 0.08, delayChildren: 0.05 },
-  },
-};
-
-const itemVariants = {
-  hidden: { ...baseVariants.hidden, y: 16 },
-  visible: {
-    ...baseVariants.visible,
-    y: 0,
-    transition: { duration: 0.4, ease: "easeOut" as const },
-  },
-};
 
 /**
  * Returns a formatted time string for the last saved time.

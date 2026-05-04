@@ -1,7 +1,7 @@
 // app/layout.tsx
 //
 // Composes the shared shell for every route: fonts, structured data,
-// consent-aware analytics, and the global layout wrapper.
+// thin analytics bootstrap, and the global layout wrapper.
 //
 // The early accessibility script runs before React hydrates so skip-link and
 // mobile-menu interactions still work during slow boots or while JavaScript is loading.
@@ -17,7 +17,7 @@ import {
 } from "next/font/google";
 import { Suspense } from "react";
 
-import AnalyticsProvider from "@/components/AnalyticsProvider";
+import AnalyticsBootstrap from "@/components/AnalyticsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
 import { LayoutShell } from "@/components/LayoutShell";
@@ -121,7 +121,7 @@ export default async function RootLayout({
           nonce={nonce}
         />
         <Suspense fallback={null}>
-          <AnalyticsProvider
+          <AnalyticsBootstrap
             enableRuntimeTelemetry={isVercelDeployment}
             trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
             nonce={nonce}

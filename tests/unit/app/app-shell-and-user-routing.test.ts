@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { NextRequest } from "next/server";
 import { isValidElement, type ReactNode } from "react";
 
@@ -13,8 +13,78 @@ import { REQUEST_PROOF_COOKIE_NAME } from "@/lib/api/request-proof";
 import { siteMetadata as rootMetadata } from "@/lib/seo";
 import { getSiteUrl, resolveSiteUrl } from "@/lib/site-config";
 import { config as middlewareConfig, proxy } from "@/proxy";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRedisMockGet,
+  sharedRedisMockMget,
+} from "@/tests/unit/__setup__";
 
 const DISALLOW_PATHS = ["/api/"];
+
+function createStoredUserParts(overrides?: { meta?: Record<string, unknown> }) {
+  return {
+    meta: {
+      userId: "123",
+      username: "Alpha49",
+      createdAt: "2026-03-20T08:00:00.000Z",
+      updatedAt: "2026-03-21T10:00:00.000Z",
+      ...overrides?.meta,
+    },
+    activity: {},
+    favourites: {},
+    statistics: {
+      anime: { count: 42 },
+      manga: { count: 12 },
+    },
+    pages: {},
+    planning: {},
+    current: {},
+    rewatched: {},
+    completed: {},
+    aggregates: null,
+  };
+}
+
+function mockStoredProfileLookup(
+  username: string,
+  parts = createStoredUserParts({
+    meta: {
+      username,
+    },
+  }),
+  options?: {
+    usernameIndex?: string | null;
+  },
+) {
+  const normalizedUsername = username.trim().toLowerCase();
+
+  sharedRedisMockGet.mockImplementation((key: string) => {
+    if (key === `username:${normalizedUsername}`) {
+      if (options && Object.hasOwn(options, "usernameIndex")) {
+        return Promise.resolve(options.usernameIndex ?? null);
+      }
+
+      return Promise.resolve("123");
+    }
+
+    return Promise.resolve(null);
+  });
+
+  sharedRedisMockMget.mockImplementation((...keys: string[]) => {
+    return Promise.resolve(
+      keys.map((key) => {
+        const part = key.split(":").at(-1) as keyof ReturnType<
+          typeof createStoredUserParts
+        >;
+        const value = parts[part];
+
+        return value === null || value === undefined
+          ? null
+          : JSON.stringify(value);
+      }),
+    );
+  });
+}
 
 function treeContainsElementType(
   node: ReactNode,
@@ -38,6 +108,16 @@ function treeContainsElementType(
 }
 
 describe("App shell server coverage", () => {
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map(() => null),
+    );
+  });
+
   it("injects CSP, nonce headers, and a request proof cookie for HTML routes", async () => {
     const request = new Request("http://localhost/search", {
       headers: {
@@ -231,6 +311,8 @@ describe("User route metadata and redirect helpers", () => {
   });
 
   it("builds canonical profile metadata for username routes", async () => {
+    mockStoredProfileLookup("Alpha49");
+
     const metadata = await generateProfileUserMetadata({
       params: Promise.resolve({ username: "Alpha49" }),
       searchParams: Promise.resolve({}),
@@ -240,6 +322,21 @@ describe("User route metadata and redirect helpers", () => {
     expect(metadata.openGraph).toMatchObject({
       type: "profile",
       url: resolveSiteUrl("/user/Alpha49"),
+    });
+  });
+
+  it("treats missing public profile slugs as not found before canonical metadata is emitted", async () => {
+    mockStoredProfileLookup("Alpha49", createStoredUserParts(), {
+      usernameIndex: null,
+    });
+
+    await expect(
+      generateProfileUserMetadata({
+        params: Promise.resolve({ username: "Alpha49" }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).rejects.toMatchObject({
+      digest: expect.stringContaining("404"),
     });
   });
 });

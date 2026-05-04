@@ -797,8 +797,12 @@ async function applyEvalAliasWrites(options: {
 async function applyEvalRegistryWrites(options: {
   registryKey?: unknown;
   refreshIndexKey?: unknown;
+  publicProfileSitemapIndexKey?: unknown;
   legacyUserKey?: unknown;
+  normalizedUsername?: string;
   userId: string;
+  username?: unknown;
+  updatedAt?: unknown;
   updatedAtScore: unknown;
 }) {
   if (typeof options.registryKey === "string") {
@@ -813,6 +817,27 @@ async function applyEvalRegistryWrites(options: {
   }
   if (typeof options.legacyUserKey === "string") {
     await sharedRedisMockDel(options.legacyUserKey);
+  }
+
+  if (
+    typeof options.publicProfileSitemapIndexKey === "string" &&
+    options.normalizedUsername &&
+    typeof options.username === "string"
+  ) {
+    await sharedRedisMockSet(
+      `${options.publicProfileSitemapIndexKey}:${options.normalizedUsername}`,
+      JSON.stringify({
+        userId: options.userId,
+        username: options.username,
+        ...(typeof options.updatedAt === "string"
+          ? { lastmod: options.updatedAt }
+          : {}),
+      }),
+    );
+    await invokeSharedRedisMockSadd(
+      options.publicProfileSitemapIndexKey,
+      options.normalizedUsername,
+    );
   }
 }
 
@@ -907,8 +932,12 @@ async function emulateAtomicUserSaveEval(
   await applyEvalRegistryWrites({
     registryKey: keys[2],
     refreshIndexKey: keys[3],
+    publicProfileSitemapIndexKey: keys[4],
     legacyUserKey: keys[5],
+    normalizedUsername,
     userId: payload.userId,
+    username: payload.username,
+    updatedAt: payload.updatedAt,
     updatedAtScore: payload.updatedAtScore,
   });
 
@@ -934,6 +963,7 @@ async function emulateAtomicUserDeleteEval(
     failureKey,
     registryKey,
     refreshIndexKey,
+    publicProfileSitemapIndexKey,
   ] = keys;
   const deletedKeys: string[] = [];
   const removedAliasKeys: string[] = [];
@@ -1016,6 +1046,28 @@ async function emulateAtomicUserDeleteEval(
     if (aliasOwner === payload.userId) {
       deletedKeys.push(aliasKey);
       removedAliasKeys.push(aliasKey);
+    }
+
+    const publicProfileSitemapEntryKey =
+      typeof publicProfileSitemapIndexKey === "string"
+        ? `${publicProfileSitemapIndexKey}:${alias}`
+        : undefined;
+    const publicProfileSitemapEntry = publicProfileSitemapEntryKey
+      ? parseEvalJsonRecord(
+          await sharedRedisMockGet(publicProfileSitemapEntryKey),
+        )
+      : null;
+
+    if (
+      publicProfileSitemapEntryKey &&
+      (aliasOwner === payload.userId ||
+        publicProfileSitemapEntry?.userId === payload.userId)
+    ) {
+      deletedKeys.push(publicProfileSitemapEntryKey);
+
+      if (typeof publicProfileSitemapIndexKey === "string") {
+        await invokeSharedRedisMockSrem(publicProfileSitemapIndexKey, alias);
+      }
     }
   }
 

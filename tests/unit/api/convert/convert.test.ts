@@ -26,8 +26,6 @@ const originalApiSecretToken = process.env.API_SECRET_TOKEN;
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
  */
 let lastSharpBuffer: Buffer | null = null;
-let sharpConstructorCallCount = 0;
-let lastSharpCloneCount = 0;
 
 /**
  * Tracks which format (png or webp) was requested in the last sharp call
@@ -68,7 +66,6 @@ function createSharpOutputInstance() {
  * Returns a sharp-like object with png() -> { toBuffer() }
  */
 function createSharpInstance(buf?: Buffer) {
-  sharpConstructorCallCount += 1;
   if (buf) lastSharpBuffer = Buffer.from(buf);
   const outputInstance = createSharpOutputInstance();
   const instance: {
@@ -79,7 +76,6 @@ function createSharpInstance(buf?: Buffer) {
     webp: (opts: { quality: number }) => unknown;
   } = {
     clone: mock(() => {
-      lastSharpCloneCount += 1;
       return outputInstance;
     }),
     metadata: mock(async () => ({ width: 100, height: 100 })),
@@ -129,8 +125,6 @@ describe("Convert API POST Endpoint", () => {
     };
     lastSharpBuffer = null;
     lastSharpFormat = "png";
-    sharpConstructorCallCount = 0;
-    lastSharpCloneCount = 0;
     sharpConstructorMock.mockClear();
     sharedRatelimitMockLimit.mockResolvedValue({
       success: true,

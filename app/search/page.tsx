@@ -7,6 +7,7 @@ import { SearchCTA } from "@/components/search/SearchCTA";
 import { SearchJourney } from "@/components/search/SearchJourney";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
+import { getRequestNonce } from "@/lib/request-nonce";
 import {
   buildUserLookupPath,
   generateMetadata as createMetadata,
@@ -20,6 +21,8 @@ import {
 
 import LoadingPreview from "./loading";
 import SearchHeroShell from "./SearchHeroShell";
+
+export const SEARCH_PAGE_LASTMOD = "2026-04-15";
 
 type SearchLookupAttempt = {
   fallbackHref: string;
@@ -101,7 +104,10 @@ export default async function UserSearchPage({
     return <LoadingPreview />;
   }
 
-  const resolvedSearchParams = await searchParams;
+  const [resolvedSearchParams, nonce] = await Promise.all([
+    searchParams,
+    getRequestNonce(),
+  ]);
   const initialSearchMode = getSearchLookupMode(resolvedSearchParams.mode);
   const initialSearchValue = getSearchPagePrefillQuery(
     resolvedSearchParams.query,
@@ -112,7 +118,7 @@ export default async function UserSearchPage({
 
   return (
     <>
-      <StructuredDataScript page="search" />
+      <StructuredDataScript page="search" nonce={nonce} />
       <div className="relative min-h-shell-viewport">
         <MarketingBackdrop />
         <SearchHeroShell

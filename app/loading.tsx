@@ -179,7 +179,7 @@ function SearchNoscriptFallback({
   return (
     <section
       aria-labelledby="search-noscript-title"
-      className="relative min-h-screen overflow-hidden"
+      className="relative min-h-shell-viewport overflow-hidden"
       data-search-noscript-fallback="true"
     >
       <MarketingBackdrop />
@@ -469,12 +469,13 @@ export default async function Loading() {
         ) : (
           <section
             aria-labelledby="home-noscript-title"
-            className="relative min-h-screen overflow-hidden"
+            className="relative min-h-shell-viewport overflow-hidden"
           >
             <MarketingBackdrop lightOpacity={0.35} darkOpacity={0.22} />
 
             <section className="
-              relative z-10 flex min-h-[70vh] items-center justify-center px-6 pt-28 pb-16
+              relative z-10 flex min-h-loading-shell-hero items-center justify-center px-6 pt-28
+              pb-16
               sm:px-12
             ">
               <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center">
@@ -527,7 +528,7 @@ export default async function Loading() {
         data-loading-shell="true"
         aria-busy="true"
         aria-labelledby="home-loading-status"
-        className="relative min-h-screen overflow-hidden"
+        className="relative min-h-shell-viewport overflow-hidden"
       >
         <p
           id="home-loading-status"
@@ -542,7 +543,7 @@ export default async function Loading() {
 
         {/* Hero Section */}
         <section className="
-          relative z-10 flex min-h-[70vh] items-center justify-center px-4 pt-28 pb-16
+          relative z-10 flex min-h-loading-shell-hero items-center justify-center px-4 pt-28 pb-16
         ">
           <div className="flex w-full max-w-3xl flex-col items-center text-center">
             {/* Label */}
