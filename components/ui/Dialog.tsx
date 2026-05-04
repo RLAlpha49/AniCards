@@ -25,12 +25,6 @@ const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 
 /**
- * Close action for the dialog; typically used to hide the dialog.
- * @source
- */
-const DialogClose = DialogPrimitive.Close;
-
-/**
  * The overlay displayed behind the dialog to obscure and focus page content.
  * @source
  */
@@ -211,7 +205,6 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
