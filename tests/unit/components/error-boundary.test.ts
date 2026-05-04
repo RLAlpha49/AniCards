@@ -95,11 +95,11 @@ function createDeferredPromise<T>() {
   };
 }
 
-function installFetchMock(fetchMock: typeof globalThis.fetch) {
+function installFetchMock(fetchMock: unknown): () => void {
   const originalFetch = globalThis.fetch;
 
   Object.defineProperty(globalThis, "fetch", {
-    value: fetchMock,
+    value: fetchMock as typeof globalThis.fetch,
     configurable: true,
     writable: true,
   });
@@ -291,7 +291,7 @@ describe("ErrorBoundary fallback model", () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
 
     try {
       render(
@@ -367,7 +367,7 @@ describe("ErrorBoundary fallback model", () => {
   it("shows a local incident reference immediately before client boundary reporting settles", async () => {
     const deferredResponse = createDeferredPromise<Response>();
     const fetchMock = mock(() => deferredResponse.promise);
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
 
     try {
       render(
@@ -399,7 +399,7 @@ describe("ErrorBoundary fallback model", () => {
   it("shows the Next.js digest immediately before App Router reporting settles", async () => {
     const deferredResponse = createDeferredPromise<Response>();
     const fetchMock = mock(() => deferredResponse.promise);
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
 
     try {
       const error = Object.assign(new Error("Route segment crashed"), {
@@ -434,7 +434,7 @@ describe("ErrorBoundary fallback model", () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
 
     try {
       const error = Object.assign(
@@ -483,7 +483,7 @@ describe("ErrorBoundary fallback model", () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     try {
@@ -536,7 +536,7 @@ describe("ErrorBoundary fallback model", () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
+    const restoreFetch = installFetchMock(fetchMock);
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     try {
