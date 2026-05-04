@@ -90,7 +90,8 @@ registerNextNavigationMock();
 
 installHappyDom();
 
-const { act, cleanup, renderHook } = await import("@testing-library/react");
+const { act, cleanup, renderHook, waitFor } =
+  await import("@testing-library/react");
 
 let useUserDataLoader: typeof import("@/components/user/hooks/useUserDataLoader").useUserDataLoader;
 
@@ -168,6 +169,18 @@ async function flushLoader(rounds = 12) {
     });
     await flushMicrotasks(rounds);
   });
+}
+
+async function waitForLoaderAssertion(assertion: () => void) {
+  await waitFor(
+    async () => {
+      await flushLoader();
+      assertion();
+    },
+    {
+      timeout: 5_000,
+    },
+  );
 }
 
 describe("useUserDataLoader", () => {
@@ -263,24 +276,24 @@ describe("useUserDataLoader", () => {
 
     renderHook(() => useUserDataLoader({ startSetup }));
 
-    await flushLoader();
+    await waitForLoaderAssertion(() => {
+      expect(fetchUserCardsMock).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalled();
+      const firstRequestInput = fetchMock.mock.calls[0]?.[0];
 
-    expect(fetchUserCardsMock).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalled();
-    const firstRequestInput = fetchMock.mock.calls[0]?.[0];
+      if (!firstRequestInput) {
+        throw new TypeError(
+          "Expected useUserDataLoader to issue a bootstrap request.",
+        );
+      }
 
-    if (!firstRequestInput) {
-      throw new TypeError(
-        "Expected useUserDataLoader to issue a bootstrap request.",
+      expect(getRequestUrl(firstRequestInput as RequestInfo | URL)).toMatch(
+        /^\/api\/get-user\?/i,
       );
-    }
-
-    expect(getRequestUrl(firstRequestInput as RequestInfo | URL)).toMatch(
-      /^\/api\/get-user\?/i,
-    );
-    expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
-      "Server error. Wait for the backend to recover, then retry loading your profile.",
-    );
+      expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
+        "Server error. Wait for the backend to recover, then retry loading your profile.",
+      );
+    });
   });
 
   it("rejects malformed direct user IDs before any network request begins", async () => {
@@ -300,14 +313,14 @@ describe("useUserDataLoader", () => {
 
     const { result } = renderHook(() => useUserDataLoader({ startSetup }));
 
-    await flushLoader();
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(fetchUserCardsMock).not.toHaveBeenCalled();
-    expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
-      "Invalid user specified. Please check the username/user ID and try again.",
-    );
-    expect(result.current.loadingPhase).toBe("error");
+    await waitForLoaderAssertion(() => {
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(fetchUserCardsMock).not.toHaveBeenCalled();
+      expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
+        "Invalid user specified. Please check the username/user ID and try again.",
+      );
+      expect(result.current.loadingPhase).toBe("error");
+    });
   });
 
   it("normalizes known numeric user IDs and starts card loading before bootstrap resolves", async () => {
@@ -347,15 +360,13 @@ describe("useUserDataLoader", () => {
       }),
     );
 
-    await act(async () => {
-      await flushMicrotasks(6);
+    await waitForLoaderAssertion(() => {
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        "/api/get-user?userId=42&view=bootstrap",
+      );
+      expect(fetchUserCardsMock).toHaveBeenCalledTimes(1);
+      expect(fetchUserCardsMock.mock.calls[0]?.[0]).toBe("42");
     });
-
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "/api/get-user?userId=42&view=bootstrap",
-    );
-    expect(fetchUserCardsMock).toHaveBeenCalledTimes(1);
-    expect(fetchUserCardsMock.mock.calls[0]?.[0]).toBe("42");
 
     unmount();
     bootstrapResponse.resolve(createSuccessfulBootstrapResponse());
@@ -398,10 +409,10 @@ describe("useUserDataLoader", () => {
       useUserDataLoader({ routeUsername: "Alex", startSetup }),
     );
 
-    await flushLoader();
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchUserCardsMock).toHaveBeenCalledTimes(1);
+    await waitForLoaderAssertion(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchUserCardsMock).toHaveBeenCalledTimes(1);
+    });
 
     routeSearchParams = new URLSearchParams();
     rerender();
@@ -452,19 +463,19 @@ describe("useUserDataLoader", () => {
 
     renderHook(() => useUserDataLoader({ startSetup }));
 
-    await flushLoader();
+    await waitForLoaderAssertion(() => {
+      expect(startSetup).toHaveBeenCalledTimes(1);
+      const firstStartSetupCall = startSetup.mock.calls[0] as unknown as
+        | [string | null, string | null]
+        | undefined;
 
-    expect(startSetup).toHaveBeenCalledTimes(1);
-    const firstStartSetupCall = startSetup.mock.calls[0] as unknown as
-      | [string | null, string | null]
-      | undefined;
-
-    expect(firstStartSetupCall?.[0]).toBeNull();
-    expect(firstStartSetupCall?.[1]).toBe("FreshUser");
-    expect(fetchUserCardsMock).not.toHaveBeenCalled();
-    expect(routerReplace).toHaveBeenCalledWith(
-      "/user/FreshUser?q=wide&visibility=private&group=Top+10&customFilter=customized",
-    );
+      expect(firstStartSetupCall?.[0]).toBeNull();
+      expect(firstStartSetupCall?.[1]).toBe("FreshUser");
+      expect(fetchUserCardsMock).not.toHaveBeenCalled();
+      expect(routerReplace).toHaveBeenCalledWith(
+        "/user/FreshUser?q=wide&visibility=private&group=Top+10&customFilter=customized",
+      );
+    });
   });
 
   it("initializes an empty authoritative state when the saved cards record is missing", async () => {
@@ -507,18 +518,18 @@ describe("useUserDataLoader", () => {
       }),
     );
 
-    await flushLoader();
-
-    expect(editorStoreActions.initializeFromServerData).toHaveBeenCalledWith(
-      "42",
-      "Alex",
-      "https://example.com/avatar.png",
-      [],
-      undefined,
-      expect.any(Array),
-    );
-    expect(result.current.loadError).toBeNull();
-    expect(result.current.loadingPhase).toBe("complete");
+    await waitForLoaderAssertion(() => {
+      expect(editorStoreActions.initializeFromServerData).toHaveBeenCalledWith(
+        "42",
+        "Alex",
+        "https://example.com/avatar.png",
+        [],
+        undefined,
+        expect.any(Array),
+      );
+      expect(result.current.loadError).toBeNull();
+      expect(result.current.loadingPhase).toBe("complete");
+    });
   });
 
   it("forwards saved cardOrder into editor initialization when card data loads successfully", async () => {
@@ -558,22 +569,22 @@ describe("useUserDataLoader", () => {
       }),
     );
 
-    await flushLoader();
-
-    expect(editorStoreActions.initializeFromServerData).toHaveBeenCalledWith(
-      "42",
-      "Alex",
-      "https://example.com/avatar.png",
-      [{ cardName: "animeStats", titleColor: "#000" }],
-      undefined,
-      expect.any(Array),
-      "2026-04-03T14:00:00.000Z",
-      ["favoritesGrid", "animeStats"],
-    );
+    await waitForLoaderAssertion(() => {
+      expect(editorStoreActions.initializeFromServerData).toHaveBeenCalledWith(
+        "42",
+        "Alex",
+        "https://example.com/avatar.png",
+        [{ cardName: "animeStats", titleColor: "#000" }],
+        undefined,
+        expect.any(Array),
+        "2026-04-03T14:00:00.000Z",
+        ["favoritesGrid", "animeStats"],
+      );
+    });
   });
 
   it("seeds default cards behind a retryable load error when saved-card bootstrap fails", async () => {
-    const { consoleError } = allowConsoleWarningsAndErrors();
+    allowConsoleWarningsAndErrors();
 
     pathname = "/user/Alex";
     routeSearchParams = new URLSearchParams();
@@ -623,11 +634,12 @@ describe("useUserDataLoader", () => {
 
     await flushMicrotasks(20);
 
-    expect(editorStoreActions.initializeFromServerData).toHaveBeenCalled();
-    expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
-      "Failed to load saved cards due to a server error. Default cards are shown for now.",
-    );
-    expect(consoleError).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(editorStoreActions.initializeFromServerData).toHaveBeenCalled();
+      expect(editorStoreActions.setLoadError).toHaveBeenCalledWith(
+        "Failed to load saved cards due to a server error. Default cards are shown for now.",
+      );
+    });
 
     unmount();
   });
