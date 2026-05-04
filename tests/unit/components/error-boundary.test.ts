@@ -95,6 +95,62 @@ function createDeferredPromise<T>() {
   };
 }
 
+function installFetchMock(fetchMock: typeof globalThis.fetch) {
+  const originalFetch = globalThis.fetch;
+
+  Object.defineProperty(globalThis, "fetch", {
+    value: fetchMock,
+    configurable: true,
+    writable: true,
+  });
+
+  return () => {
+    Object.defineProperty(globalThis, "fetch", {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
+  };
+}
+
+function readFirstReportPayload(fetchMock: {
+  mock: {
+    calls: Array<unknown[]>;
+  };
+}) {
+  const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+
+  if (!requestInit) {
+    throw new Error("Expected the first error report request to include init.");
+  }
+
+  return parseRequestInitJson<{
+    id?: string;
+  }>(requestInit);
+}
+
+async function waitForFirstReportPayload(fetchMock: {
+  mock: {
+    calls: Array<unknown[]>;
+  };
+}) {
+  await waitFor(() => {
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
+  return readFirstReportPayload(fetchMock);
+}
+
+function expectIncidentReference(id: string | undefined): string {
+  const incidentReference = id?.trim();
+
+  if (!incidentReference) {
+    throw new Error("Expected a non-empty incident reference.");
+  }
+
+  return incidentReference;
+}
+
 beforeEach(() => {
   allowConsoleWarningsAndErrors();
   resetHappyDom("http://localhost/error-boundary");
@@ -232,16 +288,10 @@ describe("ErrorBoundary fallback model", () => {
   });
 
   it("surfaces the resolved structured incident ID in the client boundary fallback", async () => {
-    const originalFetch = globalThis.fetch;
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
 
     try {
       render(
@@ -254,28 +304,15 @@ describe("ErrorBoundary fallback model", () => {
         ),
       );
 
-      await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-      });
-
-      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-      expect(firstFetchCall).toBeTruthy();
-
-      const payload = parseRequestInitJson<{
-        id?: string;
-      }>(firstFetchCall?.[1] as RequestInit | undefined);
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
 
       await waitFor(() => {
-        expect(payload.id).toBeTruthy();
         expect(document.body.textContent).toContain("Incident reference");
-        expect(document.body.textContent).toContain(String(payload.id));
+        expect(document.body.textContent).toContain(incidentReference);
       });
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
     }
   });
 
@@ -328,15 +365,9 @@ describe("ErrorBoundary fallback model", () => {
   });
 
   it("shows a local incident reference immediately before client boundary reporting settles", async () => {
-    const originalFetch = globalThis.fetch;
     const deferredResponse = createDeferredPromise<Response>();
     const fetchMock = mock(() => deferredResponse.promise);
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
 
     try {
       render(
@@ -349,44 +380,26 @@ describe("ErrorBoundary fallback model", () => {
         ),
       );
 
-      await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-      });
-
-      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-      expect(firstFetchCall).toBeTruthy();
-
-      const payload = parseRequestInitJson<{
-        id?: string;
-      }>(firstFetchCall?.[1] as RequestInit | undefined);
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
 
       expect(document.body.textContent).toContain("Incident reference");
-      expect(document.body.textContent).not.toContain(String(payload.id));
+      expect(document.body.textContent).not.toContain(incidentReference);
 
       deferredResponse.resolve(new Response(null, { status: 202 }));
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain(String(payload.id));
+        expect(document.body.textContent).toContain(incidentReference);
       });
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
     }
   });
 
   it("shows the Next.js digest immediately before App Router reporting settles", async () => {
-    const originalFetch = globalThis.fetch;
     const deferredResponse = createDeferredPromise<Response>();
     const fetchMock = mock(() => deferredResponse.promise);
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
 
     try {
       const error = Object.assign(new Error("Route segment crashed"), {
@@ -404,38 +417,24 @@ describe("ErrorBoundary fallback model", () => {
 
       deferredResponse.resolve(new Response(null, { status: 202 }));
 
-      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-      expect(firstFetchCall).toBeTruthy();
-
-      const payload = parseRequestInitJson<{
-        id?: string;
-      }>(firstFetchCall?.[1] as RequestInit | undefined);
+      const payload = readFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
 
       await waitFor(() => {
         expect(getByTestId("incident-reference").textContent).toBe(
-          String(payload.id),
+          incidentReference,
         );
       });
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
     }
   });
 
   it("surfaces the resolved structured incident ID for App Router boundaries", async () => {
-    const originalFetch = globalThis.fetch;
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
 
     try {
       const error = Object.assign(
@@ -448,32 +447,19 @@ describe("ErrorBoundary fallback model", () => {
         createElement(AppRouterBoundaryHarness, { error }),
       );
 
-      await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-      });
-
-      const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
-      expect(firstFetchCall).toBeTruthy();
-
-      const payload = parseRequestInitJson<{
-        id?: string;
-      }>(firstFetchCall?.[1] as RequestInit | undefined);
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
 
       await waitFor(() => {
-        expect(payload.id).toBeTruthy();
         expect(getByTestId("incident-reference").textContent).toBe(
-          String(payload.id),
+          incidentReference,
         );
         expect(getByTestId("incident-reference").textContent).not.toBe(
           error.digest,
         );
       });
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
     }
   });
 
@@ -493,17 +479,11 @@ describe("ErrorBoundary fallback model", () => {
   });
 
   it("logs client boundary captures through the privacy-safe pipeline in production", async () => {
-    const originalFetch = globalThis.fetch;
     const originalNodeEnv = process.env.NODE_ENV;
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     try {
@@ -545,28 +525,18 @@ describe("ErrorBoundary fallback model", () => {
       );
       expect(serializedLogEntry).not.toContain("/Users/Alex/private");
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
       (process.env as Record<string, string | undefined>).NODE_ENV =
         originalNodeEnv;
     }
   });
 
   it("logs App Router boundary captures through the privacy-safe pipeline in production", async () => {
-    const originalFetch = globalThis.fetch;
     const originalNodeEnv = process.env.NODE_ENV;
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
-
-    Object.defineProperty(globalThis, "fetch", {
-      value: fetchMock,
-      configurable: true,
-      writable: true,
-    });
+    const restoreFetch = installFetchMock(fetchMock as typeof globalThis.fetch);
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     try {
@@ -609,11 +579,7 @@ describe("ErrorBoundary fallback model", () => {
       );
       expect(serializedLogEntry).not.toContain("/Users/Alex/private");
     } finally {
-      Object.defineProperty(globalThis, "fetch", {
-        value: originalFetch,
-        configurable: true,
-        writable: true,
-      });
+      restoreFetch();
       (process.env as Record<string, string | undefined>).NODE_ENV =
         originalNodeEnv;
     }
