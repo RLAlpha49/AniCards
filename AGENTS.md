@@ -73,6 +73,23 @@ Apply the same logic to any mix of independent tools: `file_search`, `read_file`
 
 ---
 
+## Terminal Timeouts
+
+- Treat terminal time budgets in **seconds** when reasoning about them. If a terminal tool requires milliseconds, convert from seconds deliberately right before setting the parameter.
+- **Never** pass giant raw timeout numbers without first converting and sanity-checking them. Values such as `1200000` are **wrong by default** here: that is **20 minutes**, is easy to misread, and can make a terminal call appear hung. Treat it as a mistake unless the user explicitly asked for a wait that long.
+- Use bounded, task-appropriate timeouts for one-shot terminal work:
+  - quick inspection or metadata commands: **15-45 seconds**
+  - lint, typecheck, small tests, or focused scripts: **60-180 seconds**
+  - package installs, builds, or broader test runs: **200-300 seconds**
+  - large end-to-end or coverage runs: **300-600 seconds** only when clearly justified
+- Do **not** exceed **600 seconds** (`600000` ms) unless the user explicitly asks for a longer wait or the task cannot be completed safely without it.
+- If you ever find yourself typing something like `1200000`, stop and re-check the units. In this workspace, that value should be treated as an anti-pattern, not a harmless safety margin.
+- For long-lived processes that should keep running (dev servers, watchers, tunnels), prefer async/background execution with **no huge synthetic timeout**. Start the process, capture the terminal ID, and kill it when it is no longer needed.
+- For interactive terminal flows, use sync execution with a reasonable timeout budget for the current step instead of an oversized catch-all timeout.
+- Before sending a terminal call, quickly sanity-check the timeout in both units when helpful, for example: `120 seconds` = `120000` ms. If the converted value looks unusually large, fix it before running the command.
+
+---
+
 ## Subagents & Parallelization - Be Proactive
 
 - **Important**: Whenever possible, **ALWAYS** run subagents in **parallel**. Do **NOT** wait for one subagent to finish before starting another unless they depend on each other.
