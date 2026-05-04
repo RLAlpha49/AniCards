@@ -325,6 +325,14 @@ describe("user-data persistence", () => {
       "user:5:username-aliases",
       "userfive",
     );
+    expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+      "users:public-profile-sitemap",
+      "userfive",
+    );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "users:public-profile-sitemap:userfive",
+      expect.any(String),
+    );
 
     const userScopedSetKeys = sharedRedisMockSet.mock.calls
       .map((call) => getStringValue(call[0]))
@@ -662,9 +670,21 @@ describe("user-data persistence", () => {
       "newname",
     );
     expect(sharedRedisMockSet).toHaveBeenCalledWith("username:newname", "24");
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "users:public-profile-sitemap:newname",
+      expect.any(String),
+    );
     expect(sharedRedisMockDel).toHaveBeenCalledWith(
       "username:oldname",
       "username:legacy-name",
+    );
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith(
+      "users:public-profile-sitemap",
+      "oldname",
+    );
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith(
+      "users:public-profile-sitemap",
+      "legacy-name",
     );
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });
@@ -1667,52 +1687,46 @@ describe("user-data persistence", () => {
     );
   });
 
-  it("lists canonical public profile sitemap entries from tracked user state without a global scan", async () => {
-    sharedRedisMockSmembers.mockResolvedValueOnce(["9", "5", "7", "11"]);
-    sharedRedisMockGet.mockImplementation((key: string) => {
-      if (key === "user:5:commit") {
-        return Promise.resolve(
-          createCommitPointer({
+  it("lists canonical public profile sitemap entries from the dedicated public-profile index without a global scan", async () => {
+    sharedRedisMockSmembers.mockResolvedValueOnce([
+      "zetauser",
+      "alpha49",
+      "beta user",
+      "broken-user",
+    ]);
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map((key) => {
+        if (key === "users:public-profile-sitemap:zetauser") {
+          return JSON.stringify({
             userId: "5",
             username: "ZetaUser",
-            updatedAt: "2026-03-27T00:00:05-05:00",
-          }),
-        );
-      }
+            lastmod: "2026-03-27T00:00:05-05:00",
+          });
+        }
 
-      if (key === "user:7:commit") {
-        return Promise.resolve(
-          createCommitPointer({
-            userId: "7",
-            updatedAt: "2026-03-27T00:00:07.000Z",
-          }),
-        );
-      }
-
-      if (key === "user:9:commit") {
-        return Promise.resolve(
-          createCommitPointer({
+        if (key === "users:public-profile-sitemap:alpha49") {
+          return JSON.stringify({
             userId: "9",
             username: "Alpha49",
-            updatedAt: "2026-03-27T00:00:09.000Z",
-          }),
-        );
-      }
+            lastmod: "2026-03-27T00:00:09.000Z",
+          });
+        }
 
-      if (key === "user:11") {
-        return Promise.resolve(
-          JSON.stringify(
-            createPersistedUserRecord({
-              userId: "11",
-              username: "Beta User",
-              updatedAt: "2026-03-27T00:00:11.000Z",
-            }),
-          ),
-        );
-      }
+        if (key === "users:public-profile-sitemap:beta user") {
+          return JSON.stringify({
+            userId: "11",
+            username: "Beta User",
+            lastmod: "2026-03-27T00:00:11.000Z",
+          });
+        }
 
-      return Promise.resolve(null);
-    });
+        if (key === "users:public-profile-sitemap:broken-user") {
+          return "{not-valid-json";
+        }
+
+        return null;
+      }),
+    );
 
     const result = await listPublicUserProfileSitemapEntries();
 
@@ -1730,7 +1744,16 @@ describe("user-data persistence", () => {
         lastmod: "2026-03-27T05:00:05.000Z",
       },
     ]);
-    expect(sharedRedisMockSmembers).toHaveBeenCalledWith("users:known-ids");
+    expect(sharedRedisMockSmembers).toHaveBeenCalledWith(
+      "users:public-profile-sitemap",
+    );
+    expect(sharedRedisMockSrem).toHaveBeenCalledWith(
+      "users:public-profile-sitemap",
+      "broken-user",
+    );
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "users:public-profile-sitemap:broken-user",
+    );
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });
 

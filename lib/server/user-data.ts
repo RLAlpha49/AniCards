@@ -82,6 +82,7 @@ const USER_COMMITTED_READ_SHAPE = "committed-user-snapshot-v1";
 const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
 const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
 const USER_REFRESH_QUARANTINE_KEY = "users:refresh-quarantine";
+const USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY = "users:public-profile-sitemap";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
 const USER_LIFECYCLE_AUDIT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
@@ -119,6 +120,8 @@ const getCardsRecordMetaKey = (userId: string | number) =>
   `cards:${userId}:meta`;
 const getUserUsernameAliasSetKey = (userId: string | number) =>
   `user:${userId}:username-aliases`;
+const getUserPublicProfileSitemapEntryKey = (normalizedUsername: string) =>
+  `${USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY}:${normalizedUsername}`;
 const getUserSnapshotKeyPrefix = (
   userId: string | number,
   snapshotToken: string,
@@ -811,20 +814,6 @@ function buildPublicUserSnapshotRef(
     token: snapshot.token,
     revision: snapshot.revision,
   };
-}
-
-async function readTrackedUserIds(): Promise<string[]> {
-  const storedUserIds = await redisSetClient.smembers(
-    USER_REFRESH_REGISTRY_KEY,
-  );
-
-  return Array.from(
-    new Set(
-      (Array.isArray(storedUserIds) ? storedUserIds : [])
-        .map(String)
-        .filter((candidate) => /^\d+$/.test(candidate)),
-    ),
-  );
 }
 
 function isOptionalUserDataPart(part: UserDataPart): boolean {
@@ -2608,11 +2597,58 @@ export async function listStalestUserIds(
   };
 }
 
-const PROFILE_SITEMAP_STATE_READ_BATCH_SIZE = 100;
+const PROFILE_SITEMAP_INDEX_READ_BATCH_SIZE = 100;
+
+interface StoredPublicUserProfileSitemapEntry {
+  userId?: string;
+  username?: string;
+  lastmod?: string;
+}
 
 export interface PublicUserProfileSitemapEntry {
   username: string;
   lastmod?: string;
+}
+
+function parseStoredPublicUserProfileSitemapEntry(options: {
+  normalizedUsername: string;
+  rawValue: unknown;
+}): PublicUserProfileSitemapEntry | null {
+  if (typeof options.rawValue !== "string" || options.rawValue.length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = safeParse<StoredPublicUserProfileSitemapEntry>(
+      options.rawValue,
+      `public-profile-sitemap:${options.normalizedUsername}`,
+    );
+    const username =
+      typeof parsed.username === "string" ? parsed.username.trim() : "";
+
+    if (
+      !username ||
+      normalizeUsernameIndexValue(username) !== options.normalizedUsername
+    ) {
+      return null;
+    }
+
+    const lastmod = normalizeSitemapLastmod(parsed.lastmod);
+
+    return lastmod ? { username, lastmod } : { username };
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Skipping corrupt public-profile sitemap index entry",
+      {
+        error: error instanceof Error ? error.message : String(error),
+        normalizedUsername: options.normalizedUsername,
+      },
+    );
+
+    return null;
+  }
 }
 
 function normalizeSitemapLastmod(
@@ -2626,110 +2662,94 @@ function normalizeSitemapLastmod(
   return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();
 }
 
-function chooseNewerSitemapLastmod(
-  current: string | undefined,
-  candidate: string | undefined,
-): string | undefined {
-  if (!current) {
-    return candidate;
-  }
-
-  if (!candidate) {
-    return current;
-  }
-
-  return Date.parse(candidate) > Date.parse(current) ? candidate : current;
-}
-
 export async function listPublicUserProfileSitemapEntries(): Promise<
   PublicUserProfileSitemapEntry[]
 > {
-  const trackedUserIds = await readTrackedUserIds();
+  const storedNormalizedUsernames = await redisSetClient.smembers(
+    USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY,
+  );
+  const normalizedUsernames = Array.from(
+    new Set(
+      (Array.isArray(storedNormalizedUsernames)
+        ? storedNormalizedUsernames
+        : []
+      )
+        .map((candidate) => normalizeUsernameIndexValue(candidate))
+        .filter((candidate): candidate is string => candidate !== undefined),
+    ),
+  );
 
-  if (trackedUserIds.length === 0) {
+  if (normalizedUsernames.length === 0) {
     return [];
   }
 
-  const entriesByNormalizedUsername = new Map<
-    string,
-    PublicUserProfileSitemapEntry
-  >();
+  const entries: PublicUserProfileSitemapEntry[] = [];
+  const missingNormalizedUsernames: string[] = [];
+  const invalidNormalizedUsernames: string[] = [];
+  const invalidEntryKeys: string[] = [];
 
   for (
     let startIndex = 0;
-    startIndex < trackedUserIds.length;
-    startIndex += PROFILE_SITEMAP_STATE_READ_BATCH_SIZE
+    startIndex < normalizedUsernames.length;
+    startIndex += PROFILE_SITEMAP_INDEX_READ_BATCH_SIZE
   ) {
-    const userIdsBatch = trackedUserIds.slice(
+    const normalizedUsernamesBatch = normalizedUsernames.slice(
       startIndex,
-      startIndex + PROFILE_SITEMAP_STATE_READ_BATCH_SIZE,
+      startIndex + PROFILE_SITEMAP_INDEX_READ_BATCH_SIZE,
     );
-    const states = await Promise.all(
-      userIdsBatch.map(async (candidateUserId) => {
-        try {
-          return await getPersistedUserState(candidateUserId);
-        } catch (error) {
-          if (error instanceof UserDataIntegrityError) {
-            logPrivacySafe(
-              "warn",
-              "User Data",
-              "Skipping corrupt user while listing public profile sitemap entries",
-              {
-                userId: candidateUserId,
-                error: error.message,
-              },
-            );
-
-            return null;
-          }
-
-          throw error;
-        }
-      }),
+    const entryKeys = normalizedUsernamesBatch.map(
+      getUserPublicProfileSitemapEntryKey,
     );
+    const rawEntries = await redisClient.mget(...entryKeys);
 
-    states.forEach((state) => {
-      const username =
-        typeof state?.username === "string" ? state.username.trim() : "";
-      const normalizedUsername = normalizeUsernameIndexValue(username);
+    rawEntries.forEach((rawEntry, index) => {
+      const normalizedUsername = normalizedUsernamesBatch[index];
+      const entryKey = entryKeys[index];
 
-      if (!normalizedUsername) {
+      if (!normalizedUsername || !entryKey) {
         return;
       }
 
-      const candidateLastmod = normalizeSitemapLastmod(
-        state?.snapshot?.updatedAt ?? state?.updatedAt,
-      );
-      const previousEntry = entriesByNormalizedUsername.get(normalizedUsername);
-
-      if (!previousEntry) {
-        entriesByNormalizedUsername.set(
-          normalizedUsername,
-          candidateLastmod
-            ? { username, lastmod: candidateLastmod }
-            : { username },
-        );
+      if (rawEntry === null || rawEntry === undefined) {
+        missingNormalizedUsernames.push(normalizedUsername);
         return;
       }
 
-      const nextLastmod = chooseNewerSitemapLastmod(
-        previousEntry.lastmod,
-        candidateLastmod,
-      );
-      const shouldUseCandidateUsername =
-        !previousEntry.lastmod ||
-        (candidateLastmod !== undefined && nextLastmod === candidateLastmod);
-
-      entriesByNormalizedUsername.set(normalizedUsername, {
-        username: shouldUseCandidateUsername
-          ? username
-          : previousEntry.username,
-        ...(nextLastmod ? { lastmod: nextLastmod } : {}),
+      const entry = parseStoredPublicUserProfileSitemapEntry({
+        normalizedUsername,
+        rawValue: rawEntry,
       });
+
+      if (!entry) {
+        invalidNormalizedUsernames.push(normalizedUsername);
+        invalidEntryKeys.push(entryKey);
+        return;
+      }
+
+      entries.push(entry);
     });
   }
 
-  return Array.from(entriesByNormalizedUsername.values()).toSorted((a, b) =>
+  const staleNormalizedUsernames = [
+    ...missingNormalizedUsernames,
+    ...invalidNormalizedUsernames,
+  ];
+
+  if (staleNormalizedUsernames.length > 0 || invalidEntryKeys.length > 0) {
+    await Promise.all([
+      staleNormalizedUsernames.length > 0
+        ? redisSetClient.srem(
+            USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY,
+            ...staleNormalizedUsernames,
+          )
+        : Promise.resolve(0),
+      invalidEntryKeys.length > 0
+        ? redisClient.del(...invalidEntryKeys)
+        : Promise.resolve(0),
+    ]);
+  }
+
+  return entries.toSorted((a, b) =>
     a.username.localeCompare(b.username, undefined, {
       sensitivity: "base",
     }),
@@ -3364,13 +3384,27 @@ end
 
 for _, alias in ipairs(aliasList) do
   local aliasKey = "username:" .. alias
+  local publicProfileSitemapEntryKey = KEYS[9] .. ":" .. alias
   if normalizedUsername and alias == normalizedUsername then
     redis.call("SET", aliasKey, payload["userId"])
+    redis.call(
+      "SET",
+      publicProfileSitemapEntryKey,
+      cjson.encode({
+        userId = payload["userId"],
+        username = payload["username"],
+        lastmod = payload["updatedAt"],
+      })
+    )
+    redis.call("SADD", KEYS[9], alias)
   else
     local aliasOwner = redis.call("GET", aliasKey)
     if aliasOwner == payload["userId"] then
       redis.call("DEL", aliasKey)
     end
+
+    redis.call("DEL", publicProfileSitemapEntryKey)
+    redis.call("SREM", KEYS[9], alias)
   end
 end
 
@@ -3530,11 +3564,22 @@ delete_key(KEYS[7], deletedKeys)
 for _, alias in ipairs(aliasList) do
   local aliasKey = "username:" .. alias
   local aliasOwner = redis.call("GET", aliasKey)
+  local publicProfileSitemapEntryKey = KEYS[10] .. ":" .. alias
+  local publicProfileSitemapEntry = parse_json_object(
+    redis.call("GET", publicProfileSitemapEntryKey)
+  )
   if aliasOwner == userId then
     if tonumber(redis.call("DEL", aliasKey)) > 0 then
       table.insert(removedAliasKeys, aliasKey)
       table.insert(deletedKeys, aliasKey)
     end
+  end
+
+  if aliasOwner == userId or publicProfileSitemapEntry and publicProfileSitemapEntry["userId"] == userId then
+    if tonumber(redis.call("DEL", publicProfileSitemapEntryKey)) > 0 then
+      table.insert(deletedKeys, publicProfileSitemapEntryKey)
+    end
+    redis.call("SREM", KEYS[10], alias)
   end
 end
 
@@ -3872,6 +3917,7 @@ export async function saveUserRecord(
         getUserUsernameAliasSetKey(userId),
         USER_REFRESH_REGISTRY_KEY,
         USER_REFRESH_INDEX_KEY,
+        USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY,
         getUserDataKey(userId, "meta"),
         `user:${userId}`,
         getCardsRecordMetaKey(userId),
@@ -3943,6 +3989,7 @@ export async function deleteUserRecord(
         `failed_updates:${normalizedUserId}`,
         USER_REFRESH_REGISTRY_KEY,
         USER_REFRESH_INDEX_KEY,
+        USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY,
       ],
       [normalizedUserId, JSON.stringify([...ALL_USER_DATA_PARTS])],
     ),

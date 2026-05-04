@@ -13,6 +13,7 @@ import { generateStructuredData } from "@/lib/structured-data";
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.contact);
+export const CONTACT_PAGE_LASTMOD = "2026-03-30";
 
 export default async function ContactPage() {
   if (SHOW_LOADING_PREVIEW) {

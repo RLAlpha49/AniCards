@@ -87,13 +87,13 @@ async function getRouteXml(modulePath: string, siteUrl?: string) {
 }
 
 describe("sitemap.xml route", () => {
-  it("forces request-time rendering so builds do not require Redis-backed sitemap data", async () => {
+  it("keeps the index and profile shards dynamic while allowing the static shard to revalidate", async () => {
     const rootModulePath = `../../../../app/sitemap.xml/route`;
     const staticModulePath = `../../../../app/sitemap-static.xml/route`;
     const profilesModulePath = `../../../../app/sitemap-profiles.xml/route`;
     const [
       { dynamic: rootDynamic },
-      { dynamic: staticDynamic },
+      { dynamic: staticDynamic, revalidate: staticRevalidate },
       { dynamic: profilesDynamic },
     ] = await Promise.all([
       import(`${rootModulePath}?cacheBust=${Date.now()}`),
@@ -102,7 +102,8 @@ describe("sitemap.xml route", () => {
     ]);
 
     expect(rootDynamic).toBe("force-dynamic");
-    expect(staticDynamic).toBe("force-dynamic");
+    expect(staticDynamic).toBeUndefined();
+    expect(staticRevalidate).toBe(3600);
     expect(profilesDynamic).toBe("force-dynamic");
   });
 
@@ -168,6 +169,41 @@ describe("sitemap.xml route", () => {
     expect(xml.match(/<lastmod>/g)?.length ?? 0).toBe(1);
     expect(xml).not.toContain(`${DEFAULT_BASE_URL}/sitemap-static.xml`);
     expect(xml).not.toContain(`${DEFAULT_BASE_URL}/user?username=`);
+  });
+
+  it("keeps the sitemap index available when profile enumeration fails", async () => {
+    listPublicUserProfileSitemapEntriesMock.mockRejectedValueOnce(
+      new Error("profile index unavailable"),
+    );
+
+    const { response, xml } = await getRouteXml(
+      `../../../../app/sitemap.xml/route`,
+    );
+
+    expect(response.headers.get("Cache-Control")).toBe(CACHE_CONTROL);
+    expect(response.headers.get("Content-Type")).toBe("application/xml");
+    expect(xml).toContain(`${DEFAULT_BASE_URL}/sitemap-static.xml`);
+    expect(xml).toContain(`${DEFAULT_BASE_URL}/sitemap-profiles.xml`);
+    expect(xml).toContain(`<lastmod>${STATIC_LASTMOD}</lastmod>`);
+    expect(xml).not.toContain(`<lastmod>${PROFILE_LASTMOD}</lastmod>`);
+  });
+
+  it("returns an empty but valid profile sitemap shard when profile enumeration fails", async () => {
+    listPublicUserProfileSitemapEntriesMock.mockRejectedValueOnce(
+      new Error("profile index unavailable"),
+    );
+
+    const { response, xml } = await getRouteXml(
+      `../../../../app/sitemap-profiles.xml/route`,
+    );
+
+    expect(response.headers.get("Cache-Control")).toBe(CACHE_CONTROL);
+    expect(response.headers.get("Content-Type")).toBe("application/xml");
+    expect(xml).toContain(
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
+    );
+    expect(xml).not.toContain(`${DEFAULT_BASE_URL}/user/`);
+    expect(xml).not.toContain(`<lastmod>`);
   });
 
   it("uses NEXT_PUBLIC_SITE_URL when provided across the sitemap index and shards", async () => {

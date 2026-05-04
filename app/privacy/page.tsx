@@ -11,6 +11,7 @@ import { generateStructuredData } from "@/lib/structured-data";
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.privacy);
+export const PRIVACY_PAGE_LASTMOD = "2026-04-20";
 
 const sections = [
   {
@@ -188,6 +189,8 @@ const tocItems = [
   { id: "your-rights", label: "Deletion & Export" },
 ] as const;
 
+type VendorMatrixRow = (typeof thirdPartyVendorRows)[number];
+
 function PrivacyTableOfContents({
   compact = false,
 }: Readonly<{ compact?: boolean }>) {
@@ -264,6 +267,65 @@ function MobileDetailCards({
           <p className="mt-3 text-sm/relaxed text-muted-foreground">
             {row.detail}
           </p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function MobileVendorCards({
+  items,
+}: Readonly<{
+  items: ReadonlyArray<VendorMatrixRow>;
+}>) {
+  return (
+    <div data-testid="privacy-vendor-cards" className="space-y-4 md:hidden">
+      {items.map((row) => (
+        <article
+          key={row.vendor}
+          className="border border-gold/12 bg-background/60 p-4 backdrop-blur-sm"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <h3 className="text-base font-medium text-foreground">
+              {row.vendor}
+            </h3>
+            <span
+              aria-hidden="true"
+              className="
+                rounded-full border border-gold/15 px-2.5 py-1 font-display text-[0.55rem]
+                tracking-[0.25em] text-muted-foreground uppercase
+              "
+            >
+              Vendor
+            </span>
+          </div>
+
+          <dl className="mt-4 space-y-3">
+            <div>
+              <dt className="font-display text-[0.6rem] tracking-[0.25em] text-gold/70 uppercase">
+                Purpose
+              </dt>
+              <dd className="mt-1 text-sm/relaxed text-muted-foreground">
+                {row.purpose}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-display text-[0.6rem] tracking-[0.25em] text-gold/70 uppercase">
+                Data handled
+              </dt>
+              <dd className="mt-1 text-sm/relaxed text-muted-foreground">
+                {row.data}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-display text-[0.6rem] tracking-[0.25em] text-gold/70 uppercase">
+                When active
+              </dt>
+              <dd className="mt-1 text-sm/relaxed text-muted-foreground">
+                {row.activation}
+              </dd>
+            </div>
+          </dl>
         </article>
       ))}
     </div>
@@ -736,65 +798,70 @@ export default async function PrivacyPage() {
 
                 <div className="mt-6 h-px w-full bg-gold/10" />
 
-                <div
-                  data-testid="privacy-vendor-matrix"
-                  aria-label="Third-party vendor matrix"
-                  className="
-                    mt-8 overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
-                  "
-                >
-                  <table className="w-full min-w-4xl text-left text-sm sm:text-base">
-                    <caption className="sr-only">
-                      Third-party vendors, what they do, what data they handle,
-                      and when they are active.
-                    </caption>
-                    <thead>
-                      <tr className="border-b border-gold/10 bg-gold/4">
-                        {[
-                          "Vendor",
-                          "Purpose",
-                          "Data handled",
-                          "When active",
-                        ].map((heading) => (
-                          <th
-                            key={heading}
-                            scope="col"
-                            className="
-                              px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
-                              text-muted-foreground uppercase
-                              sm:text-xs
-                            "
-                          >
-                            {heading}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gold/8">
-                      {thirdPartyVendorRows.map((row) => (
-                        <tr key={row.vendor} className="group">
-                          <th
-                            scope="row"
-                            className="
-                              px-6 py-4 align-top font-medium text-foreground transition-colors
-                              group-hover:text-gold
-                            "
-                          >
-                            {row.vendor}
-                          </th>
-                          <td className="px-6 py-4 text-muted-foreground">
-                            {row.purpose}
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground">
-                            {row.data}
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground">
-                            {row.activation}
-                          </td>
+                <div className="mt-8 space-y-4">
+                  <MobileVendorCards items={thirdPartyVendorRows} />
+
+                  <div
+                    data-testid="privacy-vendor-matrix"
+                    aria-label="Third-party vendor matrix"
+                    className="
+                      hidden overflow-x-auto border border-gold/12 bg-background/60 backdrop-blur-sm
+                      md:block
+                    "
+                  >
+                    <table className="w-full min-w-4xl text-left text-sm sm:text-base">
+                      <caption className="sr-only">
+                        Third-party vendors, what they do, what data they
+                        handle, and when they are active.
+                      </caption>
+                      <thead>
+                        <tr className="border-b border-gold/10 bg-gold/4">
+                          {[
+                            "Vendor",
+                            "Purpose",
+                            "Data handled",
+                            "When active",
+                          ].map((heading) => (
+                            <th
+                              key={heading}
+                              scope="col"
+                              className="
+                                px-6 py-3.5 font-display text-[0.6rem] tracking-[0.3em]
+                                text-muted-foreground uppercase
+                                sm:text-xs
+                              "
+                            >
+                              {heading}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gold/8">
+                        {thirdPartyVendorRows.map((row) => (
+                          <tr key={row.vendor} className="group">
+                            <th
+                              scope="row"
+                              className="
+                                px-6 py-4 align-top font-medium text-foreground transition-colors
+                                group-hover:text-gold
+                              "
+                            >
+                              {row.vendor}
+                            </th>
+                            <td className="px-6 py-4 text-muted-foreground">
+                              {row.purpose}
+                            </td>
+                            <td className="px-6 py-4 text-muted-foreground">
+                              {row.data}
+                            </td>
+                            <td className="px-6 py-4 text-muted-foreground">
+                              {row.activation}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </section>
             </SectionReveal>

@@ -15,6 +15,8 @@ import {
 import ExamplesPageClient from "../ExamplesPageClient";
 import LoadingPreview from "../loading";
 
+export const EXAMPLES_GALLERY_PAGE_LASTMOD = "2026-04-20";
+
 interface GalleryPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }

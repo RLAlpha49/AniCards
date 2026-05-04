@@ -23,6 +23,8 @@ import {
 import ExamplesPageClient from "../ExamplesPageClient";
 import LoadingPreview from "../loading";
 
+export const EXAMPLES_COLLECTION_PAGE_LASTMOD = "2026-04-20";
+
 interface CollectionPageProps {
   params: Promise<{
     collection: string;

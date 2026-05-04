@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { logPrivacySafe } from "@/lib/api/logging";
 import { getSitemapIndexEntries, type SitemapIndexEntry } from "@/lib/seo";
 import { listPublicUserProfileSitemapEntries } from "@/lib/server/user-data";
 import { resolveSiteUrl } from "@/lib/site-config";
+
+import { getRouteOwnedStaticSitemapEntries } from "../sitemap-static.xml/route";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +38,29 @@ function renderSitemapIndexEntry(entry: SitemapIndexEntry): string {
  * @returns {Promise<NextResponse>} Sitemap index response consumed by crawlers.
  * @source
  */
+async function listProfileEntriesForSitemapIndex() {
+  try {
+    return await listPublicUserProfileSitemapEntries();
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "Sitemap",
+      "Falling back to a static-only sitemap index after the public-profile sitemap source failed",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+
+    return [];
+  }
+}
+
 export async function GET() {
-  const profileEntries = await listPublicUserProfileSitemapEntries();
-  const sitemaps = getSitemapIndexEntries(profileEntries)
+  const profileEntries = await listProfileEntriesForSitemapIndex();
+  const sitemaps = getSitemapIndexEntries({
+    staticEntries: getRouteOwnedStaticSitemapEntries(),
+    profileEntries,
+  })
     .map(renderSitemapIndexEntry)
     .join("");
 

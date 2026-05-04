@@ -8,6 +8,7 @@ import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
 export const metadata = createMetadata(seoConfigs.about);
+export const ABOUT_PAGE_LASTMOD = "2026-04-20";
 
 export default async function AboutPage() {
   const nonce = await getRequestNonce();

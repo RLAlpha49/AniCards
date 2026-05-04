@@ -28,6 +28,7 @@ import {
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.home);
+export const HOME_PAGE_LASTMOD = "2026-04-12";
 
 async function HomeStructuredData() {
   const nonce = await getRequestNonce();

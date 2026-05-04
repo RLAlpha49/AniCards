@@ -948,74 +948,69 @@ type StaticSitemapEntryDef = {
   path: string;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
-  lastmod?: string;
 };
+
+export type StaticSitemapLastmodMap = Partial<Record<string, string>>;
 
 export const STATIC_SITEMAP_PATH = "/sitemap-static.xml";
 export const PROFILE_SITEMAP_PATH = "/sitemap-profiles.xml";
-
-const EXAMPLES_LASTMOD = "2026-04-20";
-const ABOUT_LASTMOD = "2026-04-20";
 
 const staticSitemapEntryDefs = [
   {
     path: "/",
     priority: 1,
     changefreq: "daily",
-    lastmod: "2026-04-12",
   },
   {
     path: "/search",
     priority: 0.9,
     changefreq: "weekly",
-    lastmod: "2026-04-15",
   },
   {
     path: "/examples",
     priority: 0.85,
     changefreq: "weekly",
-    lastmod: EXAMPLES_LASTMOD,
   },
   {
     path: EXAMPLES_GALLERY_PATH,
     priority: 0.78,
     changefreq: "weekly",
-    lastmod: EXAMPLES_LASTMOD,
   },
   ...EXAMPLE_COLLECTIONS.map((collection) => ({
     path: buildExamplesCollectionPath(collection.slug),
     priority: 0.72,
     changefreq: "weekly" as const,
-    lastmod: EXAMPLES_LASTMOD,
   })),
   {
     path: "/projects",
     priority: 0.6,
     changefreq: "monthly",
-    lastmod: "2026-03-30",
   },
   {
     path: "/about",
     priority: 0.65,
     changefreq: "monthly",
-    lastmod: ABOUT_LASTMOD,
   },
   {
     path: "/privacy",
     priority: 0.55,
     changefreq: "yearly",
-    lastmod: "2026-04-20",
   },
   {
     path: "/contact",
     priority: 0.6,
     changefreq: "yearly",
-    lastmod: "2026-03-30",
   },
 ] as const satisfies readonly StaticSitemapEntryDef[];
 
-export function getStaticSitemapEntries(): SitemapEntry[] {
-  return staticSitemapEntryDefs.map((entry) => ({ ...entry }));
+export function getStaticSitemapEntries(options?: {
+  lastmodsByPath?: StaticSitemapLastmodMap;
+}): SitemapEntry[] {
+  return staticSitemapEntryDefs.map((entry) => {
+    const lastmod = options?.lastmodsByPath?.[entry.path];
+
+    return lastmod ? { ...entry, lastmod } : { ...entry };
+  });
 }
 
 export function getLatestLastmod(
@@ -1050,12 +1045,16 @@ export function getLatestLastmod(
   return latestLastmod?.value;
 }
 
-export function getSitemapIndexEntries(
-  profileEntries: readonly {
+export function getSitemapIndexEntries(options?: {
+  staticEntries?: readonly {
     lastmod?: string;
-  }[] = [],
-): SitemapIndexEntry[] {
-  const staticEntries = getStaticSitemapEntries();
+  }[];
+  profileEntries?: readonly {
+    lastmod?: string;
+  }[];
+}): SitemapIndexEntry[] {
+  const staticEntries = options?.staticEntries ?? [];
+  const profileEntries = options?.profileEntries ?? [];
   const latestStaticLastmod = getLatestLastmod(staticEntries);
   const latestProfileLastmod = getLatestLastmod(profileEntries);
 
@@ -1244,6 +1243,7 @@ export function getUserPageSEOConfig({
   visibility,
   group,
   customFilter,
+  isPublicProfileResolved = false,
   routeType = "lookup",
 }: {
   username?: SearchParamValue;
@@ -1252,18 +1252,30 @@ export function getUserPageSEOConfig({
   visibility?: SearchParamValue;
   group?: SearchParamValue;
   customFilter?: SearchParamValue;
+  isPublicProfileResolved?: boolean;
   routeType?: "lookup" | "profile";
 }): SEOConfig {
   const normalizedUsername = getSearchParamValue(username);
   const normalizedUserId = getSearchParamValue(userId);
+  const requiresResolvedPublicProfile = routeType === "profile";
+  const canPublishPublicProfileMetadata =
+    !requiresResolvedPublicProfile || isPublicProfileResolved;
   const profilePreviewImage = buildUserSocialPreviewImage({
     username: normalizedUsername,
     userId: normalizedUserId,
   });
   const shouldNoIndex =
     routeType === "lookup" ||
+    !canPublishPublicProfileMetadata ||
     hasUserPageStatefulParams({ q, visibility, group, customFilter });
   const robots = shouldNoIndex ? NOINDEX_ROBOTS : undefined;
+
+  if (!canPublishPublicProfileMetadata) {
+    return {
+      ...seoConfigs.user,
+      robots,
+    };
+  }
 
   if (routeType === "lookup" && normalizedUserId) {
     return createUserSeoConfig({

@@ -14,6 +14,7 @@ import { generateStructuredData } from "@/lib/structured-data";
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.projects);
+export const PROJECTS_PAGE_LASTMOD = "2026-03-30";
 
 export default async function ProjectsPage() {
   if (SHOW_LOADING_PREVIEW) {

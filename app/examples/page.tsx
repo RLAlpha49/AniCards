@@ -23,6 +23,8 @@ import {
 import ExamplesPageClient from "./ExamplesPageClient";
 import LoadingPreview from "./loading";
 
+export const EXAMPLES_INDEX_PAGE_LASTMOD = "2026-04-20";
+
 interface ExamplesPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }

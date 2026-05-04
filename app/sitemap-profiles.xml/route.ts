@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logPrivacySafe } from "@/lib/api/logging";
 import {
   getUserProfilePath,
   type SitemapEntry,
@@ -36,8 +37,25 @@ function renderSitemapEntry(entry: SitemapEntry): string {
     </url>`;
 }
 
+async function listProfileEntriesForSitemapShard() {
+  try {
+    return await listPublicUserProfileSitemapEntries();
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "Sitemap",
+      "Returning an empty profile sitemap shard after the public-profile sitemap source failed",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+
+    return [];
+  }
+}
+
 export async function GET() {
-  const profileEntries = await listPublicUserProfileSitemapEntries();
+  const profileEntries = await listProfileEntriesForSitemapShard();
   const urls = profileEntries
     .map((entry) => ({
       ...USER_PROFILE_SITEMAP_ENTRY,

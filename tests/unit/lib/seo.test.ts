@@ -52,6 +52,7 @@ describe("SEO metadata helpers", () => {
   it("uses the canonical public profile path and preview image for username routes", () => {
     const metadata = generateMetadata(
       getUserPageSEOConfig({
+        isPublicProfileResolved: true,
         username: "Alpha49",
         routeType: "profile",
       }),
@@ -69,6 +70,22 @@ describe("SEO metadata helpers", () => {
     expect(openGraph?.url).toBe(resolveSiteUrl("/user/Alpha49"));
     expect(openGraph?.type).toBe("profile");
     expect(twitter?.images).toEqual([previewImage]);
+  });
+
+  it("keeps unresolved public profile metadata non-canonical and noindex until the route proves the slug", () => {
+    const metadata = generateMetadata(
+      getUserPageSEOConfig({
+        username: "Alpha49",
+        routeType: "profile",
+      }),
+    );
+    const openGraph = getOpenGraphMetadata(metadata);
+    const robots = getRobotsMetadata(metadata);
+
+    expect(metadata.alternates).toBeUndefined();
+    expect(robots?.index).toBe(false);
+    expect(openGraph?.type).toBe("website");
+    expect(openGraph?.url).toBe(resolveSiteUrl("/"));
   });
 
   it("emits a lookup Open Graph URL without inventing a canonical URL for noindex userId pages", () => {
