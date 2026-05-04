@@ -9,6 +9,14 @@ import { createCardConfig } from "@/tests/unit/hooks/test-helpers";
 const originalConsoleWarn = console.warn;
 const consoleWarnMock = mock(() => undefined);
 
+function expectSolidColor(value: ColorValue, label: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`Expected ${label} to be a solid color string.`);
+  }
+
+  return value;
+}
+
 const DEFAULT_EFFECTIVE_COLORS: ColorValue[] = [
   "#111111",
   "#222222",
@@ -125,12 +133,18 @@ describe("buildPreviewUrl", () => {
   });
 
   it("fills missing preview colors from the default preset and warns once", () => {
-    const defaultColors = colorPresets.default.colors as [
-      ColorValue,
-      ColorValue,
-      ColorValue,
-      ColorValue,
-    ];
+    const defaultBackgroundColor = expectSolidColor(
+      colorPresets.default.colors[1],
+      "default background color",
+    );
+    const defaultTextColor = expectSolidColor(
+      colorPresets.default.colors[2],
+      "default text color",
+    );
+    const defaultCircleColor = expectSolidColor(
+      colorPresets.default.colors[3],
+      "default circle color",
+    );
 
     const params = getPreviewSearchParams({
       effectiveColors: ["#101010"],
@@ -140,9 +154,9 @@ describe("buildPreviewUrl", () => {
       "[buildPreviewUrl] effectiveColors has 1 entries; expected >=4. Filling missing values with defaults.",
     );
     expect(params.get("titleColor")).toBe("#101010");
-    expect(params.get("backgroundColor")).toBe(String(defaultColors[1]));
-    expect(params.get("textColor")).toBe(String(defaultColors[2]));
-    expect(params.get("circleColor")).toBe(String(defaultColors[3]));
+    expect(params.get("backgroundColor")).toBe(defaultBackgroundColor);
+    expect(params.get("textColor")).toBe(defaultTextColor);
+    expect(params.get("circleColor")).toBe(defaultCircleColor);
   });
 
   it("omits explicit color params when the preview is pinned to a named preset", () => {
