@@ -76,6 +76,7 @@ mock.module("framer-motion", () => ({
       return <div {...divProps}>{children}</div>;
     },
   },
+  useReducedMotion: () => false,
 }));
 
 mock.module("sonner", () => ({ toast }));
