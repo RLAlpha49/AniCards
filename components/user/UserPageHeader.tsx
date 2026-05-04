@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
@@ -302,7 +301,7 @@ const SaveStatusBadge = memo(function SaveStatusBadge({
   const saveInfo = getSaveStateInfo(saveState);
 
   return (
-    <motion.div variants={itemVariants} className="shrink-0">
+    <div className="shrink-0">
       <output
         aria-live="polite"
         aria-atomic="true"
@@ -331,7 +330,7 @@ const SaveStatusBadge = memo(function SaveStatusBadge({
           ) : null}
         </span>
       </output>
-    </motion.div>
+    </div>
   );
 });
 
@@ -352,17 +351,12 @@ export function UserPageHeader({
   const anilistUrl = getAnilistUrl(username, userId);
 
   return (
-    <motion.header
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="relative"
-    >
+    <header className="relative">
       <div className="relative mx-auto max-w-4xl">
         <div className="imperial-card border-gold/20! bg-transparent! p-0! dark:border-gold/12!">
           <div className="relative px-6 py-10 sm:px-10 sm:py-14">
             <div className="flex flex-col items-center gap-8 text-center">
-              <motion.div variants={itemVariants} className="relative shrink-0">
+              <div className="relative shrink-0">
                 <div className="
                   absolute -inset-3 rounded-full bg-linear-to-br from-gold/40 via-amber-500/20
                   to-gold/40 opacity-60 blur-lg
@@ -403,18 +397,14 @@ export function UserPageHeader({
                     <Avatar avatarUrl={avatarUrl} username={username} />
                   </div>
                 )}
-              </motion.div>
+              </div>
 
               <div className="flex w-full min-w-0 flex-1 flex-col items-center text-center">
-                <motion.h1
-                  variants={itemVariants}
-                  className="
-                    w-full max-w-full min-w-0 text-3xl/tight font-bold tracking-tight
-                    text-foreground
-                    sm:text-4xl
-                    lg:text-5xl
-                  "
-                >
+                <h1 className="
+                  w-full max-w-full min-w-0 text-3xl/tight font-bold tracking-tight text-foreground
+                  sm:text-4xl
+                  lg:text-5xl
+                ">
                   {username ? (
                     <>
                       <span className="
@@ -448,21 +438,15 @@ export function UserPageHeader({
                       </span>
                     </>
                   )}
-                </motion.h1>
-                <motion.div
-                  variants={itemVariants}
-                  className="gold-line-thick mt-6 w-24"
-                />
-                <motion.p
-                  variants={itemVariants}
-                  className="
-                    mt-4 max-w-md font-body-serif text-sm/relaxed text-muted-foreground
-                    sm:text-base
-                  "
-                >
+                </h1>
+                <div className="gold-line-thick mt-6 w-24" />
+                <p className="
+                  mt-4 max-w-md font-body-serif text-sm/relaxed text-muted-foreground
+                  sm:text-base
+                ">
                   Curate your stat cards, customize their appearance, and share
                   your anime journey.
-                </motion.p>
+                </p>
               </div>
 
               <SaveStatusBadge saveState={saveState} />
@@ -470,6 +454,6 @@ export function UserPageHeader({
           </div>
         </div>
       </div>
-    </motion.header>
+    </header>
   );
 }
