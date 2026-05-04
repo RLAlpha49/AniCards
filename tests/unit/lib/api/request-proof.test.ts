@@ -177,7 +177,7 @@ describe("lib/api/request-proof", () => {
         throw new Error("Expected request proof token to have two segments.");
       }
 
-      const tamperedSignature = `${signatureSegment[0] === "a" ? "b" : "a"}${signatureSegment.slice(1)}`;
+      const tamperedSignature = `${signatureSegment.startsWith("a") ? "b" : "a"}${signatureSegment.slice(1)}`;
       const tamperedToken = `${payloadSegment}.${tamperedSignature}`;
       const verification = await verifyRequestProofToken(tamperedToken, {
         ip: TEST_IP,
