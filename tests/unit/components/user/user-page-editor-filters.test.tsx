@@ -72,6 +72,113 @@ mock.module("framer-motion", () => ({
   useReducedMotion: () => false,
 }));
 
+mock.module("@/components/ui/Motion", () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  motion: new Proxy(
+    {},
+    {
+      get:
+        () =>
+        ({ children, ...props }: MotionDivProps) => {
+          const divProps = omitStubProps(props, [
+            "animate",
+            "exit",
+            "initial",
+            "transition",
+            "variants",
+            "viewport",
+            "whileHover",
+            "whileInView",
+            "whileTap",
+          ] as const);
+
+          return <div {...divProps}>{children}</div>;
+        },
+    },
+  ),
+  NO_MOTION_TRANSITION: { duration: 0 },
+}));
+
+mock.module("@/components/ui/Button", () => ({
+  Button: ({
+    children,
+    type = "button",
+    ...props
+  }: ComponentProps<"button">) => (
+    <button type={type} {...props}>
+      {children}
+    </button>
+  ),
+  buttonVariants: () => "",
+}));
+
+mock.module("@/components/ui/Dialog", () => ({
+  Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children, ...props }: ComponentProps<"div">) => (
+    <div {...props}>{children}</div>
+  ),
+  DialogTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+}));
+
+mock.module("@/components/user/CardCategorySection", () => ({
+  CardCategorySection: () => null,
+}));
+
+mock.module("@/components/user/CardTile", () => ({
+  CardTile: () => null,
+}));
+
+mock.module("@/components/user/CommandPalette", () => ({
+  CommandPalette: () => null,
+}));
+
+mock.module("@/components/user/editor/BulkActionLiveRegion", () => ({
+  BulkActionLiveRegion: () => null,
+}));
+
+mock.module("@/components/user/editor/EditorNotices", () => ({
+  EditorNotices: () => null,
+}));
+
+mock.module("@/components/user/editor/EditorTour", () => ({
+  useEditorTour: () => ({
+    activeStep: null,
+    closeTour: () => undefined,
+    completeTour: () => undefined,
+    currentStep: null,
+    isOpen: false,
+    nextStep: () => undefined,
+    openTour: () => undefined,
+    previousStep: () => undefined,
+  }),
+}));
+
+mock.module("@/components/user/editor/ReorderModeHint", () => ({
+  ReorderModeHint: () => null,
+}));
+
+mock.module("@/components/user/GlobalSettingsPanel", () => ({
+  GlobalSettingsPanel: () => null,
+}));
+
+mock.module("@/components/user/hooks/useNewUserSetup", () => ({
+  useNewUserSetup: () => ({
+    createWorkspaceForNewUser: async () => null,
+    isBootstrapping: false,
+    pendingStarterSave: null,
+    retryPendingStarterSave: async () => null,
+  }),
+}));
+
+mock.module("@/components/user/hooks/useUserDataLoader", () => ({
+  useUserDataLoader: () => ({
+    authoritativeCards: [],
+    error: null,
+    isLoading: false,
+    reload: async () => undefined,
+  }),
+}));
+
 installHappyDom("https://anicards.test/user/Alpha49");
 
 const { act, cleanup, renderHook } = await import("@testing-library/react");
@@ -84,7 +191,7 @@ const {
   shouldWarnBeforeLeavingEditor,
   syncFiltersFromSearchParams,
   useDebouncedEditorUrlSync,
-} = await import("@/components/user/UserPageEditor");
+} = await import("@/components/user/editor/filter-navigation-helpers");
 const {
   appendCardSearchToken,
   parseCardSearchQuery,
