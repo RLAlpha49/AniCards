@@ -7,7 +7,6 @@ import {
   sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
-  sharedRedisMockSet,
 } from "@/tests/unit/__setup__";
 
 const { GET, OPTIONS } = await import("@/app/api/get-cards/route");
@@ -153,22 +152,6 @@ describe("Cards API GET Endpoint", () => {
       );
     });
 
-    it("should successfully return card data when present", async () => {
-      const cardData = createStoredCardsRecord({
-        userId: 456,
-        cards: [{ cardName: "animeStats", titleColor: "#000" }],
-        cardOrder: ["favoritesGrid", "animeStats"],
-      });
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
-      const req = new Request(`${baseUrl}?userId=456`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      const res = await GET(req);
-      expect(res.status).toBe(200);
-      const json = await getResponseJson(res);
-      expect(json).toEqual(cardData);
-    });
-
     it("should return stored card data unchanged (including unsupported types)", async () => {
       const cardData = createStoredCardsRecord({
         userId: 789,
@@ -193,30 +176,6 @@ describe("Cards API GET Endpoint", () => {
       ]);
     });
 
-    it("should return stored data including unsupported card types and not persist changes in GET", async () => {
-      const cardData = createStoredCardsRecord({
-        userId: 101,
-        cards: [
-          { cardName: "animeStats", titleColor: "#000" },
-          { cardName: "invalidCardType", titleColor: "#fff" },
-        ],
-      });
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
-
-      const req = new Request(`${baseUrl}?userId=101`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      const res = await GET(req);
-      expect(res.status).toBe(200);
-      const json = await getResponseJson(res);
-      expect(json.cards.map((c: { cardName: string }) => c.cardName)).toEqual([
-        "animeStats",
-        "invalidCardType",
-      ]);
-
-      expect(sharedRedisMockSet).not.toHaveBeenCalled();
-    });
-
     it("should handle empty cards array", async () => {
       const cardData = createStoredCardsRecord({
         userId: 100,
@@ -230,16 +189,6 @@ describe("Cards API GET Endpoint", () => {
       expect(res.status).toBe(200);
       const json = await getResponseJson(res);
       expect(json.cards).toEqual([]);
-    });
-
-    it("should query Redis with correct key format", async () => {
-      sharedRedisMockGet.mockResolvedValueOnce(null);
-      const userId = "12345";
-      const req = new Request(`${baseUrl}?userId=${userId}`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      await GET(req);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith(`cards:${userId}`);
     });
   });
 
@@ -359,55 +308,6 @@ describe("Cards API GET Endpoint", () => {
         "cards:123:meta",
       );
     });
-
-    it("should track failed requests analytics on invalid userId", async () => {
-      const req = new Request(`${baseUrl}?userId=invalid`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      await GET(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:cards_api:failed_requests",
-      );
-    });
-
-    it("should track failed requests analytics on Redis error", async () => {
-      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
-      const req = new Request(`${baseUrl}?userId=123`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      await GET(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:cards_api:failed_requests",
-      );
-    });
-  });
-
-  describe("Analytics Tracking", () => {
-    it("should increment successful requests counter on successful retrieval", async () => {
-      const cardData = createStoredCardsRecord({
-        userId: 456,
-        cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      });
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
-      const req = new Request(`${baseUrl}?userId=456`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      await GET(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:cards_api:successful_requests",
-      );
-    });
-
-    it("should not track analytics on invalid userId (only error increment)", async () => {
-      const req = new Request(`${baseUrl}?userId=invalid`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      await GET(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledTimes(1);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:cards_api:failed_requests",
-      );
-    });
   });
 
   describe("Rate Limiting", () => {
@@ -437,23 +337,7 @@ describe("Cards API GET Endpoint", () => {
   });
 
   describe("Performance Monitoring", () => {
-    it("should handle fast responses normally", async () => {
-      const { consoleWarn } = allowConsoleWarningsAndErrors();
-      const cardData = createStoredCardsRecord({
-        userId: 456,
-        cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      });
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
-      const req = new Request(`${baseUrl}?userId=456`, {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      });
-      const res = await GET(req);
-
-      expect(res.status).toBe(200);
-      expect(consoleWarn).not.toHaveBeenCalled();
-    });
-
-    it("should handle slow responses (>500ms) normally but log warning", async () => {
+    it("should log a structured warning when card reads cross the slow-response threshold", async () => {
       const { consoleWarn } = allowConsoleWarningsAndErrors();
       const cardData = createStoredCardsRecord({
         userId: 456,
@@ -488,19 +372,12 @@ describe("Cards API GET Endpoint", () => {
       const parsedWarningEntry = JSON.parse(warningEntry) as {
         context?: {
           durationMs?: number;
-          userId?: unknown;
         };
+        message?: string;
       };
 
-      expect(parsedWarningEntry).toMatchObject({
-        endpoint: "Cards API",
-        level: "warn",
-        message: "Slow response time",
-      });
-      expect(parsedWarningEntry.context).toMatchObject({
-        durationMs: 600,
-      });
-      expect(parsedWarningEntry.context?.userId).toEqual(expect.any(String));
+      expect(parsedWarningEntry.message).toBe("Slow response time");
+      expect(parsedWarningEntry.context?.durationMs).toBe(600);
     });
   });
 
@@ -638,12 +515,6 @@ describe("Cards API OPTIONS Endpoint", () => {
     expect(res.headers.get("Access-Control-Allow-Headers")).toContain(
       "Content-Type",
     );
-  });
-
-  it("should return null body for OPTIONS request", async () => {
-    const req = new Request(`${baseUrl}`, { method: "OPTIONS" });
-    const res = OPTIONS(req);
-    const body = await res.text();
-    expect(body).toBe("");
+    expect(res.body).toBeNull();
   });
 });

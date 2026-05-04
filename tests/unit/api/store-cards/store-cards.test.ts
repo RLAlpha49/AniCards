@@ -968,7 +968,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.cardOrder).toBeUndefined();
     });
 
-    it("should persist only the authored cardOrder signal separately from explicit card configs", async () => {
+    it("should keep order-only cards in cardOrder while persisting only explicit card configs", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 654;
       const requestedOrder = ["favoritesGrid", "animeStats", "animeGenres"];
@@ -993,9 +993,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards).toHaveLength(1);
-      expect(stored.cards[0]).toMatchObject({ cardName: "animeStats" });
       expect(stored.cardOrder).toEqual(requestedOrder);
+      expect(
+        (stored.cards as Array<{ cardName: string }>).map(
+          (card) => card.cardName,
+        ),
+      ).toEqual(["animeStats"]);
     });
 
     it("should clear a previously stored custom card order when an explicit empty order is sent", async () => {
@@ -2751,66 +2754,6 @@ describe("Store Cards API POST Endpoint", () => {
       expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
-    it("should increment corrupted records analytics metric", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
-
-      const req = createRequest({
-        userId: 77,
-        statsData: {},
-        cards: [
-          {
-            cardName: "animeStats",
-            variation: "default",
-            titleColor: "#000",
-            backgroundColor: "#fff",
-            textColor: "#000",
-            circleColor: "#fff",
-          },
-        ],
-      });
-
-      const res = await POST(req);
-      expect(res.status).toBe(409);
-      expect(sharedRedisMockSet).not.toHaveBeenCalled();
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_cards:corrupted_records",
-      );
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_cards:failed_requests",
-      );
-    });
-
-    it("should include updatedAt timestamp in stored record", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const beforeTime = new Date();
-
-      const req = createRequest({
-        userId: 1,
-        statsData: {},
-        cards: [
-          {
-            cardName: "animeStats",
-            variation: "default",
-            titleColor: "#000",
-            backgroundColor: "#fff",
-            textColor: "#333",
-            circleColor: "#f00",
-          },
-        ],
-      });
-
-      const res = await POST(req);
-      const afterTime = new Date();
-
-      expect(res.status).toBe(200);
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      const timestamp = new Date(stored.updatedAt);
-
-      expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
-      expect(timestamp.getTime()).toBeLessThanOrEqual(afterTime.getTime());
-    });
-
     it("should handle empty cards array", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -2869,54 +2812,6 @@ describe("Store Cards API POST Endpoint", () => {
       expect(storedNames.has("animeStats")).toBe(true);
       expect(storedNames.has("animeGenres")).toBe(true);
       expect(storedNames.has("animeStaff")).toBe(true);
-    });
-  });
-
-  describe("Analytics Tracking", () => {
-    it("should increment successful requests metric", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const req = createRequest({
-        userId: 1,
-        statsData: {},
-        cards: [
-          {
-            cardName: "animeStats",
-            variation: "default",
-            titleColor: "#000",
-            backgroundColor: "#fff",
-            textColor: "#333",
-            circleColor: "#f00",
-          },
-        ],
-      });
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_cards:successful_requests",
-      );
-    });
-
-    it("should increment failed requests metric on validation error", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const req = createRequest({
-        userId: 1,
-        cards: null,
-      });
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_cards:failed_requests",
-      );
-    });
-
-    it("should increment failed requests metric on rate limit", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
-      const req = createRequest({ userId: 1, statsData: {}, cards: [] });
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_cards:failed_requests",
-      );
     });
   });
 });

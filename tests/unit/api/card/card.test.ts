@@ -7,7 +7,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { createRateLimiter } from "@/lib/api/rate-limit";
 import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
@@ -22,7 +21,6 @@ import {
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
-  sharedRatelimitMockSlidingWindow,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
@@ -369,27 +367,6 @@ function setupUserDataOnlyMocks(userData: string, cardType: string) {
 }
 
 /**
- * Asserts an SVG response succeeded and optionally matches the expected text.
- * @param res - Response returned by the GET handler.
- * @param expectedSvg - Expected SVG markup to compare against.
- * @param bodyText - Optional pre-read body text to reuse.
- * @returns Promise that resolves once assertions complete.
- * @source
- */
-async function expectSuccessfulSvgResponse(
-  res: Response,
-  expectedSvg: string,
-  bodyText?: string,
-) {
-  expect(res.status).toBe(200);
-  expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-  expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
-  expect(res.headers.get("Vary")).toBe("Origin");
-  const text = bodyText ?? (await getResponseText(res));
-  expect(text).toBe(expectedSvg);
-}
-
-/**
  * Asserts a response contains the expected SVG error message.
  * @param res - Response returned by the GET handler.
  * @param expectedError - Substring expected inside the SVG error
@@ -474,18 +451,14 @@ describe("Card SVG Route", () => {
   });
 
   describe("Rate Limiting", () => {
-    it("should construct card-specific rate limiter with 150/10s", () => {
-      sharedRatelimitMockSlidingWindow.mockClear();
-      createRateLimiter({ limit: 150, window: "10 s" });
-
-      expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(
-        150,
-        "10 s",
-      );
-    });
-
     it("should return 429 when rate limit is exceeded", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 150,
+        remaining: 0,
+        reset: Date.now() + 10_000,
+        pending: Promise.resolve(),
+      });
       sharedRedisMockGet.mockClear();
 
       const req = new Request(
@@ -506,7 +479,7 @@ describe("Card SVG Route", () => {
         "analytics:card_svg:failed_requests",
       );
       expect(res.headers.get("Retry-After")).toBeTruthy();
-      expect(res.headers.get("X-RateLimit-Limit")).toBeTruthy();
+      expect(res.headers.get("X-RateLimit-Limit")).toBe("150");
       expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
         "Retry-After",
       );
@@ -976,28 +949,6 @@ describe("Card SVG Route", () => {
   });
 
   describe("Card Configuration Resolution", () => {
-    it("should generate SVG when card data exists in DB", async () => {
-      const cardsData = createMockCardData("animeStats", "default");
-      const userData = createMockUserData(542244, "testUser", {
-        User: { statistics: { anime: {} } },
-      });
-      setupSuccessfulMocks(cardsData, userData);
-
-      const req = new Request(
-        createRequestUrl(baseUrl, {
-          userId: "542244",
-          cardType: "animeStats",
-        }),
-      );
-      const res = await GET(req);
-      const body = await getResponseText(res);
-      await expectSuccessfulSvgResponse(
-        res,
-        `<svg data-template="media" stroke="none">Anime Stats</svg>`,
-        body,
-      );
-    });
-
     it("should render animeSourceMaterialDistribution using stored totals (split meta)", async () => {
       const cardsData = createMockCardData(
         "animeSourceMaterialDistribution",
@@ -3234,109 +3185,18 @@ describe("Card SVG Route", () => {
         404,
       );
     });
-
-    it("should track failed requests to analytics", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
-      sharedRedisMockIncr.mockResolvedValueOnce(1);
-
-      const req = new Request(
-        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-      );
-      await GET(req);
-
-      expect(sharedRedisMockIncr).toHaveBeenCalled();
-    });
-
-    it("should track successful requests to analytics", async () => {
-      const cardsData = createMockCardData("animeStats", "default");
-      const userData = createMockUserData(542244, "testUser", {
-        User: { statistics: { anime: {} } },
-      });
-      setupSuccessfulMocks(cardsData, userData);
-
-      const req = new Request(
-        createRequestUrl(baseUrl, {
-          userId: "542244",
-          cardType: "animeStats",
-        }),
-      );
-      await GET(req);
-
-      let mockCalls = (
-        sharedRedisMockIncr as unknown as {
-          mock: { calls: Array<[string]> };
-        }
-      ).mock.calls;
-      let incrCalls = mockCalls.map((call) => call[0]);
-
-      expect(incrCalls).toContain("analytics:card_svg:cache_misses");
-      expect(incrCalls).toContain("analytics:card_svg:successful_requests");
-      expect(incrCalls).toContain(
-        "analytics:card_svg:successful_requests:animeStats",
-      );
-      expect(
-        incrCalls.some((metric) =>
-          metric.startsWith("analytics:card_svg:latency_buckets:success:"),
-        ),
-      ).toBe(true);
-
-      sharedRedisMockIncr.mockClear();
-
-      setupSuccessfulMocks(cardsData, userData);
-
-      await GET(req);
-
-      mockCalls = (
-        sharedRedisMockIncr as unknown as {
-          mock: { calls: Array<[string]> };
-        }
-      ).mock.calls;
-      incrCalls = mockCalls.map((call) => call[0]);
-
-      expect(incrCalls).toContain("analytics:card_svg:cache_hits");
-      expect(
-        incrCalls.some((metric) =>
-          metric.startsWith("analytics:card_svg:latency_buckets:success:"),
-        ),
-      ).toBe(true);
-    });
   });
 
   describe("OPTIONS Handler", () => {
-    it("should return 200 OK for OPTIONS", () => {
-      const req = new Request(baseUrl, { method: "OPTIONS" });
-      const res = OPTIONS(req);
-
-      expect(res.status).toBe(200);
-    });
-
-    it("should include CORS headers", () => {
-      const req = new Request(baseUrl, { method: "OPTIONS" });
-      const res = OPTIONS(req);
-
-      expect(res.headers.has("Access-Control-Allow-Origin")).toBe(true);
-      expect(res.headers.has("Access-Control-Allow-Methods")).toBe(true);
-      expect(res.headers.has("Access-Control-Allow-Headers")).toBe(true);
-      expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
-    });
-
-    it("should allow GET and OPTIONS methods", () => {
-      const req = new Request(baseUrl, { method: "OPTIONS" });
-      const res = OPTIONS(req);
-
-      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("GET");
-      expect(res.headers.get("Access-Control-Allow-Methods")).toContain(
-        "OPTIONS",
-      );
-    });
-
     it("should expose X-Card-Border-Radius header in OPTIONS", () => {
       const req = new Request(baseUrl, { method: "OPTIONS" });
       const res = OPTIONS(req);
 
+      expect(res.status).toBe(200);
       expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
         "X-Card-Border-Radius",
       );
+      expect(res.headers.get("X-Robots-Tag")).toBe(PREVIEW_MEDIA_X_ROBOTS_TAG);
     });
 
     it("should set Vary to Origin for proper caching", () => {

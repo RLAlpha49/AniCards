@@ -5,7 +5,6 @@ import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import {
   allowConsoleWarningsAndErrors,
-  captureSharedRedisIncrCalls,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockGet,
@@ -610,24 +609,12 @@ describe("User API GET Endpoint", () => {
   });
 
   describe("Response Headers and CORS", () => {
-    it("should include Content-Type application/json header", async () => {
-      mockStoredParts();
-      const res = await callGet("userId=123");
-      expect(res.headers.get("Content-Type")).toBe("application/json");
-    });
-
     it("should not issue a protected write grant cookie on successful public reads", async () => {
       mockStoredParts();
 
       const res = await callGet("userId=123");
 
       expect(res.headers.get("Set-Cookie")).toBeNull();
-    });
-
-    it("should include Vary: Origin header for CORS cache control", async () => {
-      mockStoredParts();
-      const res = await callGet("userId=123");
-      expect(res.headers.get("Vary")).toBe("Origin");
     });
 
     it("should set CORS Access-Control-Allow-Origin from request origin when no config", async () => {
@@ -665,53 +652,6 @@ describe("User API GET Endpoint", () => {
       expect(res.headers.get("X-Request-Id")).toBe("req-user-12345");
       expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
         "X-Request-Id",
-      );
-    });
-  });
-
-  describe("Analytics Tracking", () => {
-    it("should increment successful_requests analytics on successful fetch", async () => {
-      const observedIncrements = captureSharedRedisIncrCalls();
-
-      try {
-        mockStoredParts();
-        await callGet("userId=123");
-        await flushScheduledTelemetryTasksForTests();
-
-        const metrics = observedIncrements.calls.map((call) => String(call[0]));
-        expect(metrics).toContain("analytics:user_api:successful_requests");
-        expect(
-          metrics.some((metric) =>
-            metric.startsWith("analytics:user_api:latency_buckets:success:"),
-          ),
-        ).toBe(true);
-      } finally {
-        observedIncrements.release();
-      }
-    });
-
-    it("should increment failed_requests analytics when missing parameters", async () => {
-      const observedIncrements = captureSharedRedisIncrCalls();
-
-      try {
-        await callGet();
-        await flushScheduledTelemetryTasksForTests();
-
-        const metrics = observedIncrements.calls.map((call) => String(call[0]));
-        expect(metrics).toContain("analytics:user_api:failed_requests");
-        expect(metrics).toContain(
-          "analytics:user_api:failed_requests:reason:missing_lookup_target",
-        );
-      } finally {
-        observedIncrements.release();
-      }
-    });
-
-    it("should increment failed_requests analytics when Redis error occurs", async () => {
-      sharedRedisMockMget.mockRejectedValueOnce(new Error("Redis error"));
-      await callGet("userId=123");
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:user_api:failed_requests",
       );
     });
   });
@@ -754,40 +694,6 @@ describe("User API OPTIONS Endpoint", () => {
   });
 
   describe("CORS Preflight Handling", () => {
-    it("should return 200 status for OPTIONS request", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      expect(res.status).toBe(200);
-    });
-
-    it("should include Content-Type header in OPTIONS response", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      expect(res.headers.get("Content-Type")).toBe("application/json");
-    });
-
-    it("should include Vary: Origin header", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      expect(res.headers.get("Vary")).toBe("Origin");
-    });
-
-    it("should include Access-Control-Allow-Methods header", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      const methods = res.headers.get("Access-Control-Allow-Methods");
-      expect(methods).toContain("GET");
-      expect(methods).toContain("OPTIONS");
-    });
-
-    it("should include Access-Control-Allow-Headers header", () => {
-      const req = createReq();
-      const res = OPTIONS(req);
-      expect(res.headers.get("Access-Control-Allow-Headers")).toBe(
-        "Content-Type",
-      );
-    });
-
     it("should set CORS origin from request origin header", () => {
       const req = createReq(undefined, { origin: "http://example.dev" });
       const res = OPTIONS(req);

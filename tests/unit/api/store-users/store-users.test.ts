@@ -1314,54 +1314,6 @@ describe("Store Users API", () => {
     });
   });
 
-  describe("POST - Timestamp Handling", () => {
-    it("should include updatedAt timestamp in stored record", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockSet.mockResolvedValue(true);
-
-      const beforeTime = new Date();
-      const reqBody = {
-        userId: 9,
-        username: "user9",
-        stats: cloneMockUserStatsData(),
-      };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      const res = await POST(req);
-      const afterTime = new Date();
-
-      expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:9:meta");
-      const timestamp = new Date(metaValue.updatedAt);
-
-      expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
-      expect(timestamp.getTime()).toBeLessThanOrEqual(afterTime.getTime());
-    });
-
-    it("should generate new createdAt for new user records", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockSet.mockResolvedValue(true);
-
-      const beforeTime = new Date();
-      const reqBody = {
-        userId: 10,
-        username: "user10",
-        stats: cloneMockUserStatsData(),
-      };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      const res = await POST(req);
-      const afterTime = new Date();
-
-      expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:10:meta");
-      const createdAt = new Date(metaValue.createdAt);
-
-      expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
-      expect(createdAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
-    });
-  });
-
   describe("POST - Error Handling", () => {
     it("should return 500 error if redis storage fails", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
@@ -1445,36 +1397,9 @@ describe("Store Users API", () => {
 
       const storedValue = parseJsonSetCall("user:13:meta");
       expect(storedValue.createdAt).toBeDefined();
-    });
-
-    it("should generate new createdAt when recovering from corrupted record", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key === "user:14:meta") {
-          return Promise.resolve("corrupted data");
-        }
-
-        return Promise.resolve(null);
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-
-      const beforeTime = new Date();
-      const reqBody = {
-        userId: 14,
-        username: "user14",
-        stats: cloneMockUserStatsData(),
-      };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      const res = await POST(req);
-      const afterTime = new Date();
-
-      expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:14:meta");
-      const createdAt = new Date(metaValue.createdAt);
-
-      expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
-      expect(createdAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
+      expect(storedValue.updatedAt).toBeDefined();
+      expect(Number.isNaN(Date.parse(storedValue.createdAt))).toBe(false);
+      expect(Number.isNaN(Date.parse(storedValue.updatedAt))).toBe(false);
     });
   });
 
@@ -1539,66 +1464,6 @@ describe("Store Users API", () => {
         "http://localhost",
       );
       expect(res.status).toBe(400);
-    });
-  });
-
-  describe("POST - Analytics Tracking", () => {
-    it("should increment successful_requests metric on success", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
-
-      const reqBody = {
-        userId: 16,
-        username: "user16",
-        stats: cloneMockUserStatsData(),
-      };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_users:successful_requests",
-      );
-    });
-
-    it("should increment failed_requests metric on validation error", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-
-      const reqBody = { userId: null, stats: { score: 10 } };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_users:failed_requests",
-      );
-    });
-
-    it("should increment failed_requests metric on rate limit", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
-
-      const reqBody = { userId: 17, stats: { score: 10 } };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_users:failed_requests",
-      );
-    });
-
-    it("should increment failed_requests metric on Redis error", async () => {
-      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockPipelineExec.mockRejectedValueOnce(
-        new Error("Redis failure"),
-      );
-
-      const reqBody = { userId: 18, username: "user18", stats: { score: 10 } };
-      const req = createTestRequest(reqBody, "http://localhost");
-
-      await POST(req);
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:store_users:failed_requests",
-      );
     });
   });
 

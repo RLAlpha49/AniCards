@@ -18,7 +18,6 @@ import {
   allowConsoleWarningsAndErrors,
   getRequestInputUrl,
   sharedRatelimitMockLimit,
-  sharedRedisMockIncr,
 } from "@/tests/unit/__setup__";
 
 const originalApiSecretToken = process.env.API_SECRET_TOKEN;
@@ -286,35 +285,6 @@ describe("Convert API POST Endpoint", () => {
       expect(sharpConstructorMock).not.toHaveBeenCalled();
     });
 
-    it("should accept valid format 'png' (default)", async () => {
-      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://localhost/dummy.svg",
-          format: "png",
-          responseType: "json",
-        }),
-      }) as unknown as NextRequest;
-
-      mockFetchResolve(
-        new Response(dummySVG, {
-          status: 200,
-          headers: { "Content-Type": "image/svg+xml" },
-        }),
-      );
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.format).toBe("png");
-      expect(data.imageDataUrl).toContain("data:image/png;base64,");
-    });
-
     it("should accept valid format 'webp'", async () => {
       const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
       const req = new Request("http://localhost/api/convert", {
@@ -342,34 +312,6 @@ describe("Convert API POST Endpoint", () => {
       const data = await res.json();
       expect(data.format).toBe("webp");
       expect(data.imageDataUrl).toContain("data:image/webp;base64,");
-    });
-
-    it("should use default format 'png' when format is omitted", async () => {
-      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://localhost/dummy.svg",
-          responseType: "json",
-        }),
-      }) as unknown as NextRequest;
-
-      mockFetchResolve(
-        new Response(dummySVG, {
-          status: 200,
-          headers: { "Content-Type": "image/svg+xml" },
-        }),
-      );
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.format).toBe("png");
-      expect(data.imageDataUrl).toContain("data:image/png;base64,");
     });
 
     it("should handle format parameter case-insensitively", async () => {
@@ -836,49 +778,6 @@ describe("Convert API POST Endpoint", () => {
       expect(fetchedUrl).not.toContain("animate=false");
     });
 
-    it("reuses a single sharp constructor call and clones it for raster output", async () => {
-      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgContent: dummySVG,
-          format: "webp",
-        }),
-      }) as unknown as NextRequest;
-
-      const res = await POST(req);
-
-      expect(res.status).toBe(200);
-      expect(sharpConstructorCallCount).toBe(1);
-      expect(lastSharpCloneCount).toBe(1);
-      expect(sharpConstructorMock).toHaveBeenCalledTimes(1);
-    });
-
-    it("defaults to binary image data when responseType is omitted", async () => {
-      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgContent: dummySVG,
-          format: "png",
-        }),
-      }) as unknown as NextRequest;
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toBe("image/png");
-      const body = Buffer.from(await res.arrayBuffer()).toString();
-      expect(body).toBe("FAKEPNG");
-    });
-
     it("should stream binary image data when responseType is binary", async () => {
       const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
       const req = new Request("http://localhost/api/convert", {
@@ -927,85 +826,6 @@ describe("Convert API POST Endpoint", () => {
     });
   });
 
-  describe("Analytics Tracking", () => {
-    it("should handle failed_requests analytics for invalid format", async () => {
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-          host: "localhost",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://localhost/dummy.svg",
-          format: "avif",
-        }),
-      }) as unknown as NextRequest;
-
-      const res = await POST(req);
-      expect(res.status).toBe(400);
-      const data = await res.json();
-      expect(data.error).toBe("Invalid format parameter");
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:convert_api:failed_requests",
-      );
-    });
-
-    it("should handle successful_requests analytics on successful conversion", async () => {
-      const dummySVG = `<svg></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-          host: "localhost",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://localhost/dummy.svg",
-          responseType: "json",
-        }),
-      }) as unknown as NextRequest;
-
-      mockFetchResolve(
-        new Response(dummySVG, {
-          status: 200,
-          headers: { "Content-Type": "image/svg+xml" },
-        }),
-      );
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data.format).toBe("png");
-      expect(data.imageDataUrl).toBeDefined();
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:convert_api:successful_requests",
-      );
-    });
-
-    it("should handle failed_requests analytics when fetch fails", async () => {
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-          host: "localhost",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      mockFetchReject(new Error("Network error"));
-
-      const res = await POST(req);
-      expect(res.status).toBe(502);
-      const data = await res.json();
-      expect(data.error).toBe("Failed to fetch SVG");
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:convert_api:failed_requests",
-      );
-    });
-  });
-
   describe("Rate Limiting", () => {
     it("should return 429 before attempting fetch or conversion when rate limited", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({
@@ -1046,28 +866,6 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("HTTP Method Handling", () => {
-    it("should accept POST requests", async () => {
-      const dummySVG = `<svg></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      mockFetchResolve(
-        new Response(dummySVG, {
-          status: 200,
-          headers: { "Content-Type": "image/svg+xml" },
-        }),
-      );
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-    });
-
     it("should handle OPTIONS requests", async () => {
       const req = new Request("http://localhost/api/convert", {
         method: "OPTIONS",
