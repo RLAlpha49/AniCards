@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 const expectedSvg =
   '<!--ANICARDS_TRUSTED_SVG--><svg data-template="media">Anime Stats</svg>';
+const SUBPROCESS_TIMEOUT_MS = 15_000;
 
 const cardConfig = {
   cardName: "animeStats",
@@ -60,8 +61,10 @@ const userRecord = {
 };
 
 describe("card-generator lazy template loading", () => {
-  it("defers unrelated template families until they are requested", async () => {
-    const probeScript = `
+  it(
+    "defers unrelated template families until they are requested",
+    async () => {
+      const probeScript = `
 import { mock } from "bun:test";
 
 mock.module("@/lib/utils/milestones", () => ({
@@ -102,48 +105,52 @@ console.log(
 );
 `;
 
-    const subprocess = Bun.spawnSync({
-      cmd: [process.execPath, "run", "-"],
-      cwd: process.cwd(),
-      stdin: new Blob([probeScript]),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const subprocess = Bun.spawnSync({
+        cmd: [process.execPath, "run", "-"],
+        cwd: process.cwd(),
+        stdin: new Blob([probeScript]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
-    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+      const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+      const stderr = new TextDecoder().decode(subprocess.stderr).trim();
 
-    expect(subprocess.exitCode).toBe(0);
-    expect(stderr).toBe("");
+      expect(subprocess.exitCode).toBe(0);
+      expect(stderr).toBe("");
 
-    const result = JSON.parse(stdout) as {
-      mediaLoaderCalls: number;
-      mediaTemplateCalls: number;
-      svg: string;
-      unrelatedLoaderCalls: number;
-    };
+      const result = JSON.parse(stdout) as {
+        mediaLoaderCalls: number;
+        mediaTemplateCalls: number;
+        svg: string;
+        unrelatedLoaderCalls: number;
+      };
 
-    expect(result.mediaLoaderCalls).toBe(1);
-    expect(result.mediaTemplateCalls).toBe(1);
-    expect(result.unrelatedLoaderCalls).toBe(0);
-    expect(result.svg).toContain('data-template="media"');
-  });
+      expect(result.mediaLoaderCalls).toBe(1);
+      expect(result.mediaTemplateCalls).toBe(1);
+      expect(result.unrelatedLoaderCalls).toBe(0);
+      expect(result.svg).toContain('data-template="media"');
+    },
+    SUBPROCESS_TIMEOUT_MS,
+  );
 
-  it("loads only the requested template module inside split families and caches it once", async () => {
-    const comparativeCardConfig = {
-      ...cardConfig,
-      cardName: "animeMangaOverview",
-    };
-    const milestonesCardConfig = {
-      ...cardConfig,
-      cardName: "milestones",
-    };
-    const profileOverviewCardConfig = {
-      ...cardConfig,
-      cardName: "profileOverview",
-    };
+  it(
+    "loads only the requested template module inside split families and caches it once",
+    async () => {
+      const comparativeCardConfig = {
+        ...cardConfig,
+        cardName: "animeMangaOverview",
+      };
+      const milestonesCardConfig = {
+        ...cardConfig,
+        cardName: "milestones",
+      };
+      const profileOverviewCardConfig = {
+        ...cardConfig,
+        cardName: "profileOverview",
+      };
 
-    const probeScript = `
+      const probeScript = `
 import { mock } from "bun:test";
 
 mock.module("@/lib/utils/milestones", () => ({
@@ -257,55 +264,59 @@ console.log(
 );
 `;
 
-    const subprocess = Bun.spawnSync({
-      cmd: [process.execPath, "run", "-"],
-      cwd: process.cwd(),
-      stdin: new Blob([probeScript]),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const subprocess = Bun.spawnSync({
+        cmd: [process.execPath, "run", "-"],
+        cwd: process.cwd(),
+        stdin: new Blob([probeScript]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
-    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+      const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+      const stderr = new TextDecoder().decode(subprocess.stderr).trim();
 
-    expect(subprocess.exitCode).toBe(0);
-    expect(stderr).toBe("");
+      expect(subprocess.exitCode).toBe(0);
+      expect(stderr).toBe("");
 
-    const result = JSON.parse(stdout) as {
-      comparativeRequestedCalls: number;
-      comparativeSiblingCalls: number;
-      completionRequestedCalls: number;
-      completionSiblingCalls: number;
-      profileRequestedCalls: number;
-      profileSiblingCalls: number;
-      comparativeSvg1: string;
-      comparativeSvg2: string;
-      milestonesSvg1: string;
-      milestonesSvg2: string;
-      profileSvg1: string;
-      profileSvg2: string;
-    };
+      const result = JSON.parse(stdout) as {
+        comparativeRequestedCalls: number;
+        comparativeSiblingCalls: number;
+        completionRequestedCalls: number;
+        completionSiblingCalls: number;
+        profileRequestedCalls: number;
+        profileSiblingCalls: number;
+        comparativeSvg1: string;
+        comparativeSvg2: string;
+        milestonesSvg1: string;
+        milestonesSvg2: string;
+        profileSvg1: string;
+        profileSvg2: string;
+      };
 
-    expect(result.comparativeRequestedCalls).toBe(1);
-    expect(result.comparativeSiblingCalls).toBe(0);
-    expect(result.completionRequestedCalls).toBe(1);
-    expect(result.completionSiblingCalls).toBe(0);
-    expect(result.profileRequestedCalls).toBe(1);
-    expect(result.profileSiblingCalls).toBe(0);
-    expect(result.comparativeSvg1).toContain(
-      'data-template="anime-manga-overview"',
-    );
-    expect(result.comparativeSvg2).toContain(
-      'data-template="anime-manga-overview"',
-    );
-    expect(result.milestonesSvg1).toContain('data-template="milestones"');
-    expect(result.milestonesSvg2).toContain('data-template="milestones"');
-    expect(result.profileSvg1).toContain('data-template="profile-overview"');
-    expect(result.profileSvg2).toContain('data-template="profile-overview"');
-  });
+      expect(result.comparativeRequestedCalls).toBe(1);
+      expect(result.comparativeSiblingCalls).toBe(0);
+      expect(result.completionRequestedCalls).toBe(1);
+      expect(result.completionSiblingCalls).toBe(0);
+      expect(result.profileRequestedCalls).toBe(1);
+      expect(result.profileSiblingCalls).toBe(0);
+      expect(result.comparativeSvg1).toContain(
+        'data-template="anime-manga-overview"',
+      );
+      expect(result.comparativeSvg2).toContain(
+        'data-template="anime-manga-overview"',
+      );
+      expect(result.milestonesSvg1).toContain('data-template="milestones"');
+      expect(result.milestonesSvg2).toContain('data-template="milestones"');
+      expect(result.profileSvg1).toContain('data-template="profile-overview"');
+      expect(result.profileSvg2).toContain('data-template="profile-overview"');
+    },
+    SUBPROCESS_TIMEOUT_MS,
+  );
 
-  it("initializes the server pretext runtime before rendering cards", async () => {
-    const probeScript = `
+  it(
+    "initializes the server pretext runtime before rendering cards",
+    async () => {
+      const probeScript = `
 import { mock } from "bun:test";
 
 mock.module("@/lib/utils/milestones", () => ({
@@ -346,128 +357,134 @@ console.log(
 );
 `;
 
-    const subprocess = Bun.spawnSync({
-      cmd: [process.execPath, "run", "-"],
-      cwd: process.cwd(),
-      stdin: new Blob([probeScript]),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const subprocess = Bun.spawnSync({
+        cmd: [process.execPath, "run", "-"],
+        cwd: process.cwd(),
+        stdin: new Blob([probeScript]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
-    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+      const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+      const stderr = new TextDecoder().decode(subprocess.stderr).trim();
 
-    expect(subprocess.exitCode).toBe(0);
-    expect(stderr).toBe("");
+      expect(subprocess.exitCode).toBe(0);
+      expect(stderr).toBe("");
 
-    const result = JSON.parse(stdout) as {
-      events: string[];
-      initCalls: number;
-      svg: string;
-    };
+      const result = JSON.parse(stdout) as {
+        events: string[];
+        initCalls: number;
+        svg: string;
+      };
 
-    expect(result.initCalls).toBe(1);
-    expect(result.events[0]).toBe("init");
-    expect(result.events).toContain("render");
-    expect(result.svg).toContain('data-template="media"');
-  });
+      expect(result.initCalls).toBe(1);
+      expect(result.events[0]).toBe("init");
+      expect(result.events).toContain("render");
+      expect(result.svg).toContain('data-template="media"');
+    },
+    SUBPROCESS_TIMEOUT_MS,
+  );
 
-  it("embeds image-heavy cards without cache-only fallbacks", async () => {
-    const profileOverviewConfig = {
-      ...cardConfig,
-      cardName: "profileOverview",
-    };
-    const favoritesGridConfig = {
-      ...cardConfig,
-      cardName: "favoritesGrid",
-      gridCols: 1,
-      gridRows: 1,
-    };
-    const currentlyWatchingReadingConfig = {
-      ...cardConfig,
-      cardName: "currentlyWatchingReading",
-    };
-    const renderHeavyUserRecord = {
-      ...userRecord,
-      stats: {
-        ...userRecord.stats,
-        User: {
-          ...userRecord.stats.User,
-          avatar: {
-            medium:
-              "https://s4.anilist.co/file/anilistcdn/user/avatar/test.png",
-          },
-          favourites: {
-            anime: { nodes: [] },
-            manga: { nodes: [] },
-            characters: { nodes: [] },
-            staff: {
-              nodes: [
-                {
-                  id: 1,
-                  image: {
-                    large: "https://s4.anilist.co/file/anilistcdn/staff/1.jpg",
-                  },
-                  name: { full: "Staff One" },
-                },
-                {
-                  id: 2,
-                  image: {
-                    large: "https://s4.anilist.co/file/anilistcdn/staff/2.jpg",
-                  },
-                  name: { full: "Staff Two" },
-                },
-              ],
+  it(
+    "embeds image-heavy cards without cache-only fallbacks",
+    async () => {
+      const profileOverviewConfig = {
+        ...cardConfig,
+        cardName: "profileOverview",
+      };
+      const favoritesGridConfig = {
+        ...cardConfig,
+        cardName: "favoritesGrid",
+        gridCols: 1,
+        gridRows: 1,
+      };
+      const currentlyWatchingReadingConfig = {
+        ...cardConfig,
+        cardName: "currentlyWatchingReading",
+      };
+      const renderHeavyUserRecord = {
+        ...userRecord,
+        stats: {
+          ...userRecord.stats,
+          User: {
+            ...userRecord.stats.User,
+            avatar: {
+              medium:
+                "https://s4.anilist.co/file/anilistcdn/user/avatar/test.png",
             },
-            studios: { nodes: [] },
-          },
-        },
-        animeCurrent: {
-          count: 1,
-          lists: [
-            {
-              entries: [
-                {
-                  id: 10,
-                  media: {
-                    coverImage: {
+            favourites: {
+              anime: { nodes: [] },
+              manga: { nodes: [] },
+              characters: { nodes: [] },
+              staff: {
+                nodes: [
+                  {
+                    id: 1,
+                    image: {
                       large:
-                        "https://s4.anilist.co/file/anilistcdn/media/anime/10.jpg",
+                        "https://s4.anilist.co/file/anilistcdn/staff/1.jpg",
                     },
-                    id: 110,
-                    title: { romaji: "Anime One" },
+                    name: { full: "Staff One" },
                   },
-                  progress: 3,
-                },
-              ],
-            },
-          ],
-        },
-        mangaCurrent: {
-          count: 1,
-          lists: [
-            {
-              entries: [
-                {
-                  id: 20,
-                  media: {
-                    coverImage: {
+                  {
+                    id: 2,
+                    image: {
                       large:
-                        "https://s4.anilist.co/file/anilistcdn/media/manga/20.jpg",
+                        "https://s4.anilist.co/file/anilistcdn/staff/2.jpg",
                     },
-                    id: 220,
-                    title: { romaji: "Manga One" },
+                    name: { full: "Staff Two" },
                   },
-                  progress: 5,
-                },
-              ],
+                ],
+              },
+              studios: { nodes: [] },
             },
-          ],
+          },
+          animeCurrent: {
+            count: 1,
+            lists: [
+              {
+                entries: [
+                  {
+                    id: 10,
+                    media: {
+                      coverImage: {
+                        large:
+                          "https://s4.anilist.co/file/anilistcdn/media/anime/10.jpg",
+                      },
+                      id: 110,
+                      title: { romaji: "Anime One" },
+                    },
+                    progress: 3,
+                  },
+                ],
+              },
+            ],
+          },
+          mangaCurrent: {
+            count: 1,
+            lists: [
+              {
+                entries: [
+                  {
+                    id: 20,
+                    media: {
+                      coverImage: {
+                        large:
+                          "https://s4.anilist.co/file/anilistcdn/media/manga/20.jpg",
+                      },
+                      id: 220,
+                      title: { romaji: "Manga One" },
+                    },
+                    progress: 5,
+                  },
+                ],
+              },
+            ],
+          },
         },
-      },
-    };
+      };
 
-    const probeScript = `
+      const probeScript = `
 import { mock } from "bun:test";
 
 const fetchImageAsDataUrl = mock(async (_url, options) => {
@@ -544,43 +561,47 @@ console.log(
 );
 `;
 
-    const subprocess = Bun.spawnSync({
-      cmd: [process.execPath, "run", "-"],
-      cwd: process.cwd(),
-      stdin: new Blob([probeScript]),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const subprocess = Bun.spawnSync({
+        cmd: [process.execPath, "run", "-"],
+        cwd: process.cwd(),
+        stdin: new Blob([probeScript]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
-    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+      const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+      const stderr = new TextDecoder().decode(subprocess.stderr).trim();
 
-    expect(subprocess.exitCode).toBe(0);
-    expect(stderr).toBe("");
+      expect(subprocess.exitCode).toBe(0);
+      expect(stderr).toBe("");
 
-    const result = JSON.parse(stdout) as {
-      currentEmbedCalls: Array<[unknown[], { cacheOnly?: boolean }]>;
-      favoritesEmbedCalls: Array<
-        [unknown, string, number, number, { cacheOnly?: boolean }]
-      >;
-      fetchCalls: Array<[string, { cacheOnly?: boolean }?]>;
-    };
+      const result = JSON.parse(stdout) as {
+        currentEmbedCalls: Array<[unknown[], { cacheOnly?: boolean }]>;
+        favoritesEmbedCalls: Array<
+          [unknown, string, number, number, { cacheOnly?: boolean }]
+        >;
+        fetchCalls: Array<[string, { cacheOnly?: boolean }?]>;
+      };
 
-    expect(result.fetchCalls).toEqual([
-      ["https://s4.anilist.co/file/anilistcdn/user/avatar/test.png"],
-    ]);
-    expect(result.favoritesEmbedCalls).toHaveLength(1);
-    expect(result.favoritesEmbedCalls[0]?.[1]).toBe("staff");
-    expect(result.favoritesEmbedCalls[0]?.[2]).toBe(1);
-    expect(result.favoritesEmbedCalls[0]?.[3]).toBe(1);
-    expect(result.favoritesEmbedCalls[0]?.[4]).toBeUndefined();
-    expect(result.currentEmbedCalls).toHaveLength(2);
-    expect(result.currentEmbedCalls[0]?.[1]).toBeUndefined();
-    expect(result.currentEmbedCalls[1]?.[1]).toBeUndefined();
-  });
+      expect(result.fetchCalls).toEqual([
+        ["https://s4.anilist.co/file/anilistcdn/user/avatar/test.png"],
+      ]);
+      expect(result.favoritesEmbedCalls).toHaveLength(1);
+      expect(result.favoritesEmbedCalls[0]?.[1]).toBe("staff");
+      expect(result.favoritesEmbedCalls[0]?.[2]).toBe(1);
+      expect(result.favoritesEmbedCalls[0]?.[3]).toBe(1);
+      expect(result.favoritesEmbedCalls[0]?.[4]).toBeUndefined();
+      expect(result.currentEmbedCalls).toHaveLength(2);
+      expect(result.currentEmbedCalls[0]?.[1]).toBeUndefined();
+      expect(result.currentEmbedCalls[1]?.[1]).toBeUndefined();
+    },
+    SUBPROCESS_TIMEOUT_MS,
+  );
 
-  it("injects a static render override when animations are disabled", async () => {
-    const probeScript = `
+  it(
+    "injects a static render override when animations are disabled",
+    async () => {
+      const probeScript = `
 const { default: generateCardSvg } = await import("@/lib/card-generator");
 
 const svg = await generateCardSvg(
@@ -594,24 +615,26 @@ const svg = await generateCardSvg(
 console.log(JSON.stringify({ svg }));
 `;
 
-    const subprocess = Bun.spawnSync({
-      cmd: [process.execPath, "run", "-"],
-      cwd: process.cwd(),
-      stdin: new Blob([probeScript]),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+      const subprocess = Bun.spawnSync({
+        cmd: [process.execPath, "run", "-"],
+        cwd: process.cwd(),
+        stdin: new Blob([probeScript]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
 
-    const stdout = new TextDecoder().decode(subprocess.stdout).trim();
-    const stderr = new TextDecoder().decode(subprocess.stderr).trim();
+      const stdout = new TextDecoder().decode(subprocess.stdout).trim();
+      const stderr = new TextDecoder().decode(subprocess.stderr).trim();
 
-    expect(subprocess.exitCode).toBe(0);
-    expect(stderr).toBe("");
+      expect(subprocess.exitCode).toBe(0);
+      expect(stderr).toBe("");
 
-    const result = JSON.parse(stdout) as { svg: string };
+      const result = JSON.parse(stdout) as { svg: string };
 
-    expect(result.svg).toContain('data-anicards-render-mode="static"');
-    expect(result.svg).toContain("animation: none !important");
-    expect(result.svg).not.toContain("@keyframes rankAnimation");
-  });
+      expect(result.svg).toContain('data-anicards-render-mode="static"');
+      expect(result.svg).toContain("animation: none !important");
+      expect(result.svg).not.toContain("@keyframes rankAnimation");
+    },
+    SUBPROCESS_TIMEOUT_MS,
+  );
 });
