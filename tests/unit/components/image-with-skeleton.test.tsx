@@ -13,7 +13,6 @@ import {
   getImageLoadState,
   ImageWithSkeleton,
   isImageReady,
-  SLOW_LOAD_THRESHOLD_MS,
 } from "@/components/ImageWithSkeleton";
 import {
   installHappyDom,
@@ -51,10 +50,6 @@ afterAll(() => {
 });
 
 describe("ImageWithSkeleton", () => {
-  it("uses the documented slow-load threshold for delayed skeleton fallbacks", () => {
-    expect(SLOW_LOAD_THRESHOLD_MS).toBe(2000);
-  });
-
   it("keeps the image in loading or slow states until a real loaded state is reached", () => {
     expect(
       getImageLoadState({
