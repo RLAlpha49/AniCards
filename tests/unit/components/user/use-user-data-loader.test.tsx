@@ -78,11 +78,15 @@ useUserPageEditorMock.getState = () =>
     ...editorStoreActions,
   }) as unknown as UserPageEditorStore;
 
-mock.module("next/navigation", () => ({
-  usePathname: () => pathname,
-  useRouter: () => router,
-  useSearchParams: () => routeSearchParams,
-}));
+function registerNextNavigationMock() {
+  mock.module("next/navigation", () => ({
+    usePathname: () => pathname,
+    useRouter: () => router,
+    useSearchParams: () => routeSearchParams,
+  }));
+}
+
+registerNextNavigationMock();
 
 installHappyDom();
 
@@ -168,7 +172,9 @@ async function flushLoader(rounds = 12) {
 
 describe("useUserDataLoader", () => {
   beforeEach(async () => {
+    installHappyDom();
     resetHappyDom();
+    registerNextNavigationMock();
     pathname = "/user";
     routeSearchParams = new URLSearchParams("username=Alex");
     editorStoreState.isLoading = false;
