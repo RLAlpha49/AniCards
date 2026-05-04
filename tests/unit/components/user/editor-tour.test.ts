@@ -3,7 +3,11 @@ import type { DriveStep } from "driver.js";
 
 import { findActiveStepIndex } from "@/components/user/editor/EditorTour";
 
-function createDriveStep(overrides: Partial<DriveStep> = {}): DriveStep {
+type TestDriveStep = DriveStep & { id?: string };
+
+function createDriveStep(
+  overrides: Partial<TestDriveStep> = {},
+): TestDriveStep {
   return {
     popover: {
       title: "Tour Step",
