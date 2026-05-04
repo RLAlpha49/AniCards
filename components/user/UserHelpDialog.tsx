@@ -25,14 +25,7 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/Dialog";
+import { Dialog, DialogContent } from "@/components/ui/Dialog";
 import { useMotionPreferences } from "@/hooks/useMotionPreferences";
 import { getMotionSafeScrollBehavior } from "@/lib/animations";
 import { cn } from "@/lib/utils";
@@ -428,16 +421,14 @@ export function UserHelpDialog({
         <div className="flex min-h-0 flex-col">
           {/* Header */}
           <div className="relative shrink-0 px-8 pt-7 pb-5">
-            <DialogHeader className="border-0 pb-0 text-center">
-              <DialogTitle className="text-center text-base tracking-[0.25em] uppercase">
+            <div className="border-0 pb-0 text-center">
+              <h2 className="text-center text-base tracking-[0.25em] uppercase">
                 Imperial Guide
-              </DialogTitle>
-              <DialogDescription className="
-                mx-auto mt-2 max-w-md text-center text-[0.82rem] leading-relaxed
-              ">
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-center text-[0.82rem] leading-relaxed">
                 Dig through the topics below or search for what you need.
-              </DialogDescription>
-            </DialogHeader>
+              </p>
+            </div>
 
             <div className="mt-4 mb-0 gold-ornament">
               <GoldDiamond />
@@ -607,18 +598,17 @@ export function UserHelpDialog({
                   <Link href="/examples">Examples</Link>
                 </Button>
 
-                <DialogClose asChild>
-                  <Button
-                    type="button"
-                    className="
-                      h-8 rounded-none border border-gold/30 bg-gold/10 px-5 font-display
-                      text-[0.68rem] tracking-[0.12em] text-foreground uppercase transition-all
-                      hover:bg-gold/18
-                    "
-                  >
-                    Close
-                  </Button>
-                </DialogClose>
+                <Button
+                  type="button"
+                  className="
+                    h-8 rounded-none border border-gold/30 bg-gold/10 px-5 font-display
+                    text-[0.68rem] tracking-[0.12em] text-foreground uppercase transition-all
+                    hover:bg-gold/18
+                  "
+                  onClick={() => onOpenChange(false)}
+                >
+                  Close
+                </Button>
               </div>
             </div>
           </div>

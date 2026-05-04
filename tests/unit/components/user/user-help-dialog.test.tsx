@@ -3,6 +3,7 @@ import "@/tests/unit/__setup__";
 import {
   afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -27,6 +28,61 @@ let restoreMatchMedia: (() => void) | null = null;
 let restoreElementConstructors: (() => void) | null = null;
 let restoreNodeFilter: (() => void) | null = null;
 let restoreScrollTo: (() => void) | null = null;
+let UserHelpDialog: typeof import("@/components/user/UserHelpDialog").UserHelpDialog;
+
+function installUserHelpDialogMocks() {
+  mock.module("@/hooks/useMotionPreferences", () => ({
+    useMotionPreferences: () => ({
+      prefersReducedMotion: false,
+      prefersReducedData: false,
+      prefersCoarsePointer: false,
+      prefersSimplifiedMotion: false,
+    }),
+  }));
+
+  mock.module("@/components/ui/Dialog", () => ({
+    Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DialogContent: ({ children, ...props }: ComponentProps<"div">) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogHeader: ({ children, ...props }: ComponentProps<"div">) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogTitle: ({ children, ...props }: ComponentProps<"h2">) => (
+      <h2 {...props}>{children}</h2>
+    ),
+    DialogDescription: ({ children, ...props }: ComponentProps<"p">) => (
+      <p {...props}>{children}</p>
+    ),
+    DialogClose: ({
+      asChild,
+      children,
+    }: {
+      asChild?: boolean;
+      children?: ReactNode;
+    }) =>
+      asChild ? <>{children}</> : <button type="button">{children}</button>,
+  }));
+
+  mock.module("@/components/ui/Button", () => ({
+    Button: ({
+      asChild,
+      children,
+      type = "button",
+      ...props
+    }: ComponentProps<"button"> & {
+      asChild?: boolean;
+      children?: ReactNode;
+    }) =>
+      asChild ? (
+        <>{children}</>
+      ) : (
+        <button type={type} {...props}>
+          {children}
+        </button>
+      ),
+  }));
+}
 
 function installMatchMediaStub() {
   const domWindow = globalThis.window;
@@ -154,6 +210,10 @@ beforeEach(() => {
   restoreScrollTo = installScrollToStub();
 });
 
+beforeAll(() => {
+  installUserHelpDialogMocks();
+});
+
 afterEach(async () => {
   cleanup();
   await flushMicrotasks();
@@ -179,62 +239,13 @@ afterAll(async () => {
   restoreHappyDom();
 });
 
+beforeEach(async () => {
+  installUserHelpDialogMocks();
+  ({ UserHelpDialog } = await import("@/components/user/UserHelpDialog"));
+});
+
 describe("UserHelpDialog topic semantics", () => {
   it("uses pressed state for topic buttons instead of aria-current", async () => {
-    mock.module("@/hooks/useMotionPreferences", () => ({
-      useMotionPreferences: () => ({
-        prefersReducedMotion: false,
-        prefersReducedData: false,
-        prefersCoarsePointer: false,
-        prefersSimplifiedMotion: false,
-      }),
-    }));
-
-    mock.module("@/components/ui/Dialog", () => ({
-      Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-      DialogContent: ({ children, ...props }: ComponentProps<"div">) => (
-        <div {...props}>{children}</div>
-      ),
-      DialogHeader: ({ children, ...props }: ComponentProps<"div">) => (
-        <div {...props}>{children}</div>
-      ),
-      DialogTitle: ({ children, ...props }: ComponentProps<"h2">) => (
-        <h2 {...props}>{children}</h2>
-      ),
-      DialogDescription: ({ children, ...props }: ComponentProps<"p">) => (
-        <p {...props}>{children}</p>
-      ),
-      DialogClose: ({
-        asChild,
-        children,
-      }: {
-        asChild?: boolean;
-        children?: ReactNode;
-      }) =>
-        asChild ? <>{children}</> : <button type="button">{children}</button>,
-    }));
-
-    mock.module("@/components/ui/Button", () => ({
-      Button: ({
-        asChild,
-        children,
-        type = "button",
-        ...props
-      }: ComponentProps<"button"> & {
-        asChild?: boolean;
-        children?: ReactNode;
-      }) =>
-        asChild ? (
-          <>{children}</>
-        ) : (
-          <button type={type} {...props}>
-            {children}
-          </button>
-        ),
-    }));
-
-    const { UserHelpDialog } = await import("@/components/user/UserHelpDialog");
-
     const view = render(<UserHelpDialog open onOpenChange={() => undefined} />);
 
     const quickStartButtons = await view.findAllByRole("button", {
