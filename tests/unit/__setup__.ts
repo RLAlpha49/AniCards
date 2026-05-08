@@ -659,16 +659,7 @@ function buildAliasMembers(options: {
   existingNormalizedUsername?: string;
   normalizedUsername?: string;
 }): string[] {
-  const aliasMembers = new Set<string>(options.trackedAliases);
-
-  if (options.existingNormalizedUsername) {
-    aliasMembers.add(options.existingNormalizedUsername);
-  }
-  if (options.normalizedUsername) {
-    aliasMembers.add(options.normalizedUsername);
-  }
-
-  return [...aliasMembers];
+  return options.normalizedUsername ? [options.normalizedUsername] : [];
 }
 
 function buildStaleAliasKeys(options: {
@@ -814,6 +805,7 @@ async function applyEvalAliasWrites(options: {
 async function applyEvalRegistryWrites(options: {
   registryKey?: unknown;
   refreshIndexKey?: unknown;
+  refreshQuarantineKey?: unknown;
   publicProfileSitemapIndexKey?: unknown;
   legacyUserKey?: unknown;
   normalizedUsername?: string;
@@ -831,6 +823,12 @@ async function applyEvalRegistryWrites(options: {
         typeof options.updatedAtScore === "number" ? options.updatedAtScore : 0,
       member: options.userId,
     });
+  }
+  if (typeof options.refreshQuarantineKey === "string") {
+    await invokeSharedRedisMockSrem(
+      options.refreshQuarantineKey,
+      options.userId,
+    );
   }
   if (typeof options.legacyUserKey === "string") {
     await sharedRedisMockDel(options.legacyUserKey);
@@ -950,6 +948,7 @@ async function emulateAtomicUserSaveEval(
   await applyEvalRegistryWrites({
     registryKey: keys[2],
     refreshIndexKey: keys[3],
+    refreshQuarantineKey: keys[9],
     publicProfileSitemapIndexKey: keys[4],
     legacyUserKey: keys[6],
     normalizedUsername,
@@ -982,6 +981,7 @@ async function emulateAtomicUserDeleteEval(
     registryKey,
     refreshIndexKey,
     publicProfileSitemapIndexKey,
+    refreshQuarantineKey,
   ] = keys;
   const deletedKeys: string[] = [];
   const removedAliasKeys: string[] = [];
@@ -1098,6 +1098,9 @@ async function emulateAtomicUserDeleteEval(
   if (typeof refreshIndexKey === "string") {
     await invokeSharedRedisMockZrem(refreshIndexKey, payload.userId);
   }
+  if (typeof refreshQuarantineKey === "string") {
+    await invokeSharedRedisMockSrem(refreshQuarantineKey, payload.userId);
+  }
 
   return [1, JSON.stringify(deletedKeys), JSON.stringify(removedAliasKeys)];
 }
@@ -1167,7 +1170,7 @@ function getEvalSavePayloadArg(argList: unknown[]): string | null {
 
 function hasEvalDeleteArgs(keyList: unknown[], argList: unknown[]): boolean {
   return (
-    keyList.length === 10 &&
+    keyList.length === 11 &&
     argList.length === 2 &&
     parseEvalDeletePayload(argList) !== null
   );

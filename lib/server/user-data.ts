@@ -128,7 +128,6 @@ const USER_PRIVACY_RIGHTS_EVIDENCE_PRUNE_INTERVAL_SECONDS = 24 * 60 * 60;
 const USER_REFRESH_INDEX_REPAIR_BATCH_SIZE = 25;
 const USER_REFRESH_INDEX_REPAIR_LEASE_KEY = `${USER_REFRESH_INDEX_KEY}:repair-lease`;
 const USER_REFRESH_INDEX_REPAIR_INTERVAL_SECONDS = 24 * 60 * 60;
-const USER_REFRESH_SCAN_BATCH_SIZE = 100;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 const USER_BOUNDED_SECTIONS = [
   "activity",
@@ -284,20 +283,6 @@ export interface MaintainerUserDataExportPackage {
   userRecord: ReconstructedUserRecord | null;
   userState: PersistedUserState | null;
 }
-
-type RedisScanCursor = number | string;
-
-type RedisScanResult = [RedisScanCursor, string[]];
-
-type RedisKeyScanner = {
-  scan(
-    cursor: RedisScanCursor,
-    options?: {
-      count?: number;
-      match?: string;
-    },
-  ): Promise<RedisScanResult>;
-};
 export class UserDataIntegrityError extends Error {
   readonly kind = "corrupt" as const;
   readonly userId: string;
@@ -989,10 +974,17 @@ function parsePrivacyRightsEvidenceEntry(
     return undefined;
   }
 
+  const requestType = isPrivacyRightsAuditRequestType(parsedValue.requestType)
+    ? parsedValue.requestType
+    : undefined;
+  const stage = isPrivacyRightsAuditStage(parsedValue.stage)
+    ? parsedValue.stage
+    : undefined;
+
   if (
     typeof parsedValue.actor !== "string" ||
-    typeof parsedValue.requestType !== "string" ||
-    typeof parsedValue.stage !== "string" ||
+    !requestType ||
+    !stage ||
     typeof parsedValue.timestamp !== "string" ||
     typeof parsedValue.userId !== "string" ||
     (parsedValue.expiresAt !== undefined &&
@@ -1007,8 +999,8 @@ function parsePrivacyRightsEvidenceEntry(
       typeof parsedValue.expiresAt === "string"
         ? parsedValue.expiresAt
         : undefined,
-    requestType: parsedValue.requestType as PrivacyRightsAuditRequestType,
-    stage: parsedValue.stage as PrivacyRightsAuditStage,
+    requestType,
+    stage,
     timestamp: parsedValue.timestamp,
     userId: parsedValue.userId,
   };
@@ -2528,49 +2520,20 @@ async function loadLegacyCompatibleUserDataParts(
 }
 
 async function rebuildUserRefreshIndex(): Promise<number> {
-  const keyScanner = redisClient as unknown as RedisKeyScanner;
-  const discoveredUserIds = new Set<string>();
+  const [trackedRegistryMembers, indexedRefreshMembers, quarantinedMembers] =
+    await Promise.all([
+      redisSetClient.smembers(USER_REFRESH_REGISTRY_KEY),
+      redisSortedSetClient.zrange(USER_REFRESH_INDEX_KEY, 0, -1),
+      redisSetClient.smembers(USER_REFRESH_QUARANTINE_KEY),
+    ]);
 
-  const readScanMatches = async (match: string) => {
-    let cursor: RedisScanCursor = 0;
-
-    do {
-      const [nextCursor, keys] = await keyScanner.scan(cursor, {
-        count: USER_REFRESH_SCAN_BATCH_SIZE,
-        match,
-      });
-
-      (Array.isArray(keys) ? keys : []).forEach((key) => {
-        const commitMatch = /^user:(\d+):commit$/.exec(key);
-        if (commitMatch?.[1]) {
-          discoveredUserIds.add(commitMatch[1]);
-          return;
-        }
-
-        const metaMatch = /^user:(\d+):meta$/.exec(key);
-        if (metaMatch?.[1]) {
-          discoveredUserIds.add(metaMatch[1]);
-          return;
-        }
-
-        const legacyMatch = /^user:(\d+)$/.exec(key);
-        if (legacyMatch?.[1]) {
-          discoveredUserIds.add(legacyMatch[1]);
-        }
-      });
-
-      cursor = nextCursor;
-    } while (String(cursor) !== "0");
-  };
-
-  await Promise.all([
-    readScanMatches("user:*:commit"),
-    readScanMatches("user:*:meta"),
-    readScanMatches("user:*"),
-  ]);
-
+  const discoveredUserIds = new Set(
+    [...trackedRegistryMembers, ...indexedRefreshMembers]
+      .map(String)
+      .filter((candidate) => /^\d+$/.test(candidate)),
+  );
   const quarantinedUserIds = new Set(
-    (await redisSetClient.smembers(USER_REFRESH_QUARANTINE_KEY))
+    quarantinedMembers
       .map(String)
       .filter((candidate) => /^\d+$/.test(candidate)),
   );
@@ -2657,13 +2620,14 @@ async function rebuildUserRefreshIndex(): Promise<number> {
     logPrivacySafe(
       "warn",
       "User Data",
-      "Rebuilt stale-user index from bounded storage scans",
+      "Rebuilt stale-user index from tracked-user registries",
       {
         discoveredUserCount: candidateUserIds.length,
         indexedUserCount: validStates.length,
+        refreshIndexMemberCount: indexedRefreshMembers.length,
+        registryUserCount: trackedRegistryMembers.length,
         prunedUserCount: prunedUserIds.length,
         quarantinedUserCount: quarantinedDuringRepair.length,
-        scanBatchSize: USER_REFRESH_SCAN_BATCH_SIZE,
       },
     );
   }
@@ -3485,9 +3449,14 @@ for alias, _ in pairs(aliasMap) do
   table.insert(aliasList, alias)
 end
 
+local activeAliasList = {}
+if normalizedUsername then
+  table.insert(activeAliasList, normalizedUsername)
+end
+
 redis.call("DEL", KEYS[2])
-if #aliasList > 0 then
-  redis.call("SADD", KEYS[2], unpack(aliasList))
+if #activeAliasList > 0 then
+  redis.call("SADD", KEYS[2], unpack(activeAliasList))
 end
 
 for _, alias in ipairs(aliasList) do
@@ -3518,6 +3487,7 @@ end
 
 redis.call("SADD", KEYS[3], payload["userId"])
 redis.call("ZADD", KEYS[4], payload["updatedAtScore"], payload["userId"])
+redis.call("SREM", KEYS[10], payload["userId"])
 
 for _, partName in ipairs(payload["allParts"]) do
   redis.call("DEL", "user:" .. payload["userId"] .. ":" .. partName)
@@ -3693,6 +3663,7 @@ end
 
 redis.call("SREM", KEYS[8], userId)
 redis.call("ZREM", KEYS[9], userId)
+redis.call("SREM", KEYS[11], userId)
 
 return {1, cjson.encode(deletedKeys), cjson.encode(removedAliasKeys)}
 `;
@@ -4030,6 +4001,7 @@ export async function saveUserRecord(
         `user:${userId}`,
         getCardsRecordMetaKey(userId),
         getCardsRecordKey(userId),
+        USER_REFRESH_QUARANTINE_KEY,
       ],
       [JSON.stringify(savePayload)],
     ),
@@ -4049,7 +4021,6 @@ export async function saveUserRecord(
     });
   }
 
-  await redisSetClient.srem(USER_REFRESH_QUARANTINE_KEY, userId);
   await auditUserLifecycleEvent({
     action: "save",
     triggerSource: options?.triggerSource ?? "user_data_save",
@@ -4098,11 +4069,11 @@ export async function deleteUserRecord(
         USER_REFRESH_REGISTRY_KEY,
         USER_REFRESH_INDEX_KEY,
         USER_PUBLIC_PROFILE_SITEMAP_INDEX_KEY,
+        USER_REFRESH_QUARANTINE_KEY,
       ],
       [normalizedUserId, JSON.stringify([...ALL_USER_DATA_PARTS])],
     ),
   );
-  await redisSetClient.srem(USER_REFRESH_QUARANTINE_KEY, normalizedUserId);
   await auditUserLifecycleEvent({
     action: "delete",
     triggerSource: options?.triggerSource ?? "user_data_delete",

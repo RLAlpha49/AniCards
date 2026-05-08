@@ -666,8 +666,6 @@ describe("user-data persistence", () => {
 
     expect(sharedRedisMockSadd).toHaveBeenCalledWith(
       "user:24:username-aliases",
-      "oldname",
-      "legacy-name",
       "newname",
     );
     expect(sharedRedisMockSet).toHaveBeenCalledWith("username:newname", "24");
@@ -1547,19 +1545,18 @@ describe("user-data persistence", () => {
     );
   });
 
-  it("rebuilds the stale-user index from bounded key scans", async () => {
-    sharedRedisMockScan.mockImplementation(
-      async (
-        _cursor: unknown,
-        options?: { count?: number; match?: string },
-      ) => {
-        if (options?.match === "user:*:commit") {
-          return [0, ["user:9:commit", "user:5:commit"]];
-        }
+  it("rebuilds the stale-user index from tracked registries", async () => {
+    sharedRedisMockSmembers.mockImplementation((key: string) => {
+      if (key === "users:known-ids") {
+        return Promise.resolve(["9", "5"]);
+      }
 
-        return [0, []];
-      },
-    );
+      if (key === "users:refresh-quarantine") {
+        return Promise.resolve([]);
+      }
+
+      return Promise.resolve([]);
+    });
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "user:5:commit") {
         return Promise.resolve(
@@ -1591,15 +1588,19 @@ describe("user-data persistence", () => {
 
       return Promise.resolve(null);
     });
-    sharedRedisMockZrange.mockResolvedValueOnce(["5"]);
+    sharedRedisMockZrange
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["5"]);
 
     const result = await listStalestUserIds(1);
 
     expect(result).toEqual({ userIds: ["5"], totalUsers: 2 });
-    expect(sharedRedisMockScan).toHaveBeenCalledWith(0, {
-      count: 100,
-      match: "user:*:commit",
-    });
+    expect(sharedRedisMockSmembers).toHaveBeenCalledWith("users:known-ids");
+    expect(sharedRedisMockZrange).toHaveBeenCalledWith(
+      "users:stale-by-updated-at",
+      0,
+      -1,
+    );
     expect(sharedRedisMockZadd).toHaveBeenCalledWith(
       "users:stale-by-updated-at",
       expect.objectContaining({ member: "5", score: expect.any(Number) }),
@@ -1610,20 +1611,19 @@ describe("user-data persistence", () => {
     );
   });
 
-  it("refreshes the stale-user index from bounded scans when the repair lease fires", async () => {
+  it("refreshes the stale-user index from tracked registries when the repair lease fires", async () => {
     sharedRedisMockSet.mockResolvedValueOnce(true);
-    sharedRedisMockScan.mockImplementation(
-      async (
-        _cursor: unknown,
-        options?: { count?: number; match?: string },
-      ) => {
-        if (options?.match === "user:*:commit") {
-          return [0, ["user:9:commit", "user:5:commit", "user:7:commit"]];
-        }
+    sharedRedisMockSmembers.mockImplementation((key: string) => {
+      if (key === "users:known-ids") {
+        return Promise.resolve(["9", "5", "7"]);
+      }
 
-        return [0, []];
-      },
-    );
+      if (key === "users:refresh-quarantine") {
+        return Promise.resolve([]);
+      }
+
+      return Promise.resolve([]);
+    });
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "user:5:commit") {
         return Promise.resolve(
@@ -1658,7 +1658,9 @@ describe("user-data persistence", () => {
       return Promise.resolve(null);
     });
     sharedRedisMockZcard.mockResolvedValueOnce(2);
-    sharedRedisMockZrange.mockResolvedValueOnce(["5", "7"]);
+    sharedRedisMockZrange
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["5", "7"]);
 
     const result = await listStalestUserIds(2);
 
@@ -1678,22 +1680,18 @@ describe("user-data persistence", () => {
     const repairedUserIds = Array.from({ length: 30 }, (_, index) =>
       String(index + 101),
     );
-    const trackedUserIds = [indexedUserId, ...repairedUserIds].map(
-      (userId) => `user:${userId}:commit`,
-    );
+    const trackedUserIds = [indexedUserId, ...repairedUserIds];
+    sharedRedisMockSmembers.mockImplementation((key: string) => {
+      if (key === "users:known-ids") {
+        return Promise.resolve(trackedUserIds);
+      }
 
-    sharedRedisMockScan.mockImplementation(
-      async (
-        _cursor: unknown,
-        options?: { count?: number; match?: string },
-      ) => {
-        if (options?.match === "user:*:commit") {
-          return [0, trackedUserIds];
-        }
+      if (key === "users:refresh-quarantine") {
+        return Promise.resolve([]);
+      }
 
-        return [0, []];
-      },
-    );
+      return Promise.resolve([]);
+    });
     sharedRedisMockGet.mockImplementation((key: string) => {
       const commitMatch = /^user:(\d+):commit$/.exec(key);
       if (!commitMatch) {
@@ -1712,11 +1710,13 @@ describe("user-data persistence", () => {
       );
     });
     sharedRedisMockZcard.mockResolvedValueOnce(1);
-    sharedRedisMockZrange.mockResolvedValueOnce([
-      indexedUserId,
-      repairedUserIds[0],
-      repairedUserIds[1],
-    ]);
+    sharedRedisMockZrange
+      .mockResolvedValueOnce([indexedUserId])
+      .mockResolvedValueOnce([
+        indexedUserId,
+        repairedUserIds[0],
+        repairedUserIds[1],
+      ]);
 
     const result = await listStalestUserIds(3);
 
@@ -1822,20 +1822,19 @@ describe("user-data persistence", () => {
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });
 
-  it("prunes missing users and quarantines corrupt users during scan-based stale-user repair", async () => {
+  it("prunes missing users and quarantines corrupt users during registry-based stale-user repair", async () => {
     sharedRedisMockSet.mockResolvedValueOnce(true);
-    sharedRedisMockScan.mockImplementation(
-      async (
-        _cursor: unknown,
-        options?: { count?: number; match?: string },
-      ) => {
-        if (options?.match === "user:*:commit") {
-          return [0, ["user:5:commit", "user:7:commit", "user:9:commit"]];
-        }
+    sharedRedisMockSmembers.mockImplementation((key: string) => {
+      if (key === "users:known-ids") {
+        return Promise.resolve(["5", "7", "9"]);
+      }
 
-        return [0, []];
-      },
-    );
+      if (key === "users:refresh-quarantine") {
+        return Promise.resolve([]);
+      }
+
+      return Promise.resolve([]);
+    });
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "user:5:commit") {
         return Promise.resolve(
@@ -1858,7 +1857,9 @@ describe("user-data persistence", () => {
       return Promise.resolve(null);
     });
     sharedRedisMockZcard.mockResolvedValueOnce(3);
-    sharedRedisMockZrange.mockResolvedValueOnce(["5"]);
+    sharedRedisMockZrange
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(["5"]);
 
     const result = await listStalestUserIds(1);
 
