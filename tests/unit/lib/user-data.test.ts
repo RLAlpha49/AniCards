@@ -28,6 +28,7 @@ const {
   createMaintainerUserDataExport,
   USER_RECORD_SCHEMA_VERSION,
   deleteUserRecord,
+  deleteUserRecordForPrivacyRequest,
   fetchUserDataParts,
   getPersistedUserState,
   listPublicUserProfileSitemapEntries,
@@ -1402,6 +1403,68 @@ describe("user-data persistence", () => {
         userId: "21",
       }),
     ]);
+    const privacyEvidenceCalls = sharedRedisMockRpush.mock.calls.filter(
+      ([key]) => key === "telemetry:privacy-rights-evidence:v1",
+    );
+    expect(privacyEvidenceCalls).toHaveLength(2);
+    expect(
+      parseRequiredJson(
+        privacyEvidenceCalls[0]?.[1],
+        "Expected privacy intake evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_manual_workflow",
+      requestType: "export",
+      stage: "intake",
+      userId: "21",
+    });
+    expect(
+      parseRequiredJson(
+        privacyEvidenceCalls[1]?.[1],
+        "Expected privacy fulfillment evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_manual_workflow",
+      requestType: "export",
+      stage: "fulfillment",
+      userId: "21",
+    });
+  });
+
+  it("wraps maintainer privacy deletes with intake and fulfillment evidence", async () => {
+    sharedRedisMockSmembers.mockResolvedValueOnce(["user-five"]);
+
+    await deleteUserRecordForPrivacyRequest({
+      actor: "maintainer_alpha",
+      userId: "5",
+    });
+
+    const privacyEvidenceCalls = sharedRedisMockRpush.mock.calls.filter(
+      ([key]) => key === "telemetry:privacy-rights-evidence:v1",
+    );
+    expect(privacyEvidenceCalls).toHaveLength(2);
+    expect(
+      parseRequiredJson(
+        privacyEvidenceCalls[0]?.[1],
+        "Expected privacy intake evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_alpha",
+      requestType: "delete",
+      stage: "intake",
+      userId: "5",
+    });
+    expect(
+      parseRequiredJson(
+        privacyEvidenceCalls[1]?.[1],
+        "Expected privacy fulfillment evidence payload to be a string.",
+      ),
+    ).toMatchObject({
+      actor: "maintainer_alpha",
+      requestType: "delete",
+      stage: "fulfillment",
+      userId: "5",
+    });
   });
 
   it("deletes the persisted normalized username index when alias tracking is missing", async () => {

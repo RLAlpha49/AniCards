@@ -80,7 +80,7 @@ const sections = [
       {
         label: "Privacy-rights evidence",
         detail:
-          "A separate maintainer-only privacy-rights evidence ledger keeps narrow intake / fulfillment records for up to ~400 days and stays capped at 250 entries.",
+          "A separate maintainer-only privacy-rights evidence ledger keeps narrow intake / fulfillment records for up to ~400 days, stays capped at 250 entries, and stores only constrained workflow or maintainer actor codes.",
       },
       {
         label: "Failure counters",
@@ -96,8 +96,8 @@ const sections = [
     lead: "Manual for now — reach out anytime.",
     paragraphs: [
       "There is no public self-serve export or deletion flow yet. For manual requests, email contact@alpha49.com and we'll handle it directly.",
-      "That workflow stays contact-based on purpose. On the server side, maintainers can record dedicated intake and fulfillment evidence for those manual privacy-rights requests instead of pretending there is a self-serve portal hiding somewhere.",
-      "Manual export handling also has an internal helper that assembles the current stored user snapshot, saved card payload, and recorded privacy-rights evidence into a reviewable maintainer-only package before fulfillment.",
+      "That workflow stays contact-based on purpose. On the server side, maintainer export and delete helpers automatically record dedicated intake and fulfillment evidence for those manual privacy-rights requests instead of pretending there is a self-serve portal hiding somewhere.",
+      "Manual export handling also has an internal helper that assembles the current stored user snapshot, saved card payload, and recorded privacy-rights evidence into a reviewable maintainer-only package before fulfillment, with only constrained workflow or maintainer actor codes written into the longer-lived evidence ledger.",
     ],
   },
 ] as const;

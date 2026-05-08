@@ -57,6 +57,34 @@ export type UserDataPart =
   | "completed"
   | "aggregates";
 
+export type PrivacyRightsEvidenceActor =
+  | "maintainer_manual_workflow"
+  | "maintainer_access_workflow"
+  | "maintainer_delete_workflow"
+  | "maintainer_export_workflow"
+  | "maintainer_other_workflow"
+  | `maintainer_${string}`;
+const ALLOWED_PRIVACY_RIGHTS_AUDIT_ACTORS = new Set<string>([
+  "maintainer_manual_workflow",
+  "maintainer_access_workflow",
+  "maintainer_delete_workflow",
+  "maintainer_export_workflow",
+  "maintainer_other_workflow",
+]);
+const PRIVACY_RIGHTS_AUDIT_ACTOR_CODE_PATTERN =
+  /^maintainer_[a-z0-9](?:[a-z0-9_-]{0,47})$/;
+const PRIVACY_RIGHTS_AUDIT_STAGE_SET = new Set<PrivacyRightsAuditStage>([
+  "fulfillment",
+  "intake",
+]);
+const PRIVACY_RIGHTS_AUDIT_REQUEST_TYPE_SET =
+  new Set<PrivacyRightsAuditRequestType>([
+    "access",
+    "delete",
+    "export",
+    "other",
+  ]);
+
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
 
@@ -902,13 +930,46 @@ type SerializedEntry = {
   serialized: string;
 };
 
-function sanitizePrivacyRightsAuditActor(value: string | undefined): string {
+function isPrivacyRightsAuditStage(
+  value: unknown,
+): value is PrivacyRightsAuditStage {
+  return (
+    typeof value === "string" &&
+    PRIVACY_RIGHTS_AUDIT_STAGE_SET.has(value as PrivacyRightsAuditStage)
+  );
+}
+
+function isPrivacyRightsAuditRequestType(
+  value: unknown,
+): value is PrivacyRightsAuditRequestType {
+  return (
+    typeof value === "string" &&
+    PRIVACY_RIGHTS_AUDIT_REQUEST_TYPE_SET.has(
+      value as PrivacyRightsAuditRequestType,
+    )
+  );
+}
+
+function sanitizePrivacyRightsAuditActor(
+  value: string | undefined,
+): PrivacyRightsEvidenceActor {
   if (typeof value !== "string") {
     return "maintainer_manual_workflow";
   }
 
-  const normalized = value.trim().slice(0, 120);
-  return normalized.length > 0 ? normalized : "maintainer_manual_workflow";
+  const normalized = value.trim().toLowerCase().slice(0, 64);
+  if (normalized.length === 0) {
+    return "maintainer_manual_workflow";
+  }
+
+  if (
+    ALLOWED_PRIVACY_RIGHTS_AUDIT_ACTORS.has(normalized) ||
+    PRIVACY_RIGHTS_AUDIT_ACTOR_CODE_PATTERN.test(normalized)
+  ) {
+    return normalized as PrivacyRightsEvidenceActor;
+  }
+
+  return "maintainer_manual_workflow";
 }
 
 function parsePrivacyRightsEvidenceEntry(
@@ -1328,6 +1389,37 @@ export async function recordManualPrivacyRightsAuditEvent(options: {
   await auditManualPrivacyRightsEvent(auditOptions);
 }
 
+/**
+ * Wraps a manual, maintainer-driven privacy-rights workflow so intake and
+ * fulfillment evidence are recorded automatically around the underlying work.
+ */
+export async function runManualPrivacyRightsWorkflow<T>(options: {
+  actor?: string;
+  requestType: PrivacyRightsAuditRequestType;
+  userId: string | number;
+  work: () => Promise<T>;
+}): Promise<T> {
+  const auditOptions = {
+    actor: sanitizePrivacyRightsAuditActor(options.actor),
+    requestType: options.requestType,
+    userId: options.userId,
+  };
+
+  await auditManualPrivacyRightsEvent({
+    ...auditOptions,
+    stage: "intake",
+  });
+
+  const result = await options.work();
+
+  await auditManualPrivacyRightsEvent({
+    ...auditOptions,
+    stage: "fulfillment",
+  });
+
+  return result;
+}
+
 function parseMaintainerExportArtifact(
   raw: unknown,
   context: string,
@@ -1387,6 +1479,43 @@ export async function createMaintainerUserDataExport(options: {
 }): Promise<MaintainerUserDataExportPackage> {
   const userId = String(options.userId);
 
+  const buildExportPackage =
+    async (): Promise<MaintainerUserDataExportPackage> => {
+      const [
+        cardsMetaRaw,
+        cardsRecordRaw,
+        userReadResult,
+        privacyRightsEvidence,
+      ] = await Promise.all([
+        redisClient.get(getCardsRecordMetaKey(userId)),
+        redisClient.get(getCardsRecordKey(userId)),
+        fetchUserDataSnapshot(userId, [...ALL_USER_DATA_PARTS], {
+          audit: false,
+        }),
+        options.includePrivacyRightsEvidence === false
+          ? Promise.resolve([])
+          : listPrivacyRightsEvidenceForUser(userId),
+      ]);
+
+      return {
+        cardsMeta: parseMaintainerExportArtifact(
+          cardsMetaRaw,
+          `maintainer-export:cards-meta:${userId}`,
+        ),
+        cardsRecord: parseMaintainerExportArtifact(
+          cardsRecordRaw,
+          `maintainer-export:cards-record:${userId}`,
+        ),
+        exportedAt: new Date().toISOString(),
+        privacyRightsEvidence,
+        userId,
+        userRecord: userReadResult.parts.meta
+          ? reconstructUserRecord(userReadResult.parts)
+          : null,
+        userState: userReadResult.state,
+      };
+    };
+
   if (options.recordStage) {
     await recordManualPrivacyRightsAuditEvent({
       actor: options.actor,
@@ -1394,37 +1523,16 @@ export async function createMaintainerUserDataExport(options: {
       stage: options.recordStage,
       userId,
     });
+
+    return buildExportPackage();
   }
 
-  const [cardsMetaRaw, cardsRecordRaw, userReadResult, privacyRightsEvidence] =
-    await Promise.all([
-      redisClient.get(getCardsRecordMetaKey(userId)),
-      redisClient.get(getCardsRecordKey(userId)),
-      fetchUserDataSnapshot(userId, [...ALL_USER_DATA_PARTS], {
-        audit: false,
-      }),
-      options.includePrivacyRightsEvidence === false
-        ? Promise.resolve([])
-        : listPrivacyRightsEvidenceForUser(userId),
-    ]);
-
-  return {
-    cardsMeta: parseMaintainerExportArtifact(
-      cardsMetaRaw,
-      `maintainer-export:cards-meta:${userId}`,
-    ),
-    cardsRecord: parseMaintainerExportArtifact(
-      cardsRecordRaw,
-      `maintainer-export:cards-record:${userId}`,
-    ),
-    exportedAt: new Date().toISOString(),
-    privacyRightsEvidence,
+  return runManualPrivacyRightsWorkflow({
+    actor: options.actor,
+    requestType: options.requestType ?? "export",
     userId,
-    userRecord: userReadResult.parts.meta
-      ? reconstructUserRecord(userReadResult.parts)
-      : null,
-    userState: userReadResult.state,
-  };
+    work: buildExportPackage,
+  });
 }
 
 function logIntegrityFailure(
@@ -4002,6 +4110,28 @@ export async function deleteUserRecord(
   });
 
   return deleteResult;
+}
+
+/**
+ * Maintainer-only delete helper for the contact-based privacy-rights flow.
+ * Records intake and fulfillment evidence automatically around the delete.
+ */
+export async function deleteUserRecordForPrivacyRequest(options: {
+  actor?: string;
+  requestType?: Extract<PrivacyRightsAuditRequestType, "delete" | "other">;
+  userId: string | number;
+}): Promise<DeleteUserRecordResult> {
+  const requestType = options.requestType ?? "delete";
+
+  return runManualPrivacyRightsWorkflow({
+    actor: options.actor,
+    requestType,
+    userId: options.userId,
+    work: () =>
+      deleteUserRecord(options.userId, {
+        triggerSource: PRIVACY_RIGHTS_TRIGGER_SOURCE_BY_TYPE[requestType],
+      }),
+  });
 }
 
 export async function releaseUnpinnedRetainedUserSnapshot(

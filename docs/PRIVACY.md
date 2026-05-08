@@ -262,8 +262,10 @@ Rules:
 
 - maximum retained privacy-rights evidence entries: **250**
 - maximum retained age: **~400 days**
-- stored fields are intentionally narrow: actor/workflow label, request type,
-  stage, timestamp, and user ID
+- stored fields are intentionally narrow: constrained actor/workflow code,
+  request type, stage, timestamp, and user ID
+- actor values are limited to approved workflow labels or short lowercase
+  maintainer codes (for example `maintainer_alpha`) instead of arbitrary freeform text
 
 ### Aggregate counters
 
@@ -318,6 +320,8 @@ The server-side privacy workflow now supports dedicated privacy-rights intake
 and fulfillment evidence for that manual process, so maintainers can record
 when a contact-based request was received and when it was completed without
 mixing that longer-lived evidence into the short-lived lifecycle audit list.
+The built-in maintainer export and delete helpers automatically write those
+intake/fulfillment entries using the constrained actor-code contract.
 
 ## Related docs
 
