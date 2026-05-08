@@ -16,12 +16,18 @@ import {
   checkRateLimit,
   createRateLimiter,
   getRateLimitIdentity,
+  type RateLimitIdentity,
 } from "@/lib/api/rate-limit";
 import {
   ensureRequestContext,
   getOperationId,
   withRequestIdHeaders,
 } from "@/lib/api/request-context";
+import {
+  getRequestProofCookie,
+  isServerIssuedRequestProofToken,
+  verifyRequestProofToken,
+} from "@/lib/api/request-proof";
 import {
   buildAnalyticsMetricKey,
   buildFailedRequestMetricKeys,
@@ -186,6 +192,19 @@ const CARD_REFRESH_CACHE_POLICY: CardSuccessCachePolicy = {
   cacheControl: CARD_NO_STORE_CACHE_CONTROL,
   edgeCacheControl: CARD_NO_STORE_EDGE_CACHE_CONTROL,
 };
+
+const HOT_SAVED_CARD_CACHE_KEY_ALIAS_TTL_MS = 60_000;
+const MAX_HOT_SAVED_CARD_CACHE_KEY_ALIASES = 1_000;
+
+type SavedCardHotCacheKeyAlias = {
+  cacheKey: string;
+  expiresAt: number;
+};
+
+const hotSavedCardCacheKeyAliases = new Map<
+  string,
+  SavedCardHotCacheKeyAlias
+>();
 
 function getTrimmedSearchParam(
   searchParams: URLSearchParams,
@@ -924,6 +943,172 @@ function normalizeGridDimension(
   return Math.max(1, Math.min(5, parsed));
 }
 
+function getHotSavedCardCacheKeyAlias(aliasKey: string): string | null {
+  const existingAlias = hotSavedCardCacheKeyAliases.get(aliasKey);
+  if (!existingAlias) {
+    return null;
+  }
+
+  if (existingAlias.expiresAt <= Date.now()) {
+    hotSavedCardCacheKeyAliases.delete(aliasKey);
+    return null;
+  }
+
+  hotSavedCardCacheKeyAliases.delete(aliasKey);
+  hotSavedCardCacheKeyAliases.set(aliasKey, existingAlias);
+  return existingAlias.cacheKey;
+}
+
+function setHotSavedCardCacheKeyAlias(
+  aliasKey: string,
+  cacheKey: string,
+): void {
+  hotSavedCardCacheKeyAliases.delete(aliasKey);
+  hotSavedCardCacheKeyAliases.set(aliasKey, {
+    cacheKey,
+    expiresAt: Date.now() + HOT_SAVED_CARD_CACHE_KEY_ALIAS_TTL_MS,
+  });
+
+  while (
+    hotSavedCardCacheKeyAliases.size > MAX_HOT_SAVED_CARD_CACHE_KEY_ALIASES
+  ) {
+    const oldestAliasKey = hotSavedCardCacheKeyAliases.keys().next().value;
+    if (!oldestAliasKey) {
+      return;
+    }
+
+    hotSavedCardCacheKeyAliases.delete(oldestAliasKey);
+  }
+}
+
+function deleteHotSavedCardCacheKeyAlias(aliasKey: string): void {
+  hotSavedCardCacheKeyAliases.delete(aliasKey);
+}
+
+export function clearHotSavedCardCacheKeyAliasesForTests(): void {
+  hotSavedCardCacheKeyAliases.clear();
+}
+
+function buildHotCardCacheAliasKey(
+  params: ValidatedParams,
+  effectiveUserId: number,
+): string {
+  const normalizedGridCols = normalizeGridDimension(params.gridColsParam);
+  const normalizedGridRows = normalizeGridDimension(params.gridRowsParam);
+
+  return generateCacheKey(
+    effectiveUserId,
+    params.cardType,
+    buildCardCacheKeyParams(params, normalizedGridCols, normalizedGridRows),
+  );
+}
+
+function resolveHotCardCacheKey(
+  params: ValidatedParams,
+  effectiveUserId: number,
+): { cacheKey: string; aliasKey?: string } | null {
+  const aliasKey = buildHotCardCacheAliasKey(params, effectiveUserId);
+
+  if (!needsCardConfigFromDb(params)) {
+    return { cacheKey: aliasKey };
+  }
+
+  const cacheKey = getHotSavedCardCacheKeyAlias(aliasKey);
+  if (!cacheKey) {
+    return null;
+  }
+
+  return {
+    cacheKey,
+    aliasKey,
+  };
+}
+
+function rememberHotCardCacheKey(
+  params: ValidatedParams,
+  effectiveUserId: number,
+  cacheKey: string,
+): void {
+  if (!needsCardConfigFromDb(params)) {
+    return;
+  }
+
+  setHotSavedCardCacheKeyAlias(
+    buildHotCardCacheAliasKey(params, effectiveUserId),
+    cacheKey,
+  );
+}
+
+function canUseCanonicalHotCachePath(
+  params: ValidatedParams,
+  successCachePolicy: CardSuccessCachePolicy,
+  trustedManualRefresh: boolean,
+): boolean {
+  return (
+    !trustedManualRefresh &&
+    successCachePolicy === CARD_CANONICAL_CACHE_POLICY &&
+    !hasExplicitCardVariantOverrides(params)
+  );
+}
+
+async function isTrustedManualRefreshRequest(
+  request: Request,
+  params: ValidatedParams,
+  rateLimitIdentity: RateLimitIdentity,
+): Promise<boolean> {
+  if (params._t === null || rateLimitIdentity.verified !== true) {
+    return false;
+  }
+
+  const requestProofCookie = getRequestProofCookie(request);
+  if (!requestProofCookie) {
+    return false;
+  }
+
+  if (!(await isServerIssuedRequestProofToken(requestProofCookie))) {
+    return false;
+  }
+
+  const verification = await verifyRequestProofToken(requestProofCookie, {
+    ip: rateLimitIdentity.ip,
+    userAgent: request.headers.get("user-agent"),
+  });
+
+  return verification.valid;
+}
+
+async function tryServeHotCachedCanonicalCardResponse(args: {
+  request: Request;
+  params: ValidatedParams;
+  effectiveUserId: number;
+  startTime: number;
+  successCachePolicy: CardSuccessCachePolicy;
+}): Promise<Response | null> {
+  const hotLookup = resolveHotCardCacheKey(args.params, args.effectiveUserId);
+  if (!hotLookup) {
+    return null;
+  }
+
+  const cachedResponse = await tryServeCachedCardResponse({
+    request: args.request,
+    params: args.params,
+    effectiveUserId: args.effectiveUserId,
+    cacheKey: hotLookup.cacheKey,
+    startTime: args.startTime,
+    successCachePolicy: args.successCachePolicy,
+  });
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  if (hotLookup.aliasKey) {
+    deleteHotSavedCardCacheKeyAlias(hotLookup.aliasKey);
+  }
+
+  return null;
+}
+
 function buildSavedCardRenderCacheKey(
   userId: number,
   cardType: string,
@@ -1316,6 +1501,47 @@ export async function GET(request: Request) {
   }
   const params = paramsResult;
 
+  const requestedManualRefresh = params._t !== null;
+  const trustedManualRefresh = await isTrustedManualRefreshRequest(
+    request,
+    params,
+    rateLimitIdentity,
+  );
+  const successCachePolicy = resolveCardSuccessCachePolicy(params, {
+    manualRefresh: trustedManualRefresh,
+  });
+
+  if (requestedManualRefresh && !trustedManualRefresh) {
+    logPrivacySafe(
+      "log",
+      "Card SVG",
+      "Ignored untrusted manual refresh token; using normal cache path",
+      { cardType: params.cardType },
+      request,
+    );
+  }
+
+  if (
+    params.numericUserId &&
+    canUseCanonicalHotCachePath(
+      params,
+      successCachePolicy,
+      trustedManualRefresh,
+    )
+  ) {
+    const hotCachedResponse = await tryServeHotCachedCanonicalCardResponse({
+      request,
+      params,
+      effectiveUserId: params.numericUserId,
+      startTime,
+      successCachePolicy,
+    });
+
+    if (hotCachedResponse) {
+      return hotCachedResponse;
+    }
+  }
+
   const rateLimitResponse = await checkRateLimit(
     request,
     rateLimitIdentity,
@@ -1324,6 +1550,7 @@ export async function GET(request: Request) {
     ratelimit,
     {
       allowUnverifiedFallback: true,
+      pendingWorkMode: "defer",
       unverifiedFallbackKey: "anonymous:card_svg",
       unverifiedFallbackLimiter: anonymousRatelimit,
     },
@@ -1362,10 +1589,6 @@ export async function GET(request: Request) {
     { ip, queryParamCount: new URL(request.url).searchParams.size },
     request,
   );
-  const isManualRefresh = params._t !== null;
-  const successCachePolicy = resolveCardSuccessCachePolicy(params, {
-    manualRefresh: isManualRefresh,
-  });
 
   const userIdResult = await resolveEffectiveUserId(params, request, startTime);
   if ("error" in userIdResult) {
@@ -1380,6 +1603,27 @@ export async function GET(request: Request) {
     { userId: effectiveUserId, cardType: params.cardType },
     request,
   );
+
+  if (
+    canUseCanonicalHotCachePath(
+      params,
+      successCachePolicy,
+      trustedManualRefresh,
+    )
+  ) {
+    const hotCachedResponse = await tryServeHotCachedCanonicalCardResponse({
+      request,
+      params,
+      effectiveUserId,
+      startTime,
+      successCachePolicy,
+    });
+
+    if (hotCachedResponse) {
+      return hotCachedResponse;
+    }
+  }
+
   const cacheContextResult = await prepareCardRenderCacheContext(
     request,
     params,
@@ -1391,8 +1635,9 @@ export async function GET(request: Request) {
   }
 
   const { cacheKey, preloadedCardDoc, loadStoredCardDoc } = cacheContextResult;
+  rememberHotCardCacheKey(params, effectiveUserId, cacheKey);
 
-  if (isManualRefresh) {
+  if (trustedManualRefresh) {
     logPrivacySafe(
       "log",
       "Card SVG",
@@ -1424,7 +1669,7 @@ export async function GET(request: Request) {
     startTime,
     cacheKey,
     {
-      manualRefresh: isManualRefresh,
+      manualRefresh: trustedManualRefresh,
       cachePolicy: successCachePolicy,
       preloadedCardDoc,
       loadStoredCardDoc,
@@ -1758,6 +2003,8 @@ async function generateCardResponse(
         { userId: effectiveUserId, cacheKey },
         request,
       );
+
+      rememberHotCardCacheKey(params, effectiveUserId, cacheKey);
     }
 
     void trackSuccessfulRequest(params.baseCardType, request, duration);

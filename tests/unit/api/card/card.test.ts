@@ -8,6 +8,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api/telemetry";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
@@ -117,7 +121,7 @@ mock.module("@/lib/svg-templates/distribution/shared", () => ({
 }));
 
 const routeModule = await import("@/app/api/card/route");
-const { GET, OPTIONS } = routeModule;
+const { GET, OPTIONS, clearHotSavedCardCacheKeyAliasesForTests } = routeModule;
 const { extraAnimeMangaStatsTemplate } =
   await import("@/lib/svg-templates/extra-anime-manga-stats/shared");
 const { mediaStatsTemplate } =
@@ -446,6 +450,7 @@ describe("Card SVG Route", () => {
     mock.clearAllMocks();
     clearImageDataUrlCaches();
     clearSvgCache();
+    clearHotSavedCardCacheKeyAliasesForTests();
     clearUserRequestStats();
     resetSharedRouteMocks();
   });
@@ -2866,6 +2871,7 @@ describe("Card SVG Route", () => {
     });
 
     it("should return no-store headers for manual refresh renders", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
       const cardsData = createMockCardData("animeStats", "default", {
         borderRadius: 8,
       });
@@ -2874,12 +2880,28 @@ describe("Card SVG Route", () => {
       });
       setupSuccessfulMocks(cardsData, userData);
 
+      const userAgent = "AniCardsTest/TrustedManualRefresh";
+      const requestProofToken = await createRequestProofToken({
+        ip: "198.51.100.24",
+        userAgent,
+      });
+      if (!requestProofToken) {
+        throw new Error("Expected request proof token to be generated");
+      }
+
       const req = new Request(
         createRequestUrl(baseUrl, {
           userId: "542244",
           cardType: "animeStats",
           _t: "manual-refresh-token",
         }),
+        {
+          headers: {
+            cookie: `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`,
+            "user-agent": userAgent,
+            "x-vercel-forwarded-for": "198.51.100.24",
+          },
+        },
       );
       const res = await GET(req);
 
@@ -2892,6 +2914,46 @@ describe("Card SVG Route", () => {
       const sharedCacheWrite = getSharedSvgCacheSetCall();
       expect(sharedCacheWrite).toBeTruthy();
       expect(sharedCacheWrite?.[0]).not.toContain("_t=");
+    });
+
+    it("should ignore public _t tokens and serve canonical cache hits normally", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        borderRadius: 8,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+
+      setupSuccessfulMocks(cardsData, userData);
+
+      const warmReq = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const warmRes = await GET(warmReq);
+      expect(warmRes.status).toBe(200);
+
+      sharedRatelimitMockLimit.mockClear();
+      sharedRedisMockGet.mockClear();
+      sharedRedisMockMget.mockClear();
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          _t: "public-cache-buster",
+        }),
+      );
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toContain("max-age=86400");
+      expect(res.headers.get("CDN-Cache-Control")).toContain("s-maxage=86400");
+      expect(res.headers.get("X-Cache-Source")).toBe("memory");
+      expect(sharedRatelimitMockLimit).not.toHaveBeenCalled();
+      expect(sharedRedisMockMget).not.toHaveBeenCalled();
     });
   });
 
@@ -2955,7 +3017,13 @@ describe("Card SVG Route", () => {
       expect(secondRes.status).toBe(200);
       expect(secondRes.headers.get("X-Cache-Source")).toBe("redis");
       expect(secondRes.headers.get("X-Card-Border-Radius")).toBe("8");
+      expect(sharedRatelimitMockLimit).not.toHaveBeenCalled();
       expect(sharedRedisMockMget).not.toHaveBeenCalled();
+      expect(
+        sharedRedisMockGet.mock.calls.some(
+          (call) => call[0] === "cards:542244",
+        ),
+      ).toBe(false);
     });
 
     it("should refresh stale memory entries from shared cache before re-rendering", async () => {
