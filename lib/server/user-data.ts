@@ -1155,6 +1155,15 @@ async function prunePrivacyRightsEvidenceEntries(): Promise<void> {
 
 async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
   try {
+    if (
+      await tryAcquireMaintenanceLease(
+        USER_LIFECYCLE_AUDIT_PRUNE_LEASE_KEY,
+        USER_LIFECYCLE_AUDIT_PRUNE_INTERVAL_SECONDS,
+      )
+    ) {
+      await pruneUserLifecycleAuditEntries();
+    }
+
     await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, JSON.stringify(entry));
     await redisClient.ltrim(
       USER_LIFECYCLE_AUDIT_KEY,
@@ -1165,15 +1174,6 @@ async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
       USER_LIFECYCLE_AUDIT_KEY,
       USER_LIFECYCLE_AUDIT_RETENTION_SECONDS,
     );
-
-    if (
-      await tryAcquireMaintenanceLease(
-        USER_LIFECYCLE_AUDIT_PRUNE_LEASE_KEY,
-        USER_LIFECYCLE_AUDIT_PRUNE_INTERVAL_SECONDS,
-      )
-    ) {
-      await pruneUserLifecycleAuditEntries();
-    }
   } catch (error) {
     logPrivacySafe(
       "warn",

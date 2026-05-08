@@ -8,6 +8,8 @@ import {
   mock,
 } from "bun:test";
 
+import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
+
 const realUserDataModule = (await import(
   new URL("../../../../lib/server/user-data.ts", import.meta.url).href
 )) as typeof import("@/lib/server/user-data");
@@ -172,6 +174,7 @@ describe("sitemap.xml route", () => {
   });
 
   it("keeps the sitemap index available when profile enumeration fails", async () => {
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
     listPublicUserProfileSitemapEntriesMock.mockRejectedValueOnce(
       new Error("profile index unavailable"),
     );
@@ -186,9 +189,18 @@ describe("sitemap.xml route", () => {
     expect(xml).toContain(`${DEFAULT_BASE_URL}/sitemap-profiles.xml`);
     expect(xml).toContain(`<lastmod>${STATIC_LASTMOD}</lastmod>`);
     expect(xml).not.toContain(`<lastmod>${PROFILE_LASTMOD}</lastmod>`);
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '"message":"Falling back to a static-only sitemap index after the public-profile sitemap source failed"',
+      ),
+    );
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining('"error":"profile index unavailable"'),
+    );
   });
 
   it("returns an empty but valid profile sitemap shard when profile enumeration fails", async () => {
+    const { consoleWarn } = allowConsoleWarningsAndErrors();
     listPublicUserProfileSitemapEntriesMock.mockRejectedValueOnce(
       new Error("profile index unavailable"),
     );
@@ -204,6 +216,14 @@ describe("sitemap.xml route", () => {
     );
     expect(xml).not.toContain(`${DEFAULT_BASE_URL}/user/`);
     expect(xml).not.toContain(`<lastmod>`);
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '"message":"Returning an empty profile sitemap shard after the public-profile sitemap source failed"',
+      ),
+    );
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining('"error":"profile index unavailable"'),
+    );
   });
 
   it("uses NEXT_PUBLIC_SITE_URL when provided across the sitemap index and shards", async () => {

@@ -120,18 +120,14 @@ export async function generateMetadata({
   ]);
   const resolvedProfile = await resolvePublicProfile(username);
 
-  if (!resolvedProfile) {
-    notFound();
-  }
-
   return createMetadata(
     getUserPageSEOConfig({
-      username: resolvedProfile.canonicalUsername,
+      username: resolvedProfile?.canonicalUsername ?? username,
       q: resolvedSearchParams.q,
       visibility: resolvedSearchParams.visibility,
       group: resolvedSearchParams.group,
       customFilter: resolvedSearchParams.customFilter,
-      isPublicProfileResolved: true,
+      isPublicProfileResolved: Boolean(resolvedProfile),
       routeType: "profile",
     }),
   );
@@ -145,44 +141,48 @@ export default async function UserProfilePage({
     return <LoadingPreview />;
   }
 
-  const [resolvedSearchParams, nonce, resolvedProfile] = await Promise.all([
-    searchParams,
-    getRequestNonce(),
-    params.then(({ username: routeUsername }) =>
-      resolvePublicProfile(routeUsername),
-    ),
-  ]);
+  const [{ username: requestedUsername }, resolvedSearchParams] =
+    await Promise.all([params, searchParams]);
 
-  if (!resolvedProfile) {
+  const trimmedRequestedUsername = requestedUsername.trim();
+
+  if (!isValidUsername(trimmedRequestedUsername)) {
     notFound();
   }
 
+  const resolvedProfile = await resolvePublicProfile(trimmedRequestedUsername);
+  const routeUsername =
+    resolvedProfile?.canonicalUsername ?? trimmedRequestedUsername;
+  const nonce = resolvedProfile ? await getRequestNonce() : null;
+
   const userPageSeo = getUserPageSEOConfig({
-    username: resolvedProfile.canonicalUsername,
+    username: routeUsername,
     q: resolvedSearchParams.q,
     visibility: resolvedSearchParams.visibility,
     group: resolvedSearchParams.group,
     customFilter: resolvedSearchParams.customFilter,
-    isPublicProfileResolved: true,
+    isPublicProfileResolved: Boolean(resolvedProfile),
     routeType: "profile",
   });
 
   return (
     <>
-      <StructuredDataScript
-        nonce={nonce}
-        page="user"
-        overrides={{
-          ...userPageSeo,
-          profile: {
-            username: resolvedProfile.canonicalUsername,
-          },
-        }}
-      />
+      {resolvedProfile && nonce ? (
+        <StructuredDataScript
+          nonce={nonce}
+          page="user"
+          overrides={{
+            ...userPageSeo,
+            profile: {
+              username: resolvedProfile.canonicalUsername,
+            },
+          }}
+        />
+      ) : null}
       <Suspense fallback={<UserPageLoadingSpinner />}>
         <ErrorBoundary>
           <PageShell>
-            <UserPageEditor routeUsername={resolvedProfile.canonicalUsername} />
+            <UserPageEditor routeUsername={routeUsername} />
           </PageShell>
         </ErrorBoundary>
       </Suspense>

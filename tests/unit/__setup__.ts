@@ -752,6 +752,7 @@ function invokeSharedRedisMockZrem(
 
 async function applyEvalAliasWrites(options: {
   aliasSetKey?: unknown;
+  publicProfileSitemapIndexKey?: unknown;
   normalizedUsername?: string;
   existingState?: Record<string, unknown>;
   userId: string;
@@ -784,6 +785,22 @@ async function applyEvalAliasWrites(options: {
   });
   if (staleAliasKeys.length > 0) {
     await sharedRedisMockDel(...staleAliasKeys);
+  }
+
+  if (typeof options.publicProfileSitemapIndexKey === "string") {
+    const staleAliases = staleAliasKeys
+      .map((aliasKey) => aliasKey.replace(/^username:/, ""))
+      .filter((alias) => alias.length > 0);
+
+    for (const alias of staleAliases) {
+      await sharedRedisMockDel(
+        `${options.publicProfileSitemapIndexKey}:${alias}`,
+      );
+      await invokeSharedRedisMockSrem(
+        options.publicProfileSitemapIndexKey,
+        alias,
+      );
+    }
   }
 
   if (options.normalizedUsername) {
@@ -925,6 +942,7 @@ async function emulateAtomicUserSaveEval(
   }
   await applyEvalAliasWrites({
     aliasSetKey: keys[1],
+    publicProfileSitemapIndexKey: keys[4],
     normalizedUsername,
     existingState,
     userId: payload.userId,
@@ -933,7 +951,7 @@ async function emulateAtomicUserSaveEval(
     registryKey: keys[2],
     refreshIndexKey: keys[3],
     publicProfileSitemapIndexKey: keys[4],
-    legacyUserKey: keys[5],
+    legacyUserKey: keys[6],
     normalizedUsername,
     userId: payload.userId,
     username: payload.username,
@@ -1149,7 +1167,7 @@ function getEvalSavePayloadArg(argList: unknown[]): string | null {
 
 function hasEvalDeleteArgs(keyList: unknown[], argList: unknown[]): boolean {
   return (
-    keyList.length === 9 &&
+    keyList.length === 10 &&
     argList.length === 2 &&
     parseEvalDeletePayload(argList) !== null
   );

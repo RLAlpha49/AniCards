@@ -574,7 +574,7 @@ describe("Store Users API", () => {
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1:commit");
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1:meta");
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(12);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(13);
 
       const metaValue = parseJsonSetCall("user:1:meta");
       expect(String(metaValue.userId)).toBe(String(1));
@@ -753,7 +753,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(12);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(13);
       expect(findSetCall("username:username")[1]).toBe("4");
     });
 
@@ -1131,7 +1131,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(12);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(13);
 
       const metaValue = parseJsonSetCall("user:5:meta");
       expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
@@ -1229,7 +1229,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(12);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(13);
       expect(findSetCall("username:newname")[1]).toBe("8");
       expect(sharedRedisMockDel).toHaveBeenCalledWith("username:oldname");
     });

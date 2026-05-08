@@ -1261,10 +1261,13 @@ describe("user-data persistence", () => {
         triggerSource: "user_data_fetch",
         userId: "recent-user",
       }),
-      getRequiredString(
-        sharedRedisMockRpush.mock.calls.at(-1)?.[1],
-        "Expected delete audit payload to be appended before pruning.",
-      ),
+      JSON.stringify({
+        action: "delete",
+        timestamp: new Date(now - 500).toISOString(),
+        expiresAt: new Date(now + 60_000).toISOString(),
+        triggerSource: "user_data_delete",
+        userId: "previous-user",
+      }),
     ]);
 
     await deleteUserRecord("5");
@@ -1273,19 +1276,17 @@ describe("user-data persistence", () => {
       ([key]) => key === "telemetry:user-lifecycle-audit:v1",
     );
 
-    expect(sharedRedisMockDel).toHaveBeenCalledWith(
-      "telemetry:user-lifecycle-audit:v1",
-    );
     expect(auditCalls).toHaveLength(3);
     expect(
-      parseRequiredJson(
-        auditCalls[1]?.[1],
-        "Expected retained audit payload to be a string.",
-      ),
-    ).toMatchObject({
-      action: "access",
-      userId: "recent-user",
-    });
+      auditCalls.some((call) => {
+        const parsed = parseRequiredJson(
+          call?.[1],
+          "Expected retained audit payload to be a string.",
+        ) as { action?: string; userId?: string };
+
+        return parsed.action === "access" && parsed.userId === "recent-user";
+      }),
+    ).toBe(true);
     expect(
       parseRequiredJson(
         auditCalls.at(-1)?.[1],
@@ -1451,6 +1452,7 @@ describe("user-data persistence", () => {
       "cards:5:meta",
       "failed_updates:5",
       "username:userfive",
+      "users:public-profile-sitemap:userfive",
     );
     expect(sharedRedisMockScan).not.toHaveBeenCalled();
   });

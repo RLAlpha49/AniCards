@@ -640,7 +640,9 @@ describe("Cron API Route", () => {
       "cards:123:meta",
       "failed_updates:123",
       "username:user123",
+      "users:public-profile-sitemap:user123",
       "username:old-user123",
+      "users:public-profile-sitemap:old-user123",
     );
 
     const auditEntry = parseJsonString<{
