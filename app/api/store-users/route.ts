@@ -637,7 +637,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       authoritativeUsername,
       createdAt,
       requestMetadata,
-      stats: stats as unknown as UserRecord["stats"],
+      stats,
       updatedAt: now,
       userId,
     });

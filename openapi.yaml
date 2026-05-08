@@ -933,6 +933,13 @@ paths:
                     retryable: false
                     status: 400
                     recoverySuggestions: []
+                conflictingSelectors:
+                  value:
+                    error: "Provide either userId or username, not both"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "404":
           description: "No stored user matched the lookup"
           content:

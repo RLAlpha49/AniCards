@@ -28,6 +28,50 @@ describe("lib/api/validation", () => {
   const request = new Request(`https://anicards.test${endpoint}`, {
     method: "POST",
   });
+  const validStatsPayload = {
+    User: {
+      name: "Alex",
+      stats: {
+        activityHistory: [],
+      },
+      favourites: {
+        anime: { nodes: [] },
+        manga: { nodes: [] },
+        characters: { nodes: [] },
+        staff: { nodes: [] },
+        studios: { nodes: [] },
+      },
+      statistics: {
+        anime: {
+          count: 0,
+          episodesWatched: 0,
+          minutesWatched: 0,
+          meanScore: 0,
+          standardDeviation: 0,
+          genres: [],
+          tags: [],
+          voiceActors: [],
+          studios: [],
+          staff: [],
+        },
+        manga: {
+          count: 0,
+          chaptersRead: 0,
+          volumesRead: 0,
+          meanScore: 0,
+          standardDeviation: 0,
+          genres: [],
+          tags: [],
+          staff: [],
+        },
+      },
+    },
+    followersPage: { pageInfo: { total: 0 }, followers: [] },
+    followingPage: { pageInfo: { total: 0 }, following: [] },
+    threadsPage: { pageInfo: { total: 0 }, threads: [] },
+    threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+    reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+  };
 
   beforeEach(() => {
     console.warn = mock(
@@ -45,7 +89,7 @@ describe("lib/api/validation", () => {
       {
         userId: "42",
         username: " Alex ",
-        stats: { anime: true },
+        stats: validStatsPayload,
         ifMatchUpdatedAt: "2026-04-16T00:00:00Z",
         ifMatchRevision: "7",
         ifMatchSnapshotToken: "token-123",
@@ -59,7 +103,7 @@ describe("lib/api/validation", () => {
       data: {
         userId: 42,
         username: "Alex",
-        stats: { anime: true },
+        stats: validStatsPayload,
         ifMatchUpdatedAt: "2026-04-16T00:00:00.000Z",
         ifMatchRevision: 7,
         ifMatchSnapshotToken: "token-123",

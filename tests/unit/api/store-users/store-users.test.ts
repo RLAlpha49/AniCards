@@ -215,12 +215,15 @@ describe("Store Users API", () => {
         ...process.env,
         NODE_ENV: "production",
         API_SECRET_TOKEN: "test-request-proof-secret",
+        TRUSTED_CLIENT_IP_PROXY_FAMILY: "vercel",
       };
 
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userAgent = "AniCards store-users cross-origin test";
 
       const requestProofToken = await createRequestProofToken({
         ip: "127.0.0.1",
+        userAgent,
       });
       if (!requestProofToken) {
         throw new Error("Expected request proof token to be generated");
@@ -232,6 +235,7 @@ describe("Store Users API", () => {
         "http://different-origin.com",
         {
           cookie: `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`,
+          "user-agent": userAgent,
         },
       );
 
@@ -1363,7 +1367,11 @@ describe("Store Users API", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get failure"));
 
-      const reqBody = { userId: 12, username: "user12", stats: { score: 30 } };
+      const reqBody = {
+        userId: 12,
+        username: "user12",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);

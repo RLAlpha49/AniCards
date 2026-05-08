@@ -555,9 +555,7 @@ export const persistedUserRecordSchema: z.ZodType<PersistedUserRecord> =
 export const storeUserRequestSchema = z.strictObject({
   userId: z.coerce.number().int().positive(),
   username: normalizedUsernameSchema,
-  stats: z.custom<Record<string, unknown>>(isPlainObject, {
-    message: "Stats must be a non-array object",
-  }),
+  stats: userStatsDataSchema,
   ifMatchUpdatedAt: ifMatchUpdatedAtSchema,
   ifMatchRevision: ifMatchRevisionSchema,
   ifMatchSnapshotToken: ifMatchSnapshotTokenSchema,
@@ -753,7 +751,7 @@ export type ValidateUserDataResult =
       data: {
         userId: number;
         username?: string;
-        stats: Record<string, unknown>;
+        stats: UserStatsData;
         ifMatchUpdatedAt?: string;
         ifMatchRevision?: number;
         ifMatchSnapshotToken?: string;
@@ -824,9 +822,9 @@ function getValidateUserDataFailure(
       return invalidStoreUserData(
         endpoint,
         request,
-        "Stats must be a non-array object",
+        "Stats payload failed schema validation",
         {
-          statsType: Array.isArray(data.stats) ? "array" : typeof data.stats,
+          issue: getSchemaValidationIssueSummary(error),
         },
       );
     default:
