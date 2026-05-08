@@ -37,6 +37,14 @@ describe("lib/api/cards", () => {
               colorPreset: "default",
               borderEnabled: true,
             },
+            version: "7",
+            schemaVersion: 2,
+            userSnapshot: {
+              token: "snapshot-42-7",
+              revision: "7",
+              updatedAt: "2026-04-15T23:59:59.000Z",
+              committedAt: "2026-04-16T00:00:00.000Z",
+            },
             updatedAt: "2026-04-16T00:00:00.000Z",
           }),
           {
@@ -60,6 +68,14 @@ describe("lib/api/cards", () => {
       globalSettings: {
         colorPreset: "default",
         borderEnabled: true,
+      },
+      version: 7,
+      schemaVersion: 2,
+      userSnapshot: {
+        token: "snapshot-42-7",
+        revision: 7,
+        updatedAt: "2026-04-15T23:59:59.000Z",
+        committedAt: "2026-04-16T00:00:00.000Z",
       },
       updatedAt: "2026-04-16T00:00:00.000Z",
     });

@@ -6,6 +6,7 @@ import {
 import { getErrorDetails } from "@/lib/error-messages";
 import type {
   CardsRecord,
+  CardsRecordUserSnapshot,
   GlobalCardSettings,
   StoredCardConfig,
 } from "@/lib/types/records";
@@ -71,6 +72,58 @@ function normalizeCardOrder(value: unknown): string[] | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeOptionalPositiveInteger(value: unknown): number | undefined {
+  if (isStrictPositiveInteger(value)) {
+    return value;
+  }
+
+  if (isStrictPositiveIntegerString(value)) {
+    return Number(value.trim());
+  }
+
+  return undefined;
+}
+
+function normalizeCardsRecordUserSnapshot(
+  value: unknown,
+): CardsRecordUserSnapshot | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const data = value as {
+    token?: unknown;
+    revision?: unknown;
+    updatedAt?: unknown;
+    committedAt?: unknown;
+  };
+
+  const token =
+    typeof data.token === "string" && data.token.trim().length > 0
+      ? data.token.trim()
+      : undefined;
+  const revision = normalizeOptionalPositiveInteger(data.revision);
+  const updatedAt =
+    typeof data.updatedAt === "string" && data.updatedAt.trim().length > 0
+      ? data.updatedAt.trim()
+      : undefined;
+  const committedAt =
+    typeof data.committedAt === "string" && data.committedAt.trim().length > 0
+      ? data.committedAt.trim()
+      : undefined;
+
+  if (!token && !revision && !updatedAt && !committedAt) {
+    return undefined;
+  }
+
+  return {
+    ...(token ? { token } : {}),
+    ...(revision ? { revision } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+    ...(committedAt ? { committedAt } : {}),
+  };
+}
+
 function normalizeFetchUserCardsSuccess(
   payload: unknown,
 ): FetchUserCardsSuccess | null {
@@ -88,6 +141,9 @@ function normalizeFetchUserCardsSuccess(
     cardOrder?: unknown;
     globalSettings?: ServerGlobalSettings;
     updatedAt?: unknown;
+    version?: unknown;
+    schemaVersion?: unknown;
+    userSnapshot?: unknown;
   };
 
   let userId: number | null = null;
@@ -100,6 +156,9 @@ function normalizeFetchUserCardsSuccess(
   const updatedAt =
     typeof data.updatedAt === "string" ? data.updatedAt.trim() : "";
   const cardOrder = normalizeCardOrder(data.cardOrder);
+  const version = normalizeOptionalPositiveInteger(data.version);
+  const schemaVersion = normalizeOptionalPositiveInteger(data.schemaVersion);
+  const userSnapshot = normalizeCardsRecordUserSnapshot(data.userSnapshot);
 
   if (userId === null || !Array.isArray(data.cards) || updatedAt.length === 0) {
     return null;
@@ -112,6 +171,9 @@ function normalizeFetchUserCardsSuccess(
     ...(data.globalSettings === undefined
       ? {}
       : { globalSettings: data.globalSettings }),
+    ...(version ? { version } : {}),
+    ...(schemaVersion ? { schemaVersion } : {}),
+    ...(userSnapshot ? { userSnapshot } : {}),
     updatedAt,
   };
 }
