@@ -497,6 +497,7 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
   404: "not_found",
   408: "timeout",
   409: "conflict",
+  415: "invalid_data",
   422: "validation_error",
   429: "rate_limited",
   500: "server_error",

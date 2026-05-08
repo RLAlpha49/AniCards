@@ -8,6 +8,7 @@ import {
   createProtectedWriteGrantCookieHeader,
   getAuthoritativeUsernameFromUserStats,
 } from "@/lib/api/protected-write-grants";
+import { createRateLimiter } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
 import { initializeApiRequest } from "@/lib/api/request-guards";
 import {
@@ -42,6 +43,11 @@ interface GraphQLRequest {
 type AllowedAniListOperationName = "GetUserId" | "GetUserStats";
 
 const ANILIST_JSON_BODY_LIMIT_BYTES = 32 * 1024;
+const anilistRateLimiter = createRateLimiter({
+  limit: 60,
+  window: "10 s",
+  hotPath: true,
+});
 
 interface ResolvedAniListRequest {
   operationName: AllowedAniListOperationName;
@@ -52,12 +58,19 @@ interface ResolvedAniListRequest {
 
 class AniListRequestError extends Error {
   readonly statusCode: number;
+  readonly publicMessage: string;
   readonly retryAfterSeconds?: number;
 
-  constructor(message: string, statusCode: number, retryAfterSeconds?: number) {
+  constructor(
+    message: string,
+    statusCode: number,
+    retryAfterSeconds?: number,
+    publicMessage?: string,
+  ) {
     super(message);
     this.name = "AniListRequestError";
     this.statusCode = statusCode;
+    this.publicMessage = publicMessage ?? message;
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
@@ -128,7 +141,7 @@ function resolveAniListOperationName(
 ): AllowedAniListOperationName {
   if (
     typeof requestData.operation === "string" &&
-    requestData.operation in ALLOWED_ANILIST_QUERY_BY_OPERATION
+    Object.hasOwn(ALLOWED_ANILIST_QUERY_BY_OPERATION, requestData.operation)
   ) {
     return requestData.operation as AllowedAniListOperationName;
   }
@@ -218,6 +231,37 @@ function getAniListStatusCode(error: unknown, errorMessage: string): number {
 
   const statusMatch = /status:\s?(\d+)/.exec(errorMessage);
   return statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
+}
+
+function getSanitizedAniListUpstreamMessage(statusCode: number): string {
+  if (statusCode === 429) {
+    return "AniList is temporarily rate limited";
+  }
+
+  if (statusCode === 504) {
+    return "AniList request timed out";
+  }
+
+  if (statusCode >= 500) {
+    return "AniList is temporarily unavailable";
+  }
+
+  return "AniList request was rejected";
+}
+
+function getAniListPublicErrorMessage(
+  error: unknown,
+  statusCode: number,
+): string {
+  if (error instanceof AniListRequestError) {
+    return error.publicMessage;
+  }
+
+  if (error instanceof UpstreamTransportError) {
+    return getSanitizedAniListUpstreamMessage(statusCode);
+  }
+
+  return getSanitizedAniListUpstreamMessage(statusCode);
 }
 
 function getAniListResponseHeaders(
@@ -387,6 +431,7 @@ function createApiError(
     `HTTP error! status: ${response.status} - ${errorMessage}${retryAfterMsg}`,
     response.status,
     Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+    getSanitizedAniListUpstreamMessage(response.status),
   );
 }
 
@@ -443,6 +488,8 @@ async function makeAniListRequest(
     throw new AniListRequestError(
       json.errors[0]?.message || "AniList request failed",
       500,
+      undefined,
+      getSanitizedAniListUpstreamMessage(500),
     );
   }
 
@@ -460,7 +507,7 @@ export async function POST(request: Request) {
     request,
     "AniList API",
     "anilist_api",
-    undefined,
+    anilistRateLimiter,
     {
       requireRequestProof: true,
       requireVerifiedClientIp: true,
@@ -522,6 +569,7 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : "Unknown error";
 
     const statusCode = getAniListStatusCode(error, errorMessage);
+    const publicErrorMessage = getAniListPublicErrorMessage(error, statusCode);
 
     logPrivacySafe(
       "error",
@@ -571,14 +619,9 @@ export async function POST(request: Request) {
 
     trackAniListFailure(request, duration, getAniListRejectionReason(error));
 
-    return apiErrorResponse(
-      request,
-      statusCode,
-      errorMessage || "Failed to fetch AniList data",
-      {
-        headers: getAniListResponseHeaders(error),
-      },
-    );
+    return apiErrorResponse(request, statusCode, publicErrorMessage, {
+      headers: getAniListResponseHeaders(error),
+    });
   }
 }
 

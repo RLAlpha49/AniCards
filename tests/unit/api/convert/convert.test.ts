@@ -214,6 +214,8 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(415);
       const data = await res.json();
       expect(data.error).toBe("Provided content is not a valid SVG");
+      expect(data.category).toBe("invalid_data");
+      expect(data.retryable).toBe(false);
     });
 
     it("should return 400 error for invalid URL format", async () => {
@@ -501,6 +503,32 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("SVG Fetching", () => {
+    it("should classify redirect-blocked upstream SVG fetches as forbidden and non-retryable", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
+      }) as unknown as NextRequest;
+
+      mockFetchResolve(
+        new Response("", {
+          status: 302,
+          headers: { Location: "http://localhost/redirected.svg" },
+        }),
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("SVG redirects are not allowed");
+      expect(data.category).toBe("forbidden");
+      expect(data.retryable).toBe(false);
+    });
+
     it("should return error if fetching SVG fails with non-ok status", async () => {
       const req = new Request("http://localhost/api/convert", {
         method: "POST",
@@ -522,6 +550,32 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(404);
       const data = await res.json();
       expect(data.error).toBe("Failed to fetch SVG");
+    });
+
+    it("should classify fetched non-SVG content as invalid data and non-retryable", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
+      }) as unknown as NextRequest;
+
+      mockFetchResolve(
+        new Response("definitely-not-svg", {
+          status: 200,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(415);
+      const data = await res.json();
+      expect(data.error).toBe("Fetched content is not a valid SVG");
+      expect(data.category).toBe("invalid_data");
+      expect(data.retryable).toBe(false);
     });
 
     it("should return 500 error if fetching SVG throws", async () => {

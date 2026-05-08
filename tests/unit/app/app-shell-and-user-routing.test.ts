@@ -119,10 +119,18 @@ describe("App shell server coverage", () => {
   });
 
   it("injects CSP, nonce headers, and a request proof cookie for HTML routes", async () => {
+    process.env = {
+      ...process.env,
+      API_SECRET_TOKEN: "test-request-proof-secret",
+      NODE_ENV: "production",
+      VERCEL: "1",
+    };
+
     const request = new Request("http://localhost/search", {
       headers: {
         "user-agent": "bun-test",
         "x-vercel-forwarded-for": "127.0.0.1",
+        "x-vercel-id": "cle1::abc123",
       },
     }) as unknown as NextRequest;
 
@@ -145,7 +153,62 @@ describe("App shell server coverage", () => {
     expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
     expect(setCookieHeader).toContain(`${REQUEST_PROOF_COOKIE_NAME}=`);
     expect(setCookieHeader).toContain("HttpOnly");
+    expect(setCookieHeader).toContain("Secure");
     expect(setCookieHeader).toMatch(/SameSite=strict/i);
+  });
+
+  it("clears stale request-proof cookies when a document request cannot verify client IP provenance", async () => {
+    process.env = {
+      ...process.env,
+      API_SECRET_TOKEN: "test-request-proof-secret",
+      NODE_ENV: "production",
+      VERCEL: "1",
+    };
+
+    const response = await proxy(
+      new Request("http://localhost/search", {
+        headers: {
+          accept: "text/html",
+          cookie: `${REQUEST_PROOF_COOKIE_NAME}=fresh; anicards_request_proof=legacy`,
+          "user-agent": "bun-test",
+          "x-vercel-forwarded-for": "127.0.0.1",
+        },
+      }) as unknown as NextRequest,
+    );
+
+    const setCookieHeader = response.headers.get("set-cookie");
+
+    expect(setCookieHeader).toContain(`${REQUEST_PROOF_COOKIE_NAME}=;`);
+    expect(setCookieHeader).toContain("anicards_request_proof=;");
+    expect(setCookieHeader).toContain("Max-Age=0");
+  });
+
+  it("migrates legacy request-proof cookies to the hardened host cookie when verification succeeds", async () => {
+    process.env = {
+      ...process.env,
+      API_SECRET_TOKEN: "test-request-proof-secret",
+      NODE_ENV: "production",
+      VERCEL: "1",
+    };
+
+    const response = await proxy(
+      new Request("http://localhost/search", {
+        headers: {
+          accept: "text/html",
+          cookie: "anicards_request_proof=legacy-token",
+          "user-agent": "bun-test",
+          "x-vercel-forwarded-for": "127.0.0.1",
+          "x-vercel-id": "cle1::abc123",
+        },
+      }) as unknown as NextRequest,
+    );
+
+    const setCookieHeader = response.headers.get("set-cookie");
+
+    expect(setCookieHeader).toContain(`${REQUEST_PROOF_COOKIE_NAME}=`);
+    expect(setCookieHeader).toContain("Secure");
+    expect(setCookieHeader).toContain("anicards_request_proof=;");
+    expect(setCookieHeader).toContain("Max-Age=0");
   });
 
   it("forwards the pathname and search separately for loading fallbacks", async () => {
@@ -330,13 +393,15 @@ describe("User route metadata and redirect helpers", () => {
       usernameIndex: null,
     });
 
-    await expect(
-      generateProfileUserMetadata({
-        params: Promise.resolve({ username: "Alpha49" }),
-        searchParams: Promise.resolve({}),
-      }),
-    ).rejects.toMatchObject({
-      digest: expect.stringContaining("404"),
+    const metadata = await generateProfileUserMetadata({
+      params: Promise.resolve({ username: "Alpha49" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(metadata.alternates).toBeUndefined();
+    expect(metadata.robots).toMatchObject({
+      index: false,
+      follow: true,
     });
   });
 });

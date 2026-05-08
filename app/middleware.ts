@@ -9,6 +9,10 @@ import {
 import {
   createRequestProofCookie,
   getRequestProofCookie,
+  getRequestProofCookieNamesForCleanup,
+  hasAnyRequestProofCookieCandidate,
+  hasLegacyRequestProofCookie,
+  LEGACY_REQUEST_PROOF_COOKIE_NAME,
   REQUEST_PROOF_COOKIE_NAME,
   resolveVerifiedClientIp,
 } from "@/lib/api/request-proof";
@@ -97,6 +101,20 @@ function generateNonce(): string {
   return btoa(String.fromCodePoint(...array));
 }
 
+function clearRequestProofCookies(response: NextResponse): void {
+  for (const cookieName of getRequestProofCookieNamesForCleanup()) {
+    response.cookies.set({
+      name: cookieName,
+      value: "",
+      httpOnly: true,
+      maxAge: 0,
+      path: "/",
+      sameSite: "strict",
+      secure: cookieName === REQUEST_PROOF_COOKIE_NAME,
+    });
+  }
+}
+
 async function maybeRefreshRequestProof(
   request: NextRequest,
   response: NextResponse,
@@ -108,6 +126,7 @@ async function maybeRefreshRequestProof(
 
   const clientIp = resolveVerifiedClientIp(request);
   const existingProofCookie = getRequestProofCookie(request);
+  const hasAnyProofCookieCandidate = hasAnyRequestProofCookieCandidate(request);
 
   if (!clientIp.verified) {
     if (process.env.NODE_ENV === "production") {
@@ -122,13 +141,8 @@ async function maybeRefreshRequestProof(
       );
     }
 
-    if (existingProofCookie) {
-      response.cookies.set({
-        name: REQUEST_PROOF_COOKIE_NAME,
-        value: "",
-        maxAge: 0,
-        path: "/",
-      });
+    if (existingProofCookie || hasAnyProofCookieCandidate) {
+      clearRequestProofCookies(response);
     }
 
     return;
@@ -139,19 +153,26 @@ async function maybeRefreshRequestProof(
     userAgent: request.headers.get("user-agent"),
   });
   if (!proofCookie) {
-    if (existingProofCookie) {
-      response.cookies.set({
-        name: REQUEST_PROOF_COOKIE_NAME,
-        value: "",
-        maxAge: 0,
-        path: "/",
-      });
+    if (existingProofCookie || hasAnyProofCookieCandidate) {
+      clearRequestProofCookies(response);
     }
 
     return;
   }
 
   response.cookies.set(proofCookie);
+
+  if (hasLegacyRequestProofCookie(request)) {
+    response.cookies.set({
+      name: LEGACY_REQUEST_PROOF_COOKIE_NAME,
+      value: "",
+      httpOnly: true,
+      maxAge: 0,
+      path: "/",
+      sameSite: "strict",
+      secure: false,
+    });
+  }
 }
 
 /**

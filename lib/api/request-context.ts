@@ -13,7 +13,7 @@ export interface ApiRequestContext {
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 export const REQUEST_ID_HEADER = "X-Request-Id";
 export const INTERNAL_REQUEST_ID_HEADER = "x-anicards-request-id";
-const OPERATION_ID_HEADER = "X-Operation-Id";
+export const OPERATION_ID_HEADER = "X-Operation-Id";
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 
 function isSafeRequestId(value: string): boolean {
@@ -188,16 +188,24 @@ export function withRequestIdHeaders(
   requestId?: string,
 ): Record<string, string> {
   const effectiveRequestId = requestId ?? getRequestId(request);
-  if (!effectiveRequestId) {
+  const effectiveOperationId = getOperationId(request);
+
+  if (!effectiveRequestId && !effectiveOperationId) {
     return headers;
   }
 
   return {
     ...headers,
-    [REQUEST_ID_HEADER]: effectiveRequestId,
+    ...(effectiveRequestId ? { [REQUEST_ID_HEADER]: effectiveRequestId } : {}),
+    ...(effectiveOperationId
+      ? { [OPERATION_ID_HEADER]: effectiveOperationId }
+      : {}),
     "Access-Control-Expose-Headers": mergeHeaderList(
-      headers["Access-Control-Expose-Headers"],
-      REQUEST_ID_HEADER,
+      mergeHeaderList(
+        headers["Access-Control-Expose-Headers"],
+        REQUEST_ID_HEADER,
+      ),
+      OPERATION_ID_HEADER,
     ),
   };
 }

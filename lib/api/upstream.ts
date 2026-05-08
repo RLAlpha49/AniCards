@@ -103,13 +103,35 @@ export class UpstreamTransportError extends Error {
   readonly retryAfterMs?: number;
   publicMessage: string;
 
-  constructor(message: string, statusCode: number, retryAfterMs?: number) {
+  constructor(
+    message: string,
+    statusCode: number,
+    retryAfterMs?: number,
+    publicMessage?: string,
+  ) {
     super(message);
     this.name = "UpstreamTransportError";
     this.statusCode = statusCode;
     this.retryAfterMs = retryAfterMs;
-    this.publicMessage = message;
+    this.publicMessage =
+      publicMessage ?? getUpstreamTransportPublicMessage(statusCode);
   }
+}
+
+function getUpstreamTransportPublicMessage(statusCode: number): string {
+  if (statusCode === 429) {
+    return "Upstream service is temporarily rate limited";
+  }
+
+  if (statusCode === 504) {
+    return "Upstream request timed out";
+  }
+
+  if (statusCode >= 500) {
+    return "Upstream service is temporarily unavailable";
+  }
+
+  return "Upstream request failed";
 }
 
 /**
@@ -137,7 +159,12 @@ export class UpstreamCircuitOpenError extends UpstreamTransportError {
       ? baseMessage
       : `${baseMessage} (Retry-After: ${retryAfterSeconds})`;
 
-    super(message, 503, options.retryAfterMs);
+    super(
+      message,
+      503,
+      options.retryAfterMs,
+      getUpstreamTransportPublicMessage(503),
+    );
     this.name = "UpstreamCircuitOpenError";
     this.service = options.service;
     this.degradedMode = options.degradedMode ?? false;

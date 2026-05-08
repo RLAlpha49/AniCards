@@ -21,6 +21,7 @@ import {
   createProtectedWriteGrantCookieHeader,
   getAuthoritativeUsernameFromUserStats,
 } from "@/lib/api/protected-write-grants";
+import { createRateLimiter } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
 import {
   initializeApiRequest,
@@ -48,6 +49,11 @@ import {
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
 const STORE_USERS_JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const storeUsersWriteRateLimiter = createRateLimiter({
+  limit: 10,
+  window: "5 s",
+  prefix: "store-users-write",
+});
 
 function scheduleStoreUsersMetric(
   endpoint: string,
@@ -526,7 +532,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     request,
     "Store Users",
     "store_users",
-    undefined,
+    storeUsersWriteRateLimiter,
     {
       requireRequestProof: true,
       requireVerifiedClientIp: true,

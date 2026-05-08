@@ -95,7 +95,27 @@ Some routes intentionally skip same-origin validation — they're designed to wo
 
 These still enforce bounded DTOs, CORS policy, and rate limiting.
 
-When production cannot verify client-IP provenance for those public reads, the routes fall back to tighter anonymous rate-limit buckets instead of returning an unconditional `503`. Routes that explicitly require a verified client IP still fail closed.
+When production cannot verify client-IP provenance for those public reads, the routes fall back to tighter anonymous rate-limit buckets instead of returning an unconditional `503`. That degraded path now prefers a valid server-issued request-proof token if one is present; otherwise it collapses to a coarse per-endpoint anonymous bucket instead of hashing caller-controlled headers. Routes that explicitly require a verified client IP still fail closed.
+
+## Trusted client IP contract
+
+`resolveVerifiedClientIp()` now treats built-in proxy headers as deployment contracts, not as opt-in-by-presence hints.
+
+- Vercel requests only trust `x-vercel-forwarded-for` when the deployment contract resolves to **Vercel** (`VERCEL` / `VERCEL_URL`, or an explicit `TRUSTED_CLIENT_IP_PROXY_FAMILY=vercel`).
+- Cloudflare requests only trust `cf-connecting-ip` when the deployment contract resolves to **Cloudflare** (`CF_PAGES` / `CF_PAGES_URL`, or an explicit `TRUSTED_CLIENT_IP_PROXY_FAMILY=cloudflare`).
+- If a request presents headers from multiple built-in proxy families, AniCards rejects the request as conflicting proxy provenance instead of guessing.
+- `TRUSTED_CLIENT_IP_HEADERS` remains available for custom ingress headers, but every custom header still needs an explicit provenance rule in `TRUSTED_CLIENT_IP_HEADER_PROVENANCE`.
+
+This keeps the app fail-closed against bare proxy-header spoofing and documents the ingress assumption the deployment must satisfy.
+
+## Request-proof cookie contract
+
+Protected browser writes use a hardened request-proof cookie contract:
+
+- production issues `__Host-anicards_request_proof`
+- the cookie keeps `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`
+- legacy `anicards_request_proof` cookies are still accepted during migration, but middleware clears them once it can mint a fresh proof cookie
+- duplicate-name or conflicting migration cookie values are treated as invalid, so cookie-name ambiguity cannot be used to smuggle an alternate proof token
 
 ### Operator cron routes
 

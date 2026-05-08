@@ -9,6 +9,16 @@ const DEFAULT_TRUSTED_CLIENT_IP_HEADERS = [
   "cf-connecting-ip",
 ] as const;
 
+const BUILT_IN_PROXY_FAMILY_HEADERS = {
+  cloudflare: ["cf-connecting-ip"],
+  vercel: ["x-vercel-forwarded-for"],
+} as const;
+
+const BUILT_IN_PROXY_FAMILY_ENV_HINTS = {
+  cloudflare: ["CF_PAGES", "CF_PAGES_URL"],
+  vercel: ["VERCEL", "VERCEL_URL"],
+} as const;
+
 const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
   "x-vercel-forwarded-for": ["x-vercel-id"],
   "cf-connecting-ip": ["cf-ray"],
@@ -18,11 +28,22 @@ const DEFAULT_TRUSTED_CLIENT_IP_PROVENANCE_HEADERS = {
 >;
 const TRUSTED_CLIENT_IP_HEADER_PROVENANCE_ENV =
   "TRUSTED_CLIENT_IP_HEADER_PROVENANCE";
+const TRUSTED_CLIENT_IP_PROXY_FAMILY_ENV = "TRUSTED_CLIENT_IP_PROXY_FAMILY";
 const REQUEST_PROOF_VERSION = 1;
 const REQUEST_PROOF_USER_AGENT_MAX_LENGTH = 240;
 
-export const REQUEST_PROOF_COOKIE_NAME = "anicards_request_proof";
+export const REQUEST_PROOF_COOKIE_NAME = "__Host-anicards_request_proof";
+export const LEGACY_REQUEST_PROOF_COOKIE_NAME = "anicards_request_proof";
 export const REQUEST_PROOF_TTL_SECONDS = 4 * 60 * 60;
+
+const ACCEPTED_REQUEST_PROOF_COOKIE_NAMES = [
+  REQUEST_PROOF_COOKIE_NAME,
+  LEGACY_REQUEST_PROOF_COOKIE_NAME,
+] as const;
+
+type BuiltInProxyFamily = keyof typeof BUILT_IN_PROXY_FAMILY_HEADERS;
+type RequestProofCookieName =
+  (typeof ACCEPTED_REQUEST_PROOF_COOKIE_NAMES)[number];
 
 type RequestProofPayload = {
   exp: number;
@@ -61,11 +82,34 @@ export type VerifiedClientIpResult =
   | {
       ip: null;
       reason:
+        | "conflicting_proxy_families"
         | "invalid_trusted_header"
         | "missing_proxy_provenance"
-        | "missing_trusted_header";
+        | "missing_trusted_header"
+        | "untrusted_proxy_family";
       source: null;
       verified: false;
+    };
+
+type ResolvedRequestProofCookie = {
+  ambiguous: boolean;
+  hasAnyCookieCandidate: boolean;
+  hasLegacyCookie: boolean;
+  source: RequestProofCookieName | null;
+  value: string | null;
+};
+
+type RequestProofEnvelopeVerificationResult =
+  | {
+      payload: RequestProofPayload;
+      valid: true;
+    }
+  | {
+      reason: Exclude<
+        RequestProofFailureReason,
+        "ip_mismatch" | "user_agent_mismatch"
+      >;
+      valid: false;
     };
 
 const textEncoder = new TextEncoder();
@@ -83,6 +127,41 @@ function normalizeHeaderName(value: string): string | null {
   }
 
   return /^[a-z0-9-]+$/.test(normalized) ? normalized : null;
+}
+
+function normalizeBuiltInProxyFamily(
+  value: string | undefined,
+): BuiltInProxyFamily | null {
+  const normalized = value?.trim().toLowerCase();
+
+  switch (normalized) {
+    case "cloudflare":
+    case "vercel":
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+function resolveTrustedBuiltInProxyFamily(): BuiltInProxyFamily | null {
+  const configuredFamily = normalizeBuiltInProxyFamily(
+    process.env[TRUSTED_CLIENT_IP_PROXY_FAMILY_ENV],
+  );
+  if (configuredFamily) {
+    return configuredFamily;
+  }
+
+  const detectedFamilies = Object.entries(BUILT_IN_PROXY_FAMILY_ENV_HINTS)
+    .filter(([, envHints]) =>
+      envHints.some((envName) => Boolean(process.env[envName]?.trim())),
+    )
+    .map(([family]) => family as BuiltInProxyFamily);
+
+  if (detectedFamilies.length !== 1) {
+    return null;
+  }
+
+  return detectedFamilies[0];
 }
 
 function parseTrustedClientIpHeaderList(
@@ -149,10 +228,34 @@ function getTrustedClientIpProvenanceHeaders(
   return parseConfiguredTrustedClientIpProvenanceMap().get(headerName) ?? null;
 }
 
+function getTrustedClientIpHeaderFamily(
+  headerName: string,
+): BuiltInProxyFamily | "custom" {
+  for (const [family, headerNames] of Object.entries(
+    BUILT_IN_PROXY_FAMILY_HEADERS,
+  ) as Array<[BuiltInProxyFamily, readonly string[]]>) {
+    if (headerNames.includes(headerName)) {
+      return family;
+    }
+  }
+
+  return "custom";
+}
+
 function resolveVerifiedClientIpFailureReason(options: {
+  sawConflictingProxyFamilies: boolean;
   sawHeaderWithoutProxyProvenance: boolean;
   sawTrustedHeader: boolean;
+  sawUntrustedProxyFamily: boolean;
 }): Extract<VerifiedClientIpResult, { verified: false }>["reason"] {
+  if (options.sawConflictingProxyFamilies) {
+    return "conflicting_proxy_families";
+  }
+
+  if (options.sawUntrustedProxyFamily) {
+    return "untrusted_proxy_family";
+  }
+
   if (options.sawHeaderWithoutProxyProvenance) {
     return "missing_proxy_provenance";
   }
@@ -261,9 +364,49 @@ export function resolveVerifiedClientIp(
         };
   }
 
+  const allowLocalhostFallbacks = canUseLocalhostSecurityFallbacks();
   const trustedHeaders = getTrustedClientIpHeaderNames();
+  const trustedBuiltInProxyFamily = resolveTrustedBuiltInProxyFamily();
+  const presentBuiltInFamilies = new Set<BuiltInProxyFamily>();
   let sawTrustedHeader = false;
+  let sawConflictingProxyFamilies = false;
   let sawHeaderWithoutProxyProvenance = false;
+  let sawUntrustedProxyFamily = false;
+
+  for (const headerName of trustedHeaders) {
+    const headerValue = request.headers.get(headerName)?.trim();
+    if (!headerValue) {
+      continue;
+    }
+
+    const headerFamily = getTrustedClientIpHeaderFamily(headerName);
+    if (headerFamily !== "custom") {
+      presentBuiltInFamilies.add(headerFamily);
+    }
+  }
+
+  if (!allowLocalhostFallbacks) {
+    sawConflictingProxyFamilies = presentBuiltInFamilies.size > 1;
+    sawUntrustedProxyFamily =
+      !sawConflictingProxyFamilies &&
+      presentBuiltInFamilies.size === 1 &&
+      presentBuiltInFamilies.values().next().value !==
+        trustedBuiltInProxyFamily;
+
+    if (sawConflictingProxyFamilies || sawUntrustedProxyFamily) {
+      return {
+        verified: false,
+        ip: null,
+        source: null,
+        reason: resolveVerifiedClientIpFailureReason({
+          sawConflictingProxyFamilies,
+          sawHeaderWithoutProxyProvenance: false,
+          sawTrustedHeader: true,
+          sawUntrustedProxyFamily,
+        }),
+      };
+    }
+  }
 
   for (const headerName of trustedHeaders) {
     const headerValue = request.headers.get(headerName)?.trim();
@@ -272,6 +415,15 @@ export function resolveVerifiedClientIp(
     }
 
     sawTrustedHeader = true;
+
+    const headerFamily = getTrustedClientIpHeaderFamily(headerName);
+    if (
+      !allowLocalhostFallbacks &&
+      headerFamily !== "custom" &&
+      headerFamily !== trustedBuiltInProxyFamily
+    ) {
+      continue;
+    }
 
     if (!hasTrustedProxyProvenance(request, headerName)) {
       sawHeaderWithoutProxyProvenance = true;
@@ -297,14 +449,153 @@ export function resolveVerifiedClientIp(
     ip: null,
     source: null,
     reason: resolveVerifiedClientIpFailureReason({
+      sawConflictingProxyFamilies,
       sawHeaderWithoutProxyProvenance,
       sawTrustedHeader,
+      sawUntrustedProxyFamily,
     }),
   };
 }
 
 function getRequestProofSecret(): string | null {
   return resolvePurposeScopedSigningSecret("request-proof");
+}
+
+function getIssuedRequestProofCookieName(): RequestProofCookieName {
+  return isProduction()
+    ? REQUEST_PROOF_COOKIE_NAME
+    : LEGACY_REQUEST_PROOF_COOKIE_NAME;
+}
+
+function resolveRequestProofCookie(
+  request?: Pick<Request, "headers">,
+): ResolvedRequestProofCookie {
+  const cookieHeader = request?.headers.get("cookie");
+  if (!cookieHeader) {
+    return {
+      ambiguous: false,
+      hasAnyCookieCandidate: false,
+      hasLegacyCookie: false,
+      source: null,
+      value: null,
+    };
+  }
+
+  const matchedCookies = new Map<RequestProofCookieName, string[]>();
+
+  for (const entry of cookieHeader.split(";")) {
+    const [rawName, ...rawValue] = entry.split("=");
+    const normalizedName = rawName?.trim() as
+      | RequestProofCookieName
+      | undefined;
+
+    if (
+      !normalizedName ||
+      !ACCEPTED_REQUEST_PROOF_COOKIE_NAMES.includes(normalizedName)
+    ) {
+      continue;
+    }
+
+    const existingValues = matchedCookies.get(normalizedName) ?? [];
+    matchedCookies.set(normalizedName, [
+      ...existingValues,
+      rawValue.join("=").trim(),
+    ]);
+  }
+
+  const hostCookieValues = matchedCookies.get(REQUEST_PROOF_COOKIE_NAME) ?? [];
+  const legacyCookieValues =
+    matchedCookies.get(LEGACY_REQUEST_PROOF_COOKIE_NAME) ?? [];
+  const hostCookieValue = hostCookieValues[0] || null;
+  const legacyCookieValue = legacyCookieValues[0] || null;
+  const hasDuplicateCookieNames =
+    hostCookieValues.length > 1 || legacyCookieValues.length > 1;
+  const hasConflictingMigrationValues =
+    Boolean(hostCookieValue) &&
+    Boolean(legacyCookieValue) &&
+    hostCookieValue !== legacyCookieValue;
+
+  if (hasDuplicateCookieNames || hasConflictingMigrationValues) {
+    return {
+      ambiguous: true,
+      hasAnyCookieCandidate: true,
+      hasLegacyCookie: legacyCookieValues.length > 0,
+      source: null,
+      value: null,
+    };
+  }
+
+  if (hostCookieValue) {
+    return {
+      ambiguous: false,
+      hasAnyCookieCandidate: true,
+      hasLegacyCookie: legacyCookieValues.length > 0,
+      source: REQUEST_PROOF_COOKIE_NAME,
+      value: hostCookieValue,
+    };
+  }
+
+  if (legacyCookieValue) {
+    return {
+      ambiguous: false,
+      hasAnyCookieCandidate: true,
+      hasLegacyCookie: true,
+      source: LEGACY_REQUEST_PROOF_COOKIE_NAME,
+      value: legacyCookieValue,
+    };
+  }
+
+  return {
+    ambiguous: false,
+    hasAnyCookieCandidate: false,
+    hasLegacyCookie: false,
+    source: null,
+    value: null,
+  };
+}
+
+async function verifyRequestProofTokenEnvelope(
+  token: string | null | undefined,
+): Promise<RequestProofEnvelopeVerificationResult> {
+  if (!token) {
+    return { valid: false, reason: "missing_token" };
+  }
+
+  const secret = getRequestProofSecret();
+  if (!secret) {
+    return { valid: false, reason: "missing_secret" };
+  }
+
+  const [payloadSegment, signatureSegment, ...rest] = token.split(".");
+  if (!payloadSegment || !signatureSegment || rest.length > 0) {
+    return { valid: false, reason: "malformed_token" };
+  }
+
+  const signatureIsValid = await verifyRequestProofSignature(
+    payloadSegment,
+    signatureSegment,
+    secret,
+  );
+  if (!signatureIsValid) {
+    return { valid: false, reason: "invalid_signature" };
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(base64urlDecodeText(payloadSegment));
+  } catch {
+    return { valid: false, reason: "invalid_payload" };
+  }
+
+  if (!isRequestProofPayload(payload)) {
+    return { valid: false, reason: "invalid_payload" };
+  }
+
+  if (payload.exp <= Date.now()) {
+    return { valid: false, reason: "expired" };
+  }
+
+  return { valid: true, payload };
 }
 
 export function isRequestProofEnforced(): boolean {
@@ -537,12 +828,14 @@ export async function createRequestProofCookie(options: {
     return null;
   }
 
+  const cookieName = getIssuedRequestProofCookieName();
+
   return {
-    name: REQUEST_PROOF_COOKIE_NAME,
+    name: cookieName,
     value: token,
     httpOnly: true,
     sameSite: "strict",
-    secure: isProduction(),
+    secure: cookieName === REQUEST_PROOF_COOKIE_NAME,
     path: "/",
     maxAge: REQUEST_PROOF_TTL_SECONDS,
   };
@@ -551,21 +844,35 @@ export async function createRequestProofCookie(options: {
 export function getRequestProofCookie(
   request?: Pick<Request, "headers">,
 ): string | null {
-  const cookieHeader = request?.headers.get("cookie");
-  if (!cookieHeader) {
+  const resolvedCookie = resolveRequestProofCookie(request);
+  if (resolvedCookie.ambiguous) {
     return null;
   }
 
-  for (const entry of cookieHeader.split(";")) {
-    const [rawName, ...rawValue] = entry.split("=");
-    if (rawName?.trim() !== REQUEST_PROOF_COOKIE_NAME) {
-      continue;
-    }
+  return resolvedCookie.value;
+}
 
-    return rawValue.join("=").trim() || null;
-  }
+export function hasLegacyRequestProofCookie(
+  request?: Pick<Request, "headers">,
+): boolean {
+  return resolveRequestProofCookie(request).hasLegacyCookie;
+}
 
-  return null;
+export function hasAnyRequestProofCookieCandidate(
+  request?: Pick<Request, "headers">,
+): boolean {
+  return resolveRequestProofCookie(request).hasAnyCookieCandidate;
+}
+
+export function getRequestProofCookieNamesForCleanup(): readonly string[] {
+  return ACCEPTED_REQUEST_PROOF_COOKIE_NAMES;
+}
+
+export async function isServerIssuedRequestProofToken(
+  token: string | null | undefined,
+): Promise<boolean> {
+  const verification = await verifyRequestProofTokenEnvelope(token);
+  return verification.valid;
 }
 
 export async function verifyRequestProofToken(
@@ -584,61 +891,34 @@ export async function verifyRequestProofToken(
     return { valid: false, reason: "missing_secret" };
   }
 
-  if (!token) {
-    return { valid: false, reason: "missing_token" };
-  }
-
-  const [payloadSegment, signatureSegment, ...rest] = token.split(".");
-  if (!payloadSegment || !signatureSegment || rest.length > 0) {
-    return { valid: false, reason: "malformed_token" };
-  }
-
-  const signatureIsValid = await verifyRequestProofSignature(
-    payloadSegment,
-    signatureSegment,
-    secret,
-  );
-  if (!signatureIsValid) {
-    return { valid: false, reason: "invalid_signature" };
-  }
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(base64urlDecodeText(payloadSegment));
-  } catch {
-    return { valid: false, reason: "invalid_payload" };
+  const envelopeVerification = await verifyRequestProofTokenEnvelope(token);
+  if (!envelopeVerification.valid) {
+    return envelopeVerification;
   }
 
   const normalizedUserAgent = normalizeUserAgent(options.userAgent);
+  const payload = envelopeVerification.payload;
 
-  if (isRequestProofPayload(payload)) {
-    if (payload.exp <= Date.now()) {
-      return { valid: false, reason: "expired" };
-    }
+  const [expectedIpHash, expectedUaHash] = await Promise.all([
+    createRequestProofBindingHash({
+      label: "ip",
+      secret,
+      value: options.ip,
+    }),
+    createRequestProofBindingHash({
+      label: "ua",
+      secret,
+      value: normalizedUserAgent,
+    }),
+  ]);
 
-    const [expectedIpHash, expectedUaHash] = await Promise.all([
-      createRequestProofBindingHash({
-        label: "ip",
-        secret,
-        value: options.ip,
-      }),
-      createRequestProofBindingHash({
-        label: "ua",
-        secret,
-        value: normalizedUserAgent,
-      }),
-    ]);
-
-    if (payload.ipHash !== expectedIpHash) {
-      return { valid: false, reason: "ip_mismatch" };
-    }
-
-    if (payload.uaHash !== expectedUaHash) {
-      return { valid: false, reason: "user_agent_mismatch" };
-    }
-
-    return { valid: true, payload };
+  if (payload.ipHash !== expectedIpHash) {
+    return { valid: false, reason: "ip_mismatch" };
   }
 
-  return { valid: false, reason: "invalid_payload" };
+  if (payload.uaHash !== expectedUaHash) {
+    return { valid: false, reason: "user_agent_mismatch" };
+  }
+
+  return { valid: true, payload };
 }

@@ -20,7 +20,10 @@ import {
   getRateLimitIdentity,
 } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
-import { INTERNAL_REQUEST_ID_HEADER } from "@/lib/api/request-context";
+import {
+  INTERNAL_REQUEST_ID_HEADER,
+  OPERATION_ID_HEADER,
+} from "@/lib/api/request-context";
 import {
   initializeApiRequest,
   validateSameOrigin,
@@ -289,6 +292,7 @@ describe("api module hardening", () => {
     process.env = {
       ...process.env,
       NODE_ENV: "production",
+      VERCEL: "1",
     };
 
     const result = resolveVerifiedClientIp(
@@ -311,6 +315,7 @@ describe("api module hardening", () => {
     process.env = {
       ...process.env,
       NODE_ENV: "production",
+      VERCEL: "1",
     };
 
     const result = resolveVerifiedClientIp(
@@ -333,6 +338,7 @@ describe("api module hardening", () => {
     process.env = {
       ...process.env,
       NODE_ENV: "production",
+      VERCEL: "1",
     };
 
     const result = resolveVerifiedClientIp(
@@ -349,6 +355,59 @@ describe("api module hardening", () => {
       ip: null,
       source: null,
       reason: "missing_proxy_provenance",
+    });
+  });
+
+  it("rejects conflicting built-in proxy families in production", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      VERCEL: "1",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "cf-connecting-ip": "198.51.100.52",
+          "cf-ray": "abc123-LHR",
+          "x-vercel-forwarded-for": "198.51.100.24",
+          "x-vercel-id": "cle1::abc123",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "conflicting_proxy_families",
+    });
+  });
+
+  it("rejects deployment IP headers when the proxy family contract was not established", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      CF_PAGES: undefined,
+      CF_PAGES_URL: undefined,
+      VERCEL: undefined,
+      VERCEL_URL: undefined,
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-vercel-forwarded-for": "198.51.100.24",
+          "x-vercel-id": "cle1::abc123",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: false,
+      ip: null,
+      source: null,
+      reason: "untrusted_proxy_family",
     });
   });
 
@@ -405,6 +464,7 @@ describe("api module hardening", () => {
       ...process.env,
       NODE_ENV: "production",
       TRUSTED_CLIENT_IP_HEADERS: "x-real-ip",
+      VERCEL: "1",
     };
 
     const result = resolveVerifiedClientIp(
@@ -430,6 +490,10 @@ describe("api module hardening", () => {
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
       NEXT_PUBLIC_API_URL: "http://localhost:3000",
       NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+      CF_PAGES: undefined,
+      CF_PAGES_URL: undefined,
+      VERCEL: undefined,
+      VERCEL_URL: undefined,
     };
     delete process.env.API_SECRET_TOKEN;
     delete process.env.ALLOW_INSECURE_LOCALHOST_SECRETS;
@@ -963,7 +1027,78 @@ describe("api module hardening", () => {
     });
   });
 
-  it("partitions unverified public-read fallbacks into derived anonymous buckets", async () => {
+  it("can defer successful rate-limit pending work on hot paths", async () => {
+    let resolvePending: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      resolvePending = resolve;
+    });
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 10_000,
+      pending,
+    });
+
+    const response = await checkRateLimit(
+      createApiRequest(),
+      { ip: "127.0.0.1" },
+      "Test API",
+      "test_api",
+      { limit } as never,
+      { pendingWorkMode: "defer" },
+    );
+
+    expect(response).toBeNull();
+    resolvePending?.();
+    await pending;
+  });
+
+  it("prefers a valid server-issued request-proof token for degraded anonymous buckets", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 12,
+      remaining: 11,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+    const requestProofToken = await createRequestProofToken({
+      ip: "198.51.100.42",
+      userAgent: "AniCardsTest/AnonymousPublicRead",
+    });
+
+    expect(requestProofToken).toBeTruthy();
+
+    const response = await checkRateLimit(
+      new Request("http://localhost/api/test?userId=123", {
+        headers: {
+          cookie: `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`,
+          origin: "http://localhost",
+          "user-agent": "AniCardsTest/AnonymousPublicRead",
+        },
+      }),
+      {
+        ip: "unknown",
+        reason: "missing_trusted_header",
+        verified: false,
+      },
+      "Test API",
+      "test_api",
+      { limit } as never,
+      { allowUnverifiedFallback: true },
+    );
+
+    expect(response).toBeNull();
+
+    const derivedBucketKey = String(limit.mock.calls[0]?.[0]);
+    expect(derivedBucketKey).toMatch(
+      /^anonymous:test_api:proof:[A-Za-z0-9_-]+$/,
+    );
+  });
+
+  it("collapses unsigned degraded public-read fallbacks to a coarse immutable bucket", async () => {
     const limit = mock().mockResolvedValue({
       success: true,
       limit: 12,
@@ -991,10 +1126,7 @@ describe("api module hardening", () => {
     );
 
     expect(response).toBeNull();
-
-    const derivedBucketKey = String(limit.mock.calls[0]?.[0]);
-    expect(derivedBucketKey).toMatch(/^anonymous:test_api:[A-Za-z0-9_-]+$/);
-    expect(derivedBucketKey).not.toBe("anonymous:test_api");
+    expect(limit.mock.calls[0]?.[0]).toBe("anonymous:test_api:coarse");
   });
   it("returns a 429 response with rate-limit headers and forwarded request-id propagation", async () => {
     const reset = Date.now() + 5_000;
@@ -1231,7 +1363,7 @@ describe("api module hardening", () => {
     });
   });
 
-  it("short-circuits initializeApiRequest with a forwarded request-id aware rate-limit response", async () => {
+  it("short-circuits initializeApiRequest with forwarded request and operation IDs on rate-limit responses", async () => {
     const limiter = {
       limit: mock().mockResolvedValue({
         success: false,
@@ -1244,6 +1376,7 @@ describe("api module hardening", () => {
 
     const result = await initializeApiRequest(
       createApiRequest({
+        [OPERATION_ID_HEADER]: "op-init-limited-12345",
         [INTERNAL_REQUEST_ID_HEADER]: "req-init-limited-12345",
       }),
       "Test API",
@@ -1257,6 +1390,9 @@ describe("api module hardening", () => {
     expect(result.errorResponse?.status).toBe(429);
     expect(result.errorResponse?.headers.get("X-Request-Id")).toBe(
       "req-init-limited-12345",
+    );
+    expect(result.errorResponse?.headers.get("X-Operation-Id")).toBe(
+      "op-init-limited-12345",
     );
   });
 
@@ -1416,9 +1552,10 @@ describe("api module hardening", () => {
     });
   });
 
-  it("builds apiErrorResponse payloads with merged headers and forwarded request-id exposure", async () => {
+  it("builds apiErrorResponse payloads with merged headers, reserved field protection, and forwarded ID exposure", async () => {
     const response = apiErrorResponse(
       createApiRequest({
+        [OPERATION_ID_HEADER]: "op-api-error-12345",
         [INTERNAL_REQUEST_ID_HEADER]: "req-api-error-12345",
       }),
       422,
@@ -1431,7 +1568,10 @@ describe("api module hardening", () => {
         category: "invalid_data",
         retryable: false,
         additionalFields: {
+          category: "server_error",
           field: "username",
+          retryable: true,
+          status: 500,
         },
       },
     );
@@ -1442,11 +1582,15 @@ describe("api module hardening", () => {
     );
     expect(response.headers.get("X-Debug-Token")).toBe("trace-123");
     expect(response.headers.get("X-Request-Id")).toBe("req-api-error-12345");
+    expect(response.headers.get("X-Operation-Id")).toBe("op-api-error-12345");
     expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
       "X-Debug-Token",
     );
     expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
       "X-Request-Id",
+    );
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Operation-Id",
     );
 
     const body = await response.json();

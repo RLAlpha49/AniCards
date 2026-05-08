@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   fetchUpstreamWithRetry,
   UpstreamCircuitOpenError,
+  UpstreamTransportError,
 } from "@/lib/api/upstream";
 import {
   allowConsoleWarningsAndErrors,
@@ -251,5 +252,31 @@ describe("lib/api/upstream shared circuit breaker", () => {
 
     expect(response.status).toBe(503);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps upstream transport public messages sanitized while preserving internal detail", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.reject(new Error("socket hang up on upstream edge")),
+    ) as unknown as typeof fetch;
+
+    let thrownError: unknown;
+
+    try {
+      await fetchUpstreamWithRetry({
+        service: "AniList GraphQL",
+        url: "https://graphql.anilist.co",
+        maxAttempts: 1,
+      });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).toBeInstanceOf(UpstreamTransportError);
+    expect((thrownError as UpstreamTransportError).message).toContain(
+      "socket hang up on upstream edge",
+    );
+    expect((thrownError as UpstreamTransportError).publicMessage).toBe(
+      "Upstream service is temporarily unavailable",
+    );
   });
 });

@@ -44,7 +44,17 @@ function setEnvironment(
   nodeEnv: "development" | "production" | "test",
   includeToken = false,
 ) {
-  process.env = { ...process.env, NODE_ENV: nodeEnv };
+  process.env = {
+    ...process.env,
+    CF_PAGES: undefined,
+    CF_PAGES_URL: undefined,
+    NEXT_PUBLIC_API_URL: "http://localhost",
+    NEXT_PUBLIC_APP_URL: "http://localhost",
+    NEXT_PUBLIC_SITE_URL: "http://localhost",
+    NODE_ENV: nodeEnv,
+    VERCEL: nodeEnv === "production" ? "1" : undefined,
+    VERCEL_URL: undefined,
+  };
   if (includeToken) {
     process.env.ANILIST_TOKEN = "dummy-token";
   } else {
@@ -256,6 +266,23 @@ describe("AniList API Route", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("rejects inherited prototype operation names with the strict own-property allowlist", async () => {
+    setEnvironment("test");
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "__proto__",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("Unsupported AniList operation");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid user identifiers before contacting AniList", async () => {
     setEnvironment("test");
     const capturedIncr = captureSharedRedisIncrCalls();
@@ -397,7 +424,9 @@ describe("AniList API Route", () => {
       );
 
       expect(response.status).toBe(400);
-      expect((await response.json()).error).toContain("Invalid query");
+      expect((await response.json()).error).toBe(
+        "AniList request was rejected",
+      );
 
       await flushScheduledTelemetryTasksForTests();
       expect(capturedIncr.calls).toContainEqual([
@@ -422,7 +451,9 @@ describe("AniList API Route", () => {
     );
 
     expect(response.status).toBe(500);
-    expect((await response.json()).error).toBe("User not found");
+    expect((await response.json()).error).toBe(
+      "AniList is temporarily unavailable",
+    );
   });
 
   it("wraps upstream transport failures", async () => {
@@ -441,7 +472,9 @@ describe("AniList API Route", () => {
     );
 
     expect(response.status).toBe(502);
-    expect((await response.json()).error).toContain("Network error");
+    expect((await response.json()).error).toBe(
+      "AniList is temporarily unavailable",
+    );
   });
 
   it("surfaces upstream timeouts as 504 responses", async () => {
@@ -460,7 +493,7 @@ describe("AniList API Route", () => {
     );
 
     expect(response.status).toBe(504);
-    expect((await response.json()).error).toContain("timed out");
+    expect((await response.json()).error).toBe("AniList request timed out");
   });
 
   it("propagates Retry-After when the shared upstream circuit is already open", async () => {
@@ -500,7 +533,31 @@ describe("AniList API Route", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
 
     const body = (await response.json()) as { error: string };
-    expect(body.error).toContain("circuit breaker is open");
+    expect(body.error).toBe("AniList is temporarily unavailable");
+  });
+
+  it("applies the route-local limiter before forwarding protected proxy calls", async () => {
+    setEnvironment("test");
+    sharedRatelimitMockLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 60,
+      remaining: 0,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toBe("Too many requests");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("handles invalid JSON request bodies gracefully", async () => {

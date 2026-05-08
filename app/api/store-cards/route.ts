@@ -14,6 +14,7 @@ import { apiJsonHeaders, jsonWithCors } from "@/lib/api/cors";
 import { apiErrorResponse, handleError } from "@/lib/api/errors";
 import { logPrivacySafe, logSuccess } from "@/lib/api/logging";
 import { createProtectedWriteGrantCookieHeader } from "@/lib/api/protected-write-grants";
+import { createRateLimiter } from "@/lib/api/rate-limit";
 import { readJsonRequestBody } from "@/lib/api/request-body";
 import {
   initializeApiRequest,
@@ -48,6 +49,12 @@ import {
   getColorInvalidReason,
   validateColorValue,
 } from "@/lib/utils";
+
+const storeCardsWriteRateLimiter = createRateLimiter({
+  limit: 10,
+  window: "5 s",
+  prefix: "store-cards-write",
+});
 
 function sanitizeStoredBorderColor(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -2052,7 +2059,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     request,
     "Store Cards",
     "store_cards",
-    undefined,
+    storeCardsWriteRateLimiter,
     {
       requireRequestProof: true,
       requireVerifiedClientIp: true,

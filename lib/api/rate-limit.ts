@@ -10,6 +10,7 @@ import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import {
   getRequestProofCookie,
+  isServerIssuedRequestProofToken,
   resolveVerifiedClientIp,
   type VerifiedClientIpResult,
 } from "@/lib/api/request-proof";
@@ -40,6 +41,7 @@ type CreateRateLimiterOptions = {
 
 type CheckRateLimitOptions = {
   allowUnverifiedFallback?: boolean;
+  pendingWorkMode?: "await" | "defer";
   requireVerifiedIp?: boolean;
   unverifiedFallbackKey?: string;
   unverifiedFallbackLimiter?: Ratelimit;
@@ -89,62 +91,43 @@ export function getRateLimitIdentity(request?: Request): RateLimitIdentity {
   return createRateLimitIdentity(resolveVerifiedClientIp(request));
 }
 
-function normalizeUnverifiedFingerprintValue(
-  value: string | null | undefined,
-  maxLength: number,
-): string | null {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) {
-    return null;
-  }
+type UnverifiedRateLimitBucket = {
+  bucketKey: string;
+  bucketStrategy: "coarse" | "request_proof";
+};
 
-  return normalized.slice(0, maxLength);
-}
-
-function buildUnverifiedRateLimitBucketKey(
+async function buildUnverifiedRateLimitBucketKey(
   request: Request | undefined,
   endpointKey: string,
-): string {
+): Promise<UnverifiedRateLimitBucket> {
   if (!request) {
-    return `anonymous:${endpointKey}`;
+    return {
+      bucketKey: `anonymous:${endpointKey}:coarse`,
+      bucketStrategy: "coarse",
+    };
   }
 
   const requestProofCookie = getRequestProofCookie(request)?.trim();
-  const fingerprintSource = (() => {
-    if (requestProofCookie) {
-      return `request-proof:${requestProofCookie}`;
-    }
 
-    let host = normalizeUnverifiedFingerprintValue(
-      request.headers.get("host"),
-      160,
-    );
-    let pathname = "/";
+  if (
+    requestProofCookie &&
+    (await isServerIssuedRequestProofToken(requestProofCookie))
+  ) {
+    const requestProofHash = createHash("sha256")
+      .update(requestProofCookie)
+      .digest("base64url")
+      .slice(0, 24);
 
-    try {
-      const parsedUrl = new URL(request.url);
-      host ??= normalizeUnverifiedFingerprintValue(parsedUrl.host, 160);
-      pathname = parsedUrl.pathname;
-    } catch {
-      // Fall back to the existing header-derived values when URL parsing fails.
-    }
+    return {
+      bucketKey: `anonymous:${endpointKey}:proof:${requestProofHash}`,
+      bucketStrategy: "request_proof",
+    };
+  }
 
-    return [
-      `host:${host ?? "missing"}`,
-      `origin:${normalizeUnverifiedFingerprintValue(request.headers.get("origin"), 160) ?? "missing"}`,
-      `ua:${normalizeUnverifiedFingerprintValue(request.headers.get("user-agent"), 160) ?? "missing"}`,
-      `lang:${normalizeUnverifiedFingerprintValue(request.headers.get("accept-language"), 64) ?? "missing"}`,
-      `site:${normalizeUnverifiedFingerprintValue(request.headers.get("sec-fetch-site"), 32) ?? "missing"}`,
-      `path:${pathname}`,
-    ].join("|");
-  })();
-
-  const fingerprintHash = createHash("sha256")
-    .update(fingerprintSource)
-    .digest("base64url")
-    .slice(0, 24);
-
-  return `anonymous:${endpointKey}:${fingerprintHash}`;
+  return {
+    bucketKey: `anonymous:${endpointKey}:coarse`,
+    bucketStrategy: "coarse",
+  };
 }
 
 type RateLimiterRuntimeState =
@@ -360,14 +343,14 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   },
 }) as unknown as Ratelimit;
 
-function resolveRateLimitRequest(
+async function resolveRateLimitRequest(
   request: Request | undefined,
   identity: RateLimitIdentity,
   endpointName: string,
   endpointKey: string,
   limiter: Ratelimit | undefined,
   options: CheckRateLimitOptions | undefined,
-): ResolvedRateLimitRequest {
+): Promise<ResolvedRateLimitRequest> {
   let effectiveLimiter = limiter ?? ratelimit;
   let ip = identity.ip;
   const shouldRejectUnverifiedIp =
@@ -411,9 +394,14 @@ function resolveRateLimitRequest(
   }
 
   if (identity.verified === false && options?.allowUnverifiedFallback) {
-    ip =
-      options.unverifiedFallbackKey ??
-      buildUnverifiedRateLimitBucketKey(request, endpointKey);
+    const unverifiedBucket = options.unverifiedFallbackKey
+      ? {
+          bucketKey: options.unverifiedFallbackKey,
+          bucketStrategy: "coarse" as const,
+        }
+      : await buildUnverifiedRateLimitBucketKey(request, endpointKey);
+
+    ip = unverifiedBucket.bucketKey;
     effectiveLimiter = options.unverifiedFallbackLimiter ?? effectiveLimiter;
 
     logPrivacySafe(
@@ -421,6 +409,7 @@ function resolveRateLimitRequest(
       endpointName,
       "Using an anonymous public-read rate-limit bucket because the client IP could not be verified.",
       {
+        bucketStrategy: unverifiedBucket.bucketStrategy,
         bucketKey: ip,
         reason: identity.reason,
         source: identity.source ?? "unverified",
@@ -632,7 +621,7 @@ export async function checkRateLimit(
   limiter?: Ratelimit,
   options?: CheckRateLimitOptions,
 ): Promise<NextResponse<ApiError> | null> {
-  const resolvedRequest = resolveRateLimitRequest(
+  const resolvedRequest = await resolveRateLimitRequest(
     request,
     identity,
     endpointName,
@@ -678,7 +667,11 @@ export async function checkRateLimit(
 
   const result = attempt.result;
 
-  await flushRateLimitPendingWork(result.pending, endpointName);
+  if (options?.pendingWorkMode === "defer") {
+    void flushRateLimitPendingWork(result.pending, endpointName);
+  } else {
+    await flushRateLimitPendingWork(result.pending, endpointName);
+  }
 
   const limit = typeof result.limit === "number" ? result.limit : 0;
   const remaining = typeof result.remaining === "number" ? result.remaining : 0;

@@ -28,6 +28,14 @@ export interface ApiError {
 
 export type ApiErrorResponsePayload = ApiError & Record<string, unknown>;
 
+const RESERVED_API_ERROR_FIELDS = new Set<keyof ApiError>([
+  "error",
+  "category",
+  "retryable",
+  "status",
+  "recoverySuggestions",
+]);
+
 interface SafeStructuredApiError extends Error {
   cause?: unknown;
   statusCode?: number;
@@ -299,9 +307,19 @@ function createApiErrorPayload(
     return payload;
   }
 
+  const safeAdditionalFields = Object.fromEntries(
+    Object.entries(options.additionalFields).filter(
+      ([key]) => !RESERVED_API_ERROR_FIELDS.has(key as keyof ApiError),
+    ),
+  );
+
+  if (Object.keys(safeAdditionalFields).length === 0) {
+    return payload;
+  }
+
   return {
     ...payload,
-    ...options.additionalFields,
+    ...safeAdditionalFields,
   };
 }
 

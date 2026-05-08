@@ -1810,25 +1810,25 @@ paths:
                 invalidInline:
                   value:
                     error: "Provided content is not a valid SVG"
-                    category: "server_error"
-                    retryable: true
+                    category: "invalid_data"
+                    retryable: false
                     status: 415
                     recoverySuggestions:
-                      - title: "Try again later"
-                        description: "The server is experiencing issues. Please try again in a moment."
-                      - title: "Contact support"
-                        description: "If the problem persists, please contact our support team"
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
                 invalidFetched:
                   value:
                     error: "Fetched content is not a valid SVG"
-                    category: "server_error"
-                    retryable: true
+                    category: "invalid_data"
+                    retryable: false
                     status: 415
                     recoverySuggestions:
-                      - title: "Try again later"
-                        description: "The server is experiencing issues. Please try again in a moment."
-                      - title: "Contact support"
-                        description: "If the problem persists, please contact our support team"
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                      - title: "Try different settings"
+                        description: "Verify that your color selections and card options are valid"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "500":

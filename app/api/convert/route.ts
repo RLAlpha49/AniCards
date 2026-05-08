@@ -1016,8 +1016,6 @@ function createSvgFetchErrorResponse(
   status: number,
   message: string,
   options?: {
-    category?: "invalid_data";
-    retryable?: boolean;
     headers?: Record<string, string>;
   },
 ): { errorResponse: NextResponse } {
@@ -1027,8 +1025,6 @@ function createSvgFetchErrorResponse(
   return {
     errorResponse: apiErrorResponse(request, status, message, {
       headers: options?.headers,
-      category: options?.category,
-      retryable: options?.retryable,
     }),
   };
 }
@@ -1042,10 +1038,6 @@ async function readValidatedSvgResponse(
       request,
       403,
       "SVG redirects are not allowed",
-      {
-        category: "invalid_data",
-        retryable: false,
-      },
     );
   }
 
@@ -1064,10 +1056,6 @@ async function readValidatedSvgResponse(
       request,
       415,
       "Fetched content is not a valid SVG",
-      {
-        category: "invalid_data",
-        retryable: false,
-      },
     );
   }
 
