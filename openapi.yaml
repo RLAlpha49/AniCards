@@ -824,7 +824,7 @@ paths:
       summary: "Retrieve a stored user record"
       description: >-
         Resolves a stored user by numeric `userId` or by normalized `username`.
-        When both are provided, `userId` wins. The public response intentionally
+        Providing both selectors is rejected with `400`. The public response intentionally
         omits internal request metadata such as redacted IP buckets and record
         timestamps. The exposed `recordMeta.snapshot` identifier is limited to a
         stable token plus revision and does not include `updatedAt` or

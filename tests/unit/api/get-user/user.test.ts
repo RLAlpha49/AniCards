@@ -387,12 +387,15 @@ describe("User API GET Endpoint", () => {
       expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
-    it("should prioritize userId over username when both are provided", async () => {
-      mockStoredParts();
-
-      await expectOkJson("userId=123&username=ignored");
+    it("should reject requests that provide both userId and username", async () => {
+      await expectError(
+        "userId=123&username=ignored",
+        400,
+        "Provide either userId or username, not both",
+      );
 
       expect(sharedRedisMockGet).not.toHaveBeenCalledWith("username:ignored");
+      expect(sharedRedisMockMget).not.toHaveBeenCalled();
     });
 
     it("should return 404 when username index does not exist", async () => {

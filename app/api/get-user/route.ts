@@ -174,6 +174,23 @@ async function resolveLookupTarget(
     );
   }
 
+  if (userIdParam && usernameParam) {
+    return respondWithUserApiError(
+      request,
+      400,
+      "Provide either userId or username, not both",
+      "Conflicting lookup selectors provided",
+      {
+        userId: userIdParam,
+        username: usernameParam,
+      },
+      {
+        reasonCode: "conflicting_lookup_target",
+        startTime,
+      },
+    );
+  }
+
   if (userIdParam) {
     const numericUserId = parseStrictPositiveInteger(userIdParam);
     if (!numericUserId) {
