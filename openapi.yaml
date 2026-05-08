@@ -4267,7 +4267,6 @@ components:
           items:
             $ref: "#/components/schemas/LooseObject"
       required:
-        - pageInfo
         - reviews
 
     UserRecommendationsPage:
@@ -4281,7 +4280,6 @@ components:
           items:
             $ref: "#/components/schemas/LooseObject"
       required:
-        - pageInfo
         - recommendations
 
     MediaListCollection:
@@ -4331,9 +4329,13 @@ components:
           $ref: "#/components/schemas/MediaListCollection"
         mangaDropped:
           $ref: "#/components/schemas/MediaListCollection"
-        animeWatching:
+        animeCurrent:
           $ref: "#/components/schemas/MediaListCollection"
-        mangaReading:
+        mangaCurrent:
+          $ref: "#/components/schemas/MediaListCollection"
+        animeRewatched:
+          $ref: "#/components/schemas/MediaListCollection"
+        mangaReread:
           $ref: "#/components/schemas/MediaListCollection"
       required:
         - User
