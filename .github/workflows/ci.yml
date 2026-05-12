@@ -288,13 +288,8 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Run unit tests with coverage
+      - name: Run unit tests with coverage gate
         run: bun run test:unit:coverage
-
-      - name: Enforce unit test line coverage threshold
-        env:
-          COVERAGE_LINES_THRESHOLD: "73"
-        run: bun run test:unit:coverage:check
 
       - name: Upload unit test coverage
         if: ${{ always() }}
