@@ -14,6 +14,7 @@ import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
 import {
   createDeferred,
   flushMicrotasks,
+  flushMicrotasksAndTimers,
   installHappyDom,
   resetHappyDom,
   restoreHappyDom,
@@ -163,11 +164,7 @@ function createSuccessfulBootstrapResponse(
 
 async function flushLoader(rounds = 12) {
   await act(async () => {
-    await flushMicrotasks(rounds);
-    await new Promise<void>((resolve) => {
-      globalThis.setTimeout(resolve, 0);
-    });
-    await flushMicrotasks(rounds);
+    await flushMicrotasksAndTimers({ microtaskRounds: rounds });
   });
 }
 
@@ -219,11 +216,7 @@ describe("useUserDataLoader", () => {
   });
 
   afterAll(async () => {
-    await flushMicrotasks(10);
-    await new Promise<void>((resolve) => {
-      globalThis.setTimeout(resolve, 0);
-    });
-    await flushMicrotasks(10);
+    await flushMicrotasksAndTimers({ microtaskRounds: 10 });
     mock.restore();
     restoreHappyDom();
   });

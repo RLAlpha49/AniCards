@@ -249,6 +249,26 @@ export async function flushMicrotasks(rounds = 6) {
   }
 }
 
+export async function flushMacrotasks(rounds = 1) {
+  for (let index = 0; index < rounds; index += 1) {
+    await new Promise<void>((resolve) => {
+      globalThis.setTimeout(resolve, 0);
+    });
+    await Promise.resolve();
+  }
+}
+
+export async function flushMicrotasksAndTimers(options?: {
+  macrotaskRounds?: number;
+  microtaskRounds?: number;
+}) {
+  const { macrotaskRounds = 1, microtaskRounds = 6 } = options ?? {};
+
+  await flushMicrotasks(microtaskRounds);
+  await flushMacrotasks(macrotaskRounds);
+  await flushMicrotasks(microtaskRounds);
+}
+
 export function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;

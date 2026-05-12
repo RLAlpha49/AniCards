@@ -22,6 +22,7 @@ import {
   parseRequestInitJson,
 } from "@/tests/unit/__setup__";
 import {
+  flushMacrotasks,
   installHappyDom,
   resetHappyDom,
   restoreHappyDom,
@@ -158,10 +159,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   cleanup();
-  await Promise.resolve();
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
+  await flushMacrotasks();
 });
 
 afterAll(() => {

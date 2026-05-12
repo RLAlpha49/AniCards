@@ -13,7 +13,7 @@ import {
 import type { ComponentProps, ReactNode } from "react";
 
 import {
-  flushMicrotasks,
+  flushMicrotasksAndTimers,
   installHappyDom,
   resetHappyDom,
   restoreHappyDom,
@@ -216,10 +216,7 @@ beforeAll(() => {
 
 afterEach(async () => {
   cleanup();
-  await flushMicrotasks();
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
+  await flushMicrotasksAndTimers();
   restoreMatchMedia?.();
   restoreElementConstructors?.();
   restoreNodeFilter?.();
@@ -231,10 +228,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  await flushMicrotasks();
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
+  await flushMicrotasksAndTimers();
   mock.restore();
   restoreHappyDom();
 });

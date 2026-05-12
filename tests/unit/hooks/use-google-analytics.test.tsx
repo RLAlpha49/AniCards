@@ -11,6 +11,7 @@ import {
 import { ANALYTICS_CONSENT_STORAGE_KEY } from "@/lib/utils/google-analytics";
 import {
   flushMicrotasks,
+  flushMicrotasksAndTimers,
   installHappyDom,
   resetHappyDom,
   restoreHappyDom,
@@ -91,11 +92,7 @@ function getReportedErrorPayload(callIndex = 0) {
 }
 
 async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
-  await flushMicrotasks(cycles);
-  await new Promise<void>((resolve) => {
-    globalThis.setTimeout(resolve, 0);
-  });
-  await flushMicrotasks(cycles);
+  await flushMicrotasksAndTimers({ microtaskRounds: cycles });
 }
 
 async function waitForReportedAnalyticsCalls(

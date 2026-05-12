@@ -13,6 +13,7 @@ import {
 import { type ComponentProps, forwardRef, type ReactNode } from "react";
 
 import {
+  flushMacrotasks,
   installHappyDom,
   resetHappyDom,
   restoreHappyDom,
@@ -305,11 +306,7 @@ function switchToUserIdMode(view: ReturnType<typeof render>) {
 }
 
 async function flushAnimationFrames(count = 2) {
-  for (let frame = 0; frame < count; frame += 1) {
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0);
-    });
-  }
+  await flushMacrotasks(count);
 }
 
 function createUser() {

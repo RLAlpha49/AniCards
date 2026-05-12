@@ -12,19 +12,10 @@ import {
   trackError,
 } from "@/lib/utils/google-analytics";
 import { parseRequestInitJson } from "@/tests/unit/__setup__";
+import { flushMicrotasksAndTimers } from "@/tests/unit/hooks/test-helpers";
 
 async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
-  for (let index = 0; index < cycles; index++) {
-    await Promise.resolve();
-  }
-
-  await new Promise<void>((resolve) => {
-    globalThis.setTimeout(resolve, 0);
-  });
-
-  for (let index = 0; index < cycles; index++) {
-    await Promise.resolve();
-  }
+  await flushMicrotasksAndTimers({ microtaskRounds: cycles });
 }
 
 async function waitForReportedAnalyticsCalls(
