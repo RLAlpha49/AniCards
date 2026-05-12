@@ -32,6 +32,44 @@ jobs:
           TARGET_URL: ${{ github.event.deployment_status.target_url }}
         run: bun ./scripts/resolve-playwright-deployment-url.ts
 
+      - name: Allowlist deployed smoke target before secret use
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+        run: |
+          bun --eval '
+          const {
+            ANICARDS_PRODUCTION_HOST,
+            isTrustedAniCardsPreviewHost,
+            resolveTrustedAniCardsBaseUrl,
+          } = await import("./lib/playwright-base-url.ts");
+
+          const rawEnvironment = (process.env.DEPLOYMENT_ENVIRONMENT ?? "").trim();
+          const normalizedEnvironment = rawEnvironment.toLowerCase();
+          const environmentKind = normalizedEnvironment.startsWith("production")
+            ? "production"
+            : normalizedEnvironment.startsWith("preview")
+              ? "preview"
+              : null;
+
+          if (!environmentKind) {
+            throw new Error(`Deployment environment is not allowlisted for secret-bearing smoke checks: ${rawEnvironment || "<empty>"}`);
+          }
+
+          const resolvedTarget = resolveTrustedAniCardsBaseUrl(process.env.PLAYWRIGHT_BASE_URL, "PLAYWRIGHT_BASE_URL");
+          const hostname = resolvedTarget.parsedUrl.hostname;
+
+          if (environmentKind === "production" && hostname !== ANICARDS_PRODUCTION_HOST) {
+            throw new Error(`Production smoke checks must target ${ANICARDS_PRODUCTION_HOST}; received ${hostname}.`);
+          }
+
+          if (environmentKind === "preview" && !isTrustedAniCardsPreviewHost(hostname)) {
+            throw new Error(`Preview smoke checks must target an allowlisted AniCards Vercel preview host; received ${hostname}.`);
+          }
+
+          console.log(`[INFO] Approved ${environmentKind} deployed smoke target: ${resolvedTarget.origin}`);
+          '
+
       - name: Run deployed smoke route matrix (readiness + Chromium)
         id: playwright_deployed
         env:
