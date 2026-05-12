@@ -5,13 +5,14 @@
   "license": "MIT",
   "x-anicards-override-review": {
     "entries": {
+      "@radix-ui/react-slot": "Pins the shared Radix slot runtime to 1.2.4 so the shipped dependency graph stays on one reviewed patch line.",
       "@emnapi/runtime": "Temporary semver-compatible dedupe override to collapse wasm-runtime consumers onto 1.9.0 while sharp-related and resolver transitive ranges catch up.",
       "flatted": "Keeps flat-cache on a patched transitive release while upstream ranges still allow older versions.",
-      "minimatch": "Applies a minimum safe floor for legacy transitive consumers that still request older vulnerable 3.x releases.",
-      "picomatch": "Applies a minimum safe floor for tooling transitive consumers while upstream ranges still allow older 4.x releases.",
+      "minimatch": "Pins the reviewed safe minimatch release so dependency refresh PRs stay bounded and diffable.",
+      "picomatch": "Pins the reviewed safe picomatch release so tooling refreshes stay within the approved patch line.",
       "postcss": "Routes transitive PostCSS consumers to the direct dependency version via npm's $postcss alias, avoiding EOVERRIDE while keeping Next.js off 8.4.31.",
-      "smol-toml": "Keeps Knip's TOML parser dependency on a patched minimum release.",
-      "yaml": "Applies a minimum safe floor for CLI and tooling consumers such as Knip and lint-staged."
+      "smol-toml": "Pins Knip's TOML parser dependency to the reviewed patched release instead of leaving it open-ended.",
+      "yaml": "Pins the reviewed safe YAML parser release for CLI and tooling consumers such as Knip and lint-staged."
     }
   },
   "scripts": {
@@ -126,14 +127,15 @@
     "typescript-eslint": "^8.59.1"
   },
   "overrides": {
+    "@radix-ui/react-slot": "1.2.4",
     "@emnapi/runtime": "1.9.0",
     "dompurify": "3.4.2",
     "flatted": "3.4.2",
-    "minimatch": ">=3.1.6",
-    "picomatch": ">=4.0.4",
+    "minimatch": "10.2.4",
+    "picomatch": "4.0.4",
     "postcss": "$postcss",
-    "smol-toml": ">=1.6.1",
+    "smol-toml": "1.6.1",
     "uuid": "14.0.0",
-    "yaml": ">=2.8.3"
+    "yaml": "2.8.3"
   }
 }
