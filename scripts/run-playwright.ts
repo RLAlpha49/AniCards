@@ -357,6 +357,10 @@ function formatDeployedSmokeReadinessWaitMessage(options: {
   return `[INFO] Waiting for deployed target (${attempt}) after ${lastKind}${formatWaitStatusSuffix(lastStatus)}: ${target.origin}`;
 }
 
+function isDeployedSmokeReadinessErrorMessage(message: string): boolean {
+  return message.startsWith("Deployed smoke ");
+}
+
 type DeployedSmokeReadinessAttemptState = {
   lastError?: string;
   lastKind: Exclude<DeployedSmokeReadinessStatus, "ready">;
@@ -398,7 +402,7 @@ async function getDeployedSmokeReadinessAttemptState(options: {
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message.startsWith("Deployed smoke target")
+      isDeployedSmokeReadinessErrorMessage(error.message)
     ) {
       throw error;
     }

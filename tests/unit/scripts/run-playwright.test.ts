@@ -1,8 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 
 import {
   classifyDeployedSmokeReadinessStatus,
   DEPLOYED_SMOKE_TEST_GREP,
+  main,
   resolveDeployedSmokeTarget,
   resolvePlaywrightRunConfiguration,
   resolvePlaywrightRunMode,
@@ -10,7 +11,91 @@ import {
   waitForDeployedSmokeReadiness,
 } from "../../../scripts/run-playwright";
 
+const originalAbortSignalTimeout = AbortSignal.timeout;
+
+type BunxInvocation = {
+  args: string[];
+  env: {
+    PLAYWRIGHT_FULL_MATRIX: string | null;
+    PLAYWRIGHT_LOCAL_PRODUCTION: string | null;
+    PLAYWRIGHT_MATRIX_LITE: string | null;
+  };
+};
+
+async function runPlaywrightCliProbe(options: {
+  args: string[];
+  exitCode?: number;
+}) {
+  const exitCode = options.exitCode ?? 0;
+  const originalSpawnSync = Bun.spawnSync;
+  const originalProcessExit = process.exit;
+  let invocation: BunxInvocation | undefined;
+
+  try {
+    Bun.spawnSync = ((spawnOptions: {
+      cmd: string[];
+      env?: Record<string, string>;
+    }) => {
+      invocation = {
+        args: spawnOptions.cmd.slice(1),
+        env: {
+          PLAYWRIGHT_FULL_MATRIX:
+            spawnOptions.env?.PLAYWRIGHT_FULL_MATRIX ?? null,
+          PLAYWRIGHT_LOCAL_PRODUCTION:
+            spawnOptions.env?.PLAYWRIGHT_LOCAL_PRODUCTION ?? null,
+          PLAYWRIGHT_MATRIX_LITE:
+            spawnOptions.env?.PLAYWRIGHT_MATRIX_LITE ?? null,
+        },
+      };
+
+      return {
+        exitCode,
+      };
+    }) as typeof Bun.spawnSync;
+
+    process.exit = ((code?: number) => {
+      throw new Error(`__RUN_PLAYWRIGHT_EXIT__${code ?? 0}`);
+    }) as typeof process.exit;
+
+    await expect(
+      main(["bun", "scripts/run-playwright.ts", ...options.args]),
+    ).rejects.toThrow(`__RUN_PLAYWRIGHT_EXIT__${exitCode}`);
+
+    if (!invocation) {
+      throw new Error("Expected Bun.spawnSync to be called.");
+    }
+
+    return {
+      invocation,
+      subprocess: {
+        exitCode,
+        stderr: new Uint8Array(),
+        stdout: new Uint8Array(),
+      },
+    };
+  } finally {
+    Bun.spawnSync = originalSpawnSync;
+    process.exit = originalProcessExit;
+  }
+}
+
 describe("run-playwright", () => {
+  beforeEach(() => {
+    Object.defineProperty(AbortSignal, "timeout", {
+      configurable: true,
+      value: () => new AbortController().signal,
+      writable: true,
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(AbortSignal, "timeout", {
+      configurable: true,
+      value: originalAbortSignalTimeout,
+      writable: true,
+    });
+  });
+
   it("keeps the default test run on chromium only", () => {
     expect(resolveRequestedProjectMatrix(["--grep", "home"])).toBe("default");
     expect(
@@ -31,6 +116,18 @@ describe("run-playwright", () => {
         PLAYWRIGHT_MATRIX_LITE: "1",
       },
     });
+  });
+
+  it("parses spaced --project arguments across the default, lite, and full matrix branches", () => {
+    expect(resolveRequestedProjectMatrix(["--project", "chromium"])).toBe(
+      "default",
+    );
+    expect(resolveRequestedProjectMatrix(["--project", "firefox"])).toBe(
+      "matrix-lite",
+    );
+    expect(resolveRequestedProjectMatrix(["--project", "mobile-safari"])).toBe(
+      "full-matrix",
+    );
   });
 
   it("reserves the full matrix for full-only project requests", () => {
@@ -110,6 +207,12 @@ describe("run-playwright", () => {
     });
   });
 
+  it("rejects deployed smoke runs when PLAYWRIGHT_BASE_URL is missing", () => {
+    expect(() =>
+      resolvePlaywrightRunConfiguration("deployed-smoke", [], {}),
+    ).toThrow(/PLAYWRIGHT_BASE_URL is required/i);
+  });
+
   it("rejects missing and invalid run modes before launching Playwright", () => {
     expect(() => resolvePlaywrightRunMode(undefined)).toThrow(
       /Missing Playwright run mode/i,
@@ -185,6 +288,34 @@ describe("run-playwright", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("treats malformed redirect targets as http errors", async () => {
+    const target = resolveDeployedSmokeTarget({
+      PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
+    });
+
+    await expect(
+      waitForDeployedSmokeReadiness(
+        target,
+        {
+          VERCEL_AUTOMATION_BYPASS_SECRET: "test-secret",
+        },
+        {
+          fetchFn: async () =>
+            new Response("", {
+              status: 302,
+              headers: {
+                location: "https://[",
+              },
+            }),
+          logger: { info: () => {} },
+          now: () => 0,
+          sleep: async () => {},
+          timeoutMs: 1,
+        },
+      ),
+    ).rejects.toThrow(/unexpected HTTP 302/i);
+  });
+
   it("retries retryable deployed smoke responses until the target becomes reachable", async () => {
     const target = resolveDeployedSmokeTarget({
       PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
@@ -235,6 +366,67 @@ describe("run-playwright", () => {
     ).rejects.toThrow(/VERCEL_AUTOMATION_BYPASS_SECRET/i);
   });
 
+  it("surfaces unexpected http readiness failures with the last status", async () => {
+    const target = resolveDeployedSmokeTarget({
+      PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
+    });
+
+    await expect(
+      waitForDeployedSmokeReadiness(
+        target,
+        {
+          VERCEL_AUTOMATION_BYPASS_SECRET: "test-secret",
+        },
+        {
+          fetchFn: async () => new Response("", { status: 418 }),
+          logger: { info: () => {} },
+          now: () => 0,
+          sleep: async () => {},
+          timeoutMs: 1,
+        },
+      ),
+    ).rejects.toThrow(/unexpected HTTP 418/i);
+  });
+
+  it("reports network readiness failures with wait logging and the last error detail", async () => {
+    const target = resolveDeployedSmokeTarget({
+      PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
+    });
+    const messages: string[] = [];
+    let now = 0;
+
+    await expect(
+      waitForDeployedSmokeReadiness(
+        target,
+        {},
+        {
+          fetchFn: async () => {
+            throw new Error("socket hang up");
+          },
+          logger: {
+            info: (message) => {
+              messages.push(message);
+            },
+          },
+          now: () => now,
+          sleep: async (delayMs) => {
+            now += delayMs;
+          },
+          timeoutMs: 2_500,
+        },
+      ),
+    ).rejects.toThrow(/socket hang up/i);
+
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /waiting for deployed target \(1\) after a network error/i,
+        ),
+      ]),
+    );
+    expect(messages.at(0)).toMatch(/socket hang up/i);
+  });
+
   it("reports the last retryable status when deployed smoke never becomes ready", async () => {
     const target = resolveDeployedSmokeTarget({
       PLAYWRIGHT_BASE_URL: "https://anicards-preview-123.vercel.app",
@@ -258,5 +450,32 @@ describe("run-playwright", () => {
         },
       ),
     ).rejects.toThrow(/did not become ready.*503/i);
+  });
+
+  it("launches Playwright through bunx with passthrough args and matrix env overrides", async () => {
+    const { invocation, subprocess } = await runPlaywrightCliProbe({
+      args: [
+        "test-e2e",
+        "tests/e2e/user/user-mobile.spec.ts",
+        "--project",
+        "firefox",
+      ],
+      exitCode: 17,
+    });
+
+    expect(subprocess.exitCode).toBe(17);
+    expect(new TextDecoder().decode(subprocess.stderr).trim()).toBe("");
+    expect(invocation.args).toEqual([
+      "playwright",
+      "test",
+      "tests/e2e/user/user-mobile.spec.ts",
+      "--project",
+      "firefox",
+    ]);
+    expect(invocation.env).toEqual({
+      PLAYWRIGHT_FULL_MATRIX: null,
+      PLAYWRIGHT_LOCAL_PRODUCTION: null,
+      PLAYWRIGHT_MATRIX_LITE: "1",
+    });
   });
 });
