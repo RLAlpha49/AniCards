@@ -123,18 +123,16 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Load synthetic production env fixture
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        uses: ./.github/actions/production-env-fixture
+        with:
+          validate: "true"
+
       - name: Run Bun typecheck and build for scheduled security baseline
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        env:
-          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-          UPSTASH_REDIS_REST_URL: https://example.upstash.io
-          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
-          CRON_SECRET: ci-placeholder-cron-secret
-          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
           bun run typecheck
-          bun run validate:production-env
           bun run build
 
       - name: Perform CodeQL Analysis

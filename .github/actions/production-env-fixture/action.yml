@@ -1,0 +1,28 @@
+name: Synthetic Production Env Fixture
+description: Export the shared placeholder production env contract for validation and builds.
+
+inputs:
+  validate:
+    description: Run `bun run validate:production-env` after exporting the fixture.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Export synthetic production env fixture
+      shell: bash
+      run: |
+        {
+          printf '%s\n' 'NEXT_PUBLIC_API_URL=https://api.anicards.alpha49.com'
+          printf '%s\n' 'NEXT_PUBLIC_APP_URL=https://anicards.alpha49.com'
+          printf '%s\n' 'UPSTASH_REDIS_REST_URL=https://example.upstash.io'
+          printf '%s\n' 'UPSTASH_REDIS_REST_TOKEN=ci-placeholder-upstash-token'
+          printf '%s\n' 'CRON_SECRET=ci-placeholder-cron-secret'
+          printf '%s\n' 'API_SECRET_TOKEN=ci-placeholder-request-proof-secret'
+        } >> "$GITHUB_ENV"
+
+    - name: Validate production env contract
+      if: ${{ inputs.validate == 'true' }}
+      shell: bash
+      run: bun run validate:production-env

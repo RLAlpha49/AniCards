@@ -123,6 +123,10 @@ jobs:
             printf '%s\n' "has_manifest_updates=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Load synthetic production env fixture
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
+        uses: ./.github/actions/production-env-fixture
+
       - name: Report lockfile convergence hotspots
         id: convergence-report
         run: |
@@ -259,12 +263,6 @@ jobs:
         if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
         env:
           HAS_MANIFEST_UPDATES: ${{ steps.check-updates.outputs.has_manifest_updates }}
-          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-          UPSTASH_REDIS_REST_URL: https://example.upstash.io
-          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
-          CRON_SECRET: ci-placeholder-cron-secret
-          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
         run: |
           set -euo pipefail
 

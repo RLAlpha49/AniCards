@@ -127,6 +127,11 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Load synthetic production env fixture
+        uses: ./.github/actions/production-env-fixture
+        with:
+          validate: "true"
+
       - name: Enforce dependency license policy
         run: bun run check:licenses
 
@@ -220,17 +225,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-cache-${{ hashFiles('**/bun.lock') }}-
 
-      - name: Validate production env contract and build project
-        env:
-          NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
-          NEXT_PUBLIC_APP_URL: https://anicards.alpha49.com
-          UPSTASH_REDIS_REST_URL: https://example.upstash.io
-          UPSTASH_REDIS_REST_TOKEN: ci-placeholder-upstash-token
-          CRON_SECRET: ci-placeholder-cron-secret
-          API_SECRET_TOKEN: ci-placeholder-request-proof-secret
-        run: |
-          bun run validate:production-env
-          bun run build
+      - name: Build project
+        run: bun run build
 
       - name: Upload Next build
         uses: actions/upload-artifact@v7
