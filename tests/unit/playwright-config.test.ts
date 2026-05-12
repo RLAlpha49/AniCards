@@ -241,6 +241,29 @@ describe("playwright.config", () => {
     );
   });
 
+  it("lets explicit matrix-lite env override the default CI full matrix", async () => {
+    const module = await importPlaywrightConfigModule("matrix-lite-ci");
+    const config = module.createPlaywrightConfig({
+      CI: "true",
+      PLAYWRIGHT_MATRIX_LITE: "1",
+    });
+
+    expect(config.projects?.map((project) => project.name)).toEqual([
+      "chromium",
+      "mobile-chrome",
+      "firefox",
+      "mobile-safari",
+    ]);
+
+    const mobileSafariProject = config.projects?.find(
+      (project) => project.name === "mobile-safari",
+    );
+
+    expect(mobileSafariProject?.grep).toEqual(
+      module.PLAYWRIGHT_LIGHTWEIGHT_MOBILE_TEST_GREP,
+    );
+  });
+
   it("normalizes trusted preview URLs and sends only approved bypass headers", async () => {
     const module = await importPlaywrightConfigModule("trusted-preview");
     const resolvedBaseUrl = module.resolvePlaywrightBaseUrl(

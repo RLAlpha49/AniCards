@@ -24,6 +24,9 @@ jobs:
     outputs:
       app_validation: ${{ steps.classify.outputs.app_validation }}
       dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
+      e2e_artifact_name: ${{ steps.classify.outputs.e2e_artifact_name }}
+      e2e_scope: ${{ steps.classify.outputs.e2e_scope }}
+      e2e_script: ${{ steps.classify.outputs.e2e_script }}
       workflow_files: ${{ steps.classify.outputs.workflow_files }}
 
     steps:
@@ -45,6 +48,7 @@ jobs:
           workflow_files=false
           app_validation=false
           dependency_policy=false
+          e2e_scope=default
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             base_sha="${PR_BASE_SHA}"
@@ -57,6 +61,7 @@ jobs:
             workflow_files=true
             app_validation=true
             dependency_policy=true
+            e2e_scope=full-matrix
           else
             mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
 
@@ -74,6 +79,17 @@ jobs:
               esac
 
               case "$file" in
+                app/*|components/*|hooks/*|public/*|tests/e2e/*|next.config.ts|playwright.config.ts|proxy.ts|scripts/run-playwright.ts)
+                  e2e_scope=full-matrix
+                  ;;
+                lib/*|tests/unit/*|package.json|bun.lock|eslint.config.mjs|postcss.config.mjs|tsconfig.json|bunfig.toml|next-env.d.ts)
+                  if [ "$e2e_scope" != "full-matrix" ]; then
+                    e2e_scope=matrix-lite
+                  fi
+                  ;;
+              esac
+
+              case "$file" in
                 dependency-license-policy.json|scripts/check-licenses.mjs|package.json|bun.lock|.github/workflows/check-updates.yml|.github/workflows/ci.yml|.github/workflows/dependency-review.yml|.github/workflows/security-audits.yml)
                   dependency_policy=true
                   ;;
@@ -83,10 +99,29 @@ jobs:
             printf '%s\n' "Compared $base_sha -> $GITHUB_SHA across ${#changed_files[@]} changed file(s)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          case "$e2e_scope" in
+            full-matrix)
+              e2e_script=test:e2e:ci:full-matrix
+              e2e_artifact_name=playwright-report-full-matrix
+              ;;
+            matrix-lite)
+              e2e_script=test:e2e:ci:matrix-lite
+              e2e_artifact_name=playwright-report-matrix-lite
+              ;;
+            *)
+              e2e_scope=default
+              e2e_script=test:e2e:ci:chromium
+              e2e_artifact_name=playwright-report-chromium
+              ;;
+          esac
+
           {
             printf '%s\n' "workflow_files=$workflow_files"
             printf '%s\n' "app_validation=$app_validation"
             printf '%s\n' "dependency_policy=$dependency_policy"
+            printf '%s\n' "e2e_scope=$e2e_scope"
+            printf '%s\n' "e2e_script=$e2e_script"
+            printf '%s\n' "e2e_artifact_name=$e2e_artifact_name"
           } >> "$GITHUB_OUTPUT"
 
           {
@@ -94,6 +129,7 @@ jobs:
             printf '%s\n' ''
             printf '%s\n' "- Workflow lint: \`$workflow_files\`"
             printf '%s\n' "- App validation lanes (lint/typecheck/unused/build/tests): \`$app_validation\`"
+            printf '%s\n' "- Playwright scope: \`$e2e_scope\` via \`$e2e_script\`"
             printf '%s\n' "- Dependency license policy lane: \`$dependency_policy\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -271,7 +307,7 @@ jobs:
           retention-days: 7
 
   e2e-playwright:
-    name: ${{ matrix.name }}
+    name: E2E Playwright (${{ needs.changes.outputs.e2e_scope }})
     timeout-minutes: 25
     runs-on: ubuntu-latest
     needs: [changes, build]
@@ -279,22 +315,6 @@ jobs:
     permissions:
       actions: read
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: E2E Chromium
-            artifact_name: playwright-report-chromium
-            script: test:e2e:ci:chromium
-          - name: E2E Mobile Chrome
-            artifact_name: playwright-report-mobile-chrome
-            script: test:e2e:ci:mobile-chrome
-          - name: E2E Firefox Routes
-            artifact_name: playwright-report-firefox
-            script: test:e2e:ci:firefox-routes
-          - name: E2E Firefox Smoke
-            artifact_name: playwright-report-firefox-smoke
-            script: test:e2e:ci:firefox-smoke
     env:
       NEXT_PUBLIC_SITE_URL: https://anicards.alpha49.com
       NEXT_PUBLIC_API_URL: https://api.anicards.alpha49.com
@@ -318,13 +338,13 @@ jobs:
 
       - name: Run Playwright lane
         id: playwright
-        run: bun run ${{ matrix.script }}
+        run: bun run ${{ needs.changes.outputs.e2e_script }}
 
       - name: Upload Playwright artifacts
         if: ${{ always() && steps.playwright.outcome == 'failure' }}
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact_name }}
+          name: ${{ needs.changes.outputs.e2e_artifact_name }}
           path: |
             .artifacts/playwright-report
             .artifacts/playwright-test-results

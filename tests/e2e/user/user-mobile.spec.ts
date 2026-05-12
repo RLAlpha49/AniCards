@@ -35,6 +35,10 @@ function getVisibleNoJsLookupCta(page: Page): Locator {
   return page.locator("[data-testid='search-lookup-cta']:visible").first();
 }
 
+function getSearchNoscriptFallbackSurface(page: Page): Locator {
+  return page.locator("[data-search-noscript-fallback='true']").first();
+}
+
 async function expectMinTouchTarget(locator: Locator, label: string) {
   await expect(locator).toBeVisible();
 
@@ -54,6 +58,64 @@ async function expectMinTouchTarget(locator: Locator, label: string) {
     Math.round(box.height),
     `${label} height should round to the 44px mobile touch-target baseline`,
   ).toBeGreaterThanOrEqual(44);
+}
+
+async function expectContainedWithinSurface(options: {
+  label: string;
+  locator: Locator;
+  page: Page;
+  surface: Locator;
+}) {
+  const { label, locator, page, surface } = options;
+
+  await expect(surface).toBeVisible();
+  await expect(locator).toBeVisible();
+
+  const [surfaceBox, targetBox] = await Promise.all([
+    surface.evaluate((node) => {
+      const rect = (node as HTMLElement).getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+      };
+    }),
+    locator.evaluate((node) => {
+      const rect = (node as HTMLElement).getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+      };
+    }),
+  ]);
+
+  const viewport = page.viewportSize();
+
+  if (!viewport) {
+    throw new Error(
+      "Expected a configured viewport for mobile fallback checks",
+    );
+  }
+
+  expect(
+    targetBox.left,
+    `${label} should stay within the fallback surface`,
+  ).toBeGreaterThanOrEqual(surfaceBox.left - 1);
+  expect(
+    targetBox.right,
+    `${label} should stay within the fallback surface`,
+  ).toBeLessThanOrEqual(surfaceBox.right + 1);
+  expect(
+    targetBox.top,
+    `${label} should stay within the fallback surface`,
+  ).toBeGreaterThanOrEqual(surfaceBox.top - 1);
+  expect(
+    targetBox.right,
+    `${label} should stay within the mobile viewport width`,
+  ).toBeLessThanOrEqual(viewport.width + 1);
 }
 
 test.describe("User page mobile ergonomics", () => {
@@ -236,11 +298,12 @@ test.describe("User page mobile ergonomics", () => {
 });
 
 test.describe("Mobile progressive enhancement", () => {
-  test("keeps the mobile search flow usable without JavaScript", async ({
+  test("keeps the mobile search flow usable without JavaScript @mobile-lite", async ({
     browser,
   }, testInfo) => {
     const { context, page, url } = await createProjectPage(browser, testInfo, {
       javaScriptEnabled: false,
+      viewport: MOBILE_VIEWPORT,
     });
 
     try {
@@ -248,10 +311,28 @@ test.describe("Mobile progressive enhancement", () => {
         waitUntil: "load",
       });
 
+      const fallbackSurface = getSearchNoscriptFallbackSurface(page);
       const usernameInput = getVisibleNoJsSearchInput(page);
+      const submitButton = getVisibleNoJsSearchSubmitButton(page);
+
+      expect(page.viewportSize()).toEqual(MOBILE_VIEWPORT);
+      await expectContainedWithinSurface({
+        label: "Search fallback input",
+        locator: usernameInput,
+        page,
+        surface: fallbackSurface,
+      });
       await expect(usernameInput).toBeVisible({ timeout: 15000 });
+      await expectMinTouchTarget(usernameInput, "Search fallback input");
       await usernameInput.fill("Alpha49");
-      await getVisibleNoJsSearchSubmitButton(page).click();
+      await expectContainedWithinSurface({
+        label: "Search fallback submit button",
+        locator: submitButton,
+        page,
+        surface: fallbackSurface,
+      });
+      await expectMinTouchTarget(submitButton, "Search fallback submit button");
+      await submitButton.click();
 
       await expect(page).toHaveURL(/\/search\?query=Alpha49/i, {
         timeout: 15000,
@@ -261,7 +342,19 @@ test.describe("Mobile progressive enhancement", () => {
       const lookupCta = getVisibleNoJsLookupCta(page);
 
       await expect(lookupResult).toBeVisible({ timeout: 15000 });
+      await expectContainedWithinSurface({
+        label: "Search fallback lookup result",
+        locator: lookupResult,
+        page,
+        surface: fallbackSurface,
+      });
       await expect(lookupCta).toHaveAttribute("href", "/user?username=Alpha49");
+      await expectContainedWithinSurface({
+        label: "Search fallback continue CTA",
+        locator: lookupCta,
+        page,
+        surface: fallbackSurface,
+      });
       await expectMinTouchTarget(lookupCta, "Search fallback continue link");
 
       await lookupCta.click();

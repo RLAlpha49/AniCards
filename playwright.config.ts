@@ -77,15 +77,16 @@ function getLocalServerCommand(
 function resolveProjectMatrixMode(
   env: PlaywrightEnv,
 ): PlaywrightProjectMatrixMode {
-  if (
-    isCiRuntime(env) ||
-    isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"))
-  ) {
+  if (isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_FULL_MATRIX"))) {
     return "full-matrix";
   }
 
   if (isEnabledFlag(readOptionalEnvValue(env, "PLAYWRIGHT_MATRIX_LITE"))) {
     return "matrix-lite";
+  }
+
+  if (isCiRuntime(env)) {
+    return "full-matrix";
   }
 
   return "default";
