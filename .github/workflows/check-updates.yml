@@ -19,33 +19,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check-updates:
+  discover-updates:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-    env:
-      PR_BRANCH: deps/update-packages
+      contents: read
+    outputs:
+      change_kind: ${{ steps.validate-update.outputs.change_kind }}
+      has_changes: ${{ steps.validate-update.outputs.has_changes }}
+      pr_body: ${{ steps.compose-pr-body.outputs.pr_body }}
+      run_mode: ${{ steps.automation-mode.outputs.run_mode }}
+      should_apply: ${{ steps.automation-mode.outputs.should_apply }}
 
     steps:
-      - name: Require PULL_REQUEST_TOKEN for downstream workflow enforcement
-        env:
-          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
-        run: |
-          if [ -z "$PULL_REQUEST_TOKEN" ]; then
-            echo "::error::PULL_REQUEST_TOKEN is required for dependency update branch and PR automation because GITHUB_TOKEN-originated pushes can suppress downstream CI and security workflows."
-            exit 1
-          fi
-
-          printf '%s\n' "Dependency updater will use PULL_REQUEST_TOKEN so downstream push and pull_request workflows can run normally." >> "$GITHUB_STEP_SUMMARY"
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.PULL_REQUEST_TOKEN }}
-          persist-credentials: false
 
       - name: Setup Bun dependencies
         uses: ./.github/actions/setup-bun
@@ -234,31 +223,7 @@ jobs:
             printf '%s\n' 'These hotspots are reported only; the workflow does not attempt automatic dedupe, override, or lockfile rewrites beyond validated dependency refreshes.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare update branch
-        id: prepare-branch
-        if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
-        env:
-          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
-        run: |
-          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
-
-          git remote set-url origin "$remote_url"
-          trap 'git remote set-url origin "$public_remote"' EXIT
-
-          git fetch origin main "$PR_BRANCH" || true
-
-          if git ls-remote --exit-code --heads origin "$PR_BRANCH" > /dev/null 2>&1; then
-            echo "[INFO] Reusing existing update branch: $PR_BRANCH"
-            git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
-          else
-            echo "[INFO] Creating update branch from origin/main: $PR_BRANCH"
-            git checkout -B "$PR_BRANCH" origin/main
-          fi
-
-          printf '%s\n' "pr_branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
-
-      - name: Refresh dependencies and validate before commit
+      - name: Refresh dependencies and validate before publish
         id: validate-update
         if: ${{ steps.automation-mode.outputs.should_apply == 'true' }}
         env:
@@ -307,27 +272,69 @@ jobs:
 
           printf '%s\n' "$change_summary" >> "$GITHUB_STEP_SUMMARY"
 
-          bun run lint:check
-          bun run typecheck
-          bun run test:unit
-          bun run validate:production-env
-          bun run build
-          bun run check:licenses
-
-          git add package.json bun.lock
-          if git diff --cached --quiet; then
-            echo "[INFO] No package.json or bun.lock changes remain after validation"
-            {
-              printf '%s\n' "has_changes=false"
-              printf '%s\n' "change_kind=none"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          bun run validate:ci
 
           {
             printf '%s\n' "has_changes=true"
             printf '%s\n' "change_kind=$change_kind"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Compose sanitized dependency PR body
+        id: compose-pr-body
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' && steps.validate-update.outputs.has_changes == 'true' }}
+        env:
+          CHANGE_KIND: ${{ steps.validate-update.outputs.change_kind }}
+          HOTSPOT_SUMMARY: ${{ steps.convergence-report.outputs.hotspot_summary }}
+          RUN_MODE: ${{ steps.automation-mode.outputs.run_mode }}
+          UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
+        run: |
+          BODY_FILE=$(mktemp)
+
+          {
+            printf '%s\n' '## 📦 Dependency Updates'
+            printf '%s\n' ''
+            printf '%s\n' 'This branch was regenerated only after the read-only dependency refresh job completed successfully and produced validated package changes.'
+            printf '%s\n' ''
+            printf '%s\n' "Refresh mode: \`$RUN_MODE\`."
+            printf '%s\n' "Change kind: \`$CHANGE_KIND\`."
+            printf '%s\n' ''
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>Direct package.json updates</summary>'
+            printf '%s\n' ''
+            if [ "$UPDATE_INFO" = '{}' ]; then
+              printf '%s\n' 'No direct package.json semver bumps were needed for this refresh.'
+            else
+              printf '%s\n' '```json'
+              printf '%s\n' "$UPDATE_INFO"
+              printf '%s\n' '```'
+            fi
+            printf '%s\n' '</details>'
+            printf '%s\n' ''
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>Lockfile convergence hotspots (advisory)</summary>'
+            printf '%s\n' ''
+            printf '%s\n' "$HOTSPOT_SUMMARY"
+            printf '%s\n' ''
+            printf '%s\n' 'No automatic dedupe or override changes were applied beyond the validated refresh artifact.'
+            printf '%s\n' '</details>'
+          } > "$BODY_FILE"
+
+          {
+            printf '%s\n' 'pr_body<<EOF'
+            cat "$BODY_FILE"
+            printf '%s\n' 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload validated dependency refresh bundle
+        if: ${{ steps.automation-mode.outputs.should_apply == 'true' && steps.validate-update.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-refresh-bundle
+          path: |
+            package.json
+            bun.lock
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload dependency license policy report
         if: ${{ always() && steps.automation-mode.outputs.should_apply == 'true' }}
@@ -339,8 +346,72 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  publish-updates:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    needs: [discover-updates]
+    if: ${{ needs.discover-updates.outputs.should_apply == 'true' }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      PR_BRANCH: deps/update-packages
+
+    steps:
+      - name: Require PULL_REQUEST_TOKEN for downstream workflow enforcement
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+        run: |
+          if [ -z "$PULL_REQUEST_TOKEN" ]; then
+            echo "::error::PULL_REQUEST_TOKEN is required for dependency update branch and PR automation because GITHUB_TOKEN-originated pushes can suppress downstream CI and security workflows."
+            exit 1
+          fi
+
+          printf '%s\n' 'Dependency publisher will use PULL_REQUEST_TOKEN so downstream push and pull_request workflows can run normally.' >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PULL_REQUEST_TOKEN }}
+          persist-credentials: false
+
+      - name: Prepare update branch
+        if: ${{ needs.discover-updates.outputs.has_changes == 'true' }}
+        env:
+          PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
+        run: |
+          remote_url="https://x-access-token:${PULL_REQUEST_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          public_remote="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          git remote set-url origin "$remote_url"
+          trap 'git remote set-url origin "$public_remote"' EXIT
+
+          git fetch origin main "$PR_BRANCH" || true
+
+          if git ls-remote --exit-code --heads origin "$PR_BRANCH" > /dev/null 2>&1; then
+            echo "[INFO] Reusing existing update branch: $PR_BRANCH"
+            git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          else
+            echo "[INFO] Creating update branch from origin/main: $PR_BRANCH"
+            git checkout -B "$PR_BRANCH" origin/main
+          fi
+
+      - name: Download validated dependency refresh bundle
+        if: ${{ needs.discover-updates.outputs.has_changes == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: dependency-refresh-bundle
+          path: .artifacts/dependency-refresh
+
+      - name: Restore validated dependency refresh files
+        if: ${{ needs.discover-updates.outputs.has_changes == 'true' }}
+        run: |
+          cp .artifacts/dependency-refresh/package.json package.json
+          cp .artifacts/dependency-refresh/bun.lock bun.lock
+
       - name: Close stale dependency PR when refresh is clean
-        if: ${{ steps.automation-mode.outputs.should_apply == 'true' && steps.validate-update.outputs.has_changes == 'false' }}
+        if: ${{ needs.discover-updates.outputs.has_changes == 'false' }}
         env:
           GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
@@ -367,8 +438,7 @@ jobs:
           rm -f "$COMMENT_FILE"
 
       - name: Commit and push validated dependency updates
-        id: push-updates
-        if: ${{ steps.validate-update.outputs.has_changes == 'true' }}
+        if: ${{ needs.discover-updates.outputs.has_changes == 'true' }}
         env:
           PULL_REQUEST_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
         run: |
@@ -381,47 +451,26 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
+          git add package.json bun.lock
+
+          if git diff --cached --quiet; then
+            echo '[INFO] Validated dependency bundle already matches the prepared branch; nothing new to commit.'
+            exit 0
+          fi
+
           git commit -m "chore: update dependencies"
           git push -u origin "$PR_BRANCH"
 
       - name: Create or update dependency PR
-        if: ${{ steps.push-updates.outcome == 'success' }}
+        if: ${{ needs.discover-updates.outputs.has_changes == 'true' }}
         env:
-          CHANGE_KIND: ${{ steps.validate-update.outputs.change_kind }}
           GH_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN }}
-          HOTSPOT_SUMMARY: ${{ steps.convergence-report.outputs.hotspot_summary }}
-          UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
+          PR_BODY: ${{ needs.discover-updates.outputs.pr_body }}
         run: |
           PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
           COMMENT_FILE=$(mktemp)
 
-          {
-            printf '%s\n' '## 📦 Dependency Updates'
-            printf '%s\n' ''
-            printf '%s\n' 'This branch was regenerated after passing dependency refresh and validation.'
-            printf '%s\n' ''
-            printf '%s\n' "Change kind: \`$CHANGE_KIND\`."
-            printf '%s\n' ''
-            printf '%s\n' '<details>'
-            printf '%s\n' '<summary>Direct package.json updates</summary>'
-            printf '%s\n' ''
-            if [ "$UPDATE_INFO" = '{}' ]; then
-              printf '%s\n' 'No direct package.json semver bumps were needed for this refresh.'
-            else
-              printf '%s\n' '```json'
-              printf '%s\n' "$UPDATE_INFO"
-              printf '%s\n' '```'
-            fi
-            printf '%s\n' '</details>'
-            printf '%s\n' ''
-            printf '%s\n' '<details>'
-            printf '%s\n' '<summary>Lockfile convergence hotspots (advisory)</summary>'
-            printf '%s\n' ''
-            printf '%s\n' "$HOTSPOT_SUMMARY"
-            printf '%s\n' ''
-            printf '%s\n' 'No automatic dedupe or override changes were applied.'
-            printf '%s\n' '</details>'
-          } > "$COMMENT_FILE"
+          printf '%s\n' "$PR_BODY" > "$COMMENT_FILE"
 
           if [ -n "$PR_NUMBER" ]; then
             echo "[INFO] Commenting on existing dependency PR #$PR_NUMBER"
