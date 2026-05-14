@@ -86,6 +86,12 @@ export interface TelemetryWriteHealthSnapshot {
   lastRecoveryAt?: string;
 }
 
+export interface TelemetrySnapshotReadResult<TSnapshot> {
+  degraded: boolean;
+  failure?: string;
+  snapshot: TSnapshot | null;
+}
+
 type TelemetryWriteFailureKind =
   | "analytics_increment"
   | "analytics_batch"
@@ -519,39 +525,103 @@ export function isExcludedAnalyticsReportStateKey(key: string): boolean {
   return EXCLUDED_ANALYTICS_REPORT_STATE_KEYS.has(key);
 }
 
-export async function readTelemetryWriteHealthSnapshot(): Promise<TelemetryWriteHealthSnapshot> {
+export async function readTelemetryWriteHealthSnapshotResult(): Promise<
+  TelemetrySnapshotReadResult<TelemetryWriteHealthSnapshot>
+> {
   const inMemorySnapshot = buildTelemetryWriteHealthSnapshot();
 
   try {
-    const storedSnapshot = parseTelemetryWriteHealthSnapshot(
-      await redisClient.get(TELEMETRY_WRITE_HEALTH_KEY),
-    );
+    const storedSnapshotRaw = await redisClient.get(TELEMETRY_WRITE_HEALTH_KEY);
+
+    if (storedSnapshotRaw === null || storedSnapshotRaw === undefined) {
+      return {
+        degraded: false,
+        snapshot: inMemorySnapshot,
+      };
+    }
+
+    const storedSnapshot = parseTelemetryWriteHealthSnapshot(storedSnapshotRaw);
 
     if (!storedSnapshot) {
-      return inMemorySnapshot;
+      return {
+        degraded: true,
+        failure: "telemetry_write_health_invalid",
+        snapshot: inMemorySnapshot,
+      };
     }
 
     if (!hasTelemetryWriteHealthActivity(inMemorySnapshot)) {
-      return storedSnapshot;
+      return {
+        degraded: false,
+        snapshot: storedSnapshot,
+      };
     }
 
-    return getTelemetryWriteHealthRecency(inMemorySnapshot) >=
-      getTelemetryWriteHealthRecency(storedSnapshot)
-      ? inMemorySnapshot
-      : storedSnapshot;
+    return {
+      degraded: false,
+      snapshot:
+        getTelemetryWriteHealthRecency(inMemorySnapshot) >=
+        getTelemetryWriteHealthRecency(storedSnapshot)
+          ? inMemorySnapshot
+          : storedSnapshot,
+    };
   } catch {
-    return inMemorySnapshot;
+    return {
+      degraded: true,
+      failure: "telemetry_write_health_unavailable",
+      snapshot: inMemorySnapshot,
+    };
+  }
+}
+
+export async function readTelemetryWriteHealthSnapshot(): Promise<TelemetryWriteHealthSnapshot> {
+  return (
+    (await readTelemetryWriteHealthSnapshotResult()).snapshot ??
+    buildTelemetryWriteHealthSnapshot()
+  );
+}
+
+export async function readCronRefreshBatchTelemetrySnapshotResult(): Promise<
+  TelemetrySnapshotReadResult<CronRefreshBatchTelemetrySnapshot>
+> {
+  try {
+    const storedSnapshotRaw = await redisClient.get(
+      ANALYTICS_CRON_REFRESH_LAST_RUN_KEY,
+    );
+
+    if (storedSnapshotRaw === null || storedSnapshotRaw === undefined) {
+      return {
+        degraded: false,
+        snapshot: null,
+      };
+    }
+
+    const storedSnapshot =
+      parseCronRefreshBatchTelemetrySnapshot(storedSnapshotRaw);
+
+    if (!storedSnapshot) {
+      return {
+        degraded: true,
+        failure: "cron_refresh_snapshot_invalid",
+        snapshot: null,
+      };
+    }
+
+    return {
+      degraded: false,
+      snapshot: storedSnapshot,
+    };
+  } catch {
+    return {
+      degraded: true,
+      failure: "cron_refresh_snapshot_unavailable",
+      snapshot: null,
+    };
   }
 }
 
 export async function readCronRefreshBatchTelemetrySnapshot(): Promise<CronRefreshBatchTelemetrySnapshot | null> {
-  try {
-    return parseCronRefreshBatchTelemetrySnapshot(
-      await redisClient.get(ANALYTICS_CRON_REFRESH_LAST_RUN_KEY),
-    );
-  } catch {
-    return null;
-  }
+  return (await readCronRefreshBatchTelemetrySnapshotResult()).snapshot;
 }
 
 export function scheduleCronRefreshBatchTelemetrySnapshot(

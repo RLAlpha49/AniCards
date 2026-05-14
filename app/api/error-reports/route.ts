@@ -20,6 +20,10 @@ import {
 const ACCEPTED_ERROR_REPORTS_METRIC = "accepted_reports";
 const REJECTED_ERROR_REPORTS_METRIC = "rejected_reports";
 const MAX_REJECTION_ISSUE_FIELDS = 4;
+const MAX_REJECTION_ISSUE_CODES = 4;
+const MAX_REJECTION_ISSUE_PATH_SEGMENTS = 6;
+const MAX_REJECTION_ISSUE_PATHS = 4;
+const MAX_REJECTION_ISSUE_PATH_LENGTH = 80;
 const TRACKED_ERROR_REPORT_SOURCES = new Set<ErrorReportSource>([
   "user_action",
   "client_hook",
@@ -72,6 +76,7 @@ function buildAcceptedErrorReportMetrics(
 function buildRejectedErrorReportBreadcrumb(
   payload: Record<string, unknown>,
   issues: Array<{
+    code: string;
     path: PropertyKey[];
   }>,
 ): Record<string, unknown> {
@@ -86,13 +91,59 @@ function buildRejectedErrorReportBreadcrumb(
     ),
   ).slice(0, MAX_REJECTION_ISSUE_FIELDS);
 
+  const issueCodes = Array.from(
+    new Set(
+      issues
+        .map((issue) => issue.code.trim())
+        .filter((code) => code.length > 0),
+    ),
+  ).slice(0, MAX_REJECTION_ISSUE_CODES);
+
+  const issuePaths = Array.from(
+    new Set(
+      issues
+        .map((issue) =>
+          issue.path
+            .slice(0, MAX_REJECTION_ISSUE_PATH_SEGMENTS)
+            .map((segment, index) => {
+              if (typeof segment === "number") {
+                return `[${String(Math.max(0, Math.trunc(segment)))}]`;
+              }
+
+              if (typeof segment === "string") {
+                const normalizedSegment = segment
+                  .trim()
+                  .replaceAll(/[^a-zA-Z0-9_-]+/g, "_")
+                  .replaceAll(/^_+|_+$/g, "");
+
+                if (normalizedSegment.length === 0) {
+                  return undefined;
+                }
+
+                return index === 0
+                  ? normalizedSegment
+                  : `.${normalizedSegment}`;
+              }
+
+              return undefined;
+            })
+            .filter((segment): segment is string => segment !== undefined)
+            .join("")
+            .slice(0, MAX_REJECTION_ISSUE_PATH_LENGTH),
+        )
+        .filter((path) => path.length > 0),
+    ),
+  ).slice(0, MAX_REJECTION_ISSUE_PATHS);
+
   return {
     source: resolveErrorReportSource(payload.source),
     ...(typeof payload.userAction === "string"
       ? { userAction: payload.userAction }
       : {}),
     issueCount: issues.length,
+    ...(issueCodes.length > 0 ? { issueCodes: issueCodes.join(",") } : {}),
     ...(issueFields.length > 0 ? { issueFields: issueFields.join(",") } : {}),
+    ...(issuePaths.length > 0 ? { issuePaths: issuePaths.join(",") } : {}),
   };
 }
 

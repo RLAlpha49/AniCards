@@ -7,7 +7,9 @@ import {
   extractStructuredErrorContext,
   type StructuredErrorLike,
 } from "@/lib/error-messages";
+import { sanitizeErrorReportRoute } from "@/lib/error-report-sanitization";
 import {
+  type ErrorReportDurabilityStatus,
   getImmediateIncidentReference,
   reportStructuredError,
 } from "@/lib/error-tracking";
@@ -24,7 +26,9 @@ interface AppRouterErrorBoundaryReportingOptions {
 }
 
 interface AppRouterErrorBoundaryReportingResult {
+  debugRoute?: string;
   incidentReference?: string;
+  incidentStatus: ErrorReportDurabilityStatus;
 }
 
 function getCurrentRoute(): string | undefined {
@@ -39,8 +43,8 @@ export function useAppRouterErrorBoundaryReporting(
   props: Readonly<AppRouterErrorBoundaryReportingOptions>,
 ): AppRouterErrorBoundaryReportingResult {
   const { boundary, defaultErrorName, error, logLabel, userAction } = props;
-  const [reportedIncidentReference, setReportedIncidentReference] =
-    useState<string>();
+  const [incidentStatus, setIncidentStatus] =
+    useState<ErrorReportDurabilityStatus>("unconfirmed");
   const pendingIncidentErrorRef = useRef<AppRouterBoundaryError | null>(null);
   const immediateIncidentReferenceRef = useRef<{
     error: AppRouterBoundaryError | null;
@@ -69,7 +73,7 @@ export function useAppRouterErrorBoundaryReporting(
     let isActive = true;
 
     pendingIncidentErrorRef.current = error;
-    setReportedIncidentReference(undefined);
+    setIncidentStatus("unconfirmed");
 
     logPrivacySafe(
       "error",
@@ -91,6 +95,7 @@ export function useAppRouterErrorBoundaryReporting(
     }
 
     void reportStructuredError({
+      id: immediateIncidentReference,
       source: "app_router_error_boundary",
       userAction,
       error,
@@ -110,11 +115,7 @@ export function useAppRouterErrorBoundaryReporting(
         return;
       }
 
-      if (!report?.id || report.id === immediateIncidentReference) {
-        return;
-      }
-
-      setReportedIncidentReference(report.id);
+      setIncidentStatus(report?.durableStatus ?? "unconfirmed");
     });
 
     safeTrack(() =>
@@ -138,6 +139,8 @@ export function useAppRouterErrorBoundaryReporting(
   ]);
 
   return {
-    incidentReference: reportedIncidentReference ?? immediateIncidentReference,
+    debugRoute: sanitizeErrorReportRoute(getCurrentRoute()),
+    incidentReference: immediateIncidentReference,
+    incidentStatus,
   };
 }

@@ -82,6 +82,17 @@ export interface StructuredErrorReport {
   metadata?: Record<string, SerializableMetadataValue>;
 }
 
+export type ErrorReportDurabilityStatus =
+  | "confirmed"
+  | "queued"
+  | "unconfirmed";
+
+export interface ReportedStructuredError extends StructuredErrorReport {
+  degradedPersistenceOperations?: string[];
+  durableStatus: ErrorReportDurabilityStatus;
+  persistenceDegraded?: boolean;
+}
+
 export interface ErrorReportBufferSnapshot {
   capacity: number;
   retained: number;
@@ -454,6 +465,16 @@ let clientErrorReportQueueCircuitBreakerState: ClientErrorReportQueueCircuitBrea
   };
 let pendingVolatileClientErrorReportBreadcrumbs =
   buildEmptyClientErrorReportPendingBreadcrumbs();
+let clientErrorReportBacklogResumeTimer: ReturnType<typeof setTimeout> | null =
+  null;
+let hasInstalledClientErrorReportRecoveryListeners = false;
+
+function clearClientErrorReportBacklogResumeTimer(): void {
+  if (clientErrorReportBacklogResumeTimer !== null) {
+    globalThis.clearTimeout(clientErrorReportBacklogResumeTimer);
+    clientErrorReportBacklogResumeTimer = null;
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -2413,6 +2434,7 @@ function saveClientErrorReportQueueStore(store: {
         getClientErrorReportStorageHandleForKind("session_storage"),
       );
     }
+    scheduleClientErrorReportBacklogResume(store.state);
     return true;
   }
 
@@ -2451,6 +2473,123 @@ function saveClientErrorReportQueueStore(store: {
     store.handle.kind,
   );
   return false;
+}
+
+function getNextClientErrorReportBacklogReplayAt(
+  state: ClientErrorReportQueueState | undefined,
+): number | undefined {
+  const candidateTimestamps: number[] = [];
+
+  const breakerCooldownUntil =
+    getClientErrorReportQueueCircuitBreakerCooldownUntil();
+  if (typeof breakerCooldownUntil === "number") {
+    candidateTimestamps.push(breakerCooldownUntil);
+  }
+
+  if (state) {
+    if (
+      state.reports.some(
+        (report) =>
+          typeof report.nextAttemptAt !== "number" ||
+          report.nextAttemptAt <= Date.now(),
+      )
+    ) {
+      candidateTimestamps.push(Date.now());
+    }
+
+    for (const report of state.reports) {
+      if (typeof report.nextAttemptAt === "number") {
+        candidateTimestamps.push(report.nextAttemptAt);
+      }
+    }
+
+    if (
+      hasPendingClientErrorReportDeliveryOutcomes(
+        state.pendingDurableOutcomes,
+      ) &&
+      typeof breakerCooldownUntil !== "number"
+    ) {
+      candidateTimestamps.push(Date.now());
+    }
+  }
+
+  if (candidateTimestamps.length === 0) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.min(...candidateTimestamps));
+}
+
+function canAttemptClientErrorReportReplayFromVisibilityState(): boolean {
+  if (typeof document === "undefined") {
+    return true;
+  }
+
+  return document.visibilityState !== "hidden";
+}
+
+async function triggerClientErrorReportBacklogReplay(): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return;
+  }
+
+  if (!canAttemptClientErrorReportReplayFromVisibilityState()) {
+    return;
+  }
+
+  await flushClientErrorReportBacklog();
+}
+
+function installClientErrorReportRecoveryListeners(): void {
+  if (
+    hasInstalledClientErrorReportRecoveryListeners ||
+    globalThis.window === undefined ||
+    typeof globalThis.window.addEventListener !== "function"
+  ) {
+    return;
+  }
+
+  const replayBacklog = () => {
+    void triggerClientErrorReportBacklogReplay();
+  };
+
+  globalThis.window.addEventListener("online", replayBacklog);
+  globalThis.window.addEventListener("focus", replayBacklog);
+  globalThis.window.addEventListener("pageshow", replayBacklog);
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        replayBacklog();
+      }
+    });
+  }
+
+  hasInstalledClientErrorReportRecoveryListeners = true;
+}
+
+function scheduleClientErrorReportBacklogResume(
+  state: ClientErrorReportQueueState | undefined,
+): void {
+  if (globalThis.window === undefined) {
+    return;
+  }
+
+  installClientErrorReportRecoveryListeners();
+  clearClientErrorReportBacklogResumeTimer();
+
+  const nextReplayAt = getNextClientErrorReportBacklogReplayAt(state);
+  if (typeof nextReplayAt !== "number") {
+    return;
+  }
+
+  clientErrorReportBacklogResumeTimer = globalThis.setTimeout(
+    () => {
+      clientErrorReportBacklogResumeTimer = null;
+      void triggerClientErrorReportBacklogReplay();
+    },
+    Math.max(0, nextReplayAt - Date.now()),
+  );
 }
 
 function buildClientErrorReportQueueMetadata(
@@ -2758,16 +2897,16 @@ function enqueueQueuedClientErrorReport(report: {
   attempts?: number;
   nextAttemptAt?: number;
   triage?: ClientErrorReportQueueTriage;
-}): void {
+}): boolean {
   if (report.body.length > MAX_CLIENT_QUEUED_ERROR_REPORT_BODY_LENGTH) {
-    return;
+    return false;
   }
 
   const store = loadClientErrorReportQueueStore({
     recordUnavailableBreadcrumb: true,
   });
   if (!store) {
-    return;
+    return false;
   }
 
   if (store.state.reports.length >= MAX_CLIENT_QUEUED_ERROR_REPORTS) {
@@ -2804,7 +2943,7 @@ function enqueueQueuedClientErrorReport(report: {
   });
   store.state.stats.totalQueued += 1;
 
-  saveClientErrorReportQueueStore(store);
+  return saveClientErrorReportQueueStore(store);
 }
 
 function incrementClientErrorReportRateLimitedCount(): void {
@@ -3206,6 +3345,16 @@ function handlePendingClientErrorReportOutcomeFlushFailure(
     openClientErrorReportQueueCircuitBreaker(deliveryError, store.state);
   }
 
+  logClientErrorReportDeliveryWarning(
+    "Failed to flush pending client error-report delivery outcomes",
+    {
+      queueDepth: store.state.reports.length,
+      queueStorage: store.state.stats.storage,
+      retryable: deliveryError.retryable,
+      statusCode: deliveryError.statusCode,
+    },
+  );
+
   saveClientErrorReportQueueStore(store);
 
   if (process.env.NODE_ENV === "development") {
@@ -3349,53 +3498,62 @@ function logStructuredErrorPersistenceWarning(
   });
 }
 
-async function persistEvictedStructuredErrorReportsSafely(
-  reports: StructuredErrorReport[],
-): Promise<void> {
-  try {
-    await appendEvictedStructuredErrorReports(reports);
-  } catch (error) {
-    logStructuredErrorPersistenceWarning(
-      "Failed to persist recent evicted error reports",
-      error,
-    );
-  }
+function logClientErrorReportDeliveryWarning(
+  message: string,
+  context: Record<string, unknown>,
+): void {
+  logPrivacySafe("warn", "ErrorTracking", message, context);
 }
 
-async function updateStructuredErrorBufferCountersSafely(
-  droppedOnWrite: number,
+const STRUCTURED_ERROR_PERSISTENCE_MAX_ATTEMPTS = 3;
+const STRUCTURED_ERROR_PERSISTENCE_BASE_DELAY_MS = 150;
+const STRUCTURED_ERROR_PERSISTENCE_DEADLINE_MS = 2_500;
+
+async function waitForStructuredErrorPersistenceRetry(
+  delayMs: number,
 ): Promise<void> {
-  try {
-    await Promise.all([
-      redisClient.incr(ERROR_REPORTS_TOTAL_KEY),
-      ...(droppedOnWrite > 0
-        ? Array.from({ length: droppedOnWrite }, () =>
-            redisClient.incr(ERROR_REPORTS_DROPPED_KEY),
-          )
-        : []),
-    ]);
-  } catch (error) {
-    logStructuredErrorPersistenceWarning(
-      "Failed to update error-report buffer saturation counters",
-      error,
-    );
-  }
+  await new Promise((resolve) => {
+    globalThis.setTimeout(resolve, delayMs);
+  });
 }
 
-async function updateStructuredErrorRollingWindowSafely(
-  droppedOnWrite: number,
-): Promise<void> {
-  try {
-    await recordErrorReportRollingWindowEvent(droppedOnWrite);
-  } catch (error) {
-    logStructuredErrorPersistenceWarning(
-      "Failed to update rolling error-report window counters",
-      error,
-    );
+async function retryStructuredErrorPersistence<T>(
+  task: () => Promise<T>,
+): Promise<T> {
+  const deadlineAt = Date.now() + STRUCTURED_ERROR_PERSISTENCE_DEADLINE_MS;
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt < STRUCTURED_ERROR_PERSISTENCE_MAX_ATTEMPTS) {
+    attempt += 1;
+
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+
+      const retryDelayMs =
+        STRUCTURED_ERROR_PERSISTENCE_BASE_DELAY_MS * 2 ** (attempt - 1);
+      if (
+        attempt >= STRUCTURED_ERROR_PERSISTENCE_MAX_ATTEMPTS ||
+        Date.now() + retryDelayMs > deadlineAt
+      ) {
+        break;
+      }
+
+      await waitForStructuredErrorPersistenceRetry(retryDelayMs);
+    }
   }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Structured error persistence failed");
 }
 
-function logStructuredErrorBufferEntry(report: StructuredErrorReport): void {
+function logStructuredErrorBufferEntry(
+  report: StructuredErrorReport,
+  degradedPersistenceOperations: string[],
+): void {
   logPrivacySafe("error", "ErrorTracking", "Structured error recorded", {
     source: report.source,
     userAction: report.userAction,
@@ -3405,21 +3563,49 @@ function logStructuredErrorBufferEntry(report: StructuredErrorReport): void {
     retryable: report.retryable,
     route: report.route,
     statusCode: report.statusCode,
+    ...(degradedPersistenceOperations.length > 0
+      ? {
+          degradedPersistenceOperations:
+            degradedPersistenceOperations.join(","),
+          persistenceState: "degraded",
+        }
+      : {
+          persistenceState: "confirmed",
+        }),
   });
+
+  if (degradedPersistenceOperations.length > 0) {
+    logPrivacySafe(
+      "warn",
+      "ErrorTracking",
+      "Structured error persisted with degraded side writes",
+      {
+        degradedPersistenceOperations: degradedPersistenceOperations.join(","),
+        requestId: report.requestId,
+        operationId: report.operationId,
+        source: report.source,
+        userAction: report.userAction,
+      },
+    );
+  }
 
   if (process.env.NODE_ENV === "development") {
     console.error("[ErrorTracking]", report);
   }
 }
 
-async function persistStructuredErrorBufferEntry(
+async function persistStructuredErrorPrimaryEntry(
   report: StructuredErrorReport,
-): Promise<void> {
-  await trimExpiredStructuredErrorReportHead(ERROR_REPORTS_KEY);
+): Promise<{
+  droppedOnWrite: number;
+  evictedReports: StructuredErrorReport[];
+}> {
+  await retryStructuredErrorPersistence(() =>
+    trimExpiredStructuredErrorReportHead(ERROR_REPORTS_KEY),
+  );
 
-  const persistedLength = await redisClient.rpush(
-    ERROR_REPORTS_KEY,
-    JSON.stringify(report),
+  const persistedLength = await retryStructuredErrorPersistence(() =>
+    redisClient.rpush(ERROR_REPORTS_KEY, JSON.stringify(report)),
   );
   const droppedOnWrite = Math.max(0, persistedLength - MAX_ERROR_REPORTS);
   const evictedReports =
@@ -3431,16 +3617,90 @@ async function persistStructuredErrorBufferEntry(
           )
       : [];
 
-  if (droppedOnWrite > 0) {
-    await redisClient.ltrim(ERROR_REPORTS_KEY, droppedOnWrite, -1);
+  return {
+    droppedOnWrite,
+    evictedReports,
+  };
+}
+
+async function syncStructuredErrorPersistenceSideEffects(options: {
+  droppedOnWrite: number;
+  evictedReports: StructuredErrorReport[];
+}): Promise<string[]> {
+  const degradedOperations: string[] = [];
+
+  if (options.droppedOnWrite > 0) {
+    try {
+      await redisClient.ltrim(ERROR_REPORTS_KEY, options.droppedOnWrite, -1);
+    } catch (error) {
+      degradedOperations.push("buffer_trim");
+      logStructuredErrorPersistenceWarning(
+        "Failed to trim the structured error buffer after overflow",
+        error,
+      );
+    }
   }
-  await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
 
-  await persistEvictedStructuredErrorReportsSafely(evictedReports);
-  await updateStructuredErrorBufferCountersSafely(droppedOnWrite);
-  await updateStructuredErrorRollingWindowSafely(droppedOnWrite);
+  try {
+    await redisClient.expire(ERROR_REPORTS_KEY, ERROR_REPORT_RETENTION_SECONDS);
+  } catch (error) {
+    degradedOperations.push("retention_ttl");
+    logStructuredErrorPersistenceWarning(
+      "Failed to refresh structured error buffer retention",
+      error,
+    );
+  }
 
-  logStructuredErrorBufferEntry(report);
+  const sideEffectResults = await Promise.allSettled([
+    appendEvictedStructuredErrorReports(options.evictedReports),
+    Promise.all([
+      redisClient.incr(ERROR_REPORTS_TOTAL_KEY),
+      ...(options.droppedOnWrite > 0
+        ? Array.from({ length: options.droppedOnWrite }, () =>
+            redisClient.incr(ERROR_REPORTS_DROPPED_KEY),
+          )
+        : []),
+    ]),
+    recordErrorReportRollingWindowEvent(options.droppedOnWrite),
+  ]);
+
+  if (sideEffectResults[0]?.status === "rejected") {
+    degradedOperations.push("evicted_summary");
+    logStructuredErrorPersistenceWarning(
+      "Failed to persist recent evicted error reports",
+      sideEffectResults[0].reason,
+    );
+  }
+
+  if (sideEffectResults[1]?.status === "rejected") {
+    degradedOperations.push("buffer_counters");
+    logStructuredErrorPersistenceWarning(
+      "Failed to update error-report buffer saturation counters",
+      sideEffectResults[1].reason,
+    );
+  }
+
+  if (sideEffectResults[2]?.status === "rejected") {
+    degradedOperations.push("rolling_window");
+    logStructuredErrorPersistenceWarning(
+      "Failed to update rolling error-report window counters",
+      sideEffectResults[2].reason,
+    );
+  }
+
+  return degradedOperations;
+}
+
+async function persistStructuredErrorBufferEntry(
+  report: StructuredErrorReport,
+): Promise<string[]> {
+  const primaryPersistence = await persistStructuredErrorPrimaryEntry(report);
+  const degradedPersistenceOperations =
+    await syncStructuredErrorPersistenceSideEffects(primaryPersistence);
+
+  logStructuredErrorBufferEntry(report, degradedPersistenceOperations);
+
+  return degradedPersistenceOperations;
 }
 
 /**
@@ -3501,7 +3761,7 @@ function queueStructuredErrorReportWithCooldown(
   },
   queueStore: ClientErrorReportQueueStore | null,
   breakerCooldownUntil: number,
-): void {
+): ErrorReportDurabilityStatus {
   recordClientErrorReportPendingBreadcrumbForState(queueStore?.state, {
     reason: "queue_breaker_immediate_suppressed",
     timestamp: Date.now(),
@@ -3516,11 +3776,13 @@ function queueStructuredErrorReportWithCooldown(
 
   saveClientErrorReportQueueStoreIfPresent(queueStore);
 
-  enqueueQueuedClientErrorReport({
+  return enqueueQueuedClientErrorReport({
     ...clientReport,
     triage: buildClientErrorReportQueueTriage(report),
     nextAttemptAt: breakerCooldownUntil,
-  });
+  })
+    ? "queued"
+    : "unconfirmed";
 }
 
 async function finalizePostedStructuredErrorReport(
@@ -3541,7 +3803,7 @@ function handleStructuredErrorReportDeliveryFailure(
   },
   queueStore: ClientErrorReportQueueStore | null,
   error: unknown,
-): void {
+): ErrorReportDurabilityStatus {
   const deliveryError = toClientErrorReportDeliveryError(error);
 
   if (deliveryError.statusCode === 429) {
@@ -3551,7 +3813,19 @@ function handleStructuredErrorReportDeliveryFailure(
   if (deliveryError.retryable) {
     openClientErrorReportQueueCircuitBreaker(deliveryError, queueStore?.state);
     saveClientErrorReportQueueStoreIfPresent(queueStore);
-    enqueueQueuedClientErrorReport({
+    logClientErrorReportDeliveryWarning(
+      "Client structured error report delivery failed and was queued for replay",
+      {
+        incidentReference: report.id,
+        queueStorage: queueStore?.state.stats.storage,
+        retryable: true,
+        source: report.source,
+        statusCode: deliveryError.statusCode,
+        userAction: report.userAction,
+      },
+    );
+
+    return enqueueQueuedClientErrorReport({
       ...clientReport,
       triage: buildClientErrorReportQueueTriage(report),
       ...(typeof deliveryError.retryAfterMs === "number"
@@ -3562,9 +3836,21 @@ function handleStructuredErrorReportDeliveryFailure(
             }),
           }
         : {}),
-    });
+    })
+      ? "queued"
+      : "unconfirmed";
   } else {
     recordNonRetryableClientErrorReportDeliveryOutcome(report, deliveryError);
+    logClientErrorReportDeliveryWarning(
+      "Client structured error report delivery failed without a durable fallback",
+      {
+        incidentReference: report.id,
+        retryable: false,
+        source: report.source,
+        statusCode: deliveryError.statusCode,
+        userAction: report.userAction,
+      },
+    );
   }
 
   if (process.env.NODE_ENV === "development") {
@@ -3573,11 +3859,13 @@ function handleStructuredErrorReportDeliveryFailure(
       error,
     );
   }
+
+  return "unconfirmed";
 }
 
 async function postStructuredErrorReport(
   report: StructuredErrorReport,
-): Promise<void> {
+): Promise<ErrorReportDurabilityStatus> {
   const queueStore = loadClientErrorReportQueueStore();
   const clientReport = buildClientErrorReportBody(report, {
     queueState: queueStore?.state,
@@ -3589,20 +3877,20 @@ async function postStructuredErrorReport(
     getClientErrorReportQueueCircuitBreakerCooldownUntil();
 
   if (typeof breakerCooldownUntil === "number") {
-    queueStructuredErrorReportWithCooldown(
+    return queueStructuredErrorReportWithCooldown(
       report,
       clientReport,
       queueStore,
       breakerCooldownUntil,
     );
-    return;
   }
 
   try {
     await deliverClientErrorReport(clientReport);
     await finalizePostedStructuredErrorReport(queueStore);
+    return "confirmed";
   } catch (error) {
-    handleStructuredErrorReportDeliveryFailure(
+    return handleStructuredErrorReportDeliveryFailure(
       report,
       clientReport,
       queueStore,
@@ -3613,19 +3901,31 @@ async function postStructuredErrorReport(
 
 async function executeStructuredErrorReport(
   options: ReportErrorOptions,
-): Promise<StructuredErrorReport> {
+): Promise<ReportedStructuredError> {
   const report = buildStructuredErrorReport(options);
   const executionEnvironment =
     options.executionEnvironment ??
     (globalThis.window === undefined ? "server" : "client");
+  let degradedPersistenceOperations: string[] = [];
+  let durableStatus: ErrorReportDurabilityStatus = "confirmed";
 
   if (executionEnvironment === "server") {
-    await persistStructuredErrorBufferEntry(report);
+    degradedPersistenceOperations =
+      await persistStructuredErrorBufferEntry(report);
   } else {
-    await postStructuredErrorReport(report);
+    durableStatus = await postStructuredErrorReport(report);
   }
 
-  return report;
+  return {
+    ...report,
+    durableStatus,
+    ...(degradedPersistenceOperations.length > 0
+      ? {
+          degradedPersistenceOperations,
+          persistenceDegraded: true,
+        }
+      : {}),
+  };
 }
 
 /**
@@ -3637,7 +3937,7 @@ async function executeStructuredErrorReport(
  */
 export async function recordStructuredErrorOrThrow(
   options: ReportErrorOptions,
-): Promise<StructuredErrorReport> {
+): Promise<ReportedStructuredError> {
   return executeStructuredErrorReport(options);
 }
 
@@ -3649,7 +3949,7 @@ export async function recordStructuredErrorOrThrow(
  */
 export async function reportStructuredError(
   options: ReportErrorOptions,
-): Promise<StructuredErrorReport | null> {
+): Promise<ReportedStructuredError | null> {
   try {
     return await recordStructuredErrorOrThrow(options);
   } catch (error) {
@@ -3684,6 +3984,8 @@ export async function reportStructuredError(
 export function resetClientErrorReportClientStateForTests(): void {
   isFlushingQueuedClientErrorReports = false;
   isFlushingPendingClientErrorReportOutcomes = false;
+  clearClientErrorReportBacklogResumeTimer();
+  hasInstalledClientErrorReportRecoveryListeners = false;
   resetClientErrorReportQueueCircuitBreaker();
   pendingVolatileClientErrorReportBreadcrumbs =
     buildEmptyClientErrorReportPendingBreadcrumbs();
@@ -3716,7 +4018,7 @@ export async function trackUserActionError(
     digest?: string;
     metadata?: Record<string, unknown>;
   },
-): Promise<StructuredErrorReport | null> {
+): Promise<ReportedStructuredError | null> {
   return reportStructuredError({
     userAction,
     error,

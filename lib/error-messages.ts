@@ -12,6 +12,7 @@ export const ERROR_CATEGORIES = [
   "not_found",
   "user_not_found",
   "rate_limited",
+  "client_error",
   "network_error",
   "invalid_data",
   "validation_error",
@@ -57,6 +58,7 @@ export interface ErrorDetails {
   category: ErrorCategory;
   suggestions: RecoverySuggestion[];
   retryable: boolean;
+  retryDelayMs?: number;
   statusCode?: number;
 }
 
@@ -71,8 +73,17 @@ export interface StructuredErrorContext {
 interface GetErrorDetailsOptions {
   category?: ErrorCategory;
   retryable?: boolean;
+  retryDelayMs?: number;
   recoverySuggestions?: RecoverySuggestion[];
 }
+
+const RETRY_DELAY_BY_CATEGORY_MS: Partial<Record<ErrorCategory, number>> = {
+  network_error: 1_500,
+  rate_limited: 3_000,
+  server_error: 2_000,
+  timeout: 2_000,
+  unknown: 1_000,
+};
 
 function isErrorCategoryValue(value: unknown): value is ErrorCategory {
   return (
@@ -178,6 +189,22 @@ function resolveFallbackErrorRetryable(
   }
 
   return statusCode ? statusCode >= 500 : false;
+}
+
+function resolveRetryDelayMs(
+  category: ErrorCategory,
+  retryable: boolean,
+  options: GetErrorDetailsOptions | undefined,
+): number | undefined {
+  if (typeof options?.retryDelayMs === "number") {
+    return Math.max(0, Math.trunc(options.retryDelayMs));
+  }
+
+  if (!retryable) {
+    return undefined;
+  }
+
+  return RETRY_DELAY_BY_CATEGORY_MS[category];
 }
 
 function buildOptionalStatusCodeField(
@@ -317,6 +344,27 @@ const ERROR_MESSAGE_MAP: Record<string, ErrorDetails> = {
       {
         title: "Try again",
         description: "Click the retry button or reload the page to try again",
+      },
+    ],
+  },
+
+  // Generic client-side request failures
+  client_error: {
+    userMessage: "The request couldn't be completed",
+    technicalMessage:
+      "The server rejected this request, but the problem does not look like an internal server failure.",
+    category: "client_error",
+    retryable: false,
+    suggestions: [
+      {
+        title: "Review the action details",
+        description:
+          "Double-check the request details, current page state, or input values before trying again.",
+      },
+      {
+        title: "Reload if the page looks stale",
+        description:
+          "If the page may be out of sync with the latest saved state, reload it before retrying.",
       },
     ],
   },
@@ -521,7 +569,19 @@ const RETRYABLE_ERROR_CATEGORIES = new Set<ErrorCategory>([
  */
 export function categorizeByStatusCode(statusCode?: number): ErrorCategory {
   if (typeof statusCode === "number") {
-    return STATUS_CODE_CATEGORIES[statusCode] || "server_error";
+    const exactMatch = STATUS_CODE_CATEGORIES[statusCode];
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    if (statusCode >= 400 && statusCode <= 499) {
+      return "client_error";
+    }
+
+    if (statusCode >= 500 && statusCode <= 599) {
+      return "server_error";
+    }
   }
 
   return "unknown";
@@ -695,23 +755,33 @@ export function getErrorDetails(
     categoryMatch;
 
   if (template) {
+    const retryable =
+      typeof options?.retryable === "boolean"
+        ? options.retryable
+        : template.retryable;
+
     return {
       ...template,
       category,
-      retryable:
-        typeof options?.retryable === "boolean"
-          ? options.retryable
-          : template.retryable,
+      retryable,
+      retryDelayMs: resolveRetryDelayMs(category, retryable, options),
       suggestions: options?.recoverySuggestions ?? template.suggestions,
       ...buildOptionalStatusCodeField(statusCode),
     };
   }
 
+  const retryable = resolveFallbackErrorRetryable(
+    category,
+    statusCode,
+    options,
+  );
+
   return {
     userMessage: "Something went wrong",
     technicalMessage: message,
     category,
-    retryable: resolveFallbackErrorRetryable(category, statusCode, options),
+    retryable,
+    retryDelayMs: resolveRetryDelayMs(category, retryable, options),
     suggestions: options?.recoverySuggestions ?? [
       {
         title: "Try again",

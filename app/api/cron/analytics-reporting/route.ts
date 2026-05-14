@@ -10,12 +10,14 @@ import {
   buildAnalyticsMetricKey,
   buildFailedRequestMetricKeys,
   buildLatencyBucketMetricKeys,
+  buildReasonCodedMetricKey,
   type CronRefreshBatchTelemetrySnapshot,
   isExcludedAnalyticsReportStateKey,
-  readCronRefreshBatchTelemetrySnapshot,
-  readTelemetryWriteHealthSnapshot,
+  readCronRefreshBatchTelemetrySnapshotResult,
+  readTelemetryWriteHealthSnapshotResult,
   scheduleAnalyticsBatch,
   scheduleLowValueAnalyticsBatch,
+  type TelemetrySnapshotReadResult,
   type TelemetryWriteHealthSnapshot,
 } from "@/lib/api/telemetry";
 import {
@@ -53,6 +55,11 @@ interface AnalyticsReportMeta {
   requestId?: string;
 }
 
+interface AnalyticsDataReadResult {
+  analyticsData: AnalyticsData;
+  rollup: AnalyticsMetricGroup;
+}
+
 type ErrorSpikeAlertComparisonWindow =
   | "report_interval"
   | "rolling_24h"
@@ -60,7 +67,7 @@ type ErrorSpikeAlertComparisonWindow =
 
 interface AnalyticsReportResponse {
   generatedAt: string;
-  raw_data: AnalyticsData;
+  raw_data?: AnalyticsData;
   reportMeta: AnalyticsReportMeta;
   summary: AnalyticsSummary;
 }
@@ -111,6 +118,7 @@ interface ErrorSpikeAlertSummary {
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
 const DEFAULT_REPORT_READ_LIMIT = 10;
 const MAX_STORED_ANALYTICS_REPORTS = 50;
+const MAX_ANALYTICS_REPORTING_KEYS = 200;
 const ANALYTICS_REPORT_RETENTION_SECONDS = 14 * 24 * 60 * 60;
 const ANALYTICS_REPORT_RETENTION_MS = ANALYTICS_REPORT_RETENTION_SECONDS * 1000;
 const DEFAULT_ERROR_SPIKE_MIN_NEW_REPORTS = 25;
@@ -140,7 +148,7 @@ async function fetchAnalyticsData(
     endpoint?: string;
     request?: Request;
   },
-): Promise<AnalyticsData> {
+): Promise<AnalyticsDataReadResult> {
   const analyticsKeys = (
     await redisClient.smembers(ANALYTICS_REPORTING_INDEX_KEY)
   )
@@ -151,13 +159,32 @@ async function fetchAnalyticsData(
     .filter((key) => !isExcludedAnalyticsReportStateKey(key))
     .sort();
 
-  if (analyticsKeys.length === 0) {
-    return {};
+  const boundedAnalyticsKeys = analyticsKeys.slice(
+    0,
+    MAX_ANALYTICS_REPORTING_KEYS,
+  );
+  const truncatedKeyCount = Math.max(
+    0,
+    analyticsKeys.length - boundedAnalyticsKeys.length,
+  );
+
+  if (boundedAnalyticsKeys.length === 0) {
+    return {
+      analyticsData: {},
+      rollup: {
+        degraded: false,
+        includedKeyCount: 0,
+        staleKeyCount: 0,
+        state: "ok",
+        totalIndexedKeyCount: analyticsKeys.length,
+        truncatedKeyCount,
+      },
+    };
   }
 
-  const values = await redisClient.mget(...analyticsKeys);
+  const values = await redisClient.mget(...boundedAnalyticsKeys);
 
-  const staleAnalyticsKeys = analyticsKeys.filter(
+  const staleAnalyticsKeys = boundedAnalyticsKeys.filter(
     (_, index) => values[index] === null || values[index] === undefined,
   );
 
@@ -181,12 +208,23 @@ async function fetchAnalyticsData(
     }
   }
 
-  return Object.fromEntries(
-    analyticsKeys.map((key, index) => [
-      key,
-      parseAnalyticsValue(values[index]),
-    ]),
-  );
+  return {
+    analyticsData: Object.fromEntries(
+      boundedAnalyticsKeys.map((key, index) => [
+        key,
+        parseAnalyticsValue(values[index]),
+      ]),
+    ),
+    rollup: {
+      degraded: truncatedKeyCount > 0,
+      ...(truncatedKeyCount > 0 ? { failure: "analytics_index_bounded" } : {}),
+      includedKeyCount: boundedAnalyticsKeys.length,
+      staleKeyCount: staleAnalyticsKeys.length,
+      state: truncatedKeyCount > 0 ? "degraded" : "ok",
+      totalIndexedKeyCount: analyticsKeys.length,
+      truncatedKeyCount,
+    },
+  };
 }
 
 /**
@@ -244,6 +282,92 @@ function groupAnalyticsData(analyticsData: AnalyticsData): AnalyticsSummary {
   }
 
   return summary;
+}
+
+function shouldIncludeRawAnalyticsData(request: Request): boolean {
+  const includeRawParam = new URL(request.url).searchParams.get("includeRaw");
+
+  return includeRawParam === "1" || includeRawParam === "true";
+}
+
+function buildTelemetryReadMetricGroup<TSnapshot>(
+  readResult: TelemetrySnapshotReadResult<TSnapshot>,
+  snapshotGroup: AnalyticsMetricGroup,
+): AnalyticsMetricGroup {
+  if (!readResult.degraded) {
+    return {
+      ...snapshotGroup,
+      state: "ok",
+    };
+  }
+
+  return {
+    ...snapshotGroup,
+    degraded: true,
+    ...(readResult.failure ? { failure: readResult.failure } : {}),
+    state: "degraded",
+  };
+}
+
+function buildRefreshBatchMetricGroup(
+  readResult: TelemetrySnapshotReadResult<CronRefreshBatchTelemetrySnapshot>,
+): AnalyticsMetricGroup {
+  if (readResult.snapshot) {
+    return buildTelemetryReadMetricGroup(
+      readResult,
+      toCronRefreshBatchMetricGroup(readResult.snapshot),
+    );
+  }
+
+  if (readResult.degraded) {
+    return {
+      degraded: true,
+      ...(readResult.failure ? { failure: readResult.failure } : {}),
+      state: "degraded",
+    };
+  }
+
+  return {
+    state: "unavailable",
+  };
+}
+
+function trackAlertDeliveryDegradation(
+  request: Request,
+  delivery: ErrorSpikeAlertDelivery,
+): void {
+  if (!delivery.attempted || delivery.delivered) {
+    return;
+  }
+
+  const failureReason = delivery.failure ?? delivery.skippedReason ?? "unknown";
+  const metrics = [
+    buildAnalyticsMetricKey("analytics_reporting", "alert_delivery_failures"),
+    buildReasonCodedMetricKey(
+      "analytics_reporting",
+      "alert_delivery_failures",
+      failureReason,
+    ),
+  ];
+
+  scheduleLowValueAnalyticsBatch(metrics, {
+    endpoint: "Analytics & Reporting",
+    request,
+    taskName: metrics[0],
+  });
+
+  logPrivacySafe(
+    "warn",
+    "Analytics & Reporting",
+    "Analytics alert delivery degraded while cron reporting still succeeded",
+    {
+      destinationHost: delivery.destinationHost,
+      failure: delivery.failure,
+      skippedReason: delivery.skippedReason,
+      statusCode: delivery.statusCode,
+    },
+    request,
+  );
 }
 
 function roundRatio(value: number): number {
@@ -1545,13 +1669,13 @@ function parseRequestedReportLimit(request: Request): number | null {
  */
 function buildAnalyticsReport(
   summary: AnalyticsSummary,
-  analyticsData: AnalyticsData,
+  analyticsData: AnalyticsData | undefined,
   reportMeta: AnalyticsReportMeta,
   generatedAt = new Date().toISOString(),
 ): AnalyticsReportResponse {
   return {
     summary,
-    raw_data: analyticsData,
+    ...(analyticsData ? { raw_data: analyticsData } : {}),
     reportMeta,
     generatedAt,
   };
@@ -1697,18 +1821,21 @@ export async function POST(request: Request) {
       request,
       endpoint,
     );
-    const analyticsData = await fetchAnalyticsData(redisClient, {
+    const includeRawAnalyticsData = shouldIncludeRawAnalyticsData(request);
+    const analyticsDataReadResult = await fetchAnalyticsData(redisClient, {
       endpoint,
       request,
     });
+    const analyticsData = analyticsDataReadResult.analyticsData;
 
     const summary = groupAnalyticsData(analyticsData);
 
     const errorReportReadResult =
       await readErrorReportBufferSnapshotWithFallback(request, endpoint);
-    const telemetryWriteHealthSnapshot =
-      await readTelemetryWriteHealthSnapshot();
-    const refreshBatchSnapshot = await readCronRefreshBatchTelemetrySnapshot();
+    const telemetryWriteHealthReadResult =
+      await readTelemetryWriteHealthSnapshotResult();
+    const refreshBatchReadResult =
+      await readCronRefreshBatchTelemetrySnapshotResult();
     const configuredWebhook = getConfiguredAlertWebhook(endpoint, request);
 
     let alertSummary: ErrorSpikeAlertSummary;
@@ -1760,25 +1887,37 @@ export async function POST(request: Request) {
     }
 
     const observabilitySummary: AnalyticsMetricGroup = {
+      analyticsRead: analyticsDataReadResult.rollup,
       errorReports: errorReportSummary,
       alerts: toErrorSpikeAlertMetricGroup(alertSummary),
-      telemetry: toTelemetryWriteHealthMetricGroup(
-        telemetryWriteHealthSnapshot,
+      telemetry: buildTelemetryReadMetricGroup(
+        telemetryWriteHealthReadResult,
+        toTelemetryWriteHealthMetricGroup(
+          telemetryWriteHealthReadResult.snapshot ?? {
+            currentFailureStreak: 0,
+            degraded: false,
+            pendingFailureCount: 0,
+          },
+        ),
       ),
-      ...(refreshBatchSnapshot
-        ? { refreshBatch: toCronRefreshBatchMetricGroup(refreshBatchSnapshot) }
-        : {}),
+      refreshBatch: buildRefreshBatchMetricGroup(refreshBatchReadResult),
     };
 
     const storedObservabilitySummary: AnalyticsMetricGroup = {
+      analyticsRead: analyticsDataReadResult.rollup,
       errorReports: storedErrorReportSummary,
       alerts: toErrorSpikeAlertMetricGroup(alertSummary),
-      telemetry: toTelemetryWriteHealthMetricGroup(
-        telemetryWriteHealthSnapshot,
+      telemetry: buildTelemetryReadMetricGroup(
+        telemetryWriteHealthReadResult,
+        toTelemetryWriteHealthMetricGroup(
+          telemetryWriteHealthReadResult.snapshot ?? {
+            currentFailureStreak: 0,
+            degraded: false,
+            pendingFailureCount: 0,
+          },
+        ),
       ),
-      ...(refreshBatchSnapshot
-        ? { refreshBatch: toCronRefreshBatchMetricGroup(refreshBatchSnapshot) }
-        : {}),
+      refreshBatch: buildRefreshBatchMetricGroup(refreshBatchReadResult),
     };
 
     const reportSummary: AnalyticsSummary = {
@@ -1800,7 +1939,7 @@ export async function POST(request: Request) {
     const generatedAt = new Date().toISOString();
     const report = buildAnalyticsReport(
       reportSummary,
-      analyticsData,
+      includeRawAnalyticsData ? analyticsData : undefined,
       reportMeta,
       generatedAt,
     );
@@ -1819,6 +1958,8 @@ export async function POST(request: Request) {
       { durationMs: duration },
       request,
     );
+
+    trackAlertDeliveryDegradation(request, alertSummary.delivery);
 
     trackAnalyticsReportingOutcome(request, duration, "success");
 

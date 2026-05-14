@@ -19,7 +19,6 @@ import {
   sharedRedisMockPipelineExec,
   sharedRedisMockRpush,
   sharedRedisMockSadd,
-  sharedRedisMockScan,
   sharedRedisMockSet,
   sharedRedisMockSmembers,
   sharedRedisMockSrem,

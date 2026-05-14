@@ -495,13 +495,14 @@ describe("error reports API route", () => {
   });
 
   it("returns 503 when durable error persistence is temporarily unavailable", async () => {
-    sharedRedisMockRpush.mockRejectedValueOnce(
+    sharedRedisMockRpush.mockRejectedValue(
       new Error("Upstash Redis connection failed"),
     );
 
     const response = await POST(createRequest());
 
     expect(response.status).toBe(503);
+    expect(sharedRedisMockRpush.mock.calls.length).toBeGreaterThan(1);
     expect(await response.json()).toMatchObject({
       error: "Structured error reporting is temporarily unavailable",
       category: "server_error",
@@ -562,7 +563,9 @@ describe("error reports API route", () => {
         requestId: "req-error-reject-12345",
         context: expect.objectContaining({
           issueCount: 1,
+          issueCodes: "invalid_type",
           issueFields: "message",
+          issuePaths: "message",
           source: "client_hook",
           userAction: "submit_error_feedback",
         }),

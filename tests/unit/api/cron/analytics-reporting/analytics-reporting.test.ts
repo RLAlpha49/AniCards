@@ -170,7 +170,6 @@ async function expectSuccessfulReport(response: Response) {
   expect(response.status).toBe(200);
   const report = await response.json();
   expect(report).toHaveProperty("summary");
-  expect(report).toHaveProperty("raw_data");
   expect(report).toHaveProperty("generatedAt");
   expect(report).toHaveProperty("reportMeta");
   return report;
@@ -286,6 +285,12 @@ describe("Analytics & Reporting Cron API", () => {
         errors: 25,
       },
       observability: {
+        analyticsRead: {
+          includedKeyCount: 3,
+          state: "ok",
+          totalIndexedKeyCount: 3,
+          truncatedKeyCount: 0,
+        },
         errorReports: {
           totalCaptured: 0,
           totalDropped: 0,
@@ -298,11 +303,7 @@ describe("Analytics & Reporting Cron API", () => {
         },
       },
     });
-    expect(report.raw_data).toEqual({
-      "analytics:visits": 100,
-      "analytics:api:requests": 5000,
-      "analytics:api:errors": 25,
-    });
+    expect(report.raw_data).toBeUndefined();
     expect(sharedRedisMockMget).toHaveBeenCalledWith(
       "analytics:api:errors",
       "analytics:api:requests",
@@ -346,7 +347,11 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     const report = await expectSuccessfulReport(
-      await POST(createCronRequest()),
+      await POST(
+        createCronRequest(CRON_SECRET, {
+          searchParams: { includeRaw: "1" },
+        }),
+      ),
     );
     expect(report.raw_data["analytics:missing_metric"]).toBe(0);
     expect(report.summary.missing_metric).toBe(0);
@@ -375,6 +380,12 @@ describe("Analytics & Reporting Cron API", () => {
     );
 
     expect(report.summary.observability).toMatchObject({
+      analyticsRead: {
+        includedKeyCount: 1,
+        state: "ok",
+        totalIndexedKeyCount: 1,
+        truncatedKeyCount: 0,
+      },
       errorReports: {
         capacity: 250,
         retained: 0,
@@ -404,6 +415,9 @@ describe("Analytics & Reporting Cron API", () => {
           topUserActions: [],
           recentReports: [],
         },
+      },
+      refreshBatch: {
+        state: "unavailable",
       },
       alerts: {
         webhookConfigured: false,
@@ -621,6 +635,9 @@ describe("Analytics & Reporting Cron API", () => {
         degraded: true,
         failure: "error_report_buffer_unavailable",
         state: "degraded",
+      },
+      refreshBatch: {
+        state: "unavailable",
       },
       alerts: {
         delivery: {
@@ -1131,6 +1148,65 @@ describe("Analytics & Reporting Cron API", () => {
       "analytics:reports",
       14 * 24 * 60 * 60,
     );
+  });
+
+  it("surfaces degraded telemetry snapshot reads instead of silently looking healthy", async () => {
+    mockAnalyticsReportingLrange();
+    sharedRedisMockSmembers.mockResolvedValueOnce(["analytics:visits"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["0", "0"]);
+    sharedRedisMockMget.mockResolvedValueOnce(
+      createRollingWindowCounterValues(),
+    );
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "analytics:telemetry:write_health") {
+        throw new Error("telemetry snapshot unavailable");
+      }
+
+      if (key === "analytics:cron_job:refresh_batch_last_run") {
+        return Promise.resolve("{not-json");
+      }
+
+      if (key === "telemetry:error-reports:v1:evicted-summary") {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+    sharedRedisMockExpire.mockResolvedValueOnce(1);
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(report.summary.observability.telemetry).toMatchObject({
+      degraded: true,
+      failure: "telemetry_write_health_unavailable",
+      state: "degraded",
+    });
+    expect(report.summary.observability.refreshBatch).toMatchObject({
+      degraded: true,
+      failure: "cron_refresh_snapshot_invalid",
+      state: "degraded",
+    });
+  });
+
+  it("can opt into raw analytics payloads while keeping summary-first responses the default", async () => {
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const report = await expectSuccessfulReport(
+      await POST(
+        createCronRequest(CRON_SECRET, {
+          searchParams: { includeRaw: "true" },
+        }),
+      ),
+    );
+
+    expect(report.raw_data).toEqual({
+      "analytics:visits": 100,
+    });
   });
 
   it("returns recent stored analytics reports through GET", async () => {

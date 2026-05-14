@@ -248,6 +248,7 @@ describe("error tracking", () => {
     expect(payload.category).toBe("network_error");
     expect(payload.retryable).toBe(true);
     expect(payload.userMessage).toBe("Network connection error");
+    expect(report?.durableStatus).toBe("confirmed");
     expect(report).not.toHaveProperty("userId");
     expect(report).not.toHaveProperty("username");
     expect(payload).not.toHaveProperty("userId");
@@ -874,12 +875,14 @@ describe("error tracking", () => {
       writable: true,
     });
 
-    await trackUserActionError(
+    const report = await trackUserActionError(
       "render_component_tree",
       new Error("Client error burst exceeded durable queue capacity"),
       "network_error",
       { source: "react_error_boundary" },
     );
+
+    expect(report?.durableStatus).toBe("queued");
 
     const queueState = readStoredClientQueueState(localStorageState);
     expect(queueState.reports).toHaveLength(24);
@@ -930,12 +933,14 @@ describe("error tracking", () => {
       writable: true,
     });
 
-    await trackUserActionError(
+    const report = await trackUserActionError(
       "render_component_tree",
       new Error("Failed to fetch user Alex profile"),
       "network_error",
       { source: "react_error_boundary" },
     );
+
+    expect(report?.durableStatus).toBe("unconfirmed");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -1036,12 +1041,26 @@ describe("error tracking", () => {
       writable: true,
     });
 
-    await trackUserActionError(
+    const scheduledBacklogReplay = mock((callback: TimerHandler) => {
+      expect(typeof callback).toBe("function");
+      return 1 as unknown as ReturnType<typeof globalThis.setTimeout>;
+    });
+
+    Object.defineProperty(globalThis, "setTimeout", {
+      value: scheduledBacklogReplay,
+      configurable: true,
+      writable: true,
+    });
+
+    const report = await trackUserActionError(
       "render_component_tree",
       new Error("Failed to fetch user Alex profile"),
       "network_error",
       { source: "react_error_boundary" },
     );
+
+    expect(report?.durableStatus).toBe("confirmed");
+    expect(scheduledBacklogReplay).toHaveBeenCalled();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
