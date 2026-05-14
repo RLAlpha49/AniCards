@@ -574,13 +574,6 @@ export async function readTelemetryWriteHealthSnapshotResult(): Promise<
   }
 }
 
-export async function readTelemetryWriteHealthSnapshot(): Promise<TelemetryWriteHealthSnapshot> {
-  return (
-    (await readTelemetryWriteHealthSnapshotResult()).snapshot ??
-    buildTelemetryWriteHealthSnapshot()
-  );
-}
-
 export async function readCronRefreshBatchTelemetrySnapshotResult(): Promise<
   TelemetrySnapshotReadResult<CronRefreshBatchTelemetrySnapshot>
 > {
@@ -618,10 +611,6 @@ export async function readCronRefreshBatchTelemetrySnapshotResult(): Promise<
       snapshot: null,
     };
   }
-}
-
-export async function readCronRefreshBatchTelemetrySnapshot(): Promise<CronRefreshBatchTelemetrySnapshot | null> {
-  return (await readCronRefreshBatchTelemetrySnapshotResult()).snapshot;
 }
 
 export function scheduleCronRefreshBatchTelemetrySnapshot(
