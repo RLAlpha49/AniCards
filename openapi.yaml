@@ -1225,9 +1225,9 @@ paths:
       description: >-
         Persists a versioned split user record, atomically flips the active
         commit pointer, maintains the normalized username alias and stale-user
-        refresh index, and requires compare-and-set metadata when updating an
-        existing stored record. `ifMatchUpdatedAt` remains the browser-facing
-        compatibility token, while `ifMatchRevision` and
+        refresh index, and requires at least one compare-and-set token when
+        updating an existing stored record. `ifMatchUpdatedAt` remains the
+        browser-facing compatibility token, while `ifMatchRevision` and
         `ifMatchSnapshotToken` provide a stronger snapshot-bound guard for the
         same write. This is a browser-only mutation route: in
         production it requires same-origin requests, a verified client IP, the
@@ -1366,7 +1366,7 @@ paths:
                     status: 403
                     recoverySuggestions: []
         "409":
-          description: "Optimistic concurrency or canonical username ownership conflict"
+          description: "Missing/stale compare token set or canonical username ownership conflict"
           content:
             application/json:
               schema:
@@ -1446,7 +1446,8 @@ paths:
         cookie, and a dedicated `3 requests / 10 s` limiter. The server
         sanitizes the payload, ignores client-supplied `userId` and
         `username`, preserves valid client incident `id` and `timestamp`
-        values, drops unsupported nested metadata values before persistence,
+        values, preserves optional top-level `requestId` / `operationId` when
+        valid, drops unsupported nested metadata values before persistence,
         and updates compact rolling aggregate counters used by cron
         observability within the same 14-day server-side telemetry window.
       requestBody:
@@ -1469,8 +1470,10 @@ paths:
                     - title: "Retry the request"
                       description: "Wait for the network to recover, then try loading the profile again."
                       actionLabel: "Retry"
+                      actionUrl: "/user/Alex?tab=cards"
                   route: "/user/Alex?tab=cards"
                   requestId: "req-error-route-12345"
+                  operationId: "op-error-route-12345"
                   errorName: "TypeError"
                   metadata:
                     boundary: "client_error_boundary"
@@ -1486,6 +1489,7 @@ paths:
                   category: "network_error"
                   retryable: true
                   requestId: "req-analytics-route-12345"
+                  operationId: "op-analytics-route-12345"
                   errorName: "TypeError"
                   metadata:
                     analyticsFailureBucket: "network"
@@ -3073,6 +3077,13 @@ components:
           type: string
           minLength: 1
           maxLength: 80
+        actionUrl:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: >-
+            Optional follow-up URL. The runtime accepts same-origin relative
+            AniCards paths or absolute HTTPS URLs only.
       required:
         - title
         - description
@@ -3117,8 +3128,9 @@ components:
         Structured client error report durably recorded by `/api/error-reports`.
         `userAction` and `message` are required. Unknown top-level fields are
         ignored, client-supplied `userId` and `username` are discarded, and
-        valid client `id`, `timestamp`, `category`, `retryable`, and
-        `recoverySuggestions` values are sanitized then preserved.
+        valid client `id`, `timestamp`, `requestId`, `operationId`,
+        `category`, `retryable`, and `recoverySuggestions` values are
+        sanitized then preserved.
       properties:
         id:
           type: string
@@ -3172,6 +3184,12 @@ components:
           description: >-
             Optional request correlation ID. When omitted or invalid, the
             server falls back to the ingestion request ID.
+        operationId:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{8,120}$"
+          description: >-
+            Optional operation correlation ID. When omitted or invalid, the
+            server falls back to the ingestion route's generated operation ID.
         errorName:
           type: string
           minLength: 1
@@ -3858,9 +3876,10 @@ components:
         same user. Stored-user reads and writes refresh only the lighter
         `stored_user` grant used by `/api/store-cards`, so they do not satisfy
         this route on their own. When updating an existing record, callers
-        must supply compare metadata; `ifMatchUpdatedAt` is the browser-facing
-        compatibility token and `ifMatchRevision` / `ifMatchSnapshotToken`
-        provide stronger snapshot-bound guards for the same write.
+        must supply at least one compare token; `ifMatchUpdatedAt` is the
+        browser-facing compatibility token and `ifMatchRevision` /
+        `ifMatchSnapshotToken` provide stronger snapshot-bound guards for the
+        same write.
       properties:
         userId:
           type: integer
@@ -3879,9 +3898,10 @@ components:
           type: string
           format: date-time
           description: >-
-            Required when updating an existing stored user record. The write is
-            rejected with `409` if the stored record has a different
-            `updatedAt` or if this token is omitted for an existing record.
+            Recommended browser-facing compare token when updating an existing
+            stored user record. The write is rejected with `409` if all compare
+            tokens are missing for an existing record, or if the stored record
+            has a different `updatedAt` than the value supplied here.
         ifMatchRevision:
           type: integer
           minimum: 1
