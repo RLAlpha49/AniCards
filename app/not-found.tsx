@@ -104,7 +104,11 @@ async function recordNotFoundTelemetry(): Promise<void> {
 }
 
 export default async function NotFound() {
-  await recordNotFoundTelemetry();
+  try {
+    await recordNotFoundTelemetry();
+  } catch {
+    // Keep the not-found page render path independent from best-effort telemetry.
+  }
 
   return (
     <div className="relative isolate overflow-hidden">

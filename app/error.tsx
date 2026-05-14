@@ -10,21 +10,24 @@ export default function AppErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  const { incidentReference } = useAppRouterErrorBoundaryReporting({
-    error,
-    boundary: "app_root_error",
-    defaultErrorName: "AppRouteError",
-    logLabel: "[AppErrorBoundary] Caught route error:",
-    userAction: "route_segment_render",
-  });
+  const { debugRoute, incidentReference, incidentStatus } =
+    useAppRouterErrorBoundaryReporting({
+      error,
+      boundary: "app_root_error",
+      defaultErrorName: "AppRouteError",
+      logLabel: "[AppErrorBoundary] Caught route error:",
+      userAction: "route_segment_render",
+    });
 
   return (
     <ErrorFallbackPanel
+      debugRoute={debugRoute}
       error={error}
-      onRetry={reset}
-      retryLabel="Try Again"
       digest={error.digest}
       incidentReference={incidentReference}
+      incidentStatus={incidentStatus}
+      onRetry={reset}
+      retryLabel="Try Again"
     />
   );
 }

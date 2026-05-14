@@ -61,19 +61,27 @@ function AppRouterBoundaryHarness(
     error: Error & { digest?: string };
   }>,
 ) {
-  const { incidentReference } = useAppRouterErrorBoundaryReporting({
-    error: props.error,
-    boundary: "app_root_error",
-    defaultErrorName: "AppRouteError",
-    logLabel: "[AppErrorBoundary] Caught route error:",
-    userAction: "route_segment_render",
-  });
+  const { incidentReference, incidentStatus } =
+    useAppRouterErrorBoundaryReporting({
+      error: props.error,
+      boundary: "app_root_error",
+      defaultErrorName: "AppRouteError",
+      logLabel: "[AppErrorBoundary] Caught route error:",
+      userAction: "route_segment_render",
+    });
 
-  return createElement(
-    "output",
-    { "data-testid": "incident-reference" },
-    incidentReference ?? "",
-  );
+  return createElement("div", undefined, [
+    createElement(
+      "output",
+      { "data-testid": "incident-reference", key: "reference" },
+      incidentReference ?? "",
+    ),
+    createElement(
+      "output",
+      { "data-testid": "incident-status", key: "status" },
+      incidentStatus,
+    ),
+  ]);
 }
 
 function ThrowingComponent(props: Readonly<{ error: Error }>): null {
@@ -382,12 +390,13 @@ describe("ErrorBoundary fallback model", () => {
       const incidentReference = expectIncidentReference(payload.id);
 
       expect(document.body.textContent).toContain("Incident reference");
-      expect(document.body.textContent).not.toContain(incidentReference);
+      expect(document.body.textContent).toContain(incidentReference);
+      expect(document.body.textContent).toContain("Unconfirmed");
 
       deferredResponse.resolve(new Response(null, { status: 202 }));
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain(incidentReference);
+        expect(document.body.textContent).toContain("Recorded");
       });
     } finally {
       restoreFetch();
@@ -412,6 +421,7 @@ describe("ErrorBoundary fallback model", () => {
       });
 
       expect(getByTestId("incident-reference").textContent).toBe(error.digest);
+      expect(getByTestId("incident-status").textContent).toBe("unconfirmed");
 
       deferredResponse.resolve(new Response(null, { status: 202 }));
 
@@ -422,13 +432,14 @@ describe("ErrorBoundary fallback model", () => {
         expect(getByTestId("incident-reference").textContent).toBe(
           incidentReference,
         );
+        expect(getByTestId("incident-status").textContent).toBe("confirmed");
       });
     } finally {
       restoreFetch();
     }
   });
 
-  it("surfaces the resolved structured incident ID for App Router boundaries", async () => {
+  it("keeps the immediate App Router incident reference while reporting status settles", async () => {
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 202 })),
     );
@@ -452,13 +463,46 @@ describe("ErrorBoundary fallback model", () => {
         expect(getByTestId("incident-reference").textContent).toBe(
           incidentReference,
         );
-        expect(getByTestId("incident-reference").textContent).not.toBe(
-          error.digest,
-        );
+        expect(getByTestId("incident-status").textContent).toBe("confirmed");
       });
     } finally {
       restoreFetch();
     }
+  });
+
+  it("paces retry clicks while a fallback reset is in flight", async () => {
+    const onRetry = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          globalThis.setTimeout(resolve, 10);
+        }),
+    );
+
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        allowRetryWhenNonRetryable: true,
+        error: new Error("Something odd happened"),
+        incidentReference: "client:test-ref-12345",
+        incidentStatus: "queued",
+        onRetry,
+      }),
+    );
+
+    const retryButton = getByRole("button", { name: /try again/i });
+    retryButton.click();
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect((retryButton as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    retryButton.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect((retryButton as HTMLButtonElement).disabled).toBe(false);
+    });
   });
 
   it("moves focus to the announced fallback region when mounted", async () => {

@@ -9,6 +9,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
 } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -20,6 +21,11 @@ import {
   type RecoverySuggestion,
 } from "@/lib/error-messages";
 import {
+  sanitizeErrorReportRoute,
+  sanitizeErrorReportStackTrace,
+} from "@/lib/error-report-sanitization";
+import {
+  type ErrorReportDurabilityStatus,
   getImmediateIncidentReference,
   reportStructuredError,
 } from "@/lib/error-tracking";
@@ -50,15 +56,52 @@ export interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  debugComponentStack?: string;
+  debugRoute?: string;
   incidentReference?: string;
+  incidentStatus: ErrorReportDurabilityStatus;
 }
 
 export interface ErrorFallbackModel {
   heading: string;
   message: string;
   category: ErrorCategory;
+  retryDelayMs?: number;
   retryable: boolean;
   suggestions: RecoverySuggestion[];
+}
+
+function getIncidentStatusTone(status: ErrorReportDurabilityStatus): string {
+  switch (status) {
+    case "confirmed":
+      return "text-emerald-700 dark:text-emerald-300";
+    case "queued":
+      return "text-amber-700 dark:text-amber-300";
+    case "unconfirmed":
+      return "text-red-700 dark:text-red-300";
+  }
+}
+
+function getIncidentStatusLabel(status: ErrorReportDurabilityStatus): string {
+  switch (status) {
+    case "confirmed":
+      return "Recorded";
+    case "queued":
+      return "Queued";
+    case "unconfirmed":
+      return "Unconfirmed";
+  }
+}
+
+function getIncidentStatusMessage(status: ErrorReportDurabilityStatus): string {
+  switch (status) {
+    case "confirmed":
+      return "We confirmed this incident reference was durably recorded for follow-up.";
+    case "queued":
+      return "We saved this incident locally and will retry delivery automatically when conditions improve.";
+    case "unconfirmed":
+      return "We could not confirm durable incident recording yet, so keep this reference if you report the problem.";
+  }
 }
 
 /**
@@ -102,6 +145,7 @@ export function buildErrorFallbackModel(
     heading: "Something went wrong",
     message: details.userMessage,
     category: details.category,
+    retryDelayMs: details.retryDelayMs,
     retryable: details.retryable,
     suggestions: details.suggestions,
   };
@@ -146,8 +190,11 @@ function RecoverySuggestionAction(
 
 export function ErrorFallbackPanel(
   props: Readonly<{
+    componentStack?: string;
+    debugRoute?: string;
     error?: Error | null;
-    onRetry?: () => void;
+    incidentStatus?: ErrorReportDurabilityStatus;
+    onRetry?: () => void | Promise<void>;
     retryLabel?: string;
     allowRetryWhenNonRetryable?: boolean;
     homeHref?: string;
@@ -163,16 +210,65 @@ export function ErrorFallbackPanel(
     (model.retryable ||
       props.allowRetryWhenNonRetryable === true ||
       shouldPreserveResetForUnknownFailure);
+  const incidentStatus = props.incidentStatus ?? "unconfirmed";
   const fallbackPanelId = useId();
   const messageId = useId();
   const panelRef = useRef<HTMLElement>(null);
+  const retryReenableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryBlockedUntil, setRetryBlockedUntil] = useState<number>(0);
   const devDetailsVisible =
     process.env.NODE_ENV !== "production" &&
-    Boolean(props.error?.message || props.digest);
+    Boolean(
+      props.error?.message ||
+      props.digest ||
+      props.debugRoute ||
+      props.componentStack,
+    );
+
+  const isRetryBlocked = isRetrying || retryBlockedUntil > Date.now();
+
+  useEffect(() => {
+    if (retryBlockedUntil <= Date.now()) {
+      return;
+    }
+
+    retryReenableTimerRef.current = globalThis.setTimeout(() => {
+      retryReenableTimerRef.current = null;
+      setRetryBlockedUntil(0);
+    }, retryBlockedUntil - Date.now());
+
+    return () => {
+      if (retryReenableTimerRef.current !== null) {
+        globalThis.clearTimeout(retryReenableTimerRef.current);
+        retryReenableTimerRef.current = null;
+      }
+    };
+  }, [retryBlockedUntil]);
 
   useEffect(() => {
     panelRef.current?.focus();
   }, []);
+
+  const handleRetry = async () => {
+    if (!props.onRetry || isRetryBlocked) {
+      return;
+    }
+
+    setIsRetrying(true);
+
+    if (typeof model.retryDelayMs === "number" && model.retryDelayMs > 0) {
+      setRetryBlockedUntil(Date.now() + model.retryDelayMs);
+    }
+
+    try {
+      await Promise.resolve(props.onRetry());
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <div className="
@@ -226,11 +322,24 @@ export function ErrorFallbackPanel(
 
           {incidentReference ? (
             <div className="border border-border/60 bg-background/50 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                Incident reference
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">
+                  Incident reference
+                </p>
+                <span
+                  className={cn(
+                    "text-xs font-semibold tracking-[0.18em] uppercase",
+                    getIncidentStatusTone(incidentStatus),
+                  )}
+                >
+                  {getIncidentStatusLabel(incidentStatus)}
+                </span>
+              </div>
               <p className="mt-1 font-mono text-sm tracking-wide text-foreground/80">
                 {incidentReference}
+              </p>
+              <p className="mt-2 text-sm/relaxed text-muted-foreground">
+                {getIncidentStatusMessage(incidentStatus)}
               </p>
               <p className="mt-2 text-sm/relaxed text-muted-foreground">
                 Include this reference if you report the problem so we can match
@@ -277,6 +386,27 @@ export function ErrorFallbackPanel(
                     {props.error.message}
                   </p>
                 ) : null}
+                {props.debugRoute ? (
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Route:
+                    </span>{" "}
+                    {props.debugRoute}
+                  </p>
+                ) : null}
+                {props.componentStack ? (
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Component stack:
+                    </p>
+                    <pre className="
+                      mt-1 overflow-x-auto font-mono text-xs/6 whitespace-pre-wrap
+                      text-muted-foreground
+                    ">
+                      {props.componentStack}
+                    </pre>
+                  </div>
+                ) : null}
                 {props.digest && props.digest !== incidentReference ? (
                   <p>
                     <span className="font-semibold text-foreground">
@@ -296,10 +426,13 @@ export function ErrorFallbackPanel(
               variant="default"
               size="lg"
               className={cn("w-full", "sm:max-w-xs")}
-              onClick={props.onRetry}
+              disabled={isRetryBlocked}
+              onClick={() => {
+                void handleRetry();
+              }}
             >
               <RefreshCw className="size-4" />
-              {props.retryLabel ?? "Try Again"}
+              {isRetrying ? "Retrying…" : (props.retryLabel ?? "Try Again")}
             </Button>
           ) : null}
           <Button
@@ -336,6 +469,7 @@ export class ErrorBoundary extends Component<
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
+    incidentStatus: "unconfirmed",
     incidentReference: undefined,
   };
 
@@ -348,6 +482,7 @@ export class ErrorBoundary extends Component<
     return {
       hasError: true,
       error,
+      incidentStatus: "unconfirmed",
       incidentReference: getImmediateIncidentReference(
         (error as Error & { digest?: string }).digest,
       ),
@@ -382,6 +517,25 @@ export class ErrorBoundary extends Component<
 
     this.pendingIncidentError = error;
 
+    this.setState((currentState) => {
+      if (!currentState.hasError || currentState.error !== error) {
+        return null;
+      }
+
+      const nextDebugRoute = sanitizeErrorReportRoute(currentRoute);
+      const nextComponentStack = sanitizeErrorReportStackTrace(
+        errorInfo.componentStack ?? undefined,
+        {
+          maxLength: 600,
+        },
+      );
+
+      return {
+        debugComponentStack: nextComponentStack,
+        debugRoute: nextDebugRoute,
+      };
+    });
+
     logPrivacySafe(
       "error",
       "ErrorBoundary",
@@ -402,6 +556,7 @@ export class ErrorBoundary extends Component<
     }
 
     void reportStructuredError({
+      id: immediateIncidentReference,
       source: "react_error_boundary",
       userAction: "render_component_tree",
       error,
@@ -416,9 +571,11 @@ export class ErrorBoundary extends Component<
         initialIncidentReference: immediateIncidentReference,
       },
     }).then((report) => {
+      if (!report) {
+        return;
+      }
+
       if (
-        !report?.id ||
-        report.id === immediateIncidentReference ||
         this.pendingIncidentError !== error ||
         !this.state.hasError ||
         this.state.error !== error
@@ -431,12 +588,12 @@ export class ErrorBoundary extends Component<
           return null;
         }
 
-        if (currentState.incidentReference === report.id) {
+        if (currentState.incidentStatus === report.durableStatus) {
           return null;
         }
 
         return {
-          incidentReference: report.id,
+          incidentStatus: report.durableStatus,
         };
       });
     });
@@ -471,6 +628,9 @@ export class ErrorBoundary extends Component<
       {
         hasError: false,
         error: null,
+        debugComponentStack: undefined,
+        debugRoute: undefined,
+        incidentStatus: "unconfirmed",
         incidentReference: undefined,
       },
       () => {
@@ -487,8 +647,11 @@ export class ErrorBoundary extends Component<
   renderDefaultFallback(): ReactNode {
     return (
       <ErrorFallbackPanel
+        componentStack={this.state.debugComponentStack}
+        debugRoute={this.state.debugRoute}
         error={this.state.error}
         incidentReference={this.state.incidentReference}
+        incidentStatus={this.state.incidentStatus}
         onRetry={this.resetErrorBoundary}
         retryLabel="Try Again"
       />

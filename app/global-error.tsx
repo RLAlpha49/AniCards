@@ -12,25 +12,28 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  const { incidentReference } = useAppRouterErrorBoundaryReporting({
-    error,
-    boundary: "app_global_error",
-    defaultErrorName: "AppGlobalError",
-    logLabel: "[GlobalErrorBoundary] Caught application error:",
-    userAction: "render_root_layout",
-  });
+  const { debugRoute, incidentReference, incidentStatus } =
+    useAppRouterErrorBoundaryReporting({
+      error,
+      boundary: "app_global_error",
+      defaultErrorName: "AppGlobalError",
+      logLabel: "[GlobalErrorBoundary] Caught application error:",
+      userAction: "render_root_layout",
+    });
 
   return (
     <html lang="en">
       <title>AniCards | Application Error</title>
       <body id="app-root" className="antialiased">
         <ErrorFallbackPanel
+          debugRoute={debugRoute}
           error={error}
-          onRetry={reset}
-          retryLabel="Try Again"
           digest={error.digest}
           incidentReference={incidentReference}
+          incidentStatus={incidentStatus}
           homeHref="/"
+          onRetry={reset}
+          retryLabel="Try Again"
         />
       </body>
     </html>
