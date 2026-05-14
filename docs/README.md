@@ -25,8 +25,17 @@ Open and edit the checked-in `.drawio` sources locally in VS Code with the Draw.
 
 ## Contributor quickstart
 
+- [`../README.md#getting-started`](../README.md#getting-started) — the fast clone/install/run entrypoint when you just need the repo up locally.
 - [`DEVELOPMENT.md`](./DEVELOPMENT.md) — Bun-first local setup, copy-paste `.env.local` examples, validation commands, the canonical instruction-discovery map, the current shared alias map, and the supported `.drawio` workflow.
 - [`../AGENTS.md`](../AGENTS.md) — repo-specific execution rules plus the pointer to roadmap guardrails.
+
+## Editor and tooling contracts
+
+- [`DEVELOPMENT.md → Contributor guardrails and instruction discovery`](./DEVELOPMENT.md#contributor-guardrails-and-instruction-discovery) — canonical map for repo instructions, guardrails, and where to look before changing framework-specific files.
+- [`DEVELOPMENT.md → Shared UI scaffolding source of truth`](./DEVELOPMENT.md#shared-ui-scaffolding-source-of-truth) — the authoritative `components.json` alias and `shadcn/ui` scaffolding contract.
+- [`DEVELOPMENT.md → Diagram workflow`](./DEVELOPMENT.md#diagram-workflow) — the checked-in `.drawio` editing workflow and source-of-truth rule.
+- [`DEVELOPMENT.md → Supported OpenAPI 3.2 validation and preview workflow`](./DEVELOPMENT.md#supported-openapi-32-validation-and-preview-workflow) — how this repo expects contributors to author, sanity-check, and preview `openapi.yaml` without depending on stale generators.
+- [`API.md → Contract source of truth`](./API.md#contract-source-of-truth), [`Route ownership matrix`](./API.md#route-ownership-matrix), and [`Supported OpenAPI 3.2 validation and preview workflow`](./API.md#supported-openapi-32-validation-and-preview-workflow) — the contract ownership jump points for public-route work.
 
 ## Development and maintenance
 
@@ -44,7 +53,9 @@ Open and edit the checked-in `.drawio` sources locally in VS Code with the Draw.
 Use these links when a change affects public behavior and you want the durable contract surface rather than an implementation-specific detail:
 
 - **OpenAPI source of truth** — [`../openapi.yaml`](../openapi.yaml) and [`API.md → Contract source of truth`](./API.md#contract-source-of-truth)
+- **Supported OpenAPI authoring / preview workflow** — [`API.md → Supported OpenAPI 3.2 validation and preview workflow`](./API.md#supported-openapi-32-validation-and-preview-workflow) and [`DEVELOPMENT.md → Supported OpenAPI 3.2 validation and preview workflow`](./DEVELOPMENT.md#supported-openapi-32-validation-and-preview-workflow)
 - **Public route families and canonical entrypoints** — [`API.md → Route families in the contract`](./API.md#route-families-in-the-contract) and [`API.md → Canonical, alias, and legacy compatibility entrypoints`](./API.md#canonical-alias-and-legacy-compatibility-entrypoints)
+- **Route ownership matrix** — [`API.md → Route ownership matrix`](./API.md#route-ownership-matrix)
 - **Runtime boundaries and directory ownership** — [`ARCHITECTURE.md → Directory layout`](./ARCHITECTURE.md#directory-layout) and [`ARCHITECTURE.md → Public API boundaries`](./ARCHITECTURE.md#public-api-boundaries)
 - **Security envelope for public routes** — [`SECURITY.md → Content Security Policy`](./SECURITY.md#content-security-policy) and [`SECURITY.md → Route protections`](./SECURITY.md#route-protections)
 - **Privacy, retention, and minimized public data** — [`PRIVACY.md → Data currently handled by the repo`](./PRIVACY.md#data-currently-handled-by-the-repo), [`PRIVACY.md → Retention and lifecycle`](./PRIVACY.md#retention-and-lifecycle), and [`PRIVACY.md → Public access and data minimization`](./PRIVACY.md#public-access-and-data-minimization)

@@ -47,41 +47,12 @@ cd AniCards
 bun install
 ```
 
-Copy the env template before starting the server:
+Copy `.env.example` to `.env.local`, then choose the lightest local mode that fits your task:
 
-```bash
-# macOS / Linux
-cp .env.example .env.local
-
-# Windows PowerShell
-Copy-Item .env.example .env.local
-```
-
-If you want a paste-and-go starting point, begin `.env.local` with one of these:
-
-```dotenv
-# UI-only mode
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-```dotenv
-# Full app/API mode
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-
-ANILIST_TOKEN=replace-with-anilist-token
-UPSTASH_REDIS_REST_URL=https://your-upstash-instance.upstash.io
-UPSTASH_REDIS_REST_TOKEN=replace-with-upstash-rest-token
-
-API_SECRET_TOKEN=replace-with-long-random-secret
-# Or, for explicit localhost-only fallback testing instead:
-# ALLOW_INSECURE_LOCALHOST_SECRETS=true
-```
-
-Add `CRON_SECRET=changeme` only when you're testing `/api/cron*`. The fuller env matrix lives in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+| Mode | Reach for it when... | Minimum local setup |
+| --- | --- | --- |
+| **UI-only** | Docs, marketing pages, visual polish, layout work, and other frontend shell changes | Keep the three `NEXT_PUBLIC_*` loopback URLs from [`docs/DEVELOPMENT.md#minimal-envlocal-examples`](docs/DEVELOPMENT.md#minimal-envlocal-examples) |
+| **Full app/API** | Route handlers, stored-user/card flows, cron paths, or AniList/Redis-backed work | Add `ANILIST_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `API_SECRET_TOKEN`; add `CRON_SECRET` only when testing `/api/cron*` |
 
 Then start the dev server:
 
@@ -91,9 +62,7 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**UI-only mode** (no credentials needed) covers all frontend work, marketing pages, and visual changes. **Full API mode** adds AniList and Upstash Redis credentials, plus `API_SECRET_TOKEN` when you want protected-write behavior to mirror production locally. If you intentionally want the explicit localhost-only fallback instead, add `ALLOW_INSECURE_LOCALHOST_SECRETS=true` while the public URLs stay on loopback hosts. Full details are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
-
-If you need protected proxy/write routes such as `/api/anilist`, `/api/store-users`, `/api/store-cards`, or `/api/convert`, keep two extra envs in mind: `API_SECRET_TOKEN` is required in production and worth setting locally when you want request-proof behavior to match production, while `TRUSTED_CLIENT_IP_HEADERS` is only for non-default proxy/CDN setups that forward the client IP in something other than the built-in Vercel/Cloudflare headers.
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) owns the copy-paste env snippets, protected-route notes, and the fuller variable matrix. It also includes the contributor quickstart and [`change-type validation matrix`](docs/DEVELOPMENT.md#change-type-validation-matrix) so the front page stays fast to scan instead of turning into `.env` fan fiction.
 
 ## Built with
 
@@ -113,7 +82,7 @@ Next.js (App Router, Turbopack) · TypeScript · Tailwind CSS · Radix UI · Ups
 
 Pull requests are welcome. Fork the repo, cut a feature branch, run the relevant validation commands from `docs/DEVELOPMENT.md`, and open a PR. If your change touches a public route, update [`openapi.yaml`](openapi.yaml) in the same PR.
 
-Before broad repo changes, start with [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the Bun-first workflow, copy-paste `.env.local` examples, canonical instruction discovery, shared alias map, `.drawio` workflow, and validation commands. Treat `bun run build` as a first-class regression check whenever routes, config, metadata, headers, or other production-only behavior might shift. `AGENTS.md` layers on repo-specific execution rules, and [`docs/README.md#stable-contract-index`](docs/README.md#stable-contract-index) is the jump table for durable API, architecture, security, and privacy contracts.
+Before broad repo changes, start with [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the Bun-first workflow, contributor quickstart, copy-paste `.env.local` examples, canonical instruction discovery, shared alias map, `.drawio` workflow, OpenAPI 3.2 authoring notes, and validation commands. Use the [`change-type validation matrix`](docs/DEVELOPMENT.md#change-type-validation-matrix) to pick the smallest sensible local pass, and treat `bun run build` as a first-class regression check whenever routes, config, metadata, headers, or other production-only behavior might shift. `AGENTS.md` layers on repo-specific execution rules, and [`docs/README.md#stable-contract-index`](docs/README.md#stable-contract-index) is the jump table for durable API, architecture, security, and privacy contracts.
 
 If you're scaffolding or refactoring shared UI, treat `components.json` as the source of truth for `shadcn/ui` aliases, `rsc` mode, and the Tailwind stylesheet entrypoint (`app/globals.css`). For public-contract changes, use `docs/README.md#stable-contract-index` as the jump table so the API, architecture, security, and privacy docs stay in sync.
 

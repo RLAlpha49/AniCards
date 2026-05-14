@@ -17,6 +17,36 @@ Worth being explicit here: this file is hand-maintained. Nothing auto-generates 
 
 One tooling caveat: `openapi.yaml` is authored in OpenAPI `3.2.0`. Older generators, validators, or hosted doc viewers that only partially support `3.2` may misparse it or silently drop details, so verify tool support before assuming the contract is wrong.
 
+## Route ownership matrix
+
+Use this as the scan-friendly index near the top of the guide: every published path from [`openapi.yaml`](../openapi.yaml), the method surface, who it is for, whether it is canonical or compatibility-only, and which section owns the narrative summary.
+
+- **`/api/anilist`** — methods: `POST`, `OPTIONS`; audience: browser/editor flow; canonicality: canonical route; owning surface: [`Browser-only stored-write gate`](#browser-only-stored-write-gate), [`Common editor save flow`](#common-editor-save-flow), tag `anilist`.
+- **`/api/card`** — methods: `GET`, `OPTIONS`; audience: public embeds and previews; canonicality: **canonical** SVG route; owning surface: [`Canonical, alias, and legacy compatibility entrypoints`](#canonical-alias-and-legacy-compatibility-entrypoints), [`Card contract notes`](#card-contract-notes), tag `card`.
+- **`/card.svg`** — methods: `GET`; audience: public embeds; canonicality: pretty public alias; owning surface: [`Canonical, alias, and legacy compatibility entrypoints`](#canonical-alias-and-legacy-compatibility-entrypoints), tag `card`.
+- **`/api/card.svg`** — methods: `GET`; audience: compatibility consumers; canonicality: fallback alias only; owning surface: [`Canonical, alias, and legacy compatibility entrypoints`](#canonical-alias-and-legacy-compatibility-entrypoints), tag `card`.
+- **`/card.png`** — methods: `GET`; audience: public raster previews; canonicality: public companion route; owning surface: [`Canonical, alias, and legacy compatibility entrypoints`](#canonical-alias-and-legacy-compatibility-entrypoints), [`Card contract notes`](#card-contract-notes), tag `card`.
+- **`/StatCards/{username}/{key}.svg`** — methods: `GET`; audience: legacy embeds; canonicality: migration-only compatibility path; owning surface: [`Canonical, alias, and legacy compatibility entrypoints`](#canonical-alias-and-legacy-compatibility-entrypoints), tag `card`.
+- **`/api/get-cards`** — methods: `GET`, `OPTIONS`; audience: public readers / editor bootstrap; canonicality: canonical public read; owning surface: [`Common editor save flow`](#common-editor-save-flow), [`Editor contract quick map`](#editor-contract-quick-map), tag `cards`.
+- **`/api/get-user`** — methods: `GET`, `OPTIONS`; audience: public readers / editor bootstrap; canonicality: canonical public read; owning surface: [`Common editor save flow`](#common-editor-save-flow), [`Editor contract quick map`](#editor-contract-quick-map), tag `user`.
+- **`/api/store-cards`** — methods: `POST`, `OPTIONS`; audience: browser editor only; canonicality: canonical browser-only write; owning surface: [`Browser-only stored-write gate`](#browser-only-stored-write-gate), [`Common editor save flow`](#common-editor-save-flow), tag `store`.
+- **`/api/store-users`** — methods: `POST`, `OPTIONS`; audience: browser editor only; canonicality: canonical browser-only write; owning surface: [`Browser-only stored-write gate`](#browser-only-stored-write-gate), [`Common editor save flow`](#common-editor-save-flow), [`Editor contract quick map`](#editor-contract-quick-map), tag `store`.
+- **`/api/error-reports`** — methods: `POST`, `OPTIONS`; audience: same-site client telemetry; canonicality: canonical telemetry ingest route; owning surface: [`Route families in the contract`](#route-families-in-the-contract), tag `telemetry`.
+- **`/api/convert`** — methods: `POST`, `OPTIONS`; audience: browser/API consumers converting safe SVG input; canonicality: canonical conversion route; owning surface: [`Route families in the contract`](#route-families-in-the-contract), tag `convert`.
+- **`/api/cron`** — methods: `POST`; audience: operators / scheduled jobs; canonicality: canonical operator route; owning surface: [`Route families in the contract`](#route-families-in-the-contract), tag `cron`.
+- **`/api/cron/analytics-reporting`** — methods: `GET`, `POST`; audience: operators / scheduled jobs; canonicality: canonical operator route; owning surface: [`Route families in the contract`](#route-families-in-the-contract), tag `cron`.
+
+## Supported OpenAPI 3.2 validation and preview workflow
+
+The supported repo workflow is deliberately plain:
+
+1. Edit [`openapi.yaml`](../openapi.yaml) directly and update this guide in the same PR when the summary narrative changes.
+2. Preview the contract in raw YAML, diff view, or an editor/plugin that **explicitly** supports OpenAPI `3.2.0`.
+3. Treat older generators and hosted viewers as optional spot-checks only. If they disagree with the YAML, verify tool support before calling the contract broken.
+4. Use the matching validation lane from [`DEVELOPMENT.md`](./DEVELOPMENT.md#change-type-validation-matrix). Docs/spec-only changes usually stop at formatting plus human review; runtime changes add the usual `typecheck` / `build` regression checks.
+
+There is no repo-blessed auto-generated preview portal for this contract today. That is intentional: the supported preview is the YAML itself plus review in-context, because flashy stale previews are how contract drift sneaks in wearing a fake mustache.
+
 ## Route families in the contract
 
 At the moment, the contract covers these public route families:

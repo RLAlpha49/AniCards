@@ -6,6 +6,13 @@ Local setup, environment variables worth knowing about, validation commands, and
 
 - [`development-workflow.drawio`](./diagrams/development-workflow.drawio) — the local setup, validation gate, and contributor flow at a glance.
 
+## Quickstart
+
+1. Clone and install with Bun.
+2. Copy `.env.example` to `.env.local`.
+3. Choose **UI-only mode** for docs/visual work or **full app/API mode** for AniList, Redis, cron, and protected-write flows.
+4. Start the app with `bun run dev`, then use the [change-type validation matrix](#change-type-validation-matrix) before you open a PR.
+
 ## Two ways to work locally
 
 There's no single "right" setup. It depends on what you're actually building:
@@ -172,6 +179,34 @@ Treat `bun run build` as a first-class local regression check, not just a releas
 
 Use `bun run test:unit` for the fast logic-only loop, and reach for `bun run test:unit:coverage` or `bun run test` when you want a real unit-coverage gate locally. The coverage checker honors `COVERAGE_LINES_THRESHOLD` when you need a stricter floor for a specific lane.
 
+### Change-type validation matrix
+
+Use this as the minimum local pass selector. You can always run more, but this keeps docs-only and contract-only work from pretending it needed the full kitchen sink.
+
+- **Docs-only Markdown changes** — minimum pass: `bun run format:write`
+  Good default for `README.md` / `docs/*` edits with no code or contract drift.
+- **Public contract docs + `openapi.yaml`** — minimum pass: `bun run format:write` plus a manual skim of [`API.md`](./API.md) and `openapi.yaml` together
+  There is no separate repo-scripted OpenAPI validator today; contract review is pairing the spec with the owning guide.
+- **Route handler, request/response contract, or shared server utility** — minimum pass: `bun run format:write` → `bun run test:unit` → `bun run typecheck` → `bun run build` → `bun run lint:check`
+  Use `bun run test` instead of `test:unit` when browser-observable behavior changed.
+- **App Router page, metadata, headers, or config** — minimum pass: `bun run format:write` → `bun run typecheck` → `bun run build` → `bun run lint:check`
+  `bun run build` is the first-class regression check here.
+- **Browser UI or interaction behavior** — minimum pass: `bun run format:write` → `bun run test` → `bun run typecheck` → `bun run build` → `bun run lint:check`
+  `bun run test:e2e:matrix-lite` is the focused lane when you want browser coverage without the full `bun run test` stack.
+- **Dependency or policy changes** — add `bun run check:licenses` and, when refactors/files moved, `bun run check:unused`
+  These are CI-facing parity checks rather than everyday defaults.
+
+### Supported OpenAPI 3.2 validation and preview workflow
+
+`openapi.yaml` is hand-maintained and authored in OpenAPI `3.2.0`, so the supported repo workflow is intentionally conservative:
+
+1. Edit [`../openapi.yaml`](../openapi.yaml) directly and update the owning summary docs in the same PR.
+2. Use the raw YAML, diff view, or an editor preview that **explicitly** supports OpenAPI `3.2.0` to sanity-check the contract shape.
+3. Treat older generators, hosted doc viewers, and codegen tools as optional spot-checks only. If they lag on `3.2`, assume tool drift before assuming the contract is wrong.
+4. Run the change-type validation lane above. For docs/spec-only work, that usually means `bun run format:write` plus a manual skim of [`API.md`](./API.md); for runtime changes, add the normal `typecheck` / `build` path.
+
+The repo does **not** currently bless a codegen-first or auto-generated preview pipeline for this file. The supported preview is "authoritative YAML plus human review," which is a little less glamorous than a shiny portal but a lot more honest.
+
 ### Playwright entrypoints beyond `bun run test:e2e`
 
 Treat `bun run test:e2e` as the default Playwright path. Reach for the specialized wrappers only when you specifically need a local production build or a deployed smoke target.
@@ -192,6 +227,8 @@ For most changes, this sequence covers the common local pass:
 3. `bun run typecheck`
 4. `bun run build`
 5. `bun run lint:check`
+
+### CI parity and repository internals
 
 CI also runs `bun run check:unused` and `bun run check:licenses` as dedicated jobs on pushes and pull requests. CI keeps lint read-only via `bun run lint:check` and only spins up the heavier lint/typecheck/build/Playwright lanes when code-bearing, config, or dependency files change. `bun run check:licenses` still runs as a dedicated policy gate, and its `.artifacts/licenses/license-policy-report.json` output is now summarized in the workflow run and uploaded as an artifact in CI, dependency-review, security-audit, and validated dependency-refresh lanes. Scheduled security audits still run the full baseline and publish a CycloneDX SBOM artifact from `bun run generate:sbom`.
 
