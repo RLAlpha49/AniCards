@@ -8,6 +8,8 @@ import {
   mock,
 } from "bun:test";
 
+import { getRouteOwnedStaticSitemapEntries } from "@/app/sitemap-static.xml/route";
+import { getLatestLastmod } from "@/lib/seo";
 import { allowConsoleWarningsAndErrors } from "@/tests/unit/__setup__";
 
 const realUserDataModule = (await import(
@@ -43,7 +45,8 @@ const STATIC_SITEMAP_PATHS = [
 const SITEMAP_SHARD_PATHS = ["/sitemap-static.xml", "/sitemap-profiles.xml"];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
 const PROFILE_LASTMOD = "2026-03-27T00:00:05.000Z";
-const STATIC_LASTMOD = "2026-04-20";
+const STATIC_LASTMOD =
+  getLatestLastmod(getRouteOwnedStaticSitemapEntries()) ?? "";
 
 beforeEach(() => {
   mock.module("@/lib/server/user-data", () => ({
