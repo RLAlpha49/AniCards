@@ -4,14 +4,6 @@ import React from "react";
 
 import { cn } from "@/lib/utils";
 
-/**
- * Components can extend these base values for timing or transform differences.
- */
-export const baseVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1 },
-};
-
 const HERO_REVEAL_CLASS =
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500";
 
