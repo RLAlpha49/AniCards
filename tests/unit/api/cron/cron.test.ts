@@ -811,25 +811,18 @@ describe("Cron API Route", () => {
     );
   });
 
-  it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
-    sharedRedisMockScan.mockRejectedValueOnce(
+  it("returns 500 when stale-user index listing fails critically", async () => {
+    sharedRedisMockZcard.mockRejectedValueOnce(
       new Error("Redis connection error"),
     );
-    const scanFailure = await POST(createCronRequest());
-    await expectApiErrorResponse(scanFailure, 500, "Cron job failed");
 
-    sharedRedisMockGet.mockImplementation((key: string) => {
-      if (key === "user:123:commit") {
-        return Promise.reject(new Error("Redis error"));
-      }
+    const countFailure = await POST(createCronRequest());
+    await expectApiErrorResponse(countFailure, 500, "Cron job failed");
 
-      return Promise.resolve(null);
-    });
-    sharedRedisMockScan.mockImplementationOnce(async () => [
-      0,
-      ["user:123:commit"],
-    ]);
-    const getFailure = await POST(createCronRequest());
-    await expectApiErrorResponse(getFailure, 500, "Cron job failed");
+    sharedRedisMockZcard.mockResolvedValueOnce(1);
+    sharedRedisMockZrange.mockRejectedValueOnce(new Error("Redis range error"));
+
+    const rangeFailure = await POST(createCronRequest());
+    await expectApiErrorResponse(rangeFailure, 500, "Cron job failed");
   });
 });
