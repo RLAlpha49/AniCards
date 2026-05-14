@@ -1,9 +1,10 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Skeleton } from "@/components/ui/Skeleton";
 import type React from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils";
 
 /**
  * Props for ImageWithSkeleton component.
@@ -24,156 +25,338 @@ type ImageWithSkeletonProps = {
   width?: number;
   height?: number;
   containerClassName?: string;
+  loading?: "eager" | "lazy";
+  decoding?: "async" | "auto" | "sync";
+  fetchPriority?: React.ImgHTMLAttributes<HTMLImageElement>["fetchPriority"];
+  fixedDimensions?: boolean;
+  mode?: "default" | "lightweight";
 };
 
-function useInView<T extends HTMLElement | null>(
-  ref: React.RefObject<T | null>,
-  rootMargin = "200px",
-) {
-  const [isInView, setIsInView] = useState(false);
+type ImageDimensions = {
+  width: number;
+  height: number;
+};
 
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || isInView) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setIsInView(true);
-      return;
-    }
+type ImageRenderState = {
+  loadState: ImageLoadState;
+  naturalDimensions: ImageDimensions | null;
+};
 
-    const observer = new IntersectionObserver(
-      (entries, obs) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            obs.disconnect();
-            return;
-          }
-        }
-      },
-      { rootMargin },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [ref, isInView, rootMargin]);
+export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
 
-  return isInView;
+export const SLOW_LOAD_THRESHOLD_MS = 2000;
+
+const useIsomorphicLayoutEffect =
+  globalThis.window === undefined ? useEffect : useLayoutEffect;
+
+export function isImageReady(
+  imageElement: HTMLImageElement | null,
+): imageElement is HTMLImageElement {
+  return Boolean(imageElement?.complete && imageElement.naturalWidth > 0);
 }
 
-function useImageDimensions(
-  src: string,
-  imgRef: React.RefObject<HTMLImageElement | null>,
-  isMounted: boolean,
-  isInView: boolean,
-  width?: number,
-  height?: number,
-): readonly [
-  { width: number; height: number } | null,
-  React.Dispatch<
-    React.SetStateAction<{ width: number; height: number } | null>
-  >,
-] {
-  const [imageDimensions, setImageDimensions] = useState<{
-    width: number;
-    height: number;
-  } | null>(width && height ? { width, height } : null);
-
-  useEffect(() => {
-    if (!isMounted) return;
-    const el = imgRef.current;
-    if (!el) return;
-    if (el.complete) {
-      if (!imageDimensions && el.naturalWidth && el.naturalHeight) {
-        setImageDimensions({
-          width: el.naturalWidth,
-          height: el.naturalHeight,
-        });
-      }
-    }
-  }, [isMounted, src, imageDimensions, imgRef]);
-
-  useEffect(() => {
-    if (width && height) {
-      setImageDimensions({ width, height });
-    } else {
-      setImageDimensions(null);
-    }
-  }, [src, width, height]);
-
-  return [imageDimensions, setImageDimensions] as const;
-}
-
-function useImageLoader(
-  imgRef: React.RefObject<HTMLImageElement | null>,
-  src: string,
-  isMounted: boolean,
-  fallbackMs = 2000,
-): {
+export function getImageLoadState({
+  isLoaded,
+  isSlowLoading,
+  hasError,
+}: {
   isLoaded: boolean;
+  isSlowLoading: boolean;
   hasError: boolean;
-  handleLoad: () => void;
-  handleError: () => void;
-  setIsLoaded: React.Dispatch<React.SetStateAction<boolean>>;
-  setHasError: React.Dispatch<React.SetStateAction<boolean>>;
-} {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  useEffect(() => {
-    if (!isMounted) return;
+}): ImageLoadState {
+  if (hasError) {
+    return "error";
+  }
 
-    const fallbackTimer = setTimeout(() => {
-      if (!isLoaded && !hasError) {
-        setIsLoaded(true);
-      }
-    }, fallbackMs);
+  if (isLoaded) {
+    return "loaded";
+  }
 
-    return () => clearTimeout(fallbackTimer);
-  }, [isLoaded, hasError, isMounted, fallbackMs]);
+  if (isSlowLoading) {
+    return "slow";
+  }
 
-  useEffect(() => {
-    if (!isMounted) return;
-    const el = imgRef.current;
-    if (!el) return;
-    if (el.complete) {
-      setIsLoaded(true);
-    }
-  }, [isMounted, src]);
+  return "loading";
+}
 
-  useEffect(() => {
-    setIsLoaded(false);
-    setHasError(false);
-  }, [src]);
-
-  const handleLoad = () => setIsLoaded(true);
-  const handleError = () => setHasError(true);
+function getKnownDimensions(
+  width: number | undefined,
+  height: number | undefined,
+): ImageDimensions | null {
+  if (
+    typeof width !== "number" ||
+    width <= 0 ||
+    typeof height !== "number" ||
+    height <= 0
+  ) {
+    return null;
+  }
 
   return {
-    isLoaded,
-    hasError,
-    handleLoad,
-    handleError,
-    setIsLoaded,
-    setHasError,
+    width,
+    height,
   };
 }
 
-function getContainerStyle(
-  imageDimensions: { width: number; height: number } | null,
-  fallbackAspectRatio: number | undefined,
-): React.CSSProperties {
-  if (imageDimensions) {
-    const style: React.CSSProperties = { maxWidth: imageDimensions.width };
-    if (fallbackAspectRatio) style.aspectRatio = fallbackAspectRatio;
-    return style;
+function getImageDimensions(
+  imageElement: HTMLImageElement | null,
+): ImageDimensions | null {
+  if (!imageElement) {
+    return null;
   }
-  if (fallbackAspectRatio) return { aspectRatio: fallbackAspectRatio };
-  return {};
+
+  if (imageElement.naturalWidth <= 0 || imageElement.naturalHeight <= 0) {
+    return null;
+  }
+
+  return {
+    width: imageElement.naturalWidth,
+    height: imageElement.naturalHeight,
+  };
+}
+
+function areImageDimensionsEqual(
+  current: ImageDimensions | null,
+  next: ImageDimensions | null,
+): boolean {
+  return current?.width === next?.width && current?.height === next?.height;
+}
+
+function areImageRenderStatesEqual(
+  current: ImageRenderState,
+  next: ImageRenderState,
+): boolean {
+  return (
+    current.loadState === next.loadState &&
+    areImageDimensionsEqual(current.naturalDimensions, next.naturalDimensions)
+  );
+}
+
+function getLoadingImageState(): ImageRenderState {
+  return {
+    loadState: "loading",
+    naturalDimensions: null,
+  };
+}
+
+function getLoadedImageState(
+  imageElement: HTMLImageElement | null,
+  knownDimensions: ImageDimensions | null,
+): ImageRenderState {
+  return {
+    loadState: "loaded",
+    naturalDimensions: knownDimensions
+      ? null
+      : getImageDimensions(imageElement),
+  };
+}
+
+function getWrapperClassName(opts: {
+  containerClassName?: string;
+  fixedDimensions: boolean;
+  imageDimensions: ImageDimensions | null;
+}) {
+  return cn(
+    "relative overflow-hidden rounded-[4px]",
+    opts.fixedDimensions && opts.imageDimensions ? "inline-block" : "w-full",
+    !opts.imageDimensions && "aspect-video",
+    opts.containerClassName,
+  );
+}
+
+function ImageErrorFallback() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+      <span className="text-sm text-gray-500">Failed to load</span>
+    </div>
+  );
+}
+
+function LightweightImageWithPlaceholder({
+  src,
+  alt,
+  className,
+  style,
+  width,
+  height,
+  containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
+  fixedDimensions = false,
+}: Readonly<ImageWithSkeletonProps>) {
+  const knownDimensions = getKnownDimensions(width, height);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const hasError = failedSrc === src;
+  const showPlaceholder = hasError === false;
+  const wrapperClassName = getWrapperClassName({
+    containerClassName,
+    fixedDimensions,
+    imageDimensions: knownDimensions,
+  });
+
+  return (
+    <div
+      className={wrapperClassName}
+      data-image-state={hasError ? "error" : "lightweight"}
+    >
+      {showPlaceholder ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[hsl(var(--foreground)/0.02)]"
+        >
+          <div className="
+            absolute inset-0
+            bg-[linear-gradient(135deg,hsl(var(--gold)/0.07),transparent_45%,hsl(var(--foreground)/0.04))]
+          " />
+          <div className="
+            absolute inset-x-[14%] top-[18%] h-px bg-linear-to-r from-transparent
+            via-[hsl(var(--gold)/0.22)] to-transparent
+          " />
+          <div className="
+            absolute inset-x-[18%] bottom-[18%] h-[12%] rounded-full
+            bg-[hsl(var(--foreground)/0.05)]
+          " />
+          <div className="
+            absolute -right-10 -bottom-12 size-28 rounded-full bg-[hsl(var(--gold)/0.08)] blur-3xl
+          " />
+        </div>
+      ) : null}
+      <img
+        src={src}
+        alt={alt}
+        className={cn(
+          fixedDimensions && knownDimensions ? "block h-auto max-w-none" : null,
+          "rounded-[4px]",
+          className,
+          hasError ? "opacity-0" : "opacity-100",
+          "transition-opacity duration-200",
+        )}
+        style={style}
+        width={width}
+        height={height}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        onError={() => setFailedSrc(src)}
+      />
+      {hasError ? <ImageErrorFallback /> : null}
+    </div>
+  );
+}
+
+function ManagedImageWithSkeleton({
+  src,
+  alt,
+  className,
+  style,
+  width,
+  height,
+  containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
+  fixedDimensions = false,
+}: Readonly<ImageWithSkeletonProps>) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imageState, setImageState] = useState<ImageRenderState>(() =>
+    getLoadingImageState(),
+  );
+  const knownDimensions = getKnownDimensions(width, height);
+  const imageDimensions = knownDimensions ?? imageState.naturalDimensions;
+
+  useIsomorphicLayoutEffect(() => {
+    const readyImage = imgRef.current;
+
+    if (isImageReady(readyImage)) {
+      const loadedState = getLoadedImageState(readyImage, knownDimensions);
+      setImageState((current) =>
+        areImageRenderStatesEqual(current, loadedState) ? current : loadedState,
+      );
+      return;
+    }
+
+    const loadingState = getLoadingImageState();
+    setImageState((current) =>
+      areImageRenderStatesEqual(current, loadingState) ? current : loadingState,
+    );
+
+    const slowLoadingTimer = globalThis.setTimeout(() => {
+      setImageState((current) =>
+        current.loadState === "loading"
+          ? { ...current, loadState: "slow" }
+          : current,
+      );
+    }, SLOW_LOAD_THRESHOLD_MS);
+
+    return () => globalThis.clearTimeout(slowLoadingTimer);
+  }, [height, src, width]);
+
+  const onImageLoad = () => {
+    const loadedState = getLoadedImageState(imgRef.current, knownDimensions);
+
+    setImageState((current) =>
+      areImageRenderStatesEqual(current, loadedState) ? current : loadedState,
+    );
+  };
+
+  const onImageError = () => {
+    setImageState((current) =>
+      current.loadState === "error"
+        ? current
+        : { ...current, loadState: "error" },
+    );
+  };
+  const wrapperClassName = getWrapperClassName({
+    containerClassName,
+    fixedDimensions,
+    imageDimensions,
+  });
+
+  const showSkeleton =
+    imageState.loadState === "loading" || imageState.loadState === "slow";
+  const showImage = imageState.loadState === "loaded";
+
+  return (
+    <div
+      className={wrapperClassName}
+      data-image-state={imageState.loadState}
+      aria-busy={
+        imageState.loadState === "loading" || imageState.loadState === "slow"
+      }
+    >
+      {showSkeleton && (
+        <Skeleton className="absolute inset-0 size-full rounded-[4px]" />
+      )}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        className={cn(
+          fixedDimensions && imageDimensions ? "block h-auto max-w-none" : null,
+          "rounded-[4px]",
+          className,
+          showImage ? "opacity-100" : "opacity-0",
+          "transition-opacity duration-300",
+        )}
+        style={style}
+        width={width}
+        height={height}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        onLoad={onImageLoad}
+        onError={onImageError}
+      />
+      {imageState.loadState === "error" && <ImageErrorFallback />}
+    </div>
+  );
 }
 
 /**
  * Image wrapper that displays a Skeleton while the image is loading.
- * Uses a client-side mount lifecycle to avoid SSR mismatch for randomized
- * or lazy loaded images and provides a simple error fallback.
- * The skeleton sizing is constrained to the image's natural dimensions.
+ * Uses intrinsic dimensions when available to reserve responsive space and
+ * lets the native image lifecycle drive visibility with a simple error fallback.
  * @source
  */
 export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
@@ -184,94 +367,45 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   width,
   height,
   containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fetchPriority,
+  fixedDimensions = false,
+  mode = "default",
 }) => {
-  const [isMounted, setIsMounted] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, "200px");
-  const [imageDimensions, setImageDimensions] = useImageDimensions(
-    src,
-    imgRef,
-    isMounted,
-    isInView,
-    width,
-    height,
-  );
-  const { isLoaded, hasError, handleLoad, handleError } = useImageLoader(
-    imgRef,
-    src,
-    isMounted,
-    2000,
-  );
-
-  const onImageLoad = () => {
-    if (imgRef.current && !imageDimensions) {
-      setImageDimensions({
-        width: imgRef.current.naturalWidth,
-        height: imgRef.current.naturalHeight,
-      });
-    }
-    handleLoad();
-  };
-
-  const onImageError = () => {
-    handleError();
-  };
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const aspectRatio = imageDimensions
-    ? imageDimensions.width / imageDimensions.height
-    : undefined;
-
-  const fallbackAspectRatio = aspectRatio ?? 16 / 9;
-
-  const containerStyle = getContainerStyle(
-    imageDimensions,
-    fallbackAspectRatio,
-  );
-
-  const showSkeleton = !hasError && !isLoaded;
-  const showImage = isLoaded;
-
-  const shouldShowSkeleton = !isMounted || showSkeleton;
-  const shouldShowImage = isMounted && showImage;
-
-  return (
-    <div
-      ref={containerRef}
-      className={`relative w-full ${containerClassName ?? ""}`}
-      style={containerStyle}
-    >
-      {shouldShowSkeleton && (
-        <Skeleton
-          className="absolute inset-0 h-full w-full rounded-lg"
-          style={
-            fallbackAspectRatio
-              ? { aspectRatio: fallbackAspectRatio }
-              : undefined
-          }
-        />
-      )}
-      <img
-        ref={imgRef}
+  if (mode === "lightweight") {
+    return (
+      <LightweightImageWithPlaceholder
         src={src}
         alt={alt}
-        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
-        style={{ borderRadius: "4px" }}
+        className={className}
+        style={style}
         width={width}
         height={height}
-        loading="lazy"
-        onLoad={onImageLoad}
-        onError={onImageError}
+        containerClassName={containerClassName}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        fixedDimensions={fixedDimensions}
+        mode={mode}
       />
-      {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-          <span className="text-sm text-gray-500">Failed to load</span>
-        </div>
-      )}
-    </div>
+    );
+  }
+
+  return (
+    <ManagedImageWithSkeleton
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      width={width}
+      height={height}
+      containerClassName={containerClassName}
+      loading={loading}
+      decoding={decoding}
+      fetchPriority={fetchPriority}
+      fixedDimensions={fixedDimensions}
+      mode={mode}
+    />
   );
 };

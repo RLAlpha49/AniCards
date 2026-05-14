@@ -1,23 +1,49 @@
-import type { ColorValue } from "@/lib/types/card";
-import type { MediaListEntry } from "@/lib/types/records";
-import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
-  escapeForXml,
-  getCardBorderRadius,
-  markTrustedSvg,
-  processColorsForSVG,
-} from "@/lib/utils";
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
 import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
+import type { ColorValue } from "@/lib/types/card";
+import type { MediaListEntry } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+  processColorsForSVG,
+} from "@/lib/utils";
+
+import {
+  dedupeByMediaIdKeepHighestRepeat,
   getDimensions,
   getMediaTitle,
-  dedupeByMediaIdKeepHighestRepeat,
 } from "./shared";
+
+const TITLE_TRUNCATE_LENGTH = 32; // Keep the fallback title compact when a row cannot be fit exactly.
+const sharedSegmenter =
+  typeof Intl.Segmenter === "function"
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
+
+function truncateGraphemes(text: string, maxGraphemes: number): string {
+  if (maxGraphemes <= 0) return "";
+
+  if (!sharedSegmenter) {
+    // Fallback splits Unicode code points rather than grapheme clusters, so
+    // multi-codepoint glyphs (for example family emoji) can be split apart.
+    return Array.from(text).slice(0, maxGraphemes).join("");
+  }
+
+  return Array.from(sharedSegmenter.segment(text), (segment) => segment.segment)
+    .slice(0, maxGraphemes)
+    .join("");
+}
 
 /** Most rewatched card input structure. @source */
 interface MostRewatchedInput {
@@ -98,7 +124,16 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
   }
 
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = dims.w - 40;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: 18,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   // Reduce empty space when there are fewer than 5 entries by shrinking the SVG
   // height to fit the rendered rows. Keep a sensible minimum so the card still
@@ -117,25 +152,87 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
     input.totalRereads ??
     mangaReread.reduce((sum, e) => sum + (e.repeat ?? 0), 0);
   const statsLine = `🔄 ${totalRewatches} rewatches | 📖 ${totalRereads} rereads`;
+  const statsLineFit = fitSvgSingleLineText({
+    fontWeight: 400,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: dims.w - 50,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: statsLine,
+  });
+  const statsLineFontSizeStyle = statsLineFit
+    ? ` style="font-size:${statsLineFit.fontSize}px"`
+    : "";
 
   const entriesContent = displayEntries
     .map(({ entry, type }, i) => {
       const mediaTitle = getMediaTitle(entry);
       const repeatCount = entry.repeat ?? 0;
       const icon = type === "anime" ? "📺" : "📚";
+      const repeatText = `${repeatCount}x`;
+      const entryTitleX = 26;
+      const entryAvailableWidth = dims.w - 45 - entryTitleX;
+      const entryFit = fitSvgAnchoredTextPair({
+        availableWidth: entryAvailableWidth,
+        gapPx: 12,
+        primaryFontWeight: 500,
+        primaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        primaryMinFontSize: 8,
+        primaryText: mediaTitle,
+        secondaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        secondaryMaxWidth: 48,
+        secondaryMinFontSize: 8,
+        secondaryFontWeight: 600,
+        secondaryText: repeatText,
+      });
+      const truncatedFallbackTitle = truncateGraphemes(
+        mediaTitle,
+        TITLE_TRUNCATE_LENGTH,
+      );
+      const fallbackTitle =
+        truncatedFallbackTitle === mediaTitle
+          ? truncatedFallbackTitle
+          : `${truncatedFallbackTitle}...`;
+      const entryTitleLengthAdjustAttrs = entryFit
+        ? buildSvgTextLengthAdjustAttributes(entryFit.primary, {
+            initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+            maxWidth: entryFit.availablePrimaryWidth,
+          })
+        : "";
+      const entryTitleFontSizeStyle = entryFit
+        ? ` style="font-size:${entryFit.primary.fontSize}px"`
+        : "";
+      const countFontSizeStyle = entryFit
+        ? ` style="font-size:${entryFit.secondary.fontSize}px"`
+        : "";
       return `
         <g transform="translate(${SPACING.CARD_PADDING}, ${85 + i * 28})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
           <text class="entry-icon" fill="${resolvedColors.textColor}">${escapeForXml(icon)}</text>
-          <text class="entry-title" x="22" fill="${resolvedColors.textColor}">${escapeForXml(mediaTitle.slice(0, 32))}${mediaTitle.length > 32 ? "..." : ""}</text>
-          <text class="entry-count" x="${dims.w - 45}" fill="${resolvedColors.circleColor}" text-anchor="end">${escapeForXml(repeatCount)}x</text>
+          <text class="entry-title" x="${entryTitleX}" fill="${resolvedColors.textColor}"${entryTitleFontSizeStyle}${entryTitleLengthAdjustAttrs}>${escapeForXml(entryFit?.primary.text ?? fallbackTitle)}</text>
+          <text class="entry-count" x="${dims.w - 45}" fill="${resolvedColors.circleColor}" text-anchor="end"${countFontSizeStyle}>${escapeForXml(entryFit?.secondary.text ?? repeatText)}</text>
         </g>
       `;
     })
     .join("");
 
+  const noDataFit = fitSvgSingleLineText({
+    fontWeight: 400,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: dims.w - 40,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: "No rewatched or reread titles found",
+  });
+  const noDataFontSize = noDataFit
+    ? ` style="font-size:${noDataFit.fontSize}px"`
+    : "";
+  const noDataText = escapeForXml(
+    noDataFit?.text ?? "No rewatched or reread titles found",
+  );
+
   const noDataMessage =
     displayEntries.length === 0
-      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line">No rewatched or reread titles found</text>`
+      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line"${noDataFontSize}>${noDataText}</text>`
       : "";
 
   return markTrustedSvg(`
@@ -143,7 +240,7 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .entry-icon { font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px; }
         .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
@@ -153,10 +250,10 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       <g transform="translate(25, 58)">
-        <text class="stats-line" fill="${resolvedColors.textColor}">${escapeForXml(statsLine)}</text>
+        <text class="stats-line" fill="${resolvedColors.textColor}"${statsLineFontSizeStyle}>${escapeForXml(statsLineFit?.text ?? statsLine)}</text>
       </g>
       ${entriesContent}
       ${noDataMessage}

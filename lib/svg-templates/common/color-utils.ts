@@ -1,13 +1,13 @@
 import type { ColorValue } from "@/lib/types/card";
-import { hexToHsl, hslToHex, isGradient, isValidHexColor } from "@/lib/utils";
-
-export { hexToHsl, hslToHex, isValidHexColor } from "@/lib/utils";
+import {
+  getGradientRenderFallbackColor,
+  hexToHsl,
+  isGradient,
+  isValidHexColor,
+} from "@/lib/utils";
 
 /** Default stat base color used when a circle color cannot be resolved. @source lib/svg-templates/extra-anime-manga-stats/shared.ts */
 export const DEFAULT_STAT_BASE_COLOR = "#2563eb";
-
-/** Heatmap color palette configuration. @source lib/svg-templates/activity-stats/shared.ts */
-export type HeatmapPalette = "default" | "github" | "fire";
 
 /**
  * Try to parse a JSON-stringified gradient-like object and return a first valid hex stop color.
@@ -19,33 +19,8 @@ export type HeatmapPalette = "default" | "github" | "fire";
 export const tryParseJsonGradient = (
   jsonStr: string,
 ): { color: string } | null => {
-  try {
-    const parsed = JSON.parse(jsonStr);
-
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      (parsed as { type?: unknown }).type &&
-      Array.isArray((parsed as { stops?: unknown }).stops) &&
-      ((parsed as { stops?: unknown[] }).stops?.length ?? 0) > 0
-    ) {
-      for (const stop of (parsed as { stops: unknown[] }).stops) {
-        if (
-          typeof stop === "object" &&
-          stop !== null &&
-          "color" in stop &&
-          typeof (stop as { color?: unknown }).color === "string" &&
-          isValidHexColor((stop as { color: string }).color)
-        ) {
-          return { color: (stop as { color: string }).color };
-        }
-      }
-    }
-  } catch {
-    // JSON parsing failed, not a JSON string
-  }
-
-  return null;
+  const color = getGradientRenderFallbackColor(jsonStr, "");
+  return color ? { color } : null;
 };
 
 /**
@@ -63,19 +38,11 @@ export const tryParseJsonGradient = (
 export const resolveCircleBaseColor = (
   value: ColorValue | undefined,
 ): string => {
-  // Handle gradient objects (in-memory form)
   if (value && typeof value === "object" && isGradient(value)) {
-    for (const stop of value.stops) {
-      if (stop.color && isValidHexColor(stop.color)) {
-        return stop.color;
-      }
-    }
-    return DEFAULT_STAT_BASE_COLOR;
+    return getGradientRenderFallbackColor(value, DEFAULT_STAT_BASE_COLOR);
   }
 
-  // Handle string values
   if (typeof value === "string") {
-    // Try hex first
     if (isValidHexColor(value)) {
       return value;
     }
@@ -156,57 +123,3 @@ export const getStatColor = (
 
   return getColorByIndex(index, baseColor);
 };
-
-/**
- * Gets heatmap color based on activity intensity and palette.
- *
- * @param intensity - Normalized intensity value between 0 and 1.
- * @param palette - Color palette to use.
- * @param baseColor - Base color for default palette.
- * @returns Object with resolved color (hex or provided base) and opacity.
- * @source lib/svg-templates/activity-stats/shared.ts
- */
-export function getHeatmapColor(
-  intensity: number,
-  palette: HeatmapPalette,
-  baseColor: string,
-): { color: string; opacity: number } {
-  const level = Math.min(4, Math.ceil(intensity * 4));
-
-  switch (palette) {
-    case "github": {
-      const githubColors = [
-        "#ebedf0",
-        "#9be9a8",
-        "#40c463",
-        "#30a14e",
-        "#216e39",
-      ];
-      return { color: githubColors[level], opacity: 1 };
-    }
-    case "fire": {
-      const fireColors = [
-        "#ebedf0",
-        "#ffadad",
-        "#ff6b6b",
-        "#ff3838",
-        "#e60000",
-      ];
-      return { color: fireColors[level], opacity: 1 };
-    }
-    default:
-      if (baseColor.startsWith("#")) {
-        const [h, s] = hexToHsl(baseColor);
-        // Vary lightness from light (0.9) to dark (0.1)
-        const lightnesses = [0.9, 0.7, 0.5, 0.3, 0.1];
-        const color = hslToHex(h, s, lightnesses[level]);
-        return { color, opacity: 1 };
-      }
-
-      // For gradients, use varying opacity
-      {
-        const alphas = [0.2, 0.5, 0.7, 0.9, 1];
-        return { color: baseColor, opacity: alphas[level] };
-      }
-  }
-}

@@ -1,0 +1,629 @@
+import { cleanup, render, waitFor } from "@testing-library/react";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
+import { createElement, type ErrorInfo } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import {
+  buildErrorFallbackModel,
+  ErrorBoundary,
+  ErrorFallbackPanel,
+} from "@/components/ErrorBoundary";
+import { useAppRouterErrorBoundaryReporting } from "@/hooks/useAppRouterErrorBoundaryReporting";
+import {
+  allowConsoleWarningsAndErrors,
+  parseRequestInitJson,
+} from "@/tests/unit/__setup__";
+import {
+  flushMacrotasks,
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
+
+installHappyDom("http://localhost/error-boundary");
+
+function parseJsonString<T>(value: unknown, label: string): T {
+  if (typeof value !== "string") {
+    throw new TypeError(`Expected ${label} to be a JSON string.`);
+  }
+
+  return JSON.parse(value) as T;
+}
+
+function readLastConsoleJsonLog(method: "error" | "log") {
+  const calls = (
+    console[method] as unknown as {
+      mock: {
+        calls: Array<[string]>;
+      };
+    }
+  ).mock.calls;
+
+  expect(calls.length).toBeGreaterThan(0);
+
+  return parseJsonString<{
+    endpoint?: string;
+    message?: string;
+    context?: Record<string, string>;
+  }>(calls.at(-1)?.[0], `${method} console payload`);
+}
+
+function AppRouterBoundaryHarness(
+  props: Readonly<{
+    error: Error & { digest?: string };
+  }>,
+) {
+  const { incidentReference, incidentStatus } =
+    useAppRouterErrorBoundaryReporting({
+      error: props.error,
+      boundary: "app_root_error",
+      defaultErrorName: "AppRouteError",
+      logLabel: "[AppErrorBoundary] Caught route error:",
+      userAction: "route_segment_render",
+    });
+
+  return createElement("div", undefined, [
+    createElement(
+      "output",
+      { "data-testid": "incident-reference", key: "reference" },
+      incidentReference ?? "",
+    ),
+    createElement(
+      "output",
+      { "data-testid": "incident-status", key: "status" },
+      incidentStatus,
+    ),
+  ]);
+}
+
+function ThrowingComponent(props: Readonly<{ error: Error }>): null {
+  throw props.error;
+}
+
+function createDeferredPromise<T>() {
+  let resolvePromise!: (value: T | PromiseLike<T>) => void;
+  let rejectPromise!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+
+  return {
+    promise,
+    resolve: resolvePromise,
+    reject: rejectPromise,
+  };
+}
+
+function installFetchMock(fetchMock: unknown): () => void {
+  const originalFetch = globalThis.fetch;
+
+  Object.defineProperty(globalThis, "fetch", {
+    value: fetchMock as typeof globalThis.fetch,
+    configurable: true,
+    writable: true,
+  });
+
+  return () => {
+    Object.defineProperty(globalThis, "fetch", {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
+  };
+}
+
+function readFirstReportPayload(fetchMock: {
+  mock: {
+    calls: Array<unknown[]>;
+  };
+}) {
+  const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+
+  if (!requestInit) {
+    throw new Error("Expected the first error report request to include init.");
+  }
+
+  return parseRequestInitJson<{
+    id?: string;
+  }>(requestInit);
+}
+
+async function waitForFirstReportPayload(fetchMock: {
+  mock: {
+    calls: Array<unknown[]>;
+  };
+}) {
+  await waitFor(() => {
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
+  return readFirstReportPayload(fetchMock);
+}
+
+function expectIncidentReference(id: string | undefined): string {
+  const incidentReference = id?.trim();
+
+  if (!incidentReference) {
+    throw new Error("Expected a non-empty incident reference.");
+  }
+
+  return incidentReference;
+}
+
+beforeEach(() => {
+  allowConsoleWarningsAndErrors();
+  resetHappyDom("http://localhost/error-boundary");
+});
+
+afterEach(async () => {
+  cleanup();
+  await flushMacrotasks();
+});
+
+afterAll(() => {
+  restoreHappyDom();
+});
+
+describe("ErrorBoundary fallback model", () => {
+  it("maps raw runtime errors to safe user-facing fallback copy", () => {
+    const model = buildErrorFallbackModel(
+      new Error("Failed to fetch user Alex profile"),
+    );
+
+    expect(model.heading).toBe("Something went wrong");
+    expect(model.message).toBe("Network connection error");
+    expect(model.retryable).toBe(true);
+    expect(
+      model.suggestions.some(
+        (suggestion) => suggestion.title === "Check your connection",
+      ),
+    ).toBe(true);
+  });
+
+  it("uses structured status, category, and recovery metadata when available", () => {
+    const customSuggestions = [
+      {
+        title: "Reload the latest data",
+        description: "Refresh the page before trying again.",
+      },
+    ];
+    const forbiddenModel = buildErrorFallbackModel(
+      Object.assign(new Error("Protected request rejected"), {
+        statusCode: 403,
+      }),
+    );
+    const validationModel = buildErrorFallbackModel(
+      Object.assign(new Error("Validation failed"), {
+        status: 422,
+      }),
+    );
+    const conflictModel = buildErrorFallbackModel(
+      Object.assign(new Error("Unexpected save failure"), {
+        category: "conflict" as const,
+        retryable: false,
+        recoverySuggestions: customSuggestions,
+      }),
+    );
+
+    expect(forbiddenModel.message).toBe("This request is blocked");
+    expect(forbiddenModel.retryable).toBe(false);
+    expect(validationModel.message).toBe(
+      "Some information needs to be corrected",
+    );
+    expect(validationModel.retryable).toBe(false);
+    expect(conflictModel.message).toBe("This page is out of date");
+    expect(conflictModel.retryable).toBe(false);
+    expect(conflictModel.suggestions).toEqual(customSuggestions);
+  });
+
+  it("keeps AniList username misses distinct from generic 404 resources", () => {
+    const genericNotFoundModel = buildErrorFallbackModel(
+      Object.assign(
+        new Error(
+          "Not Found: Card configuration snapshot is no longer available.",
+        ),
+        {
+          statusCode: 404,
+        },
+      ),
+    );
+    const userNotFoundModel = buildErrorFallbackModel(
+      Object.assign(new Error("User not found"), {
+        statusCode: 404,
+      }),
+    );
+    const namedAniListUserNotFoundModel = buildErrorFallbackModel(
+      Object.assign(
+        new Error(
+          'User "MissingUser" not found on AniList. Please check the username and try again.',
+        ),
+        {
+          statusCode: 404,
+        },
+      ),
+    );
+
+    expect(genericNotFoundModel.category).toBe("not_found");
+    expect(genericNotFoundModel.message).toBe(
+      "This page or resource couldn't be found",
+    );
+    expect(
+      genericNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(false);
+
+    expect(userNotFoundModel.category).toBe("user_not_found");
+    expect(userNotFoundModel.message).toBe("User not found");
+    expect(
+      userNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(true);
+
+    expect(namedAniListUserNotFoundModel.category).toBe("user_not_found");
+    expect(namedAniListUserNotFoundModel.message).toBe("User not found");
+    expect(
+      namedAniListUserNotFoundModel.suggestions.some(
+        (suggestion) => suggestion.actionLabel === "Visit AniList",
+      ),
+    ).toBe(true);
+  });
+
+  it("renders a privacy-safe incident reference when provided", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ErrorFallbackPanel, {
+        incidentReference: "digest-prod-12345",
+      }),
+    );
+
+    expect(markup).toContain("Incident reference");
+    expect(markup).toContain("digest-prod-12345");
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('aria-live="assertive"');
+  });
+
+  it("surfaces the resolved structured incident ID in the client boundary fallback", async () => {
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+    const restoreFetch = installFetchMock(fetchMock);
+
+    try {
+      render(
+        createElement(
+          ErrorBoundary,
+          undefined,
+          createElement(ThrowingComponent, {
+            error: new Error("Failed to fetch user Alex profile"),
+          }),
+        ),
+      );
+
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("Incident reference");
+        expect(document.body.textContent).toContain(incidentReference);
+      });
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it("hides retry by default for non-retryable fallbacks", () => {
+    const { queryByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: Object.assign(
+          new Error(
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          ),
+          {
+            statusCode: 409,
+          },
+        ),
+        onRetry: () => undefined,
+      }),
+    );
+
+    expect(queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+
+  it("allows retry to be explicitly opted in for non-retryable fallbacks", () => {
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: Object.assign(
+          new Error(
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          ),
+          {
+            statusCode: 409,
+          },
+        ),
+        onRetry: () => undefined,
+        allowRetryWhenNonRetryable: true,
+      }),
+    );
+
+    expect(getByRole("button", { name: /try again/i })).toBeTruthy();
+  });
+
+  it("preserves retry when an unknown failure still has a live reset handler", () => {
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: new Error("Unexpected render explosion"),
+        onRetry: () => undefined,
+      }),
+    );
+
+    expect(getByRole("button", { name: /try again/i })).toBeTruthy();
+  });
+
+  it("shows a local incident reference immediately before client boundary reporting settles", async () => {
+    const deferredResponse = createDeferredPromise<Response>();
+    const fetchMock = mock(() => deferredResponse.promise);
+    const restoreFetch = installFetchMock(fetchMock);
+
+    try {
+      render(
+        createElement(
+          ErrorBoundary,
+          undefined,
+          createElement(ThrowingComponent, {
+            error: new Error("Unexpected render explosion"),
+          }),
+        ),
+      );
+
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
+
+      expect(document.body.textContent).toContain("Incident reference");
+      expect(document.body.textContent).toContain(incidentReference);
+      expect(document.body.textContent).toContain("Unconfirmed");
+
+      deferredResponse.resolve(new Response(null, { status: 202 }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("Recorded");
+      });
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it("shows the Next.js digest immediately before App Router reporting settles", async () => {
+    const deferredResponse = createDeferredPromise<Response>();
+    const fetchMock = mock(() => deferredResponse.promise);
+    const restoreFetch = installFetchMock(fetchMock);
+
+    try {
+      const error = Object.assign(new Error("Route segment crashed"), {
+        digest: "digest-route-12345",
+      });
+      const { getByTestId } = render(
+        createElement(AppRouterBoundaryHarness, { error }),
+      );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      expect(getByTestId("incident-reference").textContent).toBe(error.digest);
+      expect(getByTestId("incident-status").textContent).toBe("unconfirmed");
+
+      deferredResponse.resolve(new Response(null, { status: 202 }));
+
+      const payload = readFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
+
+      await waitFor(() => {
+        expect(getByTestId("incident-reference").textContent).toBe(
+          incidentReference,
+        );
+        expect(getByTestId("incident-status").textContent).toBe("confirmed");
+      });
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it("keeps the immediate App Router incident reference while reporting status settles", async () => {
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+    const restoreFetch = installFetchMock(fetchMock);
+
+    try {
+      const error = Object.assign(
+        new Error("Failed to fetch user Alex profile"),
+        {
+          digest: "digest-route-12345",
+        },
+      );
+      const { getByTestId } = render(
+        createElement(AppRouterBoundaryHarness, { error }),
+      );
+
+      const payload = await waitForFirstReportPayload(fetchMock);
+      const incidentReference = expectIncidentReference(payload.id);
+
+      await waitFor(() => {
+        expect(getByTestId("incident-reference").textContent).toBe(
+          incidentReference,
+        );
+        expect(getByTestId("incident-status").textContent).toBe("confirmed");
+      });
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it("paces retry clicks while a fallback reset is in flight", async () => {
+    const onRetry = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          globalThis.setTimeout(resolve, 10);
+        }),
+    );
+
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        allowRetryWhenNonRetryable: true,
+        error: new Error("Something odd happened"),
+        incidentReference: "client:test-ref-12345",
+        incidentStatus: "queued",
+        onRetry,
+      }),
+    );
+
+    const retryButton = getByRole("button", { name: /try again/i });
+    retryButton.click();
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect((retryButton as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    retryButton.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => {
+      expect((retryButton as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
+
+  it("moves focus to the announced fallback region when mounted", async () => {
+    const { getByRole } = render(
+      createElement(ErrorFallbackPanel, {
+        error: new Error("Network request failed"),
+        onRetry: () => undefined,
+      }),
+    );
+
+    const alertRegion = getByRole("alert");
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(alertRegion);
+    });
+  });
+
+  it("logs client boundary captures through the privacy-safe pipeline in production", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+    const restoreFetch = installFetchMock(fetchMock);
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+
+    try {
+      const error = new Error(
+        "Render failed for alex@example.com via https://example.com/reset?token=super-secret-token-value-1234567890",
+      );
+      error.name = "BoundaryError";
+      error.stack = [
+        "BoundaryError: Render failed for alex@example.com",
+        "    at UserPage (/Users/Alex/private/project/file.ts:10:5)",
+        "    at fetchProfile (https://example.com/profile?token=super-secret-token-value-1234567890:2:3)",
+      ].join("\n");
+
+      const boundary = new ErrorBoundary({ children: null });
+      boundary.componentDidCatch(error, {
+        componentStack: [
+          "    at PrivateCard (/Users/Alex/private/project/PrivateCard.tsx:12:3)",
+          "    at Layout (https://example.com/app/layout.tsx:20:2)",
+        ].join("\n"),
+      } as ErrorInfo);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      const logEntry = readLastConsoleJsonLog("error");
+      const serializedLogEntry = JSON.stringify(logEntry);
+
+      expect(logEntry.endpoint).toBe("ErrorBoundary");
+      expect(logEntry.message).toBe("React error boundary caught render error");
+      expect(logEntry.context?.boundary).toBe("client_error_boundary");
+      expect(logEntry.context?.route).toBe("/error-boundary");
+      expect(logEntry.context?.error).toContain("[redacted-email]");
+      expect(logEntry.context?.error).toContain("[redacted-url]");
+      expect(logEntry.context?.componentStack).toContain("at PrivateCard");
+      expect(serializedLogEntry).not.toContain("alex@example.com");
+      expect(serializedLogEntry).not.toContain(
+        "super-secret-token-value-1234567890",
+      );
+      expect(serializedLogEntry).not.toContain("/Users/Alex/private");
+    } finally {
+      restoreFetch();
+      (process.env as Record<string, string | undefined>).NODE_ENV =
+        originalNodeEnv;
+    }
+  });
+
+  it("logs App Router boundary captures through the privacy-safe pipeline in production", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+    const restoreFetch = installFetchMock(fetchMock);
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+
+    try {
+      const error = Object.assign(
+        new Error(
+          "Route failed for alex@example.com via https://example.com/route?token=super-secret-token-value-1234567890",
+        ),
+        {
+          digest: "digest-route-12345",
+        },
+      );
+      error.name = "AppRouteError";
+      error.stack = [
+        "AppRouteError: Route failed for alex@example.com",
+        "    at RouteSegment (/Users/Alex/private/project/segment.tsx:10:5)",
+        "    at recoverRoute (https://example.com/error?token=super-secret-token-value-1234567890:2:3)",
+      ].join("\n");
+
+      render(createElement(AppRouterBoundaryHarness, { error }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      const logEntry = readLastConsoleJsonLog("error");
+      const serializedLogEntry = JSON.stringify(logEntry);
+
+      expect(logEntry.endpoint).toBe("AppRouterErrorBoundary");
+      expect(logEntry.message).toBe(
+        "App Router error boundary caught route error",
+      );
+      expect(logEntry.context?.boundary).toBe("app_root_error");
+      expect(logEntry.context?.digest).toBe("digest-route-12345");
+      expect(logEntry.context?.route).toBe("/error-boundary");
+      expect(logEntry.context?.error).toContain("[redacted-email]");
+      expect(logEntry.context?.error).toContain("[redacted-url]");
+      expect(serializedLogEntry).not.toContain("alex@example.com");
+      expect(serializedLogEntry).not.toContain(
+        "super-secret-token-value-1234567890",
+      );
+      expect(serializedLogEntry).not.toContain("/Users/Alex/private");
+    } finally {
+      restoreFetch();
+      (process.env as Record<string, string | undefined>).NODE_ENV =
+        originalNodeEnv;
+    }
+  });
+});

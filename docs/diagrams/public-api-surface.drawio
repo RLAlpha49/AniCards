@@ -1,0 +1,195 @@
+<mxfile host="65bd71144e">
+    <diagram id="api-surface" name="Public API Surface">
+        <mxGraphModel dx="870" dy="535" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1150" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Public API Surface" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="280" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="note" value="Route families, canonical vs alias entrypoints, shared controls, and backing services. Contract source of truth: openapi.yaml." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="20" width="560" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-consumers" value="Consumers" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="1080" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="con-browser" value="Browser (same-origin)&#xa;editor, pages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-consumers" vertex="1">
+                    <mxGeometry x="30" y="40" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="con-embed" value="External Embeds&#xa;cross-origin card.svg" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-consumers" vertex="1">
+                    <mxGeometry x="280" y="40" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="con-public" value="Public API Consumers&#xa;cross-origin reads" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-consumers" vertex="1">
+                    <mxGeometry x="530" y="40" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="con-cron" value="Cron / Operator&#xa;x-cron-secret" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-consumers" vertex="1">
+                    <mxGeometry x="780" y="40" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-reads" value="Public Read Routes (cross-origin, rate-limited)" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="220" width="1080" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="card-canonical" value="/api/card (GET)&#xa;canonical SVG handler&#xa;150 req / 10s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-reads" vertex="1">
+                    <mxGeometry x="30" y="50" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="card-pretty" value="/card.svg&#xa;pretty public alias&#xa;(rewrite to /api/card)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-reads" vertex="1">
+                    <mxGeometry x="260" y="50" width="190" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="card-compat" value="/api/card.svg&#xa;compatibility alias&#xa;(rewrite to /api/card)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-reads" vertex="1">
+                    <mxGeometry x="480" y="50" width="190" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="get-user" value="/api/get-user (GET)&#xa;user lookup by id/username&#xa;60 req / 10s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-reads" vertex="1">
+                    <mxGeometry x="700" y="50" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="get-cards" value="/api/get-cards (GET)&#xa;stored card config reads&#xa;60 req / 10s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-reads" vertex="1">
+                    <mxGeometry x="930" y="50" width="130" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-writes" value="Browser-Facing Write Routes (same-origin required, 10 req / 5s)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="410" width="1080" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="store-users" value="/api/store-users (POST)&#xa;persist user snapshot&#xa;validates + normalizes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-writes" vertex="1">
+                    <mxGeometry x="40" y="50" width="210" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="store-cards" value="/api/store-cards (POST)&#xa;persist card config&#xa;optimistic concurrency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-writes" vertex="1">
+                    <mxGeometry x="290" y="50" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="anilist-proxy" value="/api/anilist (POST)&#xa;allowlisted AniList proxy&#xa;GetUserId, GetUserStats" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-writes" vertex="1">
+                    <mxGeometry x="550" y="50" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="error-reports" value="/api/error-reports (POST)&#xa;structured client errors&#xa;3 req / 10s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-writes" vertex="1">
+                    <mxGeometry x="810" y="50" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-utility" value="Utility Routes" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="580" width="520" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="convert" value="/api/convert (POST)&#xa;SVG to PNG/WebP rasterization&#xa;20 req / min, SSRF-protected" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-utility" vertex="1">
+                    <mxGeometry x="40" y="40" width="250" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-cron" value="Operator / Cron Routes (x-cron-secret)" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="580" width="520" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron-refresh" value="/api/cron (POST)&#xa;stale user refresh&#xa;cleanup after 3x 404" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-cron" vertex="1">
+                    <mxGeometry x="30" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron-analytics" value="/api/cron/analytics-reporting&#xa;GET: read reports&#xa;POST: generate report" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-cron" vertex="1">
+                    <mxGeometry x="280" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-controls" value="Shared Controls (lib/api/)" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="740" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="ctl-init" value="initializeApiRequest()&#xa;request context, logging,&#xa;rate limit, same-origin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-controls" vertex="1">
+                    <mxGeometry x="40" y="40" width="210" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ctl-ratelimit" value="checkRateLimit()&#xa;Upstash-backed, per-IP&#xa;429 + Retry-After + headers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-controls" vertex="1">
+                    <mxGeometry x="290" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ctl-origin" value="validateSameOrigin()&#xa;NEXT_PUBLIC_APP_URL check&#xa;401 if missing/mismatched" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-controls" vertex="1">
+                    <mxGeometry x="550" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ctl-cors" value="CORS helpers&#xa;apiJsonHeaders(),&#xa;getAllowedCardSvgOrigin()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="lane-controls" vertex="1">
+                    <mxGeometry x="810" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane-backing" value="Backing Services" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="900" width="1080" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="bk-redis" value="Upstash Redis&#xa;user records, card configs,&#xa;SVG cache, rate limit state" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-backing" vertex="1">
+                    <mxGeometry x="30" y="40" width="250" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="bk-anilist" value="AniList GraphQL&#xa;upstream data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-backing" vertex="1">
+                    <mxGeometry x="330" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="bk-sharp" value="sharp (local)&#xa;SVG rasterization&#xa;PNG/WebP output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-backing" vertex="1">
+                    <mxGeometry x="580" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-browser-writes" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="con-browser" target="store-users" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="170" y="200"/>
+                            <mxPoint x="170" y="200"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-embed-card" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="con-embed" target="card-pretty" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-public-getuser" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="con-public" target="get-user" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="670" y="210"/>
+                            <mxPoint x="840" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-cron-cronroute" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="con-cron" target="cron-refresh" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="920" y="450"/>
+                            <mxPoint x="840" y="450"/>
+                            <mxPoint x="840" y="560"/>
+                            <mxPoint x="740" y="560"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-pretty-canonical" value="rewrite" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="card-pretty" target="card-canonical" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-compat-canonical" value="rewrite" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="card-compat" target="card-canonical" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="615" y="310"/>
+                            <mxPoint x="170" y="310"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-reads-controls" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="get-user" target="ctl-init" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="840" y="450"/>
+                            <mxPoint x="570" y="450"/>
+                            <mxPoint x="570" y="730"/>
+                            <mxPoint x="180" y="730"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-writes-controls" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="store-users" target="ctl-init" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="70" y="500"/>
+                            <mxPoint x="70" y="815"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-store-redis" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="store-users" target="bk-redis" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="60" y="490"/>
+                            <mxPoint x="60" y="880"/>
+                            <mxPoint x="195" y="880"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-anilist-anilist" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" parent="1" source="anilist-proxy" target="bk-anilist" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="590" y="730"/>
+                            <mxPoint x="830" y="730"/>
+                            <mxPoint x="830" y="880"/>
+                            <mxPoint x="470" y="880"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-convert-sharp" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="convert" target="bk-sharp" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="205" y="700"/>
+                            <mxPoint x="310" y="700"/>
+                            <mxPoint x="310" y="880"/>
+                            <mxPoint x="340" y="880"/>
+                            <mxPoint x="340" y="1010"/>
+                            <mxPoint x="720" y="1010"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

@@ -1,0 +1,89 @@
+name: Deployed Vercel Smoke
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.deployment.ref || github.event.deployment.environment || github.event.deployment.sha || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  deployed-smoke:
+    if: ${{ github.event.deployment_status.state == 'success' }}
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun dependencies and Playwright
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+          install-playwright: "true"
+
+      - name: Resolve deployed AniCards URL
+        env:
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
+          TARGET_URL: ${{ github.event.deployment_status.target_url }}
+        run: bun ./scripts/resolve-playwright-deployment-url.ts
+
+      - name: Allowlist deployed smoke target before secret use
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+        run: |
+          bun --eval '
+          const {
+            ANICARDS_PRODUCTION_HOST,
+            isTrustedAniCardsPreviewHost,
+            resolveTrustedAniCardsBaseUrl,
+          } = await import("./lib/playwright-base-url.ts");
+
+          const rawEnvironment = (process.env.DEPLOYMENT_ENVIRONMENT ?? "").trim();
+          const normalizedEnvironment = rawEnvironment.toLowerCase();
+          const environmentKind = normalizedEnvironment.startsWith("production")
+            ? "production"
+            : normalizedEnvironment.startsWith("preview")
+              ? "preview"
+              : null;
+
+          if (!environmentKind) {
+            throw new Error(`Deployment environment is not allowlisted for secret-bearing smoke checks: ${rawEnvironment || "<empty>"}`);
+          }
+
+          const resolvedTarget = resolveTrustedAniCardsBaseUrl(process.env.PLAYWRIGHT_BASE_URL, "PLAYWRIGHT_BASE_URL");
+          const hostname = resolvedTarget.parsedUrl.hostname;
+
+          if (environmentKind === "production" && hostname !== ANICARDS_PRODUCTION_HOST) {
+            throw new Error(`Production smoke checks must target ${ANICARDS_PRODUCTION_HOST}; received ${hostname}.`);
+          }
+
+          if (environmentKind === "preview" && !isTrustedAniCardsPreviewHost(hostname)) {
+            throw new Error(`Preview smoke checks must target an allowlisted AniCards Vercel preview host; received ${hostname}.`);
+          }
+
+          console.log(`[INFO] Approved ${environmentKind} deployed smoke target: ${resolvedTarget.origin}`);
+          '
+
+      - name: Run deployed smoke route matrix (readiness + Chromium)
+        id: playwright_deployed
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: bun run test:e2e:deployed-smoke
+
+      - name: Upload Playwright artifacts (Deployed Smoke)
+        if: ${{ always() && steps.playwright_deployed.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-deployed-smoke
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

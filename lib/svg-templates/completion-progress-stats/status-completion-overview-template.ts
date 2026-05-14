@@ -1,20 +1,26 @@
+import { z } from "zod";
+
+import {
+  buildSvgTextLengthAdjustAttributes,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+
 import {
   calculateCompletionRatio,
-  getDimensions,
   generateStackedBar,
   generateStatusLegend,
+  getDimensions,
   normalizeStatusCounts,
 } from "./shared";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 
 /** Status completion input structure. @source */
 interface StatusCompletionInput {
@@ -32,6 +38,10 @@ interface StatusCompletionInput {
   mangaStatuses: { status: string; count: number }[];
 }
 
+const HORIZONTAL_TITLE_MARGIN = 2 * SPACING.CARD_PADDING; // Use the shared card padding on both sides of the centered title.
+const TITLE_INITIAL_FONT_SIZE = TYPOGRAPHY.HEADER_SIZE; // Match the shared header typography before fitting.
+const USERNAME_SCHEMA = z.string().trim().min(1);
+
 /**
  * Renders the Status Completion Overview card showing cross-media completion stats.
  * @source
@@ -40,6 +50,8 @@ export function statusCompletionOverviewTemplate(
   input: StatusCompletionInput,
 ): TrustedSVG {
   const { username, styles, variant = "combined" } = input;
+  const parsedUsername = USERNAME_SCHEMA.safeParse(username);
+  const safeUsername = parsedUsername.success ? parsedUsername.data : "User";
   const animeStatuses = normalizeStatusCounts(input.animeStatuses ?? []);
   const mangaStatuses = normalizeStatusCounts(input.mangaStatuses ?? []);
 
@@ -62,9 +74,33 @@ export function statusCompletionOverviewTemplate(
 
   const cardRadius = getCardBorderRadius(styles.borderRadius);
   const dims = getDimensions("statusCompletionOverview", variant);
-  const title = `${username}'s Completion Overview`;
+  const safeDims =
+    Number.isFinite(dims.w) &&
+    dims.w > 0 &&
+    Number.isFinite(dims.h) &&
+    dims.h > 0
+      ? dims
+      : { w: 400, h: 240 };
+  const title = `${safeUsername}'s Completion Overview`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = safeDims.w - HORIZONTAL_TITLE_MARGIN;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TITLE_INITIAL_FONT_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const hasValidTitleFit =
+    Number.isFinite(titleFit.fontSize) && titleFit.fontSize > 0;
+  const titleFontSize = hasValidTitleFit
+    ? titleFit.fontSize
+    : TITLE_INITIAL_FONT_SIZE;
+  const titleLengthAdjustAttrs = hasValidTitleFit
+    ? buildSvgTextLengthAdjustAttributes(titleFit, {
+        initialFontSize: TITLE_INITIAL_FONT_SIZE,
+        maxWidth: titleMaxWidth,
+      })
+    : "";
+  const safeVisibleTitle = escapeForXml(titleFit.text || title);
 
   const animeRatio = calculateCompletionRatio(animeStatuses);
   const mangaRatio = calculateCompletionRatio(mangaStatuses);
@@ -80,7 +116,7 @@ export function statusCompletionOverviewTemplate(
         ${generateStackedBar(animeStatuses, {
           x: 0,
           y: 0,
-          width: dims.w - 50,
+          width: safeDims.w - 50,
           height: 20,
           label: animeLabel,
           textColor: resolvedColors.textColor,
@@ -90,7 +126,7 @@ export function statusCompletionOverviewTemplate(
         ${generateStackedBar(mangaStatuses, {
           x: 0,
           y: 80,
-          width: dims.w - 50,
+          width: safeDims.w - 50,
           height: 20,
           label: mangaLabel,
           textColor: resolvedColors.textColor,
@@ -113,7 +149,7 @@ export function statusCompletionOverviewTemplate(
         ${generateStackedBar(combinedStatuses, {
           x: 0,
           y: 0,
-          width: dims.w - 50,
+          width: safeDims.w - 50,
           height: 24,
           label: combinedLabel,
           textColor: resolvedColors.textColor,
@@ -125,19 +161,19 @@ export function statusCompletionOverviewTemplate(
   }
 
   return markTrustedSvg(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="${dims.w}" height="${dims.h}" viewBox="0 0 ${dims.w} ${dims.h}" fill="none" role="img" aria-labelledby="title-id">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${safeDims.w}" height="${safeDims.h}" viewBox="0 0 ${safeDims.w} ${safeDims.h}" fill="none" role="img" aria-labelledby="title-id">
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .bar-label { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .legend-text { font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
-      <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${dims.h - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
+      <rect x="0.5" y="0.5" width="${safeDims.w - 1}" height="${safeDims.h - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       ${content}
     </svg>

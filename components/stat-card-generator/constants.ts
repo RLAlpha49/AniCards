@@ -1,435 +1,58 @@
-import type { ColorValue } from "@/lib/types/card";
+import type { ColorValue, GradientStop } from "@/lib/types/card";
 
 export interface ColorPreset {
   colors: ColorValue[];
   mode: "dark" | "light" | "custom";
 }
 
-const pieBarVariations = [
-  { id: "default", label: "Default" },
-  { id: "pie", label: "Pie Chart" },
-  { id: "donut", label: "Donut Chart" },
-  { id: "bar", label: "Bar Chart" },
-];
+export { statCardTypes } from "@/lib/card-types";
 
-const genreTagDistributionVariations = [
-  ...pieBarVariations,
-  { id: "radar", label: "Radar Chart" },
-];
+interface LinearGradientPresetOptions {
+  mode: ColorPreset["mode"];
+  primary: readonly GradientStop[];
+  background: readonly GradientStop[];
+  text: ColorValue;
+  accent?: readonly GradientStop[];
+  primaryAngle?: number;
+  backgroundAngle?: number;
+  accentAngle?: number;
+}
 
-const statusDistributionVariations = pieBarVariations;
-
-const defaultOnlyVariations = [{ id: "default", label: "Default" }];
-
-const scoreDistributionVariations = [
-  { id: "default", label: "Default" },
-  { id: "horizontal", label: "Horizontal" },
-  { id: "cumulative", label: "Cumulative" },
-];
-
-const yearDistributionVariations = [
-  { id: "default", label: "Default" },
-  { id: "horizontal", label: "Horizontal" },
-];
-
-const mainStatsVariations = [
-  { id: "default", label: "Default" },
-  { id: "vertical", label: "Vertical" },
-  { id: "compact", label: "Compact" },
-  { id: "minimal", label: "Minimal" },
-];
-
-const socialStatsVariations = [
-  { id: "default", label: "Default" },
-  { id: "compact", label: "Compact" },
-  { id: "minimal", label: "Minimal" },
-  { id: "badges", label: "Badges" },
-];
-
-const socialCommunityVariations = [{ id: "default", label: "Default" }];
-
-const profileMainVariations = [
-  { id: "default", label: "Default" },
-  { id: "compact", label: "Compact" },
-  { id: "minimal", label: "Minimal" },
-];
-
-const favoritesGridVariations = [
-  { id: "anime", label: "Anime Grid" },
-  { id: "manga", label: "Manga Grid" },
-  { id: "characters", label: "Character Grid" },
-  { id: "staff", label: "Staff Grid" },
-  { id: "studios", label: "Studios Grid" },
-  { id: "mixed", label: "Mixed Favourites" },
-];
-
-const activityHeatmapVariations = [
-  { id: "default", label: "Default (Theme)" },
-  { id: "github", label: "GitHub Green" },
-  { id: "fire", label: "Fire Red" },
-];
-
-const activityCompactVariations = [{ id: "default", label: "Default" }];
-
-const activityFullVariations = [{ id: "default", label: "Default" }];
-
-const createCardType = (
-  id: string,
-  group: string,
-  label: string,
-  variations: typeof pieBarVariations,
-) => ({
-  id,
-  group,
-  label,
-  variations,
-});
-
-const getAnimeBreakdownVariations = (cardId: string) => {
-  if (cardId.endsWith("StatusDistribution"))
-    return statusDistributionVariations;
-  if (cardId === "animeGenreSynergy") return defaultOnlyVariations;
-  if (
-    cardId === "animeGenres" ||
-    cardId === "animeTags" ||
-    cardId === "animeSeasonalPreference"
-  ) {
-    return genreTagDistributionVariations;
+function stop(color: string, offset: number, opacity?: number): GradientStop {
+  if (opacity === undefined) {
+    return { color, offset };
   }
-  return pieBarVariations;
-};
 
-const getMangaBreakdownVariations = (cardId: string) => {
-  if (cardId.endsWith("StatusDistribution"))
-    return statusDistributionVariations;
-  if (cardId === "mangaGenres" || cardId === "mangaTags") {
-    return genreTagDistributionVariations;
-  }
-  return pieBarVariations;
-};
+  return { color, offset, opacity };
+}
 
-const animeBreakdownCards = [
-  { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
-  { id: "animeTags", label: "Anime Tags (Top 5 Count)" },
-  { id: "animeVoiceActors", label: "Anime Voice Actors (Top 5 Count)" },
-  { id: "animeStudios", label: "Anime Studios (Top 5 Count)" },
-  { id: "animeStaff", label: "Anime Staff (Top 5 Count)" },
-  {
-    id: "animeStatusDistribution",
-    label: "Anime Status Distribution (Current, Completed, etc.)",
-  },
-  { id: "animeFormatDistribution", label: "Anime Format Distribution" },
-  {
-    id: "animeSourceMaterialDistribution",
-    label: "Anime Source Material Distribution",
-  },
-  {
-    id: "animeSeasonalPreference",
-    label: "Anime Seasonal Preference (Winter/Spring/Summer/Fall)",
-  },
-  {
-    id: "animeEpisodeLengthPreferences",
-    label: "Episode Length Preferences (Short/Standard/Long)",
-  },
-  {
-    id: "animeGenreSynergy",
-    label: "Genre Synergy (Top Genre Pairs)",
-  },
-  { id: "animeCountry", label: "Anime Country" },
-];
+function linearGradient(
+  angle: number,
+  stops: readonly GradientStop[],
+): ColorValue {
+  return {
+    type: "linear",
+    angle,
+    stops: [...stops],
+  };
+}
 
-const mangaBreakdownCards = [
-  { id: "mangaGenres", label: "Manga Genres (Top 5 Count)" },
-  { id: "mangaTags", label: "Manga Tags (Top 5 Count)" },
-  { id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
-  {
-    id: "mangaStatusDistribution",
-    label: "Manga Status Distribution (Current, Completed, etc.)",
-  },
-  { id: "mangaFormatDistribution", label: "Manga Format Distribution" },
-  { id: "mangaCountry", label: "Manga Country" },
-];
-
-const activityCards = [
-  {
-    id: "activityHeatmap",
-    label: "Activity Heatmap (GitHub-style Calendar)",
-    variations: activityHeatmapVariations,
-  },
-  {
-    id: "recentActivitySummary",
-    label: "Recent Activity Summary (Totals + Sparkline)",
-    variations: activityFullVariations,
-  },
-  {
-    id: "recentActivityFeed",
-    label: "Recent Activity Feed (Daily Entries)",
-    variations: activityCompactVariations,
-  },
-  {
-    id: "activityStreaks",
-    label: "Activity Streaks & Peaks",
-    variations: activityFullVariations,
-  },
-  {
-    id: "topActivityDays",
-    label: "Top Activity Days (Highest activity days)",
-    variations: activityCompactVariations,
-  },
-];
-
-const statusCompletionVariations = [
-  { id: "combined", label: "Combined" },
-  { id: "split", label: "Split (Anime/Manga)" },
-];
-
-const milestonesVariations = [{ id: "default", label: "Default" }];
-
-const personalRecordsVariations = [{ id: "default", label: "Default" }];
-
-const planningBacklogVariations = [{ id: "default", label: "Default" }];
-
-const mostRewatchedVariations = [
-  { id: "default", label: "Default (All)" },
-  { id: "anime", label: "Anime Only" },
-  { id: "manga", label: "Manga Only" },
-];
-
-const currentlyWatchingReadingVariations = [
-  { id: "default", label: "Default (Anime + Manga)" },
-  { id: "anime", label: "Anime Only" },
-  { id: "manga", label: "Manga Only" },
-];
-
-const completionProgressCards = [
-  {
-    id: "statusCompletionOverview",
-    label: "Status Completion Overview",
-    variations: statusCompletionVariations,
-  },
-  {
-    id: "milestones",
-    label: "Consumption Milestones",
-    variations: milestonesVariations,
-  },
-  {
-    id: "personalRecords",
-    label: "Personal Records (Longest, Highest Rated, Most Rewatched)",
-    variations: personalRecordsVariations,
-  },
-  {
-    id: "planningBacklog",
-    label: "Planning Backlog",
-    variations: planningBacklogVariations,
-  },
-  {
-    id: "mostRewatched",
-    label: "Most Rewatched/Reread Titles",
-    variations: mostRewatchedVariations,
-  },
-  {
-    id: "currentlyWatchingReading",
-    label: "Currently Watching / Reading",
-    variations: currentlyWatchingReadingVariations,
-  },
-];
-
-const comparativeDefaultVariations = [{ id: "default", label: "Default" }];
-
-const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
-
-const studioDefaultVariations = [{ id: "default", label: "Default" }];
-
-export const statCardTypes = [
-  // Group: Core Stats
-  createCardType(
-    "animeStats",
-    "Core Stats",
-    "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
-    mainStatsVariations,
-  ),
-  createCardType(
-    "mangaStats",
-    "Core Stats",
-    "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
-    mainStatsVariations,
-  ),
-  createCardType(
-    "socialStats",
-    "Core Stats",
-    "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
-    socialStatsVariations,
-  ),
-  createCardType(
-    "profileOverview",
-    "Core Stats",
-    "Profile Overview (Avatar + Totals)",
-    profileMainVariations,
-  ),
-  createCardType(
-    "animeMangaOverview",
-    "Core Stats",
-    "Anime vs Manga Overview",
-    comparativeDefaultVariations,
-  ),
-
-  // Group: Anime Deep Dive
-  ...animeBreakdownCards.map((card) =>
-    createCardType(
-      card.id,
-      "Anime Deep Dive",
-      card.label,
-      getAnimeBreakdownVariations(card.id),
-    ),
-  ),
-  createCardType(
-    "animeScoreDistribution",
-    "Anime Deep Dive",
-    "Anime Score Distribution",
-    scoreDistributionVariations,
-  ),
-  createCardType(
-    "animeYearDistribution",
-    "Anime Deep Dive",
-    "Anime Year Distribution",
-    yearDistributionVariations,
-  ),
-
-  // Group: Manga Deep Dive
-  ...mangaBreakdownCards.map((card) =>
-    createCardType(
-      card.id,
-      "Manga Deep Dive",
-      card.label,
-      getMangaBreakdownVariations(card.id),
-    ),
-  ),
-  createCardType(
-    "mangaScoreDistribution",
-    "Manga Deep Dive",
-    "Manga Score Distribution",
-    scoreDistributionVariations,
-  ),
-  createCardType(
-    "mangaYearDistribution",
-    "Manga Deep Dive",
-    "Manga Year Distribution",
-    yearDistributionVariations,
-  ),
-
-  // Group: Activity & Engagement
-  ...activityCards.map((card) =>
-    createCardType(
-      card.id,
-      "Activity & Engagement",
-      card.label,
-      card.variations,
-    ),
-  ),
-  createCardType(
-    "socialMilestones",
-    "Activity & Engagement",
-    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
-    socialCommunityVariations,
-  ),
-  createCardType(
-    "reviewStats",
-    "Activity & Engagement",
-    "Review Statistics",
-    userAnalyticsDefaultVariations,
-  ),
-  createCardType(
-    "seasonalViewingPatterns",
-    "Activity & Engagement",
-    "Seasonal Viewing Patterns",
-    userAnalyticsDefaultVariations,
-  ),
-
-  // Group: Library & Progress
-  createCardType(
-    "favoritesSummary",
-    "Library & Progress",
-    "Favourites Summary",
-    profileMainVariations,
-  ),
-  createCardType(
-    "favoritesGrid",
-    "Library & Progress",
-    "Favourites Grid",
-    favoritesGridVariations,
-  ),
-  ...completionProgressCards.map((card) =>
-    createCardType(card.id, "Library & Progress", card.label, card.variations),
-  ),
-  createCardType(
-    "droppedMedia",
-    "Library & Progress",
-    "Dropped Media",
-    userAnalyticsDefaultVariations,
-  ),
-
-  // Group: Advanced Analytics
-  createCardType(
-    "scoreCompareAnimeManga",
-    "Advanced Analytics",
-    "Anime vs Manga Score Comparison",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "countryDiversity",
-    "Advanced Analytics",
-    "Country Diversity",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "genreDiversity",
-    "Advanced Analytics",
-    "Genre Diversity",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "formatPreferenceOverview",
-    "Advanced Analytics",
-    "Format Preference Overview",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "releaseEraPreference",
-    "Advanced Analytics",
-    "Release Era Preference",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "startYearMomentum",
-    "Advanced Analytics",
-    "Start-Year Momentum",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "lengthPreference",
-    "Advanced Analytics",
-    "Length Preference",
-    comparativeDefaultVariations,
-  ),
-  createCardType(
-    "tagCategoryDistribution",
-    "Advanced Analytics",
-    "Tag Category Distribution",
-    userAnalyticsDefaultVariations,
-  ),
-  createCardType(
-    "tagDiversity",
-    "Advanced Analytics",
-    "Tag Diversity",
-    userAnalyticsDefaultVariations,
-  ),
-  createCardType(
-    "studioCollaboration",
-    "Advanced Analytics",
-    "Studio Collaboration (Co-Production Pairs)",
-    studioDefaultVariations,
-  ),
-];
+function createLinearGradientPreset(
+  options: Readonly<LinearGradientPresetOptions>,
+): ColorPreset {
+  return {
+    colors: [
+      linearGradient(options.primaryAngle ?? 90, options.primary),
+      linearGradient(options.backgroundAngle ?? 180, options.background),
+      options.text,
+      linearGradient(
+        options.accentAngle ?? 135,
+        options.accent ?? options.primary,
+      ),
+    ],
+    mode: options.mode,
+  };
+}
 
 const _unsortedColorPresets: Record<string, ColorPreset> = {
   default: {
@@ -862,236 +485,78 @@ const _unsortedColorPresets: Record<string, ColorPreset> = {
     ],
     mode: "dark",
   },
-  anilistLightGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#FFFFFF", offset: 0 },
-          { color: "#f0f9ff", offset: 100 },
-        ],
-      },
-      "#333333",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-    ],
+  anilistLightGradient: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#3cc8ff", 0), stop("#02a9ff", 100)],
+    background: [stop("#FFFFFF", 0), stop("#f0f9ff", 100)],
+    text: "#333333",
+  }),
+  anilistDarkGradient: createLinearGradientPreset({
+    mode: "dark",
+    primary: [stop("#3cc8ff", 0), stop("#02a9ff", 100)],
+    background: [stop("#0b1622", 0), stop("#11202f", 50), stop("#152238", 100)],
+    text: "#E8E8E8",
+    accent: [stop("#3cc8ff", 0), stop("#0295e5", 100)],
+  }),
+  sunriseMeadow: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#f97316", 0), stop("#fbbf24", 100)],
+    background: [stop("#fffbeb", 0), stop("#fef3c7", 50), stop("#fff7ed", 100)],
+    text: "#78350f",
+    accent: [stop("#fb923c", 0), stop("#fbbf24", 100)],
+    accentAngle: 45,
+  }),
+  lavenderBloom: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#8b5cf6", 0), stop("#a78bfa", 100)],
+    background: [stop("#faf5ff", 0), stop("#f3e8ff", 50), stop("#ede9fe", 100)],
+    text: "#4c1d95",
+    accent: [stop("#a78bfa", 0), stop("#c4b5fd", 100)],
+  }),
+  skylineAzure: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#0ea5e9", 0), stop("#38bdf8", 100)],
+    background: [stop("#f0f9ff", 0), stop("#e0f2fe", 50), stop("#f0f9ff", 100)],
+    text: "#0c4a6e",
+    accent: [stop("#38bdf8", 0), stop("#7dd3fc", 100)],
+    accentAngle: 45,
+  }),
+  coralReef: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#f43f5e", 0), stop("#fb7185", 100)],
+    background: [stop("#fff1f2", 0), stop("#ffe4e6", 50), stop("#fecdd3", 100)],
+    text: "#881337",
+    accent: [stop("#fb7185", 0), stop("#fda4af", 100)],
+  }),
+  springGarden: createLinearGradientPreset({
+    mode: "light",
+    primary: [stop("#10b981", 0), stop("#34d399", 100)],
+    background: [stop("#ecfdf5", 0), stop("#d1fae5", 50), stop("#f0fdf4", 100)],
+    text: "#064e3b",
+    accent: [stop("#34d399", 0), stop("#6ee7b7", 100)],
+    accentAngle: 45,
+  }),
+  anicardsLight: {
+    colors: ["#a9842d", "#f7f5f2", "#2a2622", "#a9842d"],
     mode: "light",
   },
-  anilistDarkGradient: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#02a9ff", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#0b1622", offset: 0 },
-          { color: "#11202f", offset: 50 },
-          { color: "#152238", offset: 100 },
-        ],
-      },
-      "#E8E8E8",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#3cc8ff", offset: 0 },
-          { color: "#0295e5", offset: 100 },
-        ],
-      },
-    ],
+  anicardsDark: {
+    colors: ["#d5a944", "#0c0a10", "#eee4d3", "#d5a944"],
     mode: "dark",
   },
-  sunriseMeadow: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#f97316", offset: 0 },
-          { color: "#fbbf24", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#fffbeb", offset: 0 },
-          { color: "#fef3c7", offset: 50 },
-          { color: "#fff7ed", offset: 100 },
-        ],
-      },
-      "#78350f",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#fb923c", offset: 0 },
-          { color: "#fbbf24", offset: 100 },
-        ],
-      },
-    ],
+  anicardsLightGradient: createLinearGradientPreset({
     mode: "light",
-  },
-  lavenderBloom: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#8b5cf6", offset: 0 },
-          { color: "#a78bfa", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#faf5ff", offset: 0 },
-          { color: "#f3e8ff", offset: 50 },
-          { color: "#ede9fe", offset: 100 },
-        ],
-      },
-      "#4c1d95",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#a78bfa", offset: 0 },
-          { color: "#c4b5fd", offset: 100 },
-        ],
-      },
-    ],
-    mode: "light",
-  },
-  skylineAzure: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#0ea5e9", offset: 0 },
-          { color: "#38bdf8", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#f0f9ff", offset: 0 },
-          { color: "#e0f2fe", offset: 50 },
-          { color: "#f0f9ff", offset: 100 },
-        ],
-      },
-      "#0c4a6e",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#38bdf8", offset: 0 },
-          { color: "#7dd3fc", offset: 100 },
-        ],
-      },
-    ],
-    mode: "light",
-  },
-  coralReef: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#f43f5e", offset: 0 },
-          { color: "#fb7185", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#fff1f2", offset: 0 },
-          { color: "#ffe4e6", offset: 50 },
-          { color: "#fecdd3", offset: 100 },
-        ],
-      },
-      "#881337",
-
-      {
-        type: "linear",
-        angle: 135,
-        stops: [
-          { color: "#fb7185", offset: 0 },
-          { color: "#fda4af", offset: 100 },
-        ],
-      },
-    ],
-    mode: "light",
-  },
-  springGarden: {
-    colors: [
-      {
-        type: "linear",
-        angle: 90,
-        stops: [
-          { color: "#10b981", offset: 0 },
-          { color: "#34d399", offset: 100 },
-        ],
-      },
-
-      {
-        type: "linear",
-        angle: 180,
-        stops: [
-          { color: "#ecfdf5", offset: 0 },
-          { color: "#d1fae5", offset: 50 },
-          { color: "#f0fdf4", offset: 100 },
-        ],
-      },
-      "#064e3b",
-
-      {
-        type: "linear",
-        angle: 45,
-        stops: [
-          { color: "#34d399", offset: 0 },
-          { color: "#6ee7b7", offset: 100 },
-        ],
-      },
-    ],
-    mode: "light",
-  },
+    primary: [stop("#a9842d", 0), stop("#e1b137", 100)],
+    background: [stop("#fbfaf9", 0), stop("#f7f5f2", 50), stop("#eeebe8", 100)],
+    text: "#2a2622",
+  }),
+  anicardsDarkGradient: createLinearGradientPreset({
+    mode: "dark",
+    primary: [stop("#d5a944", 0), stop("#dfb03a", 100)],
+    background: [stop("#0c0a10", 0), stop("#18161d", 50), stop("#22222b", 100)],
+    text: "#eee4d3",
+    accent: [stop("#d5a944", 0), stop("#89763e", 100)],
+  }),
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 

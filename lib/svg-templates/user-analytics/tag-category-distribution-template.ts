@@ -1,11 +1,11 @@
 import type { ColorValue } from "@/lib/types/card";
+import type { UserStatsData } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 
-import type { UserStatsData } from "@/lib/types/records";
 import {
-  comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
+  comparativeTwoColumnTemplate,
 } from "../comparative-distribution-stats/shared";
 
 type TagStat = { tag: { name: string; category?: string }; count: number };

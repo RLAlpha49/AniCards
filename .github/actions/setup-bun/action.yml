@@ -1,0 +1,69 @@
+name: Setup Bun
+description: Restore the shared Bun cache, install Bun, and install workspace dependencies.
+
+inputs:
+  bun-version:
+    description: Bun version to install.
+    required: false
+    default: latest
+  install-playwright:
+    description: Restore the Playwright browser cache and install Playwright browsers when needed.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Resolve Bun runtime metadata
+      id: bun-runtime
+      run: |
+        echo "version=$(bun --version)" >> "$GITHUB_OUTPUT"
+        echo "cache_dir=$(bun pm cache)" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Resolve Playwright version
+      if: ${{ inputs.install-playwright == 'true' }}
+      id: playwright-version
+      run: |
+        VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Cache Playwright browsers
+      if: ${{ inputs.install-playwright == 'true' }}
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+    - name: Cache Bun global package cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.bun-runtime.outputs.cache_dir }}
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-global-${{ steps.bun-runtime.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-bun-global-${{ steps.bun-runtime.outputs.version }}-
+
+    - name: Cache workspace node_modules
+      id: workspace-modules-cache
+      uses: actions/cache@v5
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-bun-modules-${{ steps.bun-runtime.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+
+    - name: Install dependencies
+      if: ${{ steps.workspace-modules-cache.outputs.cache-hit != 'true' }}
+      run: bun install --frozen-lockfile
+      shell: bash
+
+    - name: Install Playwright browsers and system dependencies
+      if: ${{ inputs.install-playwright == 'true' }}
+      run: bunx playwright install --with-deps
+      shell: bash

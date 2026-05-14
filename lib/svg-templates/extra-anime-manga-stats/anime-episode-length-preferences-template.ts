@@ -1,6 +1,4 @@
-import { extraStatsTemplates, type ExtraStatsTemplateInput } from "./shared";
+import { extraStatsTemplates } from "./shared";
 
-export type AnimeEpisodeLengthPreferencesTemplateInput =
-  ExtraStatsTemplateInput;
 export const animeEpisodeLengthPreferencesTemplate =
   extraStatsTemplates.animeEpisodeLengthPreferences;

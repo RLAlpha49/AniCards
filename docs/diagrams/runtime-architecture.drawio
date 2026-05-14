@@ -1,0 +1,221 @@
+<mxfile host='Electron' modified='2026-03-31T23:00:00.000Z' agent='GitHub Copilot' version='26.0.0'>
+    <diagram id="runtime-overview" name="Runtime Architecture">
+        <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+
+                <!-- Title and note -->
+                <mxCell id="title" value="Runtime Architecture" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="280" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="note" value="Top-level runtime map from request entrypoints through middleware, shared services, and external dependencies." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="20" width="520" height="40" as="geometry"/>
+                </mxCell>
+
+                <!-- Client tier -->
+                <mxCell id="lane-client" value="Client" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="1080" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="browser" value="Browser&#xa;HTML pages, editor,&#xa;card previews" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-client" vertex="1">
+                    <mxGeometry x="30" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed" value="External Embeds&#xa;/card.svg in README,&#xa;forums, profiles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-client" vertex="1">
+                    <mxGeometry x="280" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron-trigger" value="Cron Scheduler&#xa;(Vercel / operator)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-client" vertex="1">
+                    <mxGeometry x="530" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="analytics-client" value="Analytics SDK&#xa;Google Analytics&#xa;(consent-gated)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="lane-client" vertex="1">
+                    <mxGeometry x="780" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+
+                <!-- Request interception tier -->
+                <mxCell id="lane-intercept" value="Request Interception (proxy.ts + app/middleware.ts)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="230" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="proxy" value="proxy.ts&#xa;Next.js 16 entrypoint&#xa;delegates to middleware()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-intercept" vertex="1">
+                    <mxGeometry x="30" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw-requestid" value="middleware.ts&#xa;X-Request-Id generation&#xa;(all matched routes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-intercept" vertex="1">
+                    <mxGeometry x="300" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw-csp" value="CSP + Nonce&#xa;(HTML routes only)&#xa;buildCSPHeader()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="lane-intercept" vertex="1">
+                    <mxGeometry x="570" y="40" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw-skip" value="API routes&#xa;skip CSP/nonce&#xa;forward X-Request-Id only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="lane-intercept" vertex="1">
+                    <mxGeometry x="820" y="40" width="220" height="60" as="geometry"/>
+                </mxCell>
+
+                <!-- App tier -->
+                <mxCell id="lane-app" value="App Tier (Next.js App Router)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="390" width="1080" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="layout" value="app/layout.tsx&#xa;getRequestNonce()&#xa;StructuredDataScript&#xa;AnalyticsProvider&#xa;Providers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-app" vertex="1">
+                    <mxGeometry x="30" y="40" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="pages" value="Pages&#xa;/, /user/[username],&#xa;/examples, /contact,&#xa;/privacy, /projects,&#xa;/search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-app" vertex="1">
+                    <mxGeometry x="270" y="40" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="api-routes" value="API Route Handlers&#xa;/api/card, /api/get-user,&#xa;/api/get-cards, /api/anilist,&#xa;/api/store-users, /api/store-cards,&#xa;/api/convert, /api/error-reports,&#xa;/api/cron, /api/cron/analytics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-app" vertex="1">
+                    <mxGeometry x="490" y="40" width="260" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="api-guards" value="Shared API Guards&#xa;initializeApiRequest()&#xa;rate limiting, same-origin,&#xa;request ID, logging" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="lane-app" vertex="1">
+                    <mxGeometry x="790" y="40" width="250" height="90" as="geometry"/>
+                </mxCell>
+
+                <!-- Shared services tier -->
+                <mxCell id="lane-services" value="Shared Services" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="600" width="1080" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="card-gen" value="Card Generator&#xa;lib/card-generator.ts&#xa;SVG template dispatch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-services" vertex="1">
+                    <mxGeometry x="30" y="50" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="svg-cache" value="SVG Cache&#xa;L1 in-memory LRU&#xa;L2 Redis compressed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-services" vertex="1">
+                    <mxGeometry x="270" y="50" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="user-data" value="User Data Service&#xa;lib/server/user-data.ts&#xa;split record read/write" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-services" vertex="1">
+                    <mxGeometry x="510" y="50" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="rate-limit-svc" value="Rate Limiter&#xa;lib/api/rate-limit.ts&#xa;Upstash Ratelimit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="lane-services" vertex="1">
+                    <mxGeometry x="750" y="50" width="200" height="60" as="geometry"/>
+                </mxCell>
+
+                <!-- External tier -->
+                <mxCell id="lane-external" value="External Services" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="770" width="1080" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="anilist" value="AniList GraphQL&#xa;upstream profile +&#xa;stats data source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-external" vertex="1">
+                    <mxGeometry x="30" y="40" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis" value="Upstash Redis&#xa;split user records,&#xa;card configs, indexes,&#xa;rate limit state, SVG cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-external" vertex="1">
+                    <mxGeometry x="280" y="40" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="ga" value="Google Analytics&#xa;consent-gated pageview&#xa;and event telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-external" vertex="1">
+                    <mxGeometry x="550" y="40" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel" value="Vercel&#xa;Analytics + Speed Insights&#xa;runtime telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="lane-external" vertex="1">
+                    <mxGeometry x="800" y="40" width="200" height="70" as="geometry"/>
+                </mxCell>
+
+                <!-- Edges: Client to Interception -->
+                <mxCell id="e-browser-proxy" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="browser" target="proxy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-embed-proxy" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="embed" target="proxy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-cron-proxy" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="cron-trigger" target="proxy" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="670" y="210"/>
+                            <mxPoint x="180" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+
+                <!-- Edges: Interception flow -->
+                <mxCell id="e-proxy-mw" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proxy" target="mw-requestid" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-mw-csp" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="mw-requestid" target="mw-csp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-mw-skip" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="mw-requestid" target="mw-skip" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Edges: Interception to App -->
+                <mxCell id="e-csp-layout" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="mw-csp" target="layout" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="710" y="375"/>
+                            <mxPoint x="170" y="375"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-skip-api" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="mw-skip" target="api-routes" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="970" y="375"/>
+                            <mxPoint x="660" y="375"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+
+                <!-- Edges: App internal -->
+                <mxCell id="e-layout-pages" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="layout" target="pages" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-api-guards" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-routes" target="api-guards" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Edges: App to Services -->
+                <mxCell id="e-api-cardgen" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-routes" target="card-gen" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="580"/>
+                            <mxPoint x="170" y="580"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-api-cache" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-routes" target="svg-cache" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="580" y="590"/>
+                            <mxPoint x="410" y="590"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-api-userdata" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-routes" target="user-data" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-guards-ratelimit" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-guards" target="rate-limit-svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+
+                <!-- Edges: Services to External -->
+                <mxCell id="e-api-anilist" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api-routes" target="anilist" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="500" y="760"/>
+                            <mxPoint x="170" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-userdata-redis" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="user-data" target="redis" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-cache-redis" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="svg-cache" target="redis" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-ratelimit-redis" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="rate-limit-svc" target="redis" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="890" y="760"/>
+                            <mxPoint x="430" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-analytics-ga" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="analytics-client" target="ga" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="920" y="760"/>
+                            <mxPoint x="690" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-layout-vercel" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="layout" target="vercel" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="100" y="575"/>
+                            <mxPoint x="100" y="920"/>
+                            <mxPoint x="940" y="920"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

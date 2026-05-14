@@ -1,32 +1,43 @@
-import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
-import type { TrustedSVG } from "@/lib/types/svg";
-
+/**
+ * Shared renderer for the core anime and manga stats cards.
+ *
+ * Both media types share the same structural template, with this module swapping
+ * the label/value configuration and layout variant so the visuals stay aligned
+ * while avoiding duplicated SVG markup.
+ */
+import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
+import {
+  ANIMATION,
+  MIN_FONT_SIZE,
+  POSITIONING,
+  SHAPES,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import {
   generateCommonStyles,
   generateRankCircleStyles,
 } from "@/lib/svg-templates/common/style-generators";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import {
   createGroupElement,
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-
+import { AnimeStats, ColorValue, MangaStats } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
-  processColorsForSVG,
-  getCardBorderRadius,
   escapeForXml,
+  getCardBorderRadius,
   markTrustedSvg,
+  processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  POSITIONING,
-  SHAPES,
-  SPACING,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 export type MediaType = "anime" | "manga";
@@ -67,6 +78,40 @@ function renderCircle(
   `;
 }
 
+const LABEL_SLOT_PADDING = 12;
+const MIN_VALUE_WIDTH = 24;
+const DEFAULT_VALUE_MAX_WIDTH = 96;
+const VERTICAL_MILESTONE_MAX_WIDTH = 104;
+const SHARED_MAIN_STAT_LABEL_MAX_WIDTH = 128;
+const DEFAULT_MILESTONE_MAX_WIDTH = 100;
+const COMPACT_MAIN_STAT_VALUE_MAX_WIDTH = 68;
+const MINIMAL_MAIN_STAT_VALUE_MAX_WIDTH = 70;
+const MINIMAL_MAIN_STAT_LABEL_MAX_WIDTH = 120;
+const MIN_DEFAULT_TITLE_WIDTH = 140;
+const DEFAULT_TITLE_RIGHT_MARGIN = 175;
+
+type StatWithValue = {
+  label: string;
+  value: number;
+};
+
+function fitCircleText(options: {
+  fontWeight: number;
+  initialFontSize: number;
+  maxWidth: number;
+  minFontSize?: number;
+  text: string;
+}): ReturnType<typeof fitSvgSingleLineText> {
+  return fitSvgSingleLineText({
+    fontWeight: options.fontWeight,
+    initialFontSize: options.initialFontSize,
+    maxWidth: options.maxWidth,
+    minFontSize: options.minFontSize ?? MIN_FONT_SIZE,
+    mode: "shrink-then-truncate",
+    text: options.text,
+  });
+}
+
 /**
  * Render a list of labeled stats as an SVG fragment.
  * @param stats - Array of label/value pairs to render.
@@ -85,13 +130,38 @@ function renderStatsList(
   ySpacing: number = SPACING.ROW_HEIGHT_COMPACT,
   animationDelay: number = ANIMATION.BASE_DELAY,
   animationIncrement: number = ANIMATION.STAGGER_INCREMENT,
+  valueMaxWidth: number = DEFAULT_VALUE_MAX_WIDTH,
 ): string {
+  const labelSlotWidth = Math.max(1, xOffset - LABEL_SLOT_PADDING);
   const rows = stats
-    .filter((stat) => stat.value !== undefined)
+    .filter((stat): stat is StatWithValue => stat.value !== undefined)
     .map((stat, index) => {
+      const valueText = `${stat.value}`;
+      const labelFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.STAT_SIZE,
+        maxWidth: labelSlotWidth,
+        minFontSize: MIN_FONT_SIZE,
+        mode: "shrink-then-truncate",
+        text: stat.label,
+      });
+      const valueFit = fitSvgSingleLineText({
+        fontWeight: 700,
+        initialFontSize: TYPOGRAPHY.STAT_SIZE,
+        maxWidth: Math.max(MIN_VALUE_WIDTH, valueMaxWidth),
+        minFontSize: MIN_FONT_SIZE,
+        mode: "shrink-then-truncate",
+        text: valueText,
+      });
       const content =
-        createTextElement(0, 12.5, stat.label, "stat") +
-        createTextElement(xOffset, 12.5, String(stat.value), "stat");
+        createTextElement(0, 12.5, labelFit?.text ?? stat.label, "stat", {
+          ...(labelFit ? { fontSize: labelFit.fontSize } : {}),
+        }) +
+        createTextElement(xOffset, 12.5, valueFit?.text ?? valueText, "stat", {
+          ...(valueFit
+            ? { fontSize: valueFit.fontSize, fontWeight: 700 }
+            : { fontWeight: 700 }),
+        });
       return createStaggeredGroup(
         `translate(25, ${index * ySpacing})`,
         content,
@@ -101,6 +171,202 @@ function renderStatsList(
     .join("");
 
   return createGroupElement(transform, rows);
+}
+
+interface MediaStatsVariantTemplateData {
+  variant?: "default" | "vertical" | "compact" | "minimal";
+  styles: {
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
+  };
+  stats: (AnimeStats | MangaStats) & {
+    previousMilestone: number;
+    currentMilestone: number;
+    dasharray: string;
+    dashoffset: string;
+  };
+}
+
+interface MediaStatsVariantConfig {
+  title: string;
+  mainStat: {
+    label: string;
+    value: number | undefined;
+    secondary: {
+      label: string;
+      value: number | undefined;
+    };
+  };
+}
+
+interface MediaStatsVariantArgs {
+  config: MediaStatsVariantConfig;
+  data: MediaStatsVariantTemplateData;
+  dims: { w: number; h: number };
+  resolvedColors: Record<string, string>;
+  scaledDasharray: string | null;
+  scaledDashoffset: string | null;
+}
+
+function buildStandardMediaStatsRows(args: MediaStatsVariantArgs) {
+  return [
+    { label: "Count:", value: args.data.stats.count },
+    {
+      label: `${args.config.mainStat.label}:`,
+      value: args.config.mainStat.value,
+    },
+    {
+      label: `${args.config.mainStat.secondary.label}:`,
+      value: args.config.mainStat.secondary.value,
+    },
+    { label: "Mean Score:", value: args.data.stats.meanScore },
+    { label: "Standard Deviation:", value: args.data.stats.standardDeviation },
+  ];
+}
+
+function renderVerticalMediaStatsVariant(args: MediaStatsVariantArgs): string {
+  const milestoneText = String(args.data.stats.currentMilestone);
+  const mainStatValueText = String(args.config.mainStat.value ?? 0);
+  const mainStatLabelText = String(args.config.mainStat.label);
+  const milestoneFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.KPI_SIZE,
+    maxWidth: VERTICAL_MILESTONE_MAX_WIDTH,
+    text: milestoneText,
+  });
+  const mainStatValueFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: POSITIONING.VALUE_MAX_WIDTH_DEFAULT,
+    text: mainStatValueText,
+  });
+  const mainStatLabelFit = fitCircleText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: SHARED_MAIN_STAT_LABEL_MAX_WIDTH,
+    text: mainStatLabelText,
+  });
+  const stats = buildStandardMediaStatsRows(args);
+
+  return `
+      <g transform="translate(230, 140)">
+        <text x="-100" y="-130" class="milestone" text-anchor="middle"${milestoneFit ? ` font-size="${milestoneFit.fontSize}"` : ""}>${escapeForXml(milestoneFit?.text ?? milestoneText)}</text>
+        <text x="-100" y="-70" class="main-stat" text-anchor="middle"${mainStatValueFit ? ` font-size="${mainStatValueFit.fontSize}"` : ""}>${escapeForXml(mainStatValueFit?.text ?? mainStatValueText)}</text>
+        <text x="-100" y="-10" class="label" text-anchor="middle"${mainStatLabelFit ? ` font-size="${mainStatLabelFit.fontSize}"` : ""}>${escapeForXml(mainStatLabelFit?.text ?? mainStatLabelText)}</text>
+        ${renderCircle(-100, -72, 40, args.resolvedColors.circleColor, args.scaledDasharray, args.scaledDashoffset)}
+      </g>
+      <svg x="0" y="0">
+        ${renderStatsList(stats, "translate(0, 150)", POSITIONING.STAT_VALUE_X_COMPACT, SPACING.ROW_HEIGHT_COMPACT, ANIMATION.BASE_DELAY, ANIMATION.STAGGER_INCREMENT, POSITIONING.VALUE_MAX_WIDTH_VERTICAL)}
+      </svg>
+    `;
+}
+
+function renderCompactMediaStatsVariant(args: MediaStatsVariantArgs): string {
+  const mainStatValueText = String(args.config.mainStat.value ?? 0);
+  const mainStatValueFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: COMPACT_MAIN_STAT_VALUE_MAX_WIDTH,
+    text: mainStatValueText,
+  });
+  const mainStatFontSize = mainStatValueFit
+    ? ` font-size="${mainStatValueFit.fontSize}"`
+    : ` font-size="${TYPOGRAPHY.LARGE_TEXT_SIZE}"`;
+  const stats = [
+    { label: "Count:", value: args.data.stats.count },
+    {
+      label: `${args.config.mainStat.secondary.label}:`,
+      value: args.config.mainStat.secondary.value,
+    },
+    { label: "Mean Score:", value: args.data.stats.meanScore },
+  ];
+
+  return `
+      <g transform="translate(${args.dims.w - 50}, 20)">
+        <text x="-10" y="15" class="main-stat" text-anchor="middle" fill="${args.resolvedColors.textColor}"${mainStatFontSize}>${escapeForXml(mainStatValueFit?.text ?? mainStatValueText)}</text>
+        ${renderCircle(-10, 10, 30, args.resolvedColors.textColor, args.scaledDasharray, args.scaledDashoffset, 5)}
+      </g>
+      <svg x="0" y="0">
+        ${renderStatsList(stats, "translate(0, 0)", 120, 22, 450, 120, POSITIONING.VALUE_MAX_WIDTH_COMPACT)}
+      </svg>
+    `;
+}
+
+function renderMinimalMediaStatsVariant(args: MediaStatsVariantArgs): string {
+  const mainStatValueText = String(args.config.mainStat.value ?? 0);
+  const mainStatLabelText = String(args.config.mainStat.label);
+  const mainStatValueFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: MINIMAL_MAIN_STAT_VALUE_MAX_WIDTH,
+    text: mainStatValueText,
+  });
+  const mainStatLabelFit = fitCircleText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+    maxWidth: MINIMAL_MAIN_STAT_LABEL_MAX_WIDTH,
+    text: mainStatLabelText,
+  });
+  const mainStatFontSize = mainStatValueFit
+    ? ` font-size="${mainStatValueFit.fontSize}"`
+    : ` font-size="${TYPOGRAPHY.LARGE_TEXT_SIZE}"`;
+  const labelFontSize = mainStatLabelFit
+    ? ` font-size="${mainStatLabelFit.fontSize}"`
+    : ` font-size="${TYPOGRAPHY.SMALL_TEXT_SIZE}"`;
+
+  return `
+      <g transform="translate(${Math.round(args.dims.w / 2)}, 20)">
+        <text x="0" y="5" class="main-stat" text-anchor="middle" fill="${args.resolvedColors.textColor}"${mainStatFontSize}>${escapeForXml(mainStatValueFit?.text ?? mainStatValueText)}</text>
+        <text x="0" y="50" class="label" text-anchor="middle" fill="${args.resolvedColors.circleColor}"${labelFontSize}>${escapeForXml(mainStatLabelFit?.text ?? mainStatLabelText)}</text>
+        ${renderCircle(0, 0, 28, args.resolvedColors.textColor, args.scaledDasharray, args.scaledDashoffset, 5)}
+      </g>
+    `;
+}
+
+function renderDefaultMediaStatsVariant(args: MediaStatsVariantArgs): string {
+  const milestoneText = String(args.data.stats.currentMilestone);
+  const mainStatValueText = String(args.config.mainStat.value ?? 0);
+  const mainStatLabelText = String(args.config.mainStat.label);
+  const milestoneFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.KPI_SIZE,
+    maxWidth: DEFAULT_MILESTONE_MAX_WIDTH,
+    text: milestoneText,
+  });
+  const mainStatValueFit = fitCircleText({
+    fontWeight: 700,
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: POSITIONING.VALUE_MAX_WIDTH_DEFAULT,
+    text: mainStatValueText,
+  });
+  const mainStatLabelFit = fitCircleText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: SHARED_MAIN_STAT_LABEL_MAX_WIDTH,
+    text: mainStatLabelText,
+  });
+  const stats = buildStandardMediaStatsRows(args);
+
+  return `
+      <g transform="translate(375, 37.5)">
+        <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${args.resolvedColors.circleColor}"${milestoneFit ? ` font-size="${milestoneFit.fontSize}"` : ""}>
+          ${escapeForXml(milestoneFit?.text ?? milestoneText)}
+        </text>
+        <text x="-10" y="10" class="main-stat" text-anchor="middle" fill="${args.resolvedColors.textColor}"${mainStatValueFit ? ` font-size="${mainStatValueFit.fontSize}"` : ""}>
+          ${escapeForXml(mainStatValueFit?.text ?? mainStatValueText)}
+        </text>
+        <text x="-10" y="70" class="label" text-anchor="middle" fill="${args.resolvedColors.circleColor}"${mainStatLabelFit ? ` font-size="${mainStatLabelFit.fontSize}"` : ""}>
+          ${escapeForXml(mainStatLabelFit?.text ?? mainStatLabelText)}
+        </text>
+        ${renderCircle(-10, 8, 40, args.resolvedColors.textColor, args.scaledDasharray, args.scaledDashoffset)}
+      </g>
+      <svg x="0" y="0">
+        ${renderStatsList(stats, "translate(0, 0)", POSITIONING.STAT_VALUE_X_DEFAULT, SPACING.ROW_HEIGHT_COMPACT, ANIMATION.BASE_DELAY, ANIMATION.STAGGER_INCREMENT, POSITIONING.VALUE_MAX_WIDTH_DEFAULT)}
+      </svg>
+    `;
 }
 
 /**
@@ -116,118 +382,31 @@ function renderStatsList(
  * @source
  */
 function getVariantContent(
-  data: {
-    variant?: "default" | "vertical" | "compact" | "minimal";
-    styles: {
-      titleColor: ColorValue;
-      backgroundColor: ColorValue;
-      textColor: ColorValue;
-      circleColor: ColorValue;
-      borderColor?: ColorValue;
-    };
-    stats: (AnimeStats | MangaStats) & {
-      previousMilestone: number;
-      currentMilestone: number;
-      dasharray: string;
-      dashoffset: string;
-    };
-  },
-  config: {
-    title: string;
-    mainStat: {
-      label: string;
-      value: number | undefined;
-      secondary: {
-        label: string;
-        value: number | undefined;
-      };
-    };
-  },
+  data: MediaStatsVariantTemplateData,
+  config: MediaStatsVariantConfig,
   dims: { w: number; h: number },
   scaledDasharray: string | null,
   scaledDashoffset: string | null,
   resolvedColors: Record<string, string>,
 ): string {
-  if (data.variant === "vertical") {
-    const stats = [
-      { label: "Count:", value: data.stats.count },
-      { label: `${config.mainStat.label}:`, value: config.mainStat.value },
-      {
-        label: `${config.mainStat.secondary.label}:`,
-        value: config.mainStat.secondary.value,
-      },
-      { label: "Mean Score:", value: data.stats.meanScore },
-      { label: "Standard Deviation:", value: data.stats.standardDeviation },
-    ];
+  const args = {
+    config,
+    data,
+    dims,
+    resolvedColors,
+    scaledDasharray,
+    scaledDashoffset,
+  } satisfies MediaStatsVariantArgs;
 
-    return `
-      <g transform="translate(230, 140)">
-        <text x="-100" y="-130" class="milestone" text-anchor="middle">${data.stats.currentMilestone}</text>
-        <text x="-100" y="-70" class="main-stat" text-anchor="middle">${config.mainStat.value}</text>
-        <text x="-100" y="-10" class="label" text-anchor="middle">${config.mainStat.label}</text>
-        ${renderCircle(-100, -72, 40, resolvedColors.circleColor, scaledDasharray, scaledDashoffset)}
-      </g>
-      <svg x="0" y="0">
-        ${renderStatsList(stats, "translate(0, 150)")}
-      </svg>
-    `;
-  } else if (data.variant === "compact") {
-    const stats = [
-      { label: "Count:", value: data.stats.count },
-      {
-        label: `${config.mainStat.secondary.label}:`,
-        value: config.mainStat.secondary.value,
-      },
-      { label: "Mean Score:", value: data.stats.meanScore },
-    ];
-
-    return `
-      <g transform="translate(${dims.w - 50}, 20)">
-        <text x="-10" y="15" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}" font-size="16">${config.mainStat.value}</text>
-        ${renderCircle(-10, 10, 30, resolvedColors.textColor, scaledDasharray, scaledDashoffset, 5)}
-      </g>
-      <svg x="0" y="0">
-        ${renderStatsList(stats, "translate(0, 0)", 120, 22, 450, 120)}
-      </svg>
-    `;
-  } else if (data.variant === "minimal") {
-    return `
-      <g transform="translate(${Math.round(dims.w / 2)}, 20)">
-        <text x="0" y="5" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}" font-size="16">${config.mainStat.value}</text>
-        <text x="0" y="50" class="label" text-anchor="middle" fill="${resolvedColors.circleColor}" font-size="14">${config.mainStat.label}</text>
-        ${renderCircle(0, 0, 28, resolvedColors.textColor, scaledDasharray, scaledDashoffset, 5)}
-      </g>
-    `;
-  } else {
-    // Default variant
-    const stats = [
-      { label: "Count:", value: data.stats.count },
-      { label: `${config.mainStat.label}:`, value: config.mainStat.value },
-      {
-        label: `${config.mainStat.secondary.label}:`,
-        value: config.mainStat.secondary.value,
-      },
-      { label: "Mean Score:", value: data.stats.meanScore },
-      { label: "Standard Deviation:", value: data.stats.standardDeviation },
-    ];
-
-    return `
-      <g transform="translate(375, 37.5)">
-        <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${resolvedColors.circleColor}">
-          ${data.stats.currentMilestone}
-        </text>
-        <text x="-10" y="10" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}">
-          ${config.mainStat.value}
-        </text>
-        <text x="-10" y="70" class="label" text-anchor="middle" fill="${resolvedColors.circleColor}">
-          ${config.mainStat.label}
-        </text>
-        ${renderCircle(-10, 8, 40, resolvedColors.textColor, scaledDasharray, scaledDashoffset)}
-      </g>
-      <svg x="0" y="0">
-        ${renderStatsList(stats, "translate(0, 0)", 199.01)}
-      </svg>
-    `;
+  switch (data.variant) {
+    case "vertical":
+      return renderVerticalMediaStatsVariant(args);
+    case "compact":
+      return renderCompactMediaStatsVariant(args);
+    case "minimal":
+      return renderMinimalMediaStatsVariant(args);
+    default:
+      return renderDefaultMediaStatsVariant(args);
   }
 }
 
@@ -258,7 +437,6 @@ export const mediaStatsTemplate = (data: {
     dashoffset: string;
   };
 }): TrustedSVG => {
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: data.styles.titleColor,
@@ -301,15 +479,28 @@ export const mediaStatsTemplate = (data: {
     },
   }[data.mediaType];
 
+  // Dimensions per variant
+  const dims = getCardDimensions("mediaStats", data.variant ?? "default");
+
   const titleText = String(config.title);
+  const titleMaxWidth =
+    data.variant === "default"
+      ? Math.max(MIN_DEFAULT_TITLE_WIDTH, dims.w - DEFAULT_TITLE_RIGHT_MARGIN)
+      : dims.w - SPACING.CARD_PADDING * 2;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: titleText,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.HEADER_SIZE,
+    maxWidth: titleMaxWidth,
+  });
   const safeTitle = escapeForXml(titleText);
+  const safeVisibleTitle = escapeForXml(titleFit.text);
   const safeMainStatLabel = escapeForXml(String(config.mainStat.label));
   const safeSecondaryStatLabel = escapeForXml(
     String(config.mainStat.secondary.label),
   );
-
-  // Dimensions per variant
-  const dims = getCardDimensions("mediaStats", data.variant ?? "default");
 
   // Circle radius per variant
   const circleRadius = (() => {
@@ -339,10 +530,13 @@ export const mediaStatsTemplate = (data: {
     ? (originalDashoffset * scale).toFixed(2)
     : null;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
   const rankCircleStyle = generateRankCircleStyles(
     resolvedColors.circleColor,
     scaledDasharray,
     scaledDashoffset,
+    { includeAnimations: animationsEnabled },
   );
 
   return markTrustedSvg(`
@@ -359,20 +553,20 @@ export const mediaStatsTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    Count: ${escapeForXml(data.stats.count)}, 
+    Count: ${escapeForXml(data.stats.count)},
     ${safeMainStatLabel}: ${escapeForXml(config.mainStat.value)},
-    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)}, 
+    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)},
     Mean Score: ${escapeForXml(data.stats.meanScore)},
     Standard Deviation: ${escapeForXml(data.stats.standardDeviation)}
   </desc>
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(titleText)) || 18)}
+    ${generateCommonStyles(resolvedColors, titleFit.fontSize, { includeAnimations: animationsEnabled })}
     ${rankCircleStyle}
   </style>
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">${safeTitle}</text>
+      <text x="0" y="0" class="header" data-testid="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">

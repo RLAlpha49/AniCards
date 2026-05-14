@@ -1,4 +1,4 @@
-import { siDiscord, siAnilist, siGithub } from "simple-icons";
+import { siAnilist, siDiscord, siGithub } from "simple-icons";
 
 /**
  * Props accepted by the simple icon components.
@@ -21,14 +21,14 @@ interface IconProps {
 export const SimpleDiscordIcon = ({ size = 32, className = "" }: IconProps) => (
   <svg
     className={className}
-    aria-label={siDiscord.title}
+    aria-hidden="true"
+    focusable="false"
     xmlns="http://www.w3.org/2000/svg"
     width={size}
     height={size}
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <title>{siDiscord.title}</title>
     <path d={siDiscord.path} />
   </svg>
 );
@@ -42,14 +42,14 @@ export const SimpleDiscordIcon = ({ size = 32, className = "" }: IconProps) => (
 export const SimpleGithubIcon = ({ size = 32, className = "" }: IconProps) => (
   <svg
     className={className}
-    aria-label={siGithub.title}
+    aria-hidden="true"
+    focusable="false"
     xmlns="http://www.w3.org/2000/svg"
     width={size}
     height={size}
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <title>{siGithub.title}</title>
     <path d={siGithub.path} />
   </svg>
 );
@@ -63,14 +63,14 @@ export const SimpleGithubIcon = ({ size = 32, className = "" }: IconProps) => (
 export const SimpleAniListIcon = ({ size = 32, className = "" }: IconProps) => (
   <svg
     className={className}
-    aria-label={siAnilist.title}
+    aria-hidden="true"
+    focusable="false"
     xmlns="http://www.w3.org/2000/svg"
     width={size}
     height={size}
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <title>{siAnilist.title}</title>
     <path d={siAnilist.path} />
   </svg>
 );

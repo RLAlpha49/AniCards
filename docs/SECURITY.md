@@ -1,0 +1,157 @@
+# AniCards security notes
+
+The long-lived reference for security-sensitive behavior in the codebase. Code comments throughout the app point here — that's intentional.
+
+## Supporting diagrams
+
+- [`security-request-flow.drawio`](./diagrams/security-request-flow.drawio) — the HTML CSP/nonce path plus the API protection branches for public reads, browser writes, SVG renders, and cron jobs.
+- [`runtime-architecture.drawio`](./diagrams/runtime-architecture.drawio) — the broader runtime map showing where middleware, layouts, API routes, Redis, and telemetry sit relative to each other.
+- [`card-generation-pipeline.drawio`](./diagrams/card-generation-pipeline.drawio) — the card render pipeline showing where rate limiting, cache layers, and data validation sit in the SVG path.
+- [`error-handling-flow.drawio`](./diagrams/error-handling-flow.drawio) — the error handling chain from component throw through boundaries, structured reporting, and the `/api/error-reports` ingestion endpoint.
+
+## Content Security Policy
+
+AniCards applies a nonce-based CSP on document responses. No `unsafe-inline` for scripts.
+
+### The nonce flow
+
+1. `proxy.ts` receives the matched request under the Next.js 16 convention and delegates into `app/middleware.ts`.
+2. `app/middleware.ts` creates a fresh server-owned request ID for matched routes, and a fresh 128-bit nonce only for document requests.
+3. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and includes that nonce in `script-src`.
+4. The nonce travels into the app via the `x-nonce` request header.
+5. `app/layout.tsx` reads it with `getRequestNonce()` and passes it to any component that renders inline scripts.
+
+Matched routes also expose that same server-generated request ID back to clients through the `X-Request-Id` response header. It is an opaque response correlation ID; sending `X-Request-Id` on the request does not override the canonical server ID.
+
+### Development `unsafe-eval`
+
+`app/middleware.ts` passes `allowUnsafeEval: process.env.NODE_ENV !== "production"` into `buildCSPHeader(...)`.
+
+What that actually means:
+
+- production retains the strict nonce-based policy
+- development allows `unsafe-eval` so Next.js/Turbopack debugging tools can run
+
+### Allowed CSP sources
+
+The directive list is defined in `lib/csp-config.ts`. Notable allowlists cover:
+
+- AniCards same-origin assets
+- AniList GraphQL
+- Google Analytics / Google Tag Manager
+- Vercel Analytics / Speed Insights
+- Google Fonts
+
+Document `connect-src` intentionally excludes Upstash Redis. The browser does not need direct egress to the Upstash REST origin; that integration stays server-side.
+
+### Inline style attribute compatibility
+
+Production document routes now stay on the strict nonce-based policy without a route-specific `style-src-attr 'unsafe-inline'` carve-out.
+
+The `/user` editor surfaces that previously relied on inline style attributes now use audited CSS utilities, SVG/data-URI previews, and nonce-bearing style blocks where runtime geometry still needs per-request values.
+
+Legacy media-style routes such as `/StatCards/[username]/[key].svg`, `/card.svg`, and `/card.png` no longer enter the document CSP path.
+
+### Nonce and hydration
+
+Browsers strip nonce attributes during hydration. Inline script components carrying nonce-bearing markup should follow the established pattern already used in the app — including `suppressHydrationWarning` where it applies. Look at existing implementations before adding new nonce-bearing scripts.
+
+## Static response hardening
+
+`next.config.ts` defines security headers that don't need a per-request nonce:
+
+- `X-DNS-Prefetch-Control: on`
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+CSP is excluded here — middleware generates it dynamically.
+
+## Route protections
+
+### Shared API protections
+
+The `lib/api/*` modules centralize the common API protections:
+
+- shared rate limiting
+- server-generated request ID creation and propagation
+- privacy-safe logging
+- structured JSON/text response helpers
+- same-origin enforcement for browser-facing mutation routes
+
+Calling `initializeApiRequest()` gives a route handler all of that automatically.
+
+The main exception is `/api/card`, which serves SVG and therefore uses `ensureRequestContext()`, `checkRateLimit()`, and `svgHeaders()` directly instead of the shared JSON initializer path.
+
+### Public read routes
+
+Some routes intentionally skip same-origin validation — they're designed to work as public endpoints:
+
+- `/api/get-user`
+- `/api/get-cards`
+- `/api/card` and its aliases
+
+These still enforce bounded DTOs, CORS policy, and rate limiting.
+
+When production cannot verify client-IP provenance for those public reads, the routes fall back to tighter anonymous rate-limit buckets instead of returning an unconditional `503`. That degraded path now prefers a valid server-issued request-proof token if one is present; otherwise it collapses to a coarse per-endpoint anonymous bucket instead of hashing caller-controlled headers. Routes that explicitly require a verified client IP still fail closed.
+
+## Trusted client IP contract
+
+`resolveVerifiedClientIp()` now treats built-in proxy headers as deployment contracts, not as opt-in-by-presence hints.
+
+- Vercel requests only trust `x-vercel-forwarded-for` when the deployment contract resolves to **Vercel** (`VERCEL` / `VERCEL_URL`, or an explicit `TRUSTED_CLIENT_IP_PROXY_FAMILY=vercel`).
+- Cloudflare requests only trust `cf-connecting-ip` when the deployment contract resolves to **Cloudflare** (`CF_PAGES` / `CF_PAGES_URL`, or an explicit `TRUSTED_CLIENT_IP_PROXY_FAMILY=cloudflare`).
+- If a request presents headers from multiple built-in proxy families, AniCards rejects the request as conflicting proxy provenance instead of guessing.
+- `TRUSTED_CLIENT_IP_HEADERS` remains available for custom ingress headers, but every custom header still needs an explicit provenance rule in `TRUSTED_CLIENT_IP_HEADER_PROVENANCE`.
+
+This keeps the app fail-closed against bare proxy-header spoofing and documents the ingress assumption the deployment must satisfy.
+
+## Request-proof cookie contract
+
+Protected browser writes use a hardened request-proof cookie contract:
+
+- production issues `__Host-anicards_request_proof`
+- the cookie keeps `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`
+- legacy `anicards_request_proof` cookies are still accepted during migration, but middleware clears them once it can mint a fresh proof cookie
+- duplicate-name or conflicting migration cookie values are treated as invalid, so cookie-name ambiguity cannot be used to smuggle an alternate proof token
+
+### Operator cron routes
+
+Cron endpoints use `authorizeCronRequest()` and accept either of these equivalent headers whenever `CRON_SECRET` is configured:
+
+```http
+x-cron-secret: <CRON_SECRET>
+Authorization: Bearer <CRON_SECRET>
+```
+
+Hosted schedulers commonly use the bearer form, while local/manual calls can keep using `x-cron-secret`.
+
+If `CRON_SECRET` is missing outside explicit local development, the routes fail closed with `503`; they do **not** become public. The only bypass is `ALLOW_UNSECURED_CRON_IN_DEV=true` in `NODE_ENV=development`, which exists strictly for local manual testing and should stay off in hosted environments.
+
+## Abuse controls
+
+Shared Upstash rate limiting is applied throughout the repository.
+
+Current limits:
+
+- default shared limiter: `10 / 5s`
+- public card rendering route: `150 / 10s`
+- public stored-user and stored-card reads: `60 / 10s`
+
+## Data minimization and logging
+
+Security and privacy overlap here in ways worth calling out explicitly.
+
+The implemented guardrails:
+
+- request logs go through `logPrivacySafe(...)`
+- IP addresses are redacted before persistence or logging
+- persisted user records retain only `requestMetadata.lastSeenIpBucket`, never raw IPs
+- `/api/get-user` returns a bounded public DTO that strips internal request metadata and record timestamps
+
+## Related docs
+
+- [`PRIVACY.md`](./PRIVACY.md)
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md)

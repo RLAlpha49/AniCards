@@ -21,32 +21,6 @@ export function formatPercent(
   return `${pct.toFixed(digits)}%`;
 }
 
-export function sumByKey<T>(
-  items: T[],
-  getKey: (item: T) => string,
-  getCount: (item: T) => number,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    const key = getKey(item).trim();
-    if (!key) continue;
-    const c = getCount(item);
-    const count = Number.isFinite(c) ? Math.max(0, c) : 0;
-    map.set(key, (map.get(key) ?? 0) + count);
-  }
-  return map;
-}
-
-export function mapToSortedRows(
-  map: Map<string, number>,
-  limit: number,
-): { label: string; count: number }[] {
-  return Array.from(map.entries())
-    .map(([label, count]) => ({ label, count }))
-    .toSorted((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
 export function shannonDiversityIndex(counts: number[]): number {
   let total = 0;
   let sumCLogC = 0;

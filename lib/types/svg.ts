@@ -13,12 +13,13 @@ export type TrustedSVG = string & { readonly __trustedSVGBrand?: true };
  * Helper that strips the trusted SVG marker if it's present. This is useful
  * in server response paths where a clean SVG (without our debug marker) is
  * preferred.
- * @param svg - A string that may or may not have the Trusted SVG marker.
+ * @param svg - TrustedSVG value produced by internal templates/helpers.
  */
-export function stripTrustedSvgMarker(svg: string) {
+export function stripTrustedSvgMarker(svg: TrustedSVG): string {
   const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
-  if (svg.startsWith(prefix)) return svg.slice(prefix.length);
-  return svg;
+  const s = svg as string;
+  if (s.startsWith(prefix)) return s.slice(prefix.length);
+  return s;
 }
 
 /**
@@ -29,5 +30,5 @@ export function stripTrustedSvgMarker(svg: string) {
  * @param svg - TrustedSVG value returned by internal templates.
  */
 export function toCleanSvgResponse(svg: TrustedSVG): string {
-  return stripTrustedSvgMarker(svg as string);
+  return stripTrustedSvgMarker(svg);
 }

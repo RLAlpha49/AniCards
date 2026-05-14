@@ -1,3 +1,5 @@
+import { ColorValue } from "./card";
+
 /** Genre bucket in anime statistics with a count of items. @source */
 export interface AnimeStatGenre {
   genre: string;
@@ -388,6 +390,73 @@ export interface StudioCollaborationTotalsEntry {
   count: number;
 }
 
+/** Aggregate keys persisted alongside sampled user snapshots. @source */
+export const USER_AGGREGATE_KEYS = [
+  "animeSourceMaterialDistributionTotals",
+  "animeSeasonalPreferenceTotals",
+  "animeGenreSynergyTotals",
+  "studioCollaborationTotals",
+] as const;
+
+/** Aggregate key union used by completeness metadata. @source */
+export type UserAggregateKey = (typeof USER_AGGREGATE_KEYS)[number];
+
+/** Snapshot completeness metadata exposed on sampled public user payloads. @source */
+export interface UserPayloadCompleteness {
+  sampled: boolean;
+  fullHistory: false;
+  boundedSections: string[];
+  availableAggregates: UserAggregateKey[];
+  missingAggregates: UserAggregateKey[];
+}
+
+/** Stable token identifying one committed user snapshot. @source */
+export interface UserSnapshotRef {
+  token: string;
+  revision: number;
+  updatedAt: string;
+  committedAt: string;
+}
+
+/**
+ * Public snapshot identifier exposed on `/api/get-user` metadata.
+ *
+ * Internal snapshot timestamps are intentionally excluded from the public DTO.
+ * @source
+ */
+export interface PublicUserSnapshotRef {
+  token: string;
+  revision: number;
+}
+
+/** Public metadata about the sampled user payload returned by `/api/get-user`. @source */
+export interface PublicUserRecordMetadata {
+  storageFormat: "committed-split" | "legacy-split" | "legacy";
+  schemaVersion: number;
+  snapshot?: PublicUserSnapshotRef;
+  completeness: UserPayloadCompleteness;
+}
+
+/** Snapshot reference stored with card records so card reads can pin one user state. @source */
+export interface CardsRecordUserSnapshot {
+  token?: string;
+  revision?: number;
+  updatedAt?: string;
+  committedAt?: string;
+}
+
+/** Lightweight metadata mirrored beside full card records for hot reads and maintenance. @source */
+export interface CardsRecordMetadata {
+  userId: number;
+  updatedAt: string;
+  version?: number;
+  schemaVersion?: number;
+  userSnapshot?: CardsRecordUserSnapshot;
+}
+
+/** Current card-record schema version for compatibility-aware readers and writers. @source */
+export const CARDS_RECORD_SCHEMA_VERSION = 2;
+
 /**
  * Aggregates / precomputed totals stored separately from main `meta`.
  */
@@ -398,16 +467,38 @@ export interface UserAggregates {
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
 }
 
-/** Redis user record shape used for persisting user data and stats. @source */
-export interface UserRecord {
+/**
+ * Minimized internal request metadata retained with persisted user records.
+ *
+ * Raw client IPs are intentionally not stored. The bucket is coarse enough for
+ * abuse correlation while avoiding direct re-identification in normal reads.
+ */
+export interface PersistedRequestMetadata {
+  lastSeenIpBucket?: string;
+}
+
+/**
+ * Explicit minimized schema written by the internal store-users persistence path.
+ *
+ * The persisted Redis/meta representation keeps `userId` string-backed for key
+ * compatibility, while public API DTOs normalize it to a numeric AniList ID.
+ */
+export interface PersistedUserRecord {
   userId: string;
   username?: string;
   stats: UserStatsData;
+  aggregates?: UserAggregates;
+  requestMetadata?: PersistedRequestMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Redis user record shape used for persisting user data and stats. @source */
+export interface UserRecord extends PersistedUserRecord {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
-  aggregates?: UserAggregates;
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {
@@ -417,9 +508,32 @@ export interface UserRecord {
     threadCommentsPage?: ThreadCommentsPage;
     reviewsPage?: ReviewsPage;
   };
-  ip: string;
-  createdAt: string;
-  updatedAt: string;
+}
+
+/** Public DTO returned by `/api/get-user`. */
+export interface PublicUserRecord {
+  userId: number;
+  username?: string;
+  stats: UserStatsData;
+  statistics: UserSection["statistics"];
+  favourites: UserSection["favourites"];
+  pages: {
+    followersPage: FollowersPage;
+    followingPage: FollowingPage;
+    threadsPage: ThreadsPage;
+    threadCommentsPage: ThreadCommentsPage;
+    reviewsPage: ReviewsPage;
+  };
+  aggregates?: UserAggregates;
+  recordMeta?: PublicUserRecordMetadata;
+}
+
+/** Lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
+export interface UserBootstrapRecord {
+  userId: number;
+  username?: string;
+  avatarUrl?: string | null;
+  recordMeta?: PublicUserRecordMetadata;
 }
 
 /**
@@ -442,12 +556,12 @@ export type ReconstructedUserRecord = UserRecord & {
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
   cardName: string;
-  variation: string;
+  variation?: string;
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderColor?: string;
   borderRadius?: number;
   showFavorites?: boolean;
@@ -455,11 +569,38 @@ export interface StoredCardConfig {
   showPiePercentages?: boolean;
   gridCols?: number;
   gridRows?: number;
+  useCustomSettings?: boolean;
+  disabled?: boolean;
 }
 
-/** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */
+/** Global settings for user card configurations. @source */
+export interface GlobalCardSettings {
+  colorPreset?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
+  borderEnabled?: boolean;
+  borderColor?: string;
+  borderRadius?: number;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+  showFavorites?: boolean;
+  gridCols?: number;
+  gridRows?: number;
+}
+
+/**
+ * Cards record in storage containing a userId, explicit stored card configs,
+ * optional full editor order, and update timestamp. @source
+ */
 export interface CardsRecord {
   userId: number;
   cards: StoredCardConfig[];
+  cardOrder?: string[];
+  globalSettings?: GlobalCardSettings;
   updatedAt: string;
+  version?: number;
+  schemaVersion?: number;
+  userSnapshot?: CardsRecordUserSnapshot;
 }

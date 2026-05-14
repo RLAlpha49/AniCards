@@ -1,20 +1,29 @@
+import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
+import {
+  ACTIVITY_STREAK,
+  ANIMATION,
+  MIN_FONT_SIZE,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
 import { computeStreaks } from "./shared";
+
+const HORIZONTAL_MARGIN = 40;
 
 /**
  * Generates an activity streaks card showing current/longest streaks.
@@ -59,6 +68,20 @@ export function activityStreaksTemplate(data: {
   const streakInfo = computeStreaks(data.activityHistory);
 
   const dims = getCardDimensions("activityStreaks", "default");
+  const titleMaxWidth = dims.w - HORIZONTAL_MARGIN;
+  const titleFit = resolveSvgTitleTextFit({
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleFontSize = Number.isFinite(titleFit.fontSize)
+    ? titleFit.fontSize
+    : TYPOGRAPHY.LARGE_TEXT_SIZE;
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const stats = [
     {
@@ -76,14 +99,44 @@ export function activityStreaksTemplate(data: {
   ];
 
   const statsContent = stats
-    .map(
-      (stat, i) => `
+    .map((stat, i) => {
+      const rowFit = fitSvgAnchoredTextPair({
+        availableWidth: dims.w - HORIZONTAL_MARGIN,
+        gapPx: ACTIVITY_STREAK.GAP_PX,
+        primaryFontWeight: 400,
+        primaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        primaryMinFontSize: MIN_FONT_SIZE,
+        primaryText: stat.label,
+        secondaryInitialFontSize: TYPOGRAPHY.LARGE_TEXT_SIZE,
+        secondaryMaxWidth: Math.max(
+          ACTIVITY_STREAK.SECONDARY_MAX_WIDTH_BASE,
+          Math.floor(
+            (dims.w - HORIZONTAL_MARGIN) *
+              ACTIVITY_STREAK.SECONDARY_MAX_WIDTH_RATIO,
+          ),
+        ),
+        secondaryMinFontSize: MIN_FONT_SIZE,
+        secondaryFontWeight: 600,
+        secondaryText: stat.value,
+      });
+      const labelFontSizeStyle =
+        rowFit && Number.isFinite(rowFit.primary.fontSize)
+          ? ` style="font-size:${rowFit.primary.fontSize}px;"`
+          : "";
+      const valueFontSizeStyle =
+        rowFit && Number.isFinite(rowFit.secondary.fontSize)
+          ? ` style="font-size:${rowFit.secondary.fontSize}px;"`
+          : "";
+      const primaryText = rowFit ? rowFit.primary.text : stat.label;
+      const secondaryText = rowFit ? rowFit.secondary.text : stat.value;
+
+      return `
     <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${i * SPACING.ROW_HEIGHT})">
-      <text class="stat" y="12">${stat.label}</text>
-      <text class="stat-value" x="${dims.w - 40}" y="12" text-anchor="end">${stat.value}</text>
+      <text class="stat" y="12"${labelFontSizeStyle}>${escapeForXml(primaryText)}</text>
+      <text class="stat-value" x="${dims.w - HORIZONTAL_MARGIN}" y="12" text-anchor="end"${valueFontSizeStyle}>${escapeForXml(secondaryText)}</text>
     </g>
-  `,
-    )
+  `;
+    })
     .join("");
 
   return markTrustedSvg(`
@@ -102,7 +155,7 @@ export function activityStreaksTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${titleFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
@@ -133,7 +186,7 @@ export function activityStreaksTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
   </g>
   <g transform="translate(20, 55)">
     ${statsContent}

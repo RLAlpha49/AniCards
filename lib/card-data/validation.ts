@@ -1,26 +1,38 @@
+/**
+ * Validation and normalization entry point for card-related data.
+ *
+ * These helpers turn loosely shaped AniList or Redis payloads into the stricter
+ * `UserRecord` and card contracts the rest of the app relies on, while also
+ * computing aggregates that must survive list-pruning in storage.
+ */
 import {
-  UserRecord,
-  UserStatsData,
+  type ErrorCategory,
+  getErrorDetails,
+  type RecoverySuggestion,
+} from "@/lib/error-messages";
+import {
+  AnimeGenreSynergyTotalsEntry,
   AnimeStats,
-  MangaStats,
-  AnimeStatVoiceActor,
-  AnimeStatStudio,
   AnimeStatStaff,
+  AnimeStatStudio,
+  AnimeStatVoiceActor,
+  MangaStats,
   MangaStatStaff,
   MediaListCollection,
   MediaListEntry,
-  ReviewEntry,
   RecommendationEntry,
-  UserReviewsPage,
-  UserRecommendationsPage,
-  SourceMaterialDistributionTotalsEntry,
+  ReviewEntry,
   SeasonalPreferenceTotalsEntry,
-  AnimeGenreSynergyTotalsEntry,
+  SourceMaterialDistributionTotalsEntry,
   StudioCollaborationTotalsEntry,
+  USER_AGGREGATE_KEYS,
+  UserAggregateKey,
   UserAvatar,
+  UserRecommendationsPage,
+  UserRecord,
+  UserReviewsPage,
+  UserStatsData,
 } from "@/lib/types/records";
-import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
-import { getErrorDetails } from "@/lib/error-messages";
 
 /**
  * Error wrapper including an HTTP status code, error category, and recovery suggestions.
@@ -105,9 +117,7 @@ export const displayNames: { [key: string]: string } = {
   profileOverview: "Profile Overview",
   favoritesSummary: "Favourites Summary",
   favoritesGrid: "Favourites Grid",
-  activityHeatmap: "Activity Heatmap",
   recentActivitySummary: "Recent Activity Summary",
-  recentActivityFeed: "Recent Activity Feed",
   activityStreaks: "Activity Streaks",
   topActivityDays: "Top Activity Days",
   statusCompletionOverview: "Status Completion Overview",
@@ -132,6 +142,60 @@ export const displayNames: { [key: string]: string } = {
   reviewStats: "Review Statistics",
   studioCollaboration: "Studio Collaboration",
 };
+
+const CARD_TYPE_REQUIRED_AGGREGATES: Partial<Record<string, UserAggregateKey>> =
+  {
+    animeSourceMaterialDistribution: "animeSourceMaterialDistributionTotals",
+    animeSeasonalPreference: "animeSeasonalPreferenceTotals",
+    animeGenreSynergy: "animeGenreSynergyTotals",
+    studioCollaboration: "studioCollaborationTotals",
+  };
+
+/** Returns the aggregate key required by a card type, if any. @source */
+export function getRequiredAggregateKeyForCardType(
+  baseCardType: string,
+): UserAggregateKey | undefined {
+  return CARD_TYPE_REQUIRED_AGGREGATES[baseCardType];
+}
+
+type AggregateCarrier =
+  | Pick<UserRecord, "aggregates">
+  | Partial<Pick<UserRecord, "aggregates">>
+  | null
+  | undefined;
+
+/** Returns the aggregate keys already stored on a user record. @source */
+export function getAvailableUserAggregateKeys(
+  user: AggregateCarrier,
+): UserAggregateKey[] {
+  const storedAggregates = user?.aggregates;
+
+  return USER_AGGREGATE_KEYS.filter((key) => {
+    const value = storedAggregates?.[key];
+    return Array.isArray(value) && value.length > 0;
+  });
+}
+
+/** Returns the aggregate keys missing from a sampled user record. @source */
+export function getMissingUserAggregateKeys(
+  user: AggregateCarrier,
+): UserAggregateKey[] {
+  const available = new Set(getAvailableUserAggregateKeys(user));
+  return USER_AGGREGATE_KEYS.filter((key) => !available.has(key));
+}
+
+/** Returns whether the user record already has the aggregate needed by a card. @source */
+export function userHasRequiredAggregateForCardType(
+  baseCardType: string,
+  user: AggregateCarrier,
+): boolean {
+  const requiredAggregateKey = getRequiredAggregateKeyForCardType(baseCardType);
+  if (!requiredAggregateKey) {
+    return true;
+  }
+
+  return !getMissingUserAggregateKeys(user).includes(requiredAggregateKey);
+}
 
 /**
  * Returns whether the provided card type string corresponds to a supported
@@ -180,17 +244,26 @@ export function getFavoritesForCardType(
   }
 }
 
+export interface ValidateAndNormalizeUserRecordOptions {
+  mode?: "write" | "render";
+}
+
 /**
  * Validates and normalizes a raw user record for card generation.
  * Returns either a normalized UserRecord or an error object with an optional HTTP status.
  * This prepares nested pages, statistics blocks, and favourites into consistent shapes.
  * @param raw - Raw object pulled from the data store (redis), often JSON-parsed.
+ * @param options - Validation mode. Use `write` for persistence-time normalization,
+ * or `render` to trust pre-pruned stored lists and skip aggregate recomputation.
  * @returns Normalized object on success or an { error, status } object on failure.
  * @source
  */
 export function validateAndNormalizeUserRecord(
   raw: unknown,
+  options: ValidateAndNormalizeUserRecordOptions = {},
 ): { normalized: UserRecord } | { error: string; status?: number } {
+  const isRenderValidation = options.mode === "render";
+
   if (!raw || typeof raw !== "object") {
     return { error: "Invalid user record: not an object" };
   }
@@ -808,6 +881,16 @@ export function validateAndNormalizeUserRecord(
     };
   };
 
+  const normalizeStoredMediaListCollection = (
+    raw: unknown,
+  ): MediaListCollection | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const candidate = raw as { lists?: unknown };
+    return Array.isArray(candidate.lists)
+      ? (raw as MediaListCollection)
+      : normalizeMediaListCollection(raw);
+  };
+
   const isPrunedAllList = (raw: unknown): boolean =>
     !!raw &&
     typeof raw === "object" &&
@@ -825,6 +908,18 @@ export function validateAndNormalizeUserRecord(
     const entries = coll.lists.flatMap((l) => l.entries);
     const pruned = pruner(entries);
     return { ...coll, lists: [{ name: "All", entries: pruned }] };
+  };
+
+  const normalizeMediaCollectionForMode = (
+    raw: unknown,
+    pruner: (entries: MediaListEntry[]) => MediaListEntry[],
+  ): MediaListCollection | undefined => {
+    if (isRenderValidation) {
+      return normalizeStoredMediaListCollection(raw);
+    }
+
+    const coll = normalizeMediaListCollection(raw);
+    return pruneIfNeeded(raw, coll, pruner);
   };
 
   /**
@@ -1273,13 +1368,19 @@ export function validateAndNormalizeUserRecord(
   }
 
   const aggregatedAnimeSource =
-    storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals();
+    storedAnimeSourceTotals ??
+    (isRenderValidation
+      ? undefined
+      : computeAnimeSourceMaterialDistributionTotals());
   const aggregatedAnimeSeason =
-    storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals();
+    storedAnimeSeasonTotals ??
+    (isRenderValidation ? undefined : computeAnimeSeasonalPreferenceTotals());
   const aggregatedAnimeGenreSynergy =
-    storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals();
+    storedAnimeGenreSynergyTotals ??
+    (isRenderValidation ? undefined : computeAnimeGenreSynergyTotals());
   const aggregatedStudioCollaboration =
-    storedStudioCollaborationTotals ?? computeStudioCollaborationTotals();
+    storedStudioCollaborationTotals ??
+    (isRenderValidation ? undefined : computeStudioCollaborationTotals());
 
   const aggregatesObj: Record<string, unknown> = {};
   if (Array.isArray(aggregatedAnimeSource) && aggregatedAnimeSource.length)
@@ -1300,9 +1401,13 @@ export function validateAndNormalizeUserRecord(
   const normalizedUser: UserRecord = {
     userId: String(user.userId ?? ""),
     username: user.username ?? undefined,
-    ip: String(user.ip ?? ""),
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
+    ...(user.requestMetadata
+      ? {
+          requestMetadata: user.requestMetadata,
+        }
+      : {}),
     ...(Object.keys(aggregatesObj).length ? { aggregates: aggregatesObj } : {}),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
@@ -1324,66 +1429,53 @@ export function validateAndNormalizeUserRecord(
       userRecommendations: normalizeUserRecommendationsPage(
         statsData.userRecommendations,
       ),
-      // We limit the entries saved to the database to only what's needed for the cards
-      animePlanning: (() => {
-        const raw = statsData.animePlanning;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      // Persistence-time normalization prunes large lists; render-time validation trusts
+      // the stored list slices and avoids re-sorting/re-pruning the hot path.
+      animePlanning: normalizeMediaCollectionForMode(
+        statsData.animePlanning,
+        (entries) =>
           [...entries]
             .sort(
               (a, b) =>
                 (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
             )
             .slice(0, 5),
-        );
-      })(),
-      mangaPlanning: (() => {
-        const raw = statsData.mangaPlanning;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      mangaPlanning: normalizeMediaCollectionForMode(
+        statsData.mangaPlanning,
+        (entries) =>
           [...entries]
             .sort(
               (a, b) =>
                 (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
             )
             .slice(0, 5),
-        );
-      })(),
-      animeCurrent: (() => {
-        const raw = statsData.animeCurrent;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
-          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-          entries.slice(0, 6),
-        );
-      })(),
-      mangaCurrent: (() => {
-        const raw = statsData.mangaCurrent;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 6));
-      })(),
-      animeRewatched: (() => {
-        const raw = statsData.animeRewatched;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      animeCurrent: normalizeMediaCollectionForMode(
+        statsData.animeCurrent,
+        (entries) => entries.slice(0, 6),
+      ),
+      mangaCurrent: normalizeMediaCollectionForMode(
+        statsData.mangaCurrent,
+        (entries) => entries.slice(0, 6),
+      ),
+      animeRewatched: normalizeMediaCollectionForMode(
+        statsData.animeRewatched,
+        (entries) =>
           [...entries]
             .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
             .slice(0, 10),
-        );
-      })(),
-      mangaReread: (() => {
-        const raw = statsData.mangaReread;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      mangaReread: normalizeMediaCollectionForMode(
+        statsData.mangaReread,
+        (entries) =>
           [...entries]
             .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
             .slice(0, 10),
-        );
-      })(),
-      animeCompleted: (() => {
-        const raw = statsData.animeCompleted;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => {
+      ),
+      animeCompleted: normalizeMediaCollectionForMode(
+        statsData.animeCompleted,
+        (entries) => {
           const topByScore = [...entries]
             .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
             .slice(0, 5);
@@ -1391,12 +1483,11 @@ export function validateAndNormalizeUserRecord(
             .sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0))
             .slice(0, 5);
           return combineUnique(topByScore, topByLength);
-        });
-      })(),
-      mangaCompleted: (() => {
-        const raw = statsData.mangaCompleted;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => {
+        },
+      ),
+      mangaCompleted: normalizeMediaCollectionForMode(
+        statsData.mangaCompleted,
+        (entries) => {
           const topByScore = [...entries]
             .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
             .slice(0, 5);
@@ -1404,21 +1495,16 @@ export function validateAndNormalizeUserRecord(
             .sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0))
             .slice(0, 5);
           return combineUnique(topByScore, topByLength);
-        });
-      })(),
-      animeDropped: (() => {
-        const raw = statsData.animeDropped;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
-          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-          entries.slice(0, 30),
-        );
-      })(),
-      mangaDropped: (() => {
-        const raw = statsData.mangaDropped;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 30));
-      })(),
+        },
+      ),
+      animeDropped: normalizeMediaCollectionForMode(
+        statsData.animeDropped,
+        (entries) => entries.slice(0, 30),
+      ),
+      mangaDropped: normalizeMediaCollectionForMode(
+        statsData.mangaDropped,
+        (entries) => entries.slice(0, 30),
+      ),
       User: {
         stats: {
           activityHistory: normalizedActivityHistory,
@@ -1482,6 +1568,17 @@ export function validateAndNormalizeUserRecord(
   }
 
   return { normalized: normalizedUser };
+}
+
+/**
+ * Render-time validator that trusts persisted list pruning and stored
+ * aggregates, avoiding write-path recomputation in the SVG hot path.
+ * @param raw - Raw object pulled from the data store (redis), often JSON-parsed.
+ * @returns Normalized object on success or an { error, status } object on failure.
+ * @source
+ */
+export function validateUserRecordForCardRender(raw: unknown) {
+  return validateAndNormalizeUserRecord(raw, { mode: "render" });
 }
 
 /** Fields representing milestone progress used by card templates. @source */

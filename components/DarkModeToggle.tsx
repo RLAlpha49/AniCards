@@ -1,101 +1,123 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { motion } from "framer-motion";
-import { Sun, Moon } from "lucide-react";
-import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
+import { useCallback, useEffect, useState } from "react";
 
-/**
- * Interactive toggle to switch between light and dark themes.
- * - Uses `next-themes` to toggle between 'dark' and 'light', honoring 'system'.
- * - Tracks setting changes using the analytics helper.
- * - Uses a mount check to avoid SSR hydration mismatch.
- * @returns A button element representing the theme switch.
- * @source
- */
+import { cn } from "@/lib/utils";
+import { safeTrack, trackSettingsChanged } from "@/lib/utils/google-analytics";
+
 export default function DarkModeToggle() {
-  // Prevent hydration mismatch by checking whether this is running client-side.
+  const [bloomKey, setBloomKey] = useState(0);
   const [mounted, setMounted] = useState(false);
   const { theme, resolvedTheme, setTheme } = useTheme();
-  // Use resolvedTheme when the theme is 'system' so the UI reflects the OS setting.
   const currentTheme = theme === "system" ? resolvedTheme : theme;
+  const isDark = currentTheme === "dark";
 
   useEffect(() => {
-    setMounted(true); // Component has mounted (client-side)
+    setMounted(true);
   }, []);
 
   const handleThemeToggle = useCallback(() => {
-    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    const newTheme = isDark ? "light" : "dark";
+    setBloomKey((current) => current + 1);
     setTheme(newTheme);
     safeTrack(() => trackSettingsChanged(`theme_${newTheme}`));
-  }, [currentTheme, setTheme]);
+  }, [isDark, setTheme]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleThemeToggle();
-    }
-  };
-
-  if (!mounted) return null; // Don't render until mounted
-
-  const sunAnimate: Record<string, number> | {} =
-    currentTheme === "dark"
-      ? { opacity: 0.6, scale: 0.9 }
-      : { opacity: 1, scale: 1 };
-  const moonAnimate: Record<string, number> | {} =
-    currentTheme === "dark"
-      ? { opacity: 1, scale: 1 }
-      : { opacity: 0.6, scale: 0.9 };
-  const thumbX = currentTheme === "dark" ? 26 : -2;
+  if (!mounted) {
+    return (
+      <span
+        aria-hidden
+        className="
+          group relative isolate flex size-11 items-center justify-center rounded-full border
+          border-gold/40 bg-transparent transition-[border-color] duration-300 outline-none
+          md:size-9
+        "
+      >
+        <span
+          aria-hidden
+          className="size-[10px] rounded-full border border-gold/60 bg-gold/10"
+        />
+      </span>
+    );
+  }
 
   return (
     <button
       type="button"
       onClick={handleThemeToggle}
-      onKeyDown={onKeyDown}
-      aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
+      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
       role="switch"
-      aria-checked={currentTheme === "dark"}
-      className="relative inline-flex h-7 w-14 items-center rounded-full p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-      style={{
-        backgroundColor: currentTheme === "dark" ? "#e7e7e7" : "#D1D5DB",
-      }}
+      aria-checked={isDark}
+      className="
+        group relative isolate flex size-11 cursor-pointer touch-manipulation-safe items-center
+        justify-center rounded-full border border-gold/40 bg-transparent
+        transition-[transform,border-color] duration-300 outline-none
+        hover:border-gold/80
+        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+        focus-visible:ring-offset-background
+        motion-safe:hover:scale-[1.08]
+        motion-safe:active:scale-[0.92]
+        motion-reduce:transition-none
+        md:size-9
+      "
     >
-      {/* Sun (left) */}
-      <motion.span
-        className="absolute left-1 flex items-center justify-center"
+      {/* Ambient gold glow — visible on hover */}
+      <span
         aria-hidden
-        initial={false}
-        animate={sunAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        style={{ color: "#917b0a" }}
-      >
-        <Sun className="h-5 w-5" strokeWidth={2.5} />
-      </motion.span>
-
-      {/* Moon (right) */}
-      <motion.span
-        className="absolute right-1 flex items-center justify-center text-gray-800 dark:text-gray-100"
-        aria-hidden
-        initial={false}
-        animate={moonAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <Moon className="h-5 w-5" />
-      </motion.span>
-
-      {/* Thumb */}
-      <motion.span
-        className="absolute h-6 w-6 rounded-full bg-white shadow-md"
-        initial={false}
-        animate={{ x: thumbX }}
-        transition={{ type: "spring", stiffness: 700, damping: 30 }}
-        style={{
-          backgroundColor: currentTheme === "dark" ? "#040a1b" : "#fff",
-        }}
+        className="
+          pointer-events-none absolute inset-0 rounded-full opacity-0 theme-toggle-glow
+          transition-opacity duration-300
+          group-hover:opacity-100
+          motion-reduce:transition-none
+        "
       />
+
+      {/* Radial bloom on theme change */}
+      {bloomKey > 0 && (
+        <span
+          key={bloomKey}
+          aria-hidden
+          className="
+            pointer-events-none absolute inset-0 rounded-full theme-toggle-bloom
+            motion-safe:animate-ping motion-safe:animation-duration-[600ms]
+            motion-reduce:animate-none
+          "
+        />
+      )}
+
+      {/* Icon crossfade with rotation */}
+      <span className="relative size-[18px]" aria-hidden>
+        <span
+          className={cn(
+            `
+              absolute inset-0 flex items-center justify-center text-gold transition-all
+              duration-150
+              motion-reduce:transition-none
+            `,
+            isDark
+              ? "scale-100 rotate-0 opacity-100"
+              : "pointer-events-none scale-50 -rotate-90 opacity-0",
+          )}
+        >
+          <Moon className="size-[18px]" strokeWidth={1.75} />
+        </span>
+        <span
+          className={cn(
+            `
+              absolute inset-0 flex items-center justify-center text-gold transition-all
+              duration-150
+              motion-reduce:transition-none
+            `,
+            isDark
+              ? "pointer-events-none scale-50 rotate-90 opacity-0"
+              : "scale-100 rotate-0 opacity-100",
+          )}
+        >
+          <Sun className="size-[18px]" strokeWidth={1.75} />
+        </span>
+      </span>
     </button>
   );
 }

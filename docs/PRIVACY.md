@@ -1,0 +1,351 @@
+# AniCards privacy notes
+
+A maintainer-facing technical summary of the privacy posture baked into the repository. Not a legal document — not a substitute for a real privacy policy review. Just a plain account of what data the code handles and how.
+
+The app also exposes a public-facing summary at `/privacy`. That page is likewise a product disclosure, not a legal privacy policy.
+
+## Storage map
+
+- [`redis-persistence.drawio`](./diagrams/redis-persistence.drawio) — the server-side Redis keys, lookup indexes, saved card records, and lifecycle audit list discussed below.
+- [`data-lifecycle.drawio`](./diagrams/data-lifecycle.drawio) — the full data lifecycle from AniList ingestion through validation and pruning to Redis storage, plus the deletion and cleanup flow.
+- [`user-page-editor-flow.drawio`](./diagrams/user-page-editor-flow.drawio) — the higher-level client/editor flow that shows where autosave and local draft backup fit around the server-side records.
+- [`analytics-consent-flow.drawio`](./diagrams/analytics-consent-flow.drawio) — the consent state management, Google Analytics bootstrap, and tracking pipeline including where consent gates sit.
+
+## Data currently handled by the repo
+
+### Persisted AniList-derived user snapshots
+
+`/api/store-users` persists a minimized server-side record built from AniList data.
+
+The stored shape currently looks like this:
+
+- `userId`
+- optional `username`
+- `stats` — AniList-derived user, list, favourites, and related page data
+- optional derived `aggregates`
+- `createdAt`
+- `updatedAt`
+- optional `requestMetadata.lastSeenIpBucket`
+
+The write path does not intentionally persist raw IP addresses. The only active request-level field is an optional coarse IP bucket such as `203.0.x.x`, `ipv6`, or `loopback`.
+
+### Persisted card editor configuration
+
+`/api/store-cards` stores the following public-by-`userId` record shape:
+
+- `userId` — the numeric AniList user ID and the public lookup key for `/api/get-cards`
+- `cards` — sparse explicit per-card overrides only; untouched default-disabled supported cards are reconstructed later instead of being stored here
+- optional compact `cardOrder` — the authored supported-card ordering signal used to reconstruct the full supported order on read/editor paths
+- optional `globalSettings` — shared preset, color, border, and layout overrides
+- `updatedAt` — browser-facing compare token and public cards-record timestamp
+- optional monotonic `version`
+- optional `schemaVersion`
+- optional linked `userSnapshot` containing `token`, `revision`, `updatedAt`, and `committedAt`
+
+The paired read route `/api/get-cards` is public by numeric AniList `userId`
+and returns that saved card configuration without additional authentication.
+
+### Browser-stored consent state
+
+Analytics consent lives client-side in local storage under:
+
+- `anicards:analytics-consent:v1`
+
+Values are `granted` or `denied`. The `unset` state is the default before a user makes a choice — Google Analytics stays off until they actively grant it.
+
+This consent state stays in browser storage only. It is not copied into
+server-side user snapshots or saved card records.
+
+### Protected-write grant cookies
+
+Successful protected-write flows can also refresh separate first-party cookies
+used only to gate later protected writes for the same AniCards user.
+
+Those cookies:
+
+- are named per user as `anicards_write_grant_{userId}`
+- are `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production
+- carry a **4-hour** max age
+- can carry the bound `userId`, optional `username` / normalized username,
+  the grant source (`anilist_stats` or `stored_user`), an optional stats hash,
+  a version marker, and the signed expiry
+
+These grant cookies are distinct from both the shared request-proof cookie and
+the browser-stored Google Analytics consent key. They are not analytics
+cookies; they exist to gate protected write operations.
+
+### Google Analytics telemetry
+
+When Google Analytics is configured and the user has granted consent, the app may send:
+
+- pageview events with normalized route patterns
+- bounded custom event labels
+- bounded error categories
+
+Route and label values that look sensitive are intentionally redacted or normalized before transmission.
+
+### Runtime telemetry
+
+When AniCards is deployed on Vercel and runtime telemetry is enabled by the deployment environment, the app also renders:
+
+- **Vercel Analytics**
+- **Vercel Speed Insights**
+
+These runtime signals are deployment-controlled. They are not turned on or off by the browser-stored Google Analytics consent choice.
+
+### Optional error-alert webhook egress
+
+If `ERROR_ALERT_WEBHOOK_URL` is configured, `/api/cron/analytics-reporting`
+can POST a compact operational alert summary to that external HTTPS endpoint.
+
+That outbound payload is intentionally limited to:
+
+- alert reasons
+- comparison window and threshold metadata
+- error-buffer counts and saturation rates
+- optional request / operation IDs when present on the cron request
+
+Detailed retained or evicted triage samples are not included in this outbound
+webhook payload.
+
+To avoid replaying the same operator alert over and over during a continuing
+incident, the cron also keeps a short-lived duplicate-suppression fingerprint
+for roughly **2 hours**. Stored analytics history records the final
+alert-delivery state after that webhook step finishes.
+
+### Operator telemetry state
+
+AniCards also stores a small amount of server-side operator telemetry state
+used by `/api/cron/analytics-reporting`:
+
+- the current telemetry write-health snapshot, including degradation and
+  failure-streak state
+- the most recent scheduled refresh-batch summary from `/api/cron`
+
+These keys are operational state only; they are not end-user profile or card
+content.
+
+### Structured error reports
+
+The app supports structured error reporting through `/api/error-reports`.
+
+That endpoint only accepts reports from same-site AniCards pages carrying the
+server-issued request-proof cookie used for protected write surfaces.
+
+Those reports can include minimized versions of:
+
+- error message with obvious emails, tokens, URLs, and file paths redacted
+- error name
+- normalized route patterns
+- stack / component stack with file paths and URLs stripped
+- bounded metadata limited to a small number of safe keys and values
+- optional pseudonymous `requestId` / `operationId` identifiers when a retained
+  report needs them for debugging; the durable client-delivery summary metadata
+  does not copy those identifiers forward
+
+The ingestion route enforces a small request-body cap of roughly **24 KB**. The
+browser retry queue stores only the same minimized payload and drops entries
+that exceed that limit.
+
+The request-proof cookie used for this route is an HttpOnly, `SameSite=Strict`
+cookie with a **4-hour** max age. Its readable payload carries a signed expiry
+plus HMAC-bound fingerprints of the verified client IP and normalized user
+agent; it does **not** echo the raw IP address or user-agent string back into
+browser storage.
+
+When delivery fails in the browser, AniCards can keep the same minimized payload
+in a capped retry queue under:
+
+- `anicards:error-report-queue:v1` in `localStorage` when available
+- the same key in `sessionStorage` when durable local storage is unavailable
+
+Queue posture:
+
+- maximum queued reports: **24**
+- maximum attempts per queued report: **5**
+- maximum retained queue age: **7 days**
+- queued entries are removed earlier when they are delivered, expire, or are
+  evicted from the capped queue
+
+Client-supplied `userId` and `username` fields are ignored by this route and are not persisted as part of the structured error report payload.
+
+## Third-party and infrastructure services
+
+| Vendor / service                          | Purpose                                                  | Data handled                                                                                                            | When active                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **AniList GraphQL**                       | Source of truth for AniList-derived user snapshots       | Requested AniList profile, favourites, list, and statistics data for the target user                                    | Whenever a save or scheduled refresh needs upstream AniList data                                         |
+| **Upstash Redis / Ratelimit**             | Redis persistence and shared rate limiting               | Stored user snapshots, saved card configs, analytics counters, lifecycle/privacy evidence, and structured error reports | Always-on for repo-managed persistence, rate limiting, analytics counters, and retention-limited reports |
+| **Google Analytics / Google Tag Manager** | Consent-gated product analytics                          | Normalized pageviews, bounded event labels, and bounded error categories                                                | Only when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured and the visitor granted analytics consent      |
+| **Vercel Analytics / Speed Insights**     | Runtime observability outside the browser consent toggle | Deployment-controlled runtime analytics and performance signals                                                         | Only when the deployment enables runtime telemetry on Vercel                                             |
+| **Configured HTTPS error-alert webhook**  | Optional external error-alert delivery                   | Compact operational alert summaries with counts, rates, reasons, and threshold metadata                                 | Only when `ERROR_ALERT_WEBHOOK_URL` is configured                                                        |
+
+## Analytics consent model
+
+The Google Analytics consent model is opt-in. No gray area here.
+
+How it works:
+
+- Google Analytics is disabled by default
+- the consent banner only appears when a tracking ID is actually configured
+- granting consent enables Google Analytics pageviews and events
+- server-side operational counters for route health, availability, and error
+  reporting continue independently of the Google Analytics browser consent choice
+- Vercel Analytics and Speed Insights render whenever runtime telemetry is enabled for a Vercel deployment, independent of the Google Analytics consent state
+- revoking consent stops future Google Analytics events immediately
+
+Google Analytics is initialized with:
+
+- `allow_google_signals: false`
+- `allow_ad_personalization_signals: false`
+- consent mode defaults with ad-related storage denied
+
+## Retention and lifecycle
+
+### Browser-stored consent and retry state
+
+- the Google Analytics consent key stays in browser storage until the visitor
+  changes their choice or clears site storage
+- per-user protected-write grant cookies are first-party `HttpOnly`
+  `SameSite=Strict` cookies named `anicards_write_grant_{userId}`; successful
+  protected-write flows can refresh them, and each cookie expires after
+  **4 hours**
+- the client error-report retry queue keeps minimized payloads for up to **7
+  days** in `localStorage` when available, otherwise `sessionStorage`
+- the retry queue is capped at **24** queued reports and can drop entries sooner
+  when they are delivered or evicted
+
+### User snapshots and saved cards
+
+There is currently no general TTL applied to saved user snapshots or card settings.
+
+Records stick around until one of the following occurs:
+
+- a newer save overwrites them
+- maintainers invoke the delete path directly
+- the scheduled stale-user refresh flow removes a user after repeated AniList 404s
+
+That cron flow deletes a stored user after **three consecutive** scheduled 404 refresh failures. The deletion also clears:
+
+- saved cards
+- username aliases
+- failure tracking keys
+- user snapshots
+
+### Analytics reports
+
+`/api/cron/analytics-reporting` stores generated analytics reports in a bounded Redis list.
+
+Rules:
+
+- maximum stored reports: **50**
+- maximum retained age per stored report: **14 days**
+- the immediate POST response includes a transient flat `raw_data` snapshot,
+  but persisted report history and the read-only GET endpoint do **not** store
+  or return that `raw_data` payload
+- persisted report history keeps `summary`, `generatedAt`, and `reportMeta`
+  only
+- persisted observability history includes aggregate error-buffer envelopes,
+  compact retained/evicted triage summaries, rolling error-count summaries,
+  telemetry write-health state, the latest refresh-batch summary, and the final
+  error-alert delivery result
+- the GET history path is read-only and does not prune or rewrite the stored
+  analytics report list while serving operator history
+
+### Structured error report retention
+
+Error reports are stored in a bounded Redis list, and newly stored reports now
+carry an explicit server-side expiry timestamp.
+
+Rules:
+
+- maximum retained error reports: **250**
+- maximum retained age: **14 days**
+- recent saturation triage for reports pushed out of the live buffer is kept
+  within the same **14-day** window
+- compact rolling error-count summaries used by cron reporting also stay within
+  the same **14-day** server-side window
+
+### User lifecycle audit trail
+
+Server-side lifecycle audit entries are stored in a bounded Redis list, and new
+entries carry an explicit server-side expiry timestamp.
+
+Rules:
+
+- maximum retained lifecycle audit entries: **250**
+- maximum retained age: **14 days**
+
+### Privacy-rights evidence ledger
+
+Manual privacy-rights handling also keeps a separate, narrower maintainer-only
+evidence ledger for intake / fulfillment tracking.
+
+Rules:
+
+- maximum retained privacy-rights evidence entries: **250**
+- maximum retained age: **~400 days**
+- stored fields are intentionally narrow: constrained actor/workflow code,
+  request type, stage, timestamp, and user ID
+- actor values are limited to approved workflow labels or short lowercase
+  maintainer codes (for example `maintainer_alpha`) instead of arbitrary freeform text
+
+### Aggregate counters
+
+Analytics counters are stored as monthly bucket keys under `analytics:*:month:YYYY-MM`.
+
+Retention posture:
+
+- each monthly counter bucket receives a **400-day TTL** when updated
+- raw analytics counters are therefore retained for roughly **13 months**, not indefinitely
+- `/api/cron/analytics-reporting` still reads the bounded monthly buckets when generating reports
+
+### Failed update counters
+
+The scheduled stale-user refresh flow keeps repeated AniList 404 counters under `failed_updates:{userId}`.
+
+Retention posture:
+
+- each failure counter receives a **14-day TTL** when updated
+- a stored user is removed after **three consecutive** scheduled 404 refresh failures inside that window
+
+## Public access and data minimization
+
+The public `/api/get-user` response is deliberately designed to omit internal
+persistence metadata — things like request IP buckets and internal record
+timestamps. It returns a bounded public DTO rather than the full internal
+storage shape.
+
+The exposed `recordMeta.snapshot` identifier is limited to a stable snapshot
+token plus revision and intentionally excludes `updatedAt` and `committedAt`.
+
+The public `/api/get-cards` route is separate from that bounded user DTO: it
+returns saved card editor configuration by numeric `userId`, so saved card
+settings should be treated as publicly retrievable data.
+
+## Export and deletion
+
+There is currently no public self-serve API for exporting or deleting server-side stored data.
+
+What actually exists today:
+
+- maintainers have a server-side delete primitive in `lib/server/user-data.ts`
+- maintainers have an internal `createMaintainerUserDataExport()` helper in
+  `lib/server/user-data.ts` that assembles the current stored user snapshot,
+  saved card payload, and recorded privacy-rights evidence into a reviewable
+  maintainer-only export package
+- the UI includes local settings export/import helpers for editor settings JSON
+- those local exports are not the same as deleting or exporting server-side user snapshots
+
+Until a self-serve flow exists, deletion and export requests require manual maintainer handling. The repo's contact address is `contact@alpha49.com`.
+
+The server-side privacy workflow now supports dedicated privacy-rights intake
+and fulfillment evidence for that manual process, so maintainers can record
+when a contact-based request was received and when it was completed without
+mixing that longer-lived evidence into the short-lived lifecycle audit list.
+The built-in maintainer export and delete helpers automatically write those
+intake/fulfillment entries using the constrained actor-code contract.
+
+## Related docs
+
+- [`SECURITY.md`](./SECURITY.md)
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md)

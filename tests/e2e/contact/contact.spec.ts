@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const SOCIAL_NAMES = ["Discord", "GitHub", "AniList"];
 
@@ -28,7 +28,8 @@ test.describe("Contact page", () => {
   test("exposes email CTA and GitHub issues link", async ({ page }) => {
     await test.step("Validate email CTA", async () => {
       const emailLink = page.getByRole("link", {
-        name: /contact@alpha49\.com/i,
+        name: "contact@alpha49.com",
+        exact: true,
       });
       await expect(emailLink).toBeVisible();
       await expect(emailLink).toHaveAttribute(
@@ -39,7 +40,7 @@ test.describe("Contact page", () => {
 
     await test.step("Validate GitHub issues link", async () => {
       const issuesLink = page.getByRole("link", {
-        name: /open an issue on github/i,
+        name: /open issue/i,
       });
       await expect(issuesLink).toBeVisible();
       await expect(issuesLink).toHaveAttribute(

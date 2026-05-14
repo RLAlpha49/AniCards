@@ -1,19 +1,24 @@
-import type { ColorValue } from "@/lib/types/card";
-import type { MediaListEntry } from "@/lib/types/records";
-import type { TrustedSVG } from "@/lib/types/svg";
-import { isAllowedAniListImageUrl } from "@/lib/image-utils";
 import {
-  calculateDynamicFontSize,
-  escapeForXml,
-  getCardBorderRadius,
-  markTrustedSvg,
-  processColorsForSVG,
-} from "@/lib/utils";
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgAnchoredTextPair,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
 import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
+import type { ColorValue } from "@/lib/types/card";
+import type { MediaListEntry } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
+import {
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+  processColorsForSVG,
+} from "@/lib/utils";
+
 import {
   getDimensions,
   getMediaTitle,
@@ -40,6 +45,10 @@ interface CurrentlyWatchingReadingInput {
 }
 
 type NowEntry = { entry: MediaListEntry; type: "anime" | "manga" };
+
+const TITLE_X_OFFSET = 24;
+const ROW_GAP_PX = 12;
+const SECONDARY_MAX_WIDTH = 108;
 
 function buildNowEntries(
   anime: MediaListEntry[],
@@ -100,8 +109,6 @@ function getCoverDataUrl(entry: MediaListEntry): string | null {
   const url = entry.media.coverImage?.large || entry.media.coverImage?.medium;
   if (!url) return null;
   if (url.startsWith("data:")) return url;
-
-  if (isAllowedAniListImageUrl(url)) return url;
   return null;
 }
 
@@ -152,13 +159,47 @@ export function currentlyWatchingReadingTemplate(
   if (variant === "manga") titleSuffix = "Currently Reading";
   const title = `${username}'s ${titleSuffix}`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const titleMaxWidth = dims.w - 40;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: 18,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
 
   const animeCount = input.animeCount ?? animeCurrent.length;
   const mangaCount = input.mangaCount ?? mangaCurrent.length;
   const statsLine = getStatsLine(variant, animeCount, mangaCount);
+  const statsLineFit = fitSvgSingleLineText({
+    fontWeight: 400,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: dims.w - 50,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: statsLine,
+  });
+  const statsLineFontSizeStyle = statsLineFit
+    ? ` style="font-size:${statsLineFit.fontSize}px"`
+    : "";
 
   const rows = buildNowEntries(animeCurrent, mangaCurrent, 6);
+  const noDataFit = fitSvgSingleLineText({
+    fontWeight: 400,
+    initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+    maxWidth: dims.w - 40,
+    minFontSize: 8,
+    mode: "shrink",
+    text: "No currently watching/reading entries found",
+  });
+  const noDataText = escapeForXml(
+    noDataFit?.text ?? "No currently watching/reading entries found",
+  );
+  const noDataFontSizeStyle = noDataFit
+    ? ` style="font-size:${noDataFit.fontSize}px"`
+    : "";
 
   const COVER_W = 26;
   const COVER_H = 36;
@@ -186,7 +227,6 @@ export function currentlyWatchingReadingTemplate(
   const entriesContent = rows
     .map(({ entry, type }, i) => {
       const mediaTitle = getMediaTitle(entry);
-      const clippedTitle = truncateWithEllipsis(mediaTitle, 44);
 
       const icon = type === "anime" ? "📺" : "📚";
       const { label, ratio } = getProgressMeta(entry, type);
@@ -210,15 +250,45 @@ export function currentlyWatchingReadingTemplate(
         const escaped = escapeForXml(coverDataUrl);
         coverImage = `<image x="0" y="-18" width="${COVER_W}" height="${COVER_H}" href="${escaped}" xlink:href="${escaped}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})"/>`;
       }
-      const titleX = textX + 18;
+      const titleX = textX + TITLE_X_OFFSET;
+      const rowFit = fitSvgAnchoredTextPair({
+        availableWidth: contentW - titleX,
+        gapPx: ROW_GAP_PX,
+        primaryFontWeight: 500,
+        primaryInitialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        primaryMinFontSize: TYPOGRAPHY.MIN_FONT_SIZE,
+        primaryText: mediaTitle,
+        secondaryInitialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        secondaryMaxWidth: SECONDARY_MAX_WIDTH,
+        secondaryMinFontSize: TYPOGRAPHY.MIN_FONT_SIZE,
+        secondaryFontWeight: 600,
+        secondaryText: label,
+      });
+      const fittedTitle =
+        rowFit?.primary.text ?? truncateWithEllipsis(mediaTitle, 44);
+      const titleMaxWidthForRow =
+        contentW - titleX - SECONDARY_MAX_WIDTH - ROW_GAP_PX;
+      const entryTitleLengthAdjustAttrs = rowFit
+        ? buildSvgTextLengthAdjustAttributes(rowFit.primary, {
+            initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+            maxWidth: titleMaxWidthForRow,
+          })
+        : "";
+      const entryTitleFontSizeStyle = rowFit
+        ? ` style="font-size:${rowFit.primary.fontSize}px"`
+        : "";
+      const metaFontSizeStyle = rowFit
+        ? ` style="font-size:${rowFit.secondary.fontSize}px"`
+        : "";
 
       return `
         <g transform="translate(${SPACING.CARD_PADDING}, ${rowY})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
           ${coverRect}
           ${coverImage}
           <text class="entry-icon" x="${textX}" y="0" fill="${resolvedColors.textColor}">${escapeForXml(icon)}</text>
-          <text class="entry-title" x="${titleX}" y="0" fill="${resolvedColors.textColor}">${escapeForXml(clippedTitle)}</text>
-          <text class="entry-meta" x="${contentW}" y="0" text-anchor="end" fill="${resolvedColors.circleColor}">${escapeForXml(label)}</text>
+          <!-- Inline font-size styles intentionally override the class font shorthand when text-fitting adjusts sizes, while entryTitleLengthAdjustAttrs preserves fittedTitle. Keep this dual control for the text-fitting optimization. -->
+          <text class="entry-title" x="${titleX}" y="0" fill="${resolvedColors.textColor}"${entryTitleFontSizeStyle}${entryTitleLengthAdjustAttrs}>${escapeForXml(fittedTitle)}</text>
+          <text class="entry-meta" x="${contentW}" y="0" text-anchor="end" fill="${resolvedColors.circleColor}"${metaFontSizeStyle}>${escapeForXml(rowFit?.secondary.text ?? label)}</text>
           ${track}
           ${fill}
         </g>
@@ -228,7 +298,7 @@ export function currentlyWatchingReadingTemplate(
 
   const noDataMessage =
     rows.length === 0
-      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line">No currently watching/reading entries found</text>`
+      ? `<text x="${dims.w / 2}" y="${svgHeight / 2}" text-anchor="middle" fill="${resolvedColors.textColor}" class="stats-line"${noDataFontSizeStyle}>${noDataText}</text>`
       : "";
 
   return markTrustedSvg(`
@@ -239,7 +309,7 @@ export function currentlyWatchingReadingTemplate(
       </defs>
       <title id="title-id">${safeTitle}</title>
       <style>
-        .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .header { fill: ${resolvedColors.titleColor}; font: 600 ${titleFit.fontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .entry-icon { font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px; }
         .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
@@ -249,10 +319,10 @@ export function currentlyWatchingReadingTemplate(
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text>
       </g>
       <g transform="translate(25, 58)">
-        <text class="stats-line" fill="${resolvedColors.textColor}">${escapeForXml(statsLine)}</text>
+        <text class="stats-line" fill="${resolvedColors.textColor}"${statsLineFontSizeStyle}>${escapeForXml(statsLineFit?.text ?? statsLine)}</text>
       </g>
       ${entriesContent}
       ${noDataMessage}

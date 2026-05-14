@@ -22,7 +22,7 @@ export interface GradientDefinition {
   type: "linear" | "radial";
   /** Array of gradient stops (minimum 2 required) */
   stops: GradientStop[];
-  /** Angle in degrees for linear gradients (0-360, default 0 = left to right) */
+  /** Angle in degrees for linear gradients (0-360, default 90 = left to right) */
   angle?: number;
   /** Center X position for radial gradients (0-100%, default 50) */
   cx?: number;
@@ -51,23 +51,6 @@ export interface TemplateCardConfig {
   borderColor?: string;
   borderRadius?: number;
   useStatusColors?: boolean;
-}
-
-/**
- * Aggregated structure representing AniList user stats responses used by
- * the server and templates to render cards.
- * @source
- */
-export interface UserStats {
-  username: string;
-  User: {
-    statistics: {
-      anime: AnimeStats;
-      manga: MangaStats;
-    };
-    stats?: { activityHistory: { date: number; amount: number }[] };
-  };
-  social?: SocialStats;
 }
 
 /** Anime-specific aggregated statistics returned from AniList. @source */
@@ -114,21 +97,4 @@ export interface SocialStats {
   };
   reviewsPage: { pageInfo: { total: number }; reviews: { id: number }[] };
   activityHistory?: { date: number; amount: number }[];
-}
-
-/** Document representation for persisted user card configurations. @source */
-export interface CardsDocument {
-  userId: number;
-  cards: TemplateCardConfig[];
-  updatedAt: Date;
-}
-
-/** Database document shape for a stored user containing minimal profile and metadata. @source */
-export interface UserDocument {
-  userId: number;
-  username: string;
-  stats: unknown;
-  createdAt: Date;
-  updatedAt: Date;
-  ip: string;
 }

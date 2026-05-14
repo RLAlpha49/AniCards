@@ -1,0 +1,234 @@
+<mxfile host="65bd71144e">
+    <diagram id="card-taxonomy" name="Card Type Taxonomy">
+        <mxGraphModel dx="870" dy="535" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1400" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Card Type Taxonomy and Template Dispatch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="20" width="460" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Card families, their card types, and the SVG template directory that renders each. Registry: lib/card-types.ts, UI groups: lib/card-groups.ts, dispatch: lib/card-generator.ts." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="15" width="620" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="dispatch" value="generateCardSvg()&#xa;lib/card-generator.ts&#xa;&#xa;normalizeVariant()&#xa;lazy template import" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="80" width="220" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="grp-core" value="Core Stats" style="swimlane;startSize=25;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="200" width="300" height="240" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeStats" value="animeStats&#xa;default | vertical | compact | minimal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-core" vertex="1">
+                    <mxGeometry x="10" y="35" width="280" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-mangaStats" value="mangaStats&#xa;default | vertical | compact | minimal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-core" vertex="1">
+                    <mxGeometry x="10" y="80" width="280" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-socialStats" value="socialStats&#xa;default | compact | minimal | badges" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-core" vertex="1">
+                    <mxGeometry x="10" y="125" width="280" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-profileOverview" value="profileOverview&#xa;default" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-core" vertex="1">
+                    <mxGeometry x="10" y="170" width="280" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-amOverview" value="animeMangaOverview&#xa;default" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-core" vertex="1">
+                    <mxGeometry x="10" y="205" width="280" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-media" value="svg-templates/&#xa;media-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="470" width="130" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-social" value="svg-templates/&#xa;social-stats.ts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="470" width="130" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-core-media" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-animeStats" target="tpl-media" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="30" y="253"/>
+                            <mxPoint x="30" y="450"/>
+                            <mxPoint x="105" y="450"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-core-social" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-socialStats" target="tpl-social" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="350" y="343"/>
+                            <mxPoint x="350" y="450"/>
+                            <mxPoint x="265" y="450"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="grp-anime" value="Anime Deep Dive (15 card types)" style="swimlane;startSize=25;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="200" width="340" height="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeGenres" value="animeGenres&#xa;default | pie | donut | bar | radar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="35" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeTags" value="animeTags, animeVoiceActors, animeStudios, animeStaff" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="75" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeStatus" value="animeStatusDistribution, animeFormatDistribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="115" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeSource" value="animeSourceMaterialDistribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="155" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeSeasonal" value="animeSeasonalPreference, animeEpisodeLengthPreferences" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="195" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeCountry" value="animeCountry, animeGenreSynergy, studioCollaboration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="235" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-animeDist" value="animeScoreDistribution, animeYearDistribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="grp-anime" vertex="1">
+                    <mxGeometry x="10" y="275" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-extra" value="svg-templates/&#xa;extra-anime-manga-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="540" width="170" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-dist" value="svg-templates/&#xa;distribution/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="540" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-studio" value="svg-templates/&#xa;studio-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="590" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-anime-extra" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-animeGenres" target="tpl-extra" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="360" y="250"/>
+                            <mxPoint x="360" y="560"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-anime-dist" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-animeDist" target="tpl-dist" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="grp-manga" value="Manga Deep Dive (8 card types)" style="swimlane;startSize=25;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="200" width="340" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-mangaGenres" value="mangaGenres, mangaTags, mangaStaff" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="grp-manga" vertex="1">
+                    <mxGeometry x="10" y="35" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-mangaStatus" value="mangaStatusDistribution, mangaFormatDistribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="grp-manga" vertex="1">
+                    <mxGeometry x="10" y="75" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-mangaCountry" value="mangaCountry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="grp-manga" vertex="1">
+                    <mxGeometry x="10" y="115" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-mangaDist" value="mangaScoreDistribution, mangaYearDistribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="grp-manga" vertex="1">
+                    <mxGeometry x="10" y="155" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="grp-activity" value="Activity &amp; Engagement (6 card types)" style="swimlane;startSize=25;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1110" y="200" width="340" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-activity1" value="recentActivitySummary, activityStreaks, topActivityDays" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="grp-activity" vertex="1">
+                    <mxGeometry x="10" y="35" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-activity2" value="socialMilestones, reviewStats" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="grp-activity" vertex="1">
+                    <mxGeometry x="10" y="75" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-activity3" value="seasonalViewingPatterns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="grp-activity" vertex="1">
+                    <mxGeometry x="10" y="115" width="320" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-activity" value="svg-templates/&#xa;activity-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="1110" y="430" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-social-community" value="svg-templates/&#xa;social-community/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="1105" y="480" width="150" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-user-analytics" value="svg-templates/&#xa;user-analytics/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="1275" y="430" width="140" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-activity-tpl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-activity1" target="tpl-activity" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1100" y="250"/>
+                            <mxPoint x="1100" y="410"/>
+                            <mxPoint x="1180" y="410"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-activity-ua" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-activity3" target="tpl-user-analytics" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="grp-library" value="Library &amp; Progress (9 card types)" style="swimlane;startSize=25;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="660" width="400" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-lib1" value="favoritesSummary, favoritesGrid, profileOverview" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="grp-library" vertex="1">
+                    <mxGeometry x="10" y="35" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-lib2" value="statusCompletionOverview, milestones, personalRecords" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="grp-library" vertex="1">
+                    <mxGeometry x="10" y="75" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-lib3" value="planningBacklog, mostRewatched, currentlyWatchingReading" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="grp-library" vertex="1">
+                    <mxGeometry x="10" y="115" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-lib4" value="droppedMedia" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="grp-library" vertex="1">
+                    <mxGeometry x="10" y="155" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-profile" value="svg-templates/&#xa;profile-favorite-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="940" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-completion" value="svg-templates/&#xa;completion-progress-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="940" width="190" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-lib-profile" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-lib1" target="tpl-profile" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="30" y="710"/>
+                            <mxPoint x="30" y="920"/>
+                            <mxPoint x="120" y="920"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-lib-completion" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-lib2" target="tpl-completion" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="460" y="750"/>
+                            <mxPoint x="460" y="920"/>
+                            <mxPoint x="325" y="920"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="grp-advanced" value="Advanced Analytics (9 card types)" style="swimlane;startSize=25;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="660" width="400" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-adv1" value="scoreCompareAnimeManga, countryDiversity, genreDiversity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-advanced" vertex="1">
+                    <mxGeometry x="10" y="35" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-adv2" value="formatPreferenceOverview, releaseEraPreference" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-advanced" vertex="1">
+                    <mxGeometry x="10" y="75" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-adv3" value="startYearMomentum, lengthPreference" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-advanced" vertex="1">
+                    <mxGeometry x="10" y="115" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="c-adv4" value="tagCategoryDistribution, tagDiversity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="grp-advanced" vertex="1">
+                    <mxGeometry x="10" y="155" width="380" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tpl-comparative" value="svg-templates/&#xa;comparative-distribution-stats/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="940" width="200" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-adv-comparative" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="c-adv1" target="tpl-comparative" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="470" y="710"/>
+                            <mxPoint x="470" y="920"/>
+                            <mxPoint x="580" y="920"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="tpl-common" value="svg-templates/common/&#xa;base-template-utils, svg-primitives,&#xa;dimensions, color-utils, types" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="940" width="280" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-dispatch-core" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="dispatch" target="grp-core" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-dispatch-anime" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="dispatch" target="grp-anime" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-dispatch-manga" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="dispatch" target="grp-manga" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-dispatch-activity" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="dispatch" target="grp-activity" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

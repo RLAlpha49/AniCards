@@ -1,7 +1,16 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-
+/**
+ * Shared renderer for score and year distribution cards.
+ *
+ * This module normalizes sparse input data, handles variant-specific layouts,
+ * and marks year gaps/cumulative views so card-specific callers only need to
+ * provide typed values and styling.
+ */
+import {
+  buildSvgTextLengthAdjustAttributes,
+  fitSvgSingleLineText,
+  resolveSvgTitleTextFit,
+} from "@/lib/pretext/runtime";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   ANIMATION,
   DISTRIBUTION,
@@ -9,21 +18,23 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   createRectElement,
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-
+import type { ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
-  calculateDynamicFontSize,
-  getCardBorderRadius,
-  processColorsForSVG,
   escapeForXml,
+  getCardBorderRadius,
   markTrustedSvg,
+  processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import type { ColorValue } from "@/lib/types/card";
+
+const TITLE_HORIZONTAL_PADDING = 40;
 
 /** Simple representation of a distribution item with value and a count. @source */
 interface DistributionDatum {
@@ -47,6 +58,8 @@ interface DistributionTemplateInput {
     circleColor: ColorValue;
     borderColor?: ColorValue;
     borderRadius?: number;
+    /** Animations are enabled unless animate is explicitly set to false. */
+    animate?: boolean;
   };
   variant?: "default" | "horizontal" | "cumulative";
   data: DistributionDatum[];
@@ -103,9 +116,18 @@ function generateCumulativeChart(
   const gridLines = [0, 25, 50, 75, 100]
     .map((pct) => {
       const y = top + chartH - (pct / 100) * chartH;
+      const axisText = `${pct}%`;
+      const axisFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        maxWidth: Math.max(18, left - 16),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: axisText,
+      });
       return `<g>
         <line class="cdf-grid" x1="${left}" y1="${y.toFixed(2)}" x2="${(left + chartW).toFixed(2)}" y2="${y.toFixed(2)}" />
-        <text class="cdf-axis" x="${left - 10}" y="${(y + 4).toFixed(2)}" text-anchor="end">${pct}%</text>
+        <text class="cdf-axis" x="${left - 10}" y="${(y + 4).toFixed(2)}" text-anchor="end"${axisFit ? ` font-size="${axisFit.fontSize}"` : ""}>${escapeForXml(axisFit?.text ?? axisText)}</text>
       </g>`;
     })
     .join("");
@@ -116,7 +138,20 @@ function generateCumulativeChart(
       if (!show) return "";
       const x = left + i * stepX;
       const y = top + chartH + 18;
-      return `<text class="cdf-axis" x="${x.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="middle">${d.value}</text>`;
+      const xLabelText = String(d.value);
+      const xLabelFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        maxWidth: Math.max(12, stepX - 4),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: xLabelText,
+      });
+      const xLabelFontSize = xLabelFit
+        ? ` font-size="${xLabelFit.fontSize}"`
+        : "";
+      const xLabelContent = escapeForXml(xLabelFit?.text ?? xLabelText);
+      return `<text class="cdf-axis" x="${x.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="middle"${xLabelFontSize}>${xLabelContent}</text>`;
     })
     .join("");
 
@@ -127,10 +162,19 @@ function generateCumulativeChart(
     )
     .join("");
 
-  const legend =
-    total > 0
-      ? `<text class="cdf-legend" x="${left}" y="${(top - 10).toFixed(2)}">Cumulative % of entries</text>`
-      : `<text class="cdf-legend" x="${left}" y="${(top - 10).toFixed(2)}">Cumulative % (no scores yet)</text>`;
+  const legendText =
+    total > 0 ? "Cumulative % of entries" : "Cumulative % (no scores yet)";
+  const legendFit = fitSvgSingleLineText({
+    fontWeight: 600,
+    initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+    maxWidth: chartW,
+    minFontSize: 8,
+    mode: "shrink-then-truncate",
+    text: legendText,
+  });
+  const legendFontSize = legendFit ? ` font-size="${legendFit.fontSize}"` : "";
+  const legendContent = escapeForXml(legendFit?.text ?? legendText);
+  const legend = `<text class="cdf-legend" x="${left}" y="${(top - 10).toFixed(2)}"${legendFontSize}>${legendContent}</text>`;
 
   return [
     `<g>
@@ -242,13 +286,37 @@ function generateBarItems(
       const safeWidth = Math.max(2, width);
       const barStartX = DISTRIBUTION.BAR_START_X;
       const countBaseX = DISTRIBUTION.COUNT_BASE_X;
+      const labelText = String(d.value);
+      const countText = String(d.count);
+      const labelFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.STAT_LABEL_SIZE,
+        maxWidth: Math.max(18, barStartX - 8),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: labelText,
+      });
+      const countFit = fitSvgSingleLineText({
+        fontWeight: 600,
+        initialFontSize: TYPOGRAPHY.SECTION_TITLE_SIZE,
+        maxWidth: Math.max(24, DISTRIBUTION.MAX_BAR_WIDTH_OFFSET - 8),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: countText,
+      });
 
       const next = data[i + 1];
       const yearGapSize =
         showYearGaps && next ? Math.max(0, d.value - next.value - 1) : 0;
 
       const content = [
-        createTextElement(0, 12, String(d.value), "score-label"),
+        createTextElement(
+          0,
+          12,
+          labelFit?.text ?? labelText,
+          "score-label",
+          labelFit ? { fontSize: labelFit.fontSize } : undefined,
+        ),
         createRectElement(barStartX, 3, Number(safeWidth.toFixed(2)), 10, {
           rx: 3,
           fill: barColor,
@@ -257,8 +325,9 @@ function generateBarItems(
         createTextElement(
           countBaseX + safeWidth,
           12,
-          String(d.count),
+          countFit?.text ?? countText,
           "score-count",
+          countFit ? { fontSize: countFit.fontSize } : undefined,
         ),
         yearGapSize > 0
           ? [
@@ -315,16 +384,40 @@ function generateVerticalBars(
       const x =
         i * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
       const barTop = DISTRIBUTION.VERTICAL_BAR_Y_BASE - height;
+      const countText = String(d.count);
+      const scoreText = String(d.value);
+      const countFit = fitSvgSingleLineText({
+        fontWeight: 600,
+        initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        maxWidth: Math.max(12, DISTRIBUTION.VERTICAL_BAR_SPACING - 6),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: countText,
+      });
+      const scoreFit = fitSvgSingleLineText({
+        fontWeight: 400,
+        initialFontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        maxWidth: Math.max(12, DISTRIBUTION.VERTICAL_BAR_SPACING - 6),
+        minFontSize: 8,
+        mode: "shrink-then-truncate",
+        text: scoreText,
+      });
 
       const next = data[i + 1];
       const yearGapSize =
         showYearGaps && next ? Math.max(0, d.value - next.value - 1) : 0;
 
       const content = [
-        createTextElement(0, barTop - 6, String(d.count), "h-count", {
-          textAnchor: "middle",
-          fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
-        }),
+        createTextElement(
+          0,
+          barTop - 6,
+          countFit?.text ?? countText,
+          "h-count",
+          {
+            textAnchor: "middle",
+            fontSize: countFit?.fontSize ?? TYPOGRAPHY.SMALL_TEXT_SIZE,
+          },
+        ),
         createRectElement(
           -DISTRIBUTION.VERTICAL_BAR_WIDTH / 2,
           barTop,
@@ -353,11 +446,11 @@ function generateVerticalBars(
         createTextElement(
           0,
           DISTRIBUTION.VERTICAL_BAR_Y_BASE + 14,
-          String(d.value),
+          scoreFit?.text ?? scoreText,
           "h-score",
           {
             textAnchor: "middle",
-            fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+            fontSize: scoreFit?.fontSize ?? TYPOGRAPHY.SMALL_TEXT_SIZE,
           },
         ),
       ].join("");
@@ -493,7 +586,6 @@ export function distributionTemplate(
 ): TrustedSVG {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: styles.titleColor,
@@ -512,7 +604,6 @@ export function distributionTemplate(
   );
   const cardRadius = getCardBorderRadius(styles.borderRadius);
 
-  // Normalize and sort data
   const normalizedData = normalizeDistributionData(input.data, kind);
 
   const { renderedData, maxCount, hasYearGaps } = prepareRenderedData(
@@ -523,15 +614,25 @@ export function distributionTemplate(
 
   const showYearGaps = kind === "year";
 
-  // Generate title and get dimensions
   const baseTitle =
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
   const safeTitle = escapeForXml(title);
   const baseDims = getCardDimensions("distribution", variant);
+  const titleMaxWidth = baseDims.w - TITLE_HORIZONTAL_PADDING;
+  const titleFit = resolveSvgTitleTextFit({
+    maxWidth: titleMaxWidth,
+    text: title,
+  });
+  const titleLengthAdjustAttrs = buildSvgTextLengthAdjustAttributes(titleFit, {
+    initialFontSize: 18,
+    maxWidth: titleMaxWidth,
+  });
+  const safeVisibleTitle = escapeForXml(titleFit.text);
   const dims = computeDimsForVariant(variant, renderedData, baseDims);
+  // animate defaults to enabled, so only explicit false disables motion.
+  const animationsEnabled = styles.animate !== false;
 
-  // Layout constants
   const barColor = resolvedColors.circleColor;
   const countBaseX = DISTRIBUTION.COUNT_BASE_X;
   const maxBarWidth = Math.max(
@@ -539,7 +640,6 @@ export function distributionTemplate(
     dims.w - countBaseX - DISTRIBUTION.MAX_BAR_WIDTH_OFFSET,
   );
 
-  // Generate content based on variant
   const mainContent = renderMainContent(variant, kind, renderedData, {
     dims,
     maxCount,
@@ -547,9 +647,6 @@ export function distributionTemplate(
     barColor,
     showYearGaps,
   });
-
-  const headerFontSize = calculateDynamicFontSize(title, 18, 300);
-  const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;
 
   return markTrustedSvg(`
 <svg
@@ -577,7 +674,7 @@ export function distributionTemplate(
         .join(" "),
     )}</desc>
     <style>
-      ${generateCommonStyles(resolvedColors, headerFontSizeNumber)}
+      ${generateCommonStyles(resolvedColors, titleFit.fontSize, { includeAnimations: animationsEnabled })}
       .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       .score-count { font-size:${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
       .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }
@@ -592,27 +689,9 @@ export function distributionTemplate(
       .cdf-dot { fill:${resolvedColors.circleColor}; opacity:0.95; }
     </style>
     ${generateCardBackground(dims, cardRadius, resolvedColors)}
-    <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
+    <g transform="translate(20,35)"><text class="header"${titleLengthAdjustAttrs}>${safeVisibleTitle}</text></g>
     ${mainContent}
   </svg>`);
-}
-
-/**
- * Factory function to create distribution template wrappers.
- * Accepts mediaType and kind, returns a wrapper that omits both from input.
- */
-export function createDistributionTemplate(
-  mediaType: "anime" | "manga",
-  kind: "score" | "year",
-) {
-  return (
-    input: Omit<
-      Parameters<typeof distributionTemplate>[0],
-      "mediaType" | "kind"
-    >,
-  ) => {
-    return distributionTemplate({ ...input, mediaType, kind });
-  };
 }
 
 /** Capitalize the first letter of a string. @source */
