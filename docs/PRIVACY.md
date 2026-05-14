@@ -56,6 +56,24 @@ Values are `granted` or `denied`. The `unset` state is the default before a user
 This consent state stays in browser storage only. It is not copied into
 server-side user snapshots or saved card records.
 
+### Protected-write grant cookies
+
+Successful protected-write flows can also refresh separate first-party cookies
+used only to gate later protected writes for the same AniCards user.
+
+Those cookies:
+
+- are named per user as `anicards_write_grant_{userId}`
+- are `HttpOnly`, `SameSite=Strict`, scoped to `/`, and marked `Secure` in production
+- carry a **4-hour** max age
+- can carry the bound `userId`, optional `username` / normalized username,
+  the grant source (`anilist_stats` or `stored_user`), an optional stats hash,
+  a version marker, and the signed expiry
+
+These grant cookies are distinct from both the shared request-proof cookie and
+the browser-stored Google Analytics consent key. They are not analytics
+cookies; they exist to gate protected write operations.
+
 ### Google Analytics telemetry
 
 When Google Analytics is configured and the user has granted consent, the app may send:
@@ -187,6 +205,10 @@ Google Analytics is initialized with:
 
 - the Google Analytics consent key stays in browser storage until the visitor
   changes their choice or clears site storage
+- per-user protected-write grant cookies are first-party `HttpOnly`
+  `SameSite=Strict` cookies named `anicards_write_grant_{userId}`; successful
+  protected-write flows can refresh them, and each cookie expires after
+  **4 hours**
 - the client error-report retry queue keeps minimized payloads for up to **7
   days** in `localStorage` when available, otherwise `sessionStorage`
 - the retry queue is capped at **24** queued reports and can drop entries sooner

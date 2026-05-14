@@ -11,7 +11,7 @@ import { generateStructuredData } from "@/lib/structured-data";
 import LoadingPreview from "./loading";
 
 export const metadata = createMetadata(seoConfigs.privacy);
-export const PRIVACY_PAGE_LASTMOD = "2026-04-20";
+export const PRIVACY_PAGE_LASTMOD = "2026-05-13";
 
 const sections = [
   {
@@ -23,6 +23,7 @@ const sections = [
       "When you save data, AniCards may store a trimmed snapshot of your AniList profile alongside your card settings. Saved card configurations are publicly retrievable by numeric AniList user ID, while the public user lookup keeps its snapshot metadata down to a token, revision, and completeness info instead of exposing internal record timestamps.",
       "Google Analytics consent is not copied into those server-side records — it lives in browser storage only, and it starts in the off state.",
       "Protected write routes and client error reports use a short-lived server-issued request proof cookie. Its readable payload carries a signed expiry plus hashed network and browser bindings — not your raw IP address or full user-agent string — and any accepted error report is minimized before it reaches storage.",
+      "Successful protected-write flows can also refresh separate first-party grant cookies named `anicards_write_grant_{userId}` for the matching AniList user. Those cookies are HttpOnly, SameSite=Strict, last up to 4 hours, and gate protected saves rather than analytics or consent storage.",
     ],
   },
   {
@@ -51,6 +52,11 @@ const sections = [
         label: "Analytics consent",
         detail:
           "Lives in browser storage only until you change your choice or clear browser storage.",
+      },
+      {
+        label: "Protected write grant cookies",
+        detail:
+          "First-party per-user cookies named `anicards_write_grant_{userId}` can be refreshed by successful protected-write flows, stay HttpOnly with SameSite=Strict, and expire after 4 hours. They gate protected saves for the matching AniList user and stay separate from analytics consent storage.",
       },
       {
         label: "Client error retry queue",
