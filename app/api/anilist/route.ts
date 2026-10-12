@@ -106,6 +106,7 @@ async function trackAnalytics(metric: string): Promise<void> {
  */
 interface ErrorResponse {
   error?: unknown;
+  errors?: Array<{ message?: unknown }>;
 }
 
 /**
@@ -120,10 +121,17 @@ function createApiError(response: Response, errorData: unknown): Error {
   const retryAfterMsg = retryAfter ? ` (Retry-After: ${retryAfter})` : "";
 
   const errorResponse = errorData as ErrorResponse;
+  const graphqlErrorMessages = Array.isArray(errorResponse.errors)
+    ? errorResponse.errors
+        .map((graphqlError) => graphqlError.message)
+        .filter((message): message is string => typeof message === "string")
+        .join("; ")
+    : "";
   const errorMessage =
     typeof errorResponse.error === "object" && errorResponse.error !== null
       ? JSON.stringify(errorResponse.error)
       : (errorResponse.error as string) ||
+        graphqlErrorMessages ||
         `HTTP error! status: ${response.status}`;
 
   return new Error(
