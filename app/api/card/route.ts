@@ -331,59 +331,26 @@ function extractAndValidateParams(
 }
 
 /**
- * Track analytics metrics for failed card SVG requests.
+ * Track aggregate failure analytics for card SVG requests.
  *
- * Metrics are incremented for the overall endpoint, the base card type, and
- * optionally a status-specific metric so failures can be filtered.
- *
- * @param baseCardType - Optional base card type to attribute the metric to.
- * @param status - Optional HTTP status code for the failed request.
- * @returns Promise that resolves once analytics calls are fired (errors are ignored).
+ * @returns Promise that resolves once the analytics call is fired.
  * @source
  */
-async function trackFailedRequest(
-  baseCardType?: string,
-  status?: number,
-): Promise<void> {
+async function trackFailedRequest(): Promise<void> {
   incrementAnalytics(
     buildAnalyticsMetricKey("card_svg", "failed_requests"),
   ).catch(() => {});
-  if (baseCardType) {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "failed_requests") +
-        `:${baseCardType}`,
-    ).catch(() => {});
-  }
-  if (typeof status === "number") {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "failed_requests") +
-        `:status:${status}`,
-    ).catch(() => {});
-    if (baseCardType) {
-      incrementAnalytics(
-        buildAnalyticsMetricKey("card_svg", "failed_requests") +
-          `:${baseCardType}:status:${status}`,
-      ).catch(() => {});
-    }
-  }
 }
 
 /**
- * Track analytics metrics for successful card SVG requests.
+ * Track aggregate success analytics for card SVG requests.
  *
- * This records an overall success metric and a base-card-type-scoped metric.
- *
- * @param baseCardType - The base card type that was successfully rendered.
- * @returns Promise that resolves once analytics calls are fired.
+ * @returns Promise that resolves once the analytics call is fired.
  * @source
  */
-async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
+async function trackSuccessfulRequest(): Promise<void> {
   incrementAnalytics(
     buildAnalyticsMetricKey("card_svg", "successful_requests"),
-  ).catch(() => {});
-  incrementAnalytics(
-    buildAnalyticsMetricKey("card_svg", "successful_requests") +
-      `:${baseCardType}`,
   ).catch(() => {});
 }
 
@@ -412,7 +379,7 @@ async function resolveEffectiveUserId(
     console.warn(
       `⚠️ [Card SVG] User not found for userName: ${params.userName}`,
     );
-    await trackFailedRequest(params.baseCardType, 404);
+    await trackFailedRequest();
     return {
       error: new Response(
         toCleanSvgResponse(svgError("Not Found: User not found")),
@@ -422,7 +389,7 @@ async function resolveEffectiveUserId(
   }
 
   // This shouldn't happen due to validation, but handle it anyway
-  await trackFailedRequest(params.baseCardType, 400);
+  await trackFailedRequest();
   return {
     error: new Response(
       toCleanSvgResponse(svgError("Client Error: Missing user identifier")),
@@ -438,10 +405,9 @@ async function resolveEffectiveUserId(
 function handleValidationError(
   validationResult: { error: string; status?: number },
   request: Request,
-  baseCardType: string,
 ): Response {
   const status = validationResult.status ?? 500;
-  void trackFailedRequest(baseCardType, status);
+  void trackFailedRequest();
 
   if (status === 404) {
     return new Response(
@@ -467,7 +433,7 @@ async function handleCardDataError(
   request: Request,
   baseCardType: string,
 ): Promise<Response> {
-  await trackFailedRequest(baseCardType, err.status);
+  await trackFailedRequest();
 
   // Track error with context
   trackUserActionError(
@@ -556,7 +522,7 @@ export async function GET(request: Request) {
 
   const paramsResult = extractAndValidateParams(request);
   if (paramsResult instanceof Response) {
-    await trackFailedRequest(undefined, paramsResult.status);
+    await trackFailedRequest();
     return paramsResult;
   }
   const params = paramsResult;
@@ -600,7 +566,7 @@ export async function GET(request: Request) {
   const cachedEntry = getSvgFromMemoryCache(cacheKey);
   if (cachedEntry) {
     // Track cache hit
-    void trackCacheMetric(true, "memory");
+    void trackCacheMetric(true);
 
     if (cachedEntry.isStale) {
       console.log(
@@ -648,7 +614,7 @@ export async function GET(request: Request) {
   }
 
   // Cache miss - track and proceed with generation
-  void trackCacheMetric(false, "memory");
+  void trackCacheMetric(false);
 
   return generateCardResponse(
     request,
@@ -695,7 +661,6 @@ async function loadUserAndCardConfig(
         error: handleValidationError(
           validationResult,
           request,
-          params.baseCardType,
         ),
       };
     }
@@ -718,7 +683,6 @@ async function loadUserAndCardConfig(
       error: handleValidationError(
         validationResult,
         request,
-        params.baseCardType,
       ),
     };
   }
@@ -802,7 +766,7 @@ async function generateCardResponse(
       console.log(`💾 [Card SVG] Cached SVG for ${effectiveUserId}`);
     }
 
-    await trackSuccessfulRequest(params.baseCardType);
+    await trackSuccessfulRequest();
     return createSuccessResponse(svgContent, request, cardConfig.borderRadius);
   } catch (err: unknown) {
     if (err instanceof CardDataError) {
@@ -829,7 +793,7 @@ async function generateCardResponse(
       },
     );
 
-    await trackFailedRequest(params.baseCardType, 500);
+    await trackFailedRequest();
     return createInternalErrorResponse(request);
   }
 }

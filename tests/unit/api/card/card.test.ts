@@ -2542,7 +2542,7 @@ describe("Card SVG Route", () => {
 
       expect(incrCalls).toContain("analytics:card_svg:cache_misses");
       expect(incrCalls).toContain("analytics:card_svg:successful_requests");
-      expect(incrCalls).toContain(
+      expect(incrCalls).not.toContain(
         "analytics:card_svg:successful_requests:animeStats",
       );
 

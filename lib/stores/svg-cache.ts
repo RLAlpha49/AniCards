@@ -240,27 +240,18 @@ export function getSvgCacheStats() {
 }
 
 /**
- * Tracks cache hits and misses in analytics.
+ * Tracks aggregate cache hits and misses in analytics.
  * Should be called when checking cache to record metrics.
  *
  * @param hit - Whether this was a cache hit (true) or miss (false)
- * @param source - "memory" for LRU cache, "redis" for Redis cache
  * @source
  */
 export async function trackCacheMetric(
   hit: boolean,
-  source: "memory" | "redis",
 ): Promise<void> {
   const metricType = hit ? "cache_hits" : "cache_misses";
   const metric = buildAnalyticsMetricKey("card_svg", metricType);
-  const suffixedMetric = `${metric}:${source}`;
-
-  await Promise.all([
-    incrementAnalytics(metric), // Overall cache metric
-    incrementAnalytics(suffixedMetric), // Source-specific metric
-  ]).catch(() => {
-    // Silently fail analytics to not affect primary functionality
-  });
+  await incrementAnalytics(metric);
 }
 
 /**
