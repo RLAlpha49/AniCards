@@ -45,6 +45,31 @@ const CARD_TYPES_WITH_FAVORITES = new Set([
   "mangaStaff",
 ]);
 
+const MAX_CARDS_SAVE_ATTEMPTS = 5;
+const MISSING_CARDS_VALUE = "__MISSING_CARDS_VALUE__";
+const CARDS_VALUE_PREFIX = "__CARDS_VALUE__:";
+
+const READ_CARDS_SCRIPT = `
+  local value = redis.call("GET", KEYS[1])
+  if not value then
+    return "${MISSING_CARDS_VALUE}"
+  end
+  return "${CARDS_VALUE_PREFIX}" .. value
+`;
+
+const COMPARE_AND_SET_CARDS_SCRIPT = `
+  local current = redis.call("GET", KEYS[1])
+  if ARGV[1] == "0" then
+    if current then
+      return 0
+    end
+  elseif current ~= ARGV[2] then
+    return 0
+  end
+  redis.call("SET", KEYS[1], ARGV[3])
+  return 1
+`;
+
 /**
  * Checks if a card type supports pie variation.
  * @source
@@ -254,34 +279,70 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
     );
 
-    // Fetch existing cards from Redis to merge with incoming cards
-    const existingData = await redisClient.get(cardsKey);
-    const existingCards = parseStoredCardsRecord(
-      existingData,
-      endpoint,
-      endpointKey,
-      cardsKey,
-    );
+    let cardsSaved = false;
+    for (let attempt = 0; attempt < MAX_CARDS_SAVE_ATTEMPTS; attempt += 1) {
+      const storedValue = await redisClient.eval<[], string>(
+        READ_CARDS_SCRIPT,
+        [cardsKey],
+        [],
+      );
+      const recordExists = storedValue !== MISSING_CARDS_VALUE;
+      const existingData = recordExists
+        ? storedValue.slice(CARDS_VALUE_PREFIX.length)
+        : undefined;
+      const existingCards = parseStoredCardsRecord(
+        existingData,
+        endpoint,
+        endpointKey,
+        cardsKey,
+      );
 
-    // Build a map of existing cards by cardName for efficient merging
-    const existingCardsMap = new Map<string, StoredCardConfig>(
-      existingCards.map((card) => [card.cardName, card]),
-    );
+      const existingCardsMap = new Map<string, StoredCardConfig>(
+        existingCards.map((card) => [card.cardName, card]),
+      );
 
-    // Process incoming cards: update existing or add new ones
-    for (const card of incomingCards as StoredCardConfig[]) {
-      const previous = existingCardsMap.get(card.cardName);
-      existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
+      for (const card of incomingCards as StoredCardConfig[]) {
+        const previous = existingCardsMap.get(card.cardName);
+        existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
+      }
+
+      const cardData: CardsRecord = {
+        userId,
+        cards: Array.from(existingCardsMap.values()),
+        updatedAt: new Date().toISOString(),
+      };
+      const saveResult = await redisClient.eval<
+        [string, string, string],
+        number
+      >(
+        COMPARE_AND_SET_CARDS_SCRIPT,
+        [cardsKey],
+        [
+          recordExists ? "1" : "0",
+          existingData ?? "",
+          JSON.stringify(cardData),
+        ],
+      );
+
+      if (saveResult === 1) {
+        cardsSaved = true;
+        break;
+      }
     }
 
-    const cardData: CardsRecord = {
-      userId,
-      cards: Array.from(existingCardsMap.values()),
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Save card configuration to Redis
-    await redisClient.set(cardsKey, JSON.stringify(cardData));
+    if (!cardsSaved) {
+      console.warn(
+        `⚠️ [${endpoint}] Concurrent card updates prevented saving for user ${userId}`,
+      );
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return jsonWithCors(
+        { error: "Card configuration changed while saving. Please retry." },
+        request,
+        409,
+      );
+    }
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, "Stored cards");
