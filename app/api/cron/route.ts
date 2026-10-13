@@ -290,9 +290,12 @@ export async function POST(request: Request) {
 
     // Fetch meta for all users to sort by updatedAt
     const metaKeys = userIds.map((id) => `user:${id}:meta`);
-    const metaResults = await Promise.all(
-      metaKeys.map((key) => redisClient.get(key)),
-    );
+    const metaResults: (Record<string, unknown> | string | null)[] =
+      metaKeys.length
+        ? await redisClient.mget<(Record<string, unknown> | string | null)[]>(
+            ...metaKeys,
+          )
+        : [];
 
     const missingMetaIndices: number[] = [];
     const validUsers: { id: string; updatedAt: string | number }[] = [];
