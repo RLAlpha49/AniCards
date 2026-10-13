@@ -125,6 +125,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
     _realRatelimit ??= new Ratelimit({
       redis: createRealRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
+      analytics: false,
     });
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -138,6 +139,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
     _realRatelimit ??= new Ratelimit({
       redis: createRealRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
+      analytics: false,
     });
     (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -166,6 +168,7 @@ export function createRateLimiter(options?: {
   return new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit, window),
+    analytics: false,
   });
 }
 
