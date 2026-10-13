@@ -1,6 +1,5 @@
 import { LRUCache } from "lru-cache";
 import {
-  redisClient,
   incrementAnalytics,
   buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
@@ -262,74 +261,6 @@ export async function trackCacheMetric(
   ]).catch(() => {
     // Silently fail analytics to not affect primary functionality
   });
-}
-
-/**
- * Warms the cache by pre-loading frequently accessed cards from Redis.
- * Should be called periodically (e.g., via a cron job).
- *
- * @param topUsers - Array of user IDs to warm cache for
- * @param cardTypes - Array of card types to pre-load (e.g., ["animeStats", "socialStats"])
- * @returns Promise with statistics about the warming process
- * @source
- */
-export async function warmSvgCache(
-  topUsers: number[] = getTopRequestedUsers(100),
-  cardTypes: string[] = [
-    "animeStats",
-    "mangaStats",
-    "socialStats",
-    "animeGenres",
-  ],
-): Promise<{
-  attemptedCount: number;
-  successCount: number;
-  failureCount: number;
-}> {
-  const stats = {
-    attemptedCount: 0,
-    successCount: 0,
-    failureCount: 0,
-  };
-
-  for (const userId of topUsers) {
-    for (const cardType of cardTypes) {
-      stats.attemptedCount++;
-
-      try {
-        // Try to fetch from Redis (user and card data)
-        const redisKey = `user:${userId}`;
-        const userDoc = await redisClient.get(redisKey);
-
-        if (!userDoc) {
-          stats.failureCount++;
-          continue;
-        }
-
-        // Cache is warmed on-demand when cards are generated
-        // This preloads user data into Redis for faster access
-        stats.successCount++;
-      } catch (error) {
-        console.warn(
-          "Failed to warm cache for user %d, cardType %s:",
-          userId,
-          cardType,
-          error,
-        );
-        stats.failureCount++;
-      }
-    }
-  }
-
-  console.log(
-    `✨ [Cache Warming] Attempted: ${stats.attemptedCount}, Success: ${stats.successCount}, Failed: ${stats.failureCount}`,
-  );
-
-  await incrementAnalytics(
-    buildAnalyticsMetricKey("cache_warming", "attempts"),
-  ).catch(() => {});
-
-  return stats;
 }
 
 /**
