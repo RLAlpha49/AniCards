@@ -75,7 +75,7 @@ test.describe("Error Scenarios", () => {
       const errorDialog = page.getByRole("dialog", { name: /user not found/i });
       const closeButton = errorDialog.getByRole("button", { name: /close/i });
       if ((await closeButton.count()) > 0) {
-        await closeButton.first().click({ force: true });
+        await closeButton.first().click();
         await expect(errorDialog).not.toBeVisible({ timeout: 5000 });
       }
 
@@ -337,7 +337,7 @@ test.describe("Error Scenarios", () => {
         name: /close|ok|dismiss/i,
       });
       if ((await closeButton.count()) > 0) {
-        await closeButton.first().click({ force: true });
+        await closeButton.first().click();
 
         // Error should be cleared and dialog closed
         await expect(errorDialog).not.toBeVisible({ timeout: 5000 });

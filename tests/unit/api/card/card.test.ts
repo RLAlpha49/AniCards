@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   sharedRedisMockSet,
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockEval,
   sharedRedisMockMget,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
@@ -297,6 +298,21 @@ type MockFunction<T> = T & {
 
 describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
+
+  beforeEach(() => {
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map(() => null),
+    );
+    sharedRedisMockSet.mockReset();
+    sharedRedisMockIncr.mockReset();
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockEval.mockClear();
+    sharedRatelimitMockLimit.mockReset();
+    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+  });
 
   afterEach(() => {
     mock.clearAllMocks();

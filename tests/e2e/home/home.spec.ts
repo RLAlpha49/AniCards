@@ -40,6 +40,15 @@ test.describe("Home page", () => {
       .poll(async () => await page.evaluate(() => window.scrollY))
       .toBeGreaterThan(initialScrollY);
 
+    await expect
+      .poll(() =>
+        showcase.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.top <= window.innerHeight * 0.95;
+        }),
+      )
+      .toBe(true);
+
     const viewportState = await showcase.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return { top: rect.top, viewportHeight: window.innerHeight };

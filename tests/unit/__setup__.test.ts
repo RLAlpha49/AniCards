@@ -17,9 +17,24 @@ export const sharedRedisMockSet = mock();
 export const sharedRedisMockDel = mock();
 export const sharedRedisMockIncr = mock(async () => 1);
 export const sharedRedisMockRpush = mock();
-export const sharedRedisMockLrange = mock();
+export const sharedRedisMockLrange = mock(async () => []);
 export const sharedRedisMockMget = mock(
   async (...keys: string[]): Promise<(string | null)[]> => keys.map(() => null),
+);
+export const sharedRedisMockEval = mock(
+  async (_script: string, keys: string[], args: string[]) => {
+    const key = keys[0];
+
+    if (args.length === 0) {
+      const storedValue = await sharedRedisMockGet(key);
+      return storedValue == null
+        ? "__MISSING_CARDS_VALUE__"
+        : `__CARDS_VALUE__:${storedValue}`;
+    }
+
+    await sharedRedisMockSet(key, args[2]);
+    return 1;
+  },
 );
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
@@ -45,6 +60,7 @@ const sharedRedisFakeClient = {
   get: sharedRedisMockGet,
   set: sharedRedisMockSet,
   del: sharedRedisMockDel,
+  eval: sharedRedisMockEval,
   incr: sharedRedisMockIncr,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,

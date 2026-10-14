@@ -125,8 +125,7 @@ async function expectResponse(
   response: Response,
   expectedStatus: number,
   expectedData?:
-    | { error?: string; contains?: string }
-    | Record<string, unknown>,
+    { error?: string; contains?: string } | Record<string, unknown>,
 ) {
   expect(response.status).toBe(expectedStatus);
 
