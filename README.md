@@ -162,13 +162,26 @@ To run the project locally:
    bun install
    ```
 
-3. **Run the development server**
+3. **Start the local Redis database**
+
+   The app keeps its data in Redis. The Compose setup in `docker-compose.yml`
+   runs Redis together with the HTTP proxy that the Upstash client requires:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   `next dev` reads the connection details from `.env.development.local`, which
+   already points at these containers, so no extra configuration is needed. To
+   delete the local data and start over, run `docker compose down -v`.
+
+4. **Run the development server**
 
    ```bash
    bun run dev
    ```
 
-4. **Open your browser**
+5. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
 
 ## 🤝 Contributing

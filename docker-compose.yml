@@ -1,0 +1,47 @@
+# Local development Redis for AniCards.
+#
+# The app reaches Redis through the Upstash REST API over HTTP, so it cannot
+# talk to a Redis container directly. serverless-redis-http (SRH) translates the
+# Upstash REST protocol onto the Redis server below, which lets the unmodified
+# application code run against a local database.
+#
+# Start:  docker compose up -d
+# Logs:   docker compose logs -f serverless-redis-http
+# Stop:   docker compose down
+# Reset:  docker compose down -v   (deletes the local data volume)
+
+services:
+  redis:
+    image: redis:8.4.0-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # Published for inspection with redis-cli or a GUI. The app uses the
+      # proxy on port 8079, not this port. Remove if it collides with another
+      # Redis already running on this machine.
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  serverless-redis-http:
+    image: hiett/serverless-redis-http:0.0.10
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      # Bound to loopback so the proxy is not reachable from the network.
+      - "127.0.0.1:8079:80"
+    environment:
+      SRH_MODE: env
+      # Must match UPSTASH_REDIS_REST_TOKEN in .env.development.
+      SRH_TOKEN: local_dev_token
+      SRH_CONNECTION_STRING: redis://redis:6379
+
+volumes:
+  redis-data:
