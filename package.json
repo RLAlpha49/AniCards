@@ -14,8 +14,7 @@
     "db:reset": "bun run scripts/db/reset.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --check .",
-    "format:write": "prettier --write .",
+    "format": "prettier --write .",
     "update": "ncu -u",
     "test": "bun test; bun run test:e2e",
     "test:e2e": "playwright test"
