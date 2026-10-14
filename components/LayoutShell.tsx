@@ -84,7 +84,7 @@ function LayoutShellContent({
         {/* Fixed Sidebar */}
         {!isMobile && (
           <div
-            className={`sidebar-container fixed left-0 top-[61px] z-40 overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-slate-950/80`}
+            className={`sidebar-container fixed top-[61px] left-0 z-40 overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-slate-950/80`}
             style={{
               height: `calc(100% - 61px)`,
               width: open ? "10rem" : "3rem",

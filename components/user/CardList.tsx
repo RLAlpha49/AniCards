@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover";
 import { Check, Download, Link, Copy, FileArchive } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /**
  * Represents a single card entry used for rendering and exporting.

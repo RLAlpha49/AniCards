@@ -2,7 +2,7 @@ import React from "react";
 import { isTrustedSvgString, cn } from "@/lib/utils";
 import type { TrustedSVG } from "@/lib/types/svg";
 import { stripTrustedSvgMarker } from "@/lib/types/svg";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Eye, Sparkles } from "lucide-react";
 import { LivePreviewSkeleton } from "@/components/stat-card-generator/LivePreviewSkeleton";
 
@@ -70,7 +70,7 @@ export const LivePreview = React.memo(function LivePreview({
               <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-100" />
 
               {/* Preview frame */}
-              <div className="dark:via-slate-850 relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-4 shadow-lg shadow-slate-200/50 transition-all duration-300 group-hover:shadow-xl dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-900 dark:shadow-slate-900/50">
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white to-slate-100 p-4 shadow-lg shadow-slate-200/50 transition-all duration-300 group-hover:shadow-xl dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-900 dark:shadow-slate-900/50">
                 {/* Checkerboard pattern for transparency indication */}
                 <div
                   className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"

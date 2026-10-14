@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -100,7 +100,7 @@ export function ExamplesHeroSection({
 }: Readonly<HeroSectionProps>) {
   return (
     <section className="relative w-full overflow-hidden">
-      <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
+      <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -122,7 +122,7 @@ export function ExamplesHeroSection({
               </Button>
             </Link>
             <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 type="text"
                 placeholder="Search cards..."
@@ -142,7 +142,7 @@ export function ExamplesHeroSection({
 
           <motion.h1
             variants={itemVariants}
-            className="mb-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl"
+            className="mb-6 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white"
           >
             Explore All{" "}
             <span className="relative">
@@ -159,7 +159,7 @@ export function ExamplesHeroSection({
 
           <motion.p
             variants={itemVariants}
-            className="mx-auto mb-12 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+            className="mx-auto mb-12 max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
           >
             Browse the complete collection of statistical visualizations. All
             examples are generated in real-time using data from{" "}

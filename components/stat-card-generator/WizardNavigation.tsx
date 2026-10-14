@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useGeneratorContext } from "./GeneratorContext";
 import type { LucideIcon } from "lucide-react";

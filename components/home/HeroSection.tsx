@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import {
   ArrowRight,
@@ -70,7 +70,7 @@ export function HeroSection({
       {/* Floating Cards Layer */}
       <FloatingCardsLayer />
 
-      <div className="container relative z-10 mx-auto flex min-h-[100dvh] flex-col items-center justify-center px-4 py-20 text-center">
+      <div className="relative z-10 container mx-auto flex min-h-[100dvh] flex-col items-center justify-center px-4 py-20 text-center">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -88,7 +88,7 @@ export function HeroSection({
           {/* Main heading */}
           <motion.h1
             variants={itemVariants}
-            className="text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl"
+            className="text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-7xl dark:text-white"
           >
             Transform Your{" "}
             <span className="relative">
@@ -108,7 +108,7 @@ export function HeroSection({
           {/* Subheading */}
           <motion.p
             variants={itemVariants}
-            className="max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+            className="max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
           >
             Create beautiful, shareable stat cards from your AniList profile.
             Over 20+ card types with full customization — colors, themes, and

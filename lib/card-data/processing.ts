@@ -66,8 +66,8 @@ export function buildCommonTemplateFields(
     tags: (stats.tags as { tag: { name: string }; count: number }[]) ?? [],
     staff: (
       (stats.staff as
-        | { staff: { name: { full: string } }; count: number }[]
-        | undefined) ?? []
+        { staff: { name: { full: string } }; count: number }[] | undefined) ??
+      []
     ).map((s) => ({
       staff: s.staff,
       count: s.count,
@@ -446,8 +446,7 @@ export function toTemplateAnimeEpisodeLengthPreferences(
   count: number;
 }[] {
   const lengths = userRecord.stats?.User?.statistics?.anime?.lengths as
-    | LengthStat[]
-    | undefined;
+    LengthStat[] | undefined;
   if (!Array.isArray(lengths) || lengths.length === 0) return [];
 
   const buckets: Record<EpisodeLengthBucketLabel, number> = {
@@ -584,8 +583,7 @@ export function toTemplateTagCategoryDistribution(
       : userRecord.stats?.User?.statistics?.manga;
 
   const tags = stats?.tags as
-    | { tag: { name: string; category?: string }; count: number }[]
-    | undefined;
+    { tag: { name: string; category?: string }; count: number }[] | undefined;
 
   if (!Array.isArray(tags) || tags.length === 0) return [];
 
@@ -623,8 +621,7 @@ export function toTemplateTagDiversity(
       : userRecord.stats?.User?.statistics?.manga;
 
   const tags = stats?.tags as
-    | { tag: { name: string; category?: string }; count: number }[]
-    | undefined;
+    { tag: { name: string; category?: string }; count: number }[] | undefined;
 
   if (!Array.isArray(tags) || tags.length === 0) {
     return { diversityScore: 0, distinctTags: 0, topCategories: [] };
@@ -662,8 +659,7 @@ export function toTemplateSeasonalViewingPatterns(
   userRecord: UserRecord,
 ): { name: string; count: number }[] {
   const activityHistory = userRecord.stats?.User?.stats?.activityHistory as
-    | ActivityHistoryItem[]
-    | undefined;
+    ActivityHistoryItem[] | undefined;
 
   if (!Array.isArray(activityHistory) || activityHistory.length === 0) {
     return [];

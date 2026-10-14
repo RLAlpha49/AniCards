@@ -14,7 +14,7 @@ import { FeaturesSection } from "@/components/home/FeaturesSection";
 import { Button } from "@/components/ui/Button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ArrowRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /**
  * Renders the AniCards landing page with hero, preview showcase, features,
@@ -60,7 +60,7 @@ export default function HomePage() {
 
         {/* Final CTA Section */}
         <section className="relative w-full overflow-hidden pb-32">
-          <div className="container relative mx-auto px-4">
+          <div className="relative container mx-auto px-4">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -69,7 +69,7 @@ export default function HomePage() {
               className="mx-auto max-w-4xl"
             >
               {/* CTA content */}
-              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12 lg:p-16">
+              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl sm:p-12 lg:p-16 dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -77,7 +77,7 @@ export default function HomePage() {
                   transition={{ delay: 0.2 }}
                   className="space-y-6"
                 >
-                  <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
+                  <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl dark:text-white">
                     Ready to Showcase Your{" "}
                     <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                       Anime Journey

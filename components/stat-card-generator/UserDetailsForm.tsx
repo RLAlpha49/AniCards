@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import {
@@ -76,7 +76,7 @@ export function UserDetailsForm({
               Username
             </Label>
             <div className="relative">
-              <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+              <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2">
                 <Search
                   className="h-5 w-5 text-slate-400 dark:text-slate-500"
                   aria-hidden="true"
@@ -89,9 +89,9 @@ export function UserDetailsForm({
                 placeholder="e.g., Alpha49"
                 aria-describedby="username-hint"
                 aria-label="Enter your AniList username"
-                className="h-14 rounded-xl border-slate-200/50 bg-white pl-12 pr-32 text-lg font-medium shadow-sm transition-all placeholder:text-slate-400 hover:border-blue-300 hover:shadow-md focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700/50 dark:bg-slate-800/80 dark:placeholder:text-slate-500 dark:hover:border-blue-600 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
+                className="h-14 rounded-xl border-slate-200/50 bg-white pr-32 pl-12 text-lg font-medium shadow-sm transition-all placeholder:text-slate-400 hover:border-blue-300 hover:shadow-md focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700/50 dark:bg-slate-800/80 dark:placeholder:text-slate-500 dark:hover:border-blue-600 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute top-1/2 right-3 -translate-y-1/2">
                 <motion.div
                   initial={false}
                   animate={{

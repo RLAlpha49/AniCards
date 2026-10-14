@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   trackExternalLinkClick,
   safeTrack,
@@ -74,7 +74,7 @@ export default function Footer() {
           {/* Brand & Copyright */}
           <div className="flex flex-col items-center gap-4 md:items-start">
             {/* Copyright & License */}
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400 md:justify-start">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 md:justify-start dark:text-slate-400">
               <span>&copy; {new Date().getFullYear()} RLAlpha49</span>
               <span className="text-slate-300 dark:text-slate-600">•</span>
               <Link

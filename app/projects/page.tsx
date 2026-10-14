@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
@@ -107,7 +107,7 @@ export default function ProjectsPage() {
     >
       {/* Projects Grid Section */}
       <section className="relative w-full overflow-hidden py-16 lg:py-24">
-        <div className="container relative mx-auto px-4">
+        <div className="relative container mx-auto px-4">
           <div className="mx-auto max-w-5xl">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
@@ -166,7 +166,7 @@ export default function ProjectsPage() {
                         </div>
 
                         {/* Content */}
-                        <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
+                        <h3 className="mb-3 text-xl font-bold text-slate-900 sm:text-2xl dark:text-white">
                           {project.name}
                         </h3>
 
@@ -179,7 +179,7 @@ export default function ProjectsPage() {
                           {project.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:ring-slate-600"
+                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200 ring-inset dark:bg-slate-700/50 dark:text-slate-300 dark:ring-slate-600"
                             >
                               {tag}
                             </span>
@@ -217,7 +217,7 @@ export default function ProjectsPage() {
               transition={{ duration: 0.6 }}
               className="mx-auto max-w-4xl"
             >
-              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12 lg:p-16">
+              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl sm:p-12 lg:p-16 dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -238,7 +238,7 @@ export default function ProjectsPage() {
                     </span>
                   </motion.div>
 
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl lg:text-4xl">
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl dark:text-white">
                     All Projects Are{" "}
                     <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                       Open to Contributions

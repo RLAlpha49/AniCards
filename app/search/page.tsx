@@ -32,7 +32,7 @@ export default function UserSearchPage() {
           <section className="relative h-full w-full overflow-hidden">
             <FloatingCardsLayer layout="search" />
 
-            <div className="container relative z-10 mx-auto flex h-full flex-col items-center justify-center px-4 py-20">
+            <div className="relative z-10 container mx-auto flex h-full flex-col items-center justify-center px-4 py-20">
               <SearchHeroSection />
               <div className="mt-12 flex w-full justify-center">
                 <SearchForm onLoadingChange={setLoading} />

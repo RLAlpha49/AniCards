@@ -658,10 +658,7 @@ async function loadUserAndCardConfig(
     const validationResult = validateAndNormalizeUserRecord(userDoc);
     if ("error" in validationResult) {
       return {
-        error: handleValidationError(
-          validationResult,
-          request,
-        ),
+        error: handleValidationError(validationResult, request),
       };
     }
     userDoc = validationResult.normalized;
@@ -680,10 +677,7 @@ async function loadUserAndCardConfig(
   const validationResult = validateAndNormalizeUserRecord(userDoc);
   if ("error" in validationResult) {
     return {
-      error: handleValidationError(
-        validationResult,
-        request,
-      ),
+      error: handleValidationError(validationResult, request),
     };
   }
 

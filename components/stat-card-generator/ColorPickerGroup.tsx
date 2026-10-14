@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
@@ -342,7 +342,7 @@ function GradientStopEditor({
                   onChange={(e) =>
                     handleStopChange(index, "color", e.target.value)
                   }
-                  className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                  className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
                 />
               </div>
 
@@ -412,7 +412,7 @@ function GradientStopEditor({
                 disabled={stops.length <= 2}
                 aria-label={`Remove gradient stop ${index + 1}`}
                 title="Remove this color stop"
-                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <Minus className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
@@ -764,7 +764,7 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
               type="color"
               value={isValidHex(solidBaseHex) ? solidBaseHex : "#000000"}
               onChange={(e) => handleSolidChange(e.target.value)}
-              className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+              className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
               aria-label={`${picker.label} color picker`}
             />
           </div>
@@ -773,7 +773,7 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
           <div className="flex flex-1 flex-col gap-3">
             {/* Hex Input */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+              <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm font-bold text-slate-400">
                 #
               </span>
               <Input

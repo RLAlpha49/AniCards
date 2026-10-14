@@ -972,8 +972,7 @@ export function validateAndNormalizeUserRecord(
    * (after normalization), before we prune what gets persisted to Redis.
    */
   const computeAnimeSourceMaterialDistributionTotals = ():
-    | SourceMaterialDistributionTotalsEntry[]
-    | undefined => {
+    SourceMaterialDistributionTotalsEntry[] | undefined => {
     const completedFull = normalizeMediaListCollection(
       statsData.animeCompleted,
     );
@@ -1011,8 +1010,7 @@ export function validateAndNormalizeUserRecord(
    * (after normalization), before we prune what gets persisted to Redis.
    */
   const computeAnimeSeasonalPreferenceTotals = ():
-    | SeasonalPreferenceTotalsEntry[]
-    | undefined => {
+    SeasonalPreferenceTotalsEntry[] | undefined => {
     const completedFull = normalizeMediaListCollection(
       statsData.animeCompleted,
     );
@@ -1065,8 +1063,7 @@ export function validateAndNormalizeUserRecord(
    * (after normalization), before we prune what gets persisted to Redis.
    */
   const computeAnimeGenreSynergyTotals = ():
-    | AnimeGenreSynergyTotalsEntry[]
-    | undefined => {
+    AnimeGenreSynergyTotalsEntry[] | undefined => {
     const completedFull = normalizeMediaListCollection(
       statsData.animeCompleted,
     );
@@ -1121,8 +1118,7 @@ export function validateAndNormalizeUserRecord(
    * Counts how often pairs of studios (main studios only) collaborated on completed anime.
    */
   const computeStudioCollaborationTotals = ():
-    | StudioCollaborationTotalsEntry[]
-    | undefined => {
+    StudioCollaborationTotalsEntry[] | undefined => {
     const completedFull = normalizeMediaListCollection(
       statsData.animeCompleted,
     );

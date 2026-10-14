@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { SidebarTrigger } from "@/components/ui/Sidebar";
 

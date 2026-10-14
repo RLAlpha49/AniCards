@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
@@ -41,7 +41,7 @@ export function ExampleCard({
           <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50 p-6 dark:from-slate-900 dark:to-slate-800">
             <div
               className={cn(
-                "absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
+                "absolute -top-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
                 gradient,
               )}
             />
@@ -57,7 +57,7 @@ export function ExampleCard({
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-300 group-hover:bg-slate-900/60">
               <Button
                 onClick={onOpenGenerator}
-                className="translate-y-4 rounded-full bg-white text-slate-900 opacity-0 shadow-lg transition-all duration-300 hover:bg-slate-100 group-hover:translate-y-0 group-hover:opacity-100"
+                className="translate-y-4 rounded-full bg-white text-slate-900 opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-slate-100"
               >
                 <Play className="mr-2 h-4 w-4 fill-current" />
                 Create This Card

@@ -1,8 +1,5 @@
 import { LRUCache } from "lru-cache";
-import {
-  incrementAnalytics,
-  buildAnalyticsMetricKey,
-} from "@/lib/api-utils";
+import { incrementAnalytics, buildAnalyticsMetricKey } from "@/lib/api-utils";
 
 /**
  * Represents a cached SVG entry with metadata.
@@ -246,9 +243,7 @@ export function getSvgCacheStats() {
  * @param hit - Whether this was a cache hit (true) or miss (false)
  * @source
  */
-export async function trackCacheMetric(
-  hit: boolean,
-): Promise<void> {
+export async function trackCacheMetric(hit: boolean): Promise<void> {
   const metricType = hit ? "cache_hits" : "cache_misses";
   const metric = buildAnalyticsMetricKey("card_svg", metricType);
   await incrementAnalytics(metric);

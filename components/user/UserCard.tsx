@@ -18,7 +18,7 @@ import {
   type ConversionFormat,
 } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 import { displayNames } from "@/lib/card-data/validation";
 import {
@@ -264,7 +264,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full min-w-0 rounded-xl border-slate-200 font-medium transition-all hover:scale-[1.02] hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-600 dark:hover:bg-blue-900/20 sm:w-auto sm:flex-1"
+                  className="w-full min-w-0 rounded-xl border-slate-200 font-medium transition-all hover:scale-[1.02] hover:border-blue-300 hover:bg-blue-50 sm:w-auto sm:flex-1 dark:border-slate-700 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
                   aria-label={`Copy ${displayNames[type]} card links in various formats`}
                 >
                   <Link className="mr-2 h-4 w-4" />

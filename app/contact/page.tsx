@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import PageShell from "@/components/PageShell";
 import HeroBadge from "@/components/HeroBadge";
 import {
@@ -108,7 +108,7 @@ export default function ContactPage() {
     >
       {/* Contact Options Section */}
       <section className="relative w-full overflow-hidden py-16 lg:py-24">
-        <div className="container relative mx-auto px-4">
+        <div className="relative container mx-auto px-4">
           <div className="mx-auto max-w-5xl">
             {/* Social Links Grid */}
             <motion.div
@@ -119,7 +119,7 @@ export default function ContactPage() {
               className="mb-12"
             >
               <div className="mb-8 text-center">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+                <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white">
                   Social Platforms
                 </h2>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">
@@ -183,7 +183,7 @@ export default function ContactPage() {
               transition={{ duration: 0.6 }}
               className="mx-auto max-w-3xl"
             >
-              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12">
+              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl sm:p-12 dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -195,7 +195,7 @@ export default function ContactPage() {
                     <Mail className="h-8 w-8 text-white" />
                   </div>
 
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-white">
                     Prefer Email?
                   </h2>
 

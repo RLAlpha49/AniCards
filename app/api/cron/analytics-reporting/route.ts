@@ -48,7 +48,10 @@ async function pruneAnalyticsReports(
   );
   const cutoff = now.getTime() - ANALYTICS_REPORT_RETENTION_MS;
   const metadata = reports.map(getReportMetadata);
-  const monthlyArchives = new Map<string, { index: number; timestamp: number }>();
+  const monthlyArchives = new Map<
+    string,
+    { index: number; timestamp: number }
+  >();
 
   metadata.forEach((report, index) => {
     if (!report || report.timestamp >= cutoff) {

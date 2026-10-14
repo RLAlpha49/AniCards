@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Search } from "lucide-react";
 
 /**
@@ -44,7 +44,7 @@ export function SearchHeroSection() {
       {/* Main heading */}
       <motion.h1
         variants={itemVariants}
-        className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl"
+        className="mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-7xl dark:text-white"
       >
         Find Any{" "}
         <span className="relative">
@@ -62,7 +62,7 @@ export function SearchHeroSection() {
       {/* Subheading */}
       <motion.p
         variants={itemVariants}
-        className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+        className="mt-6 max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
       >
         Search by username or ID to explore detailed anime and manga statistics
         for AniList users who already have generated cards. Generate beautiful

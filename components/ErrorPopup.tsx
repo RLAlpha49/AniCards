@@ -110,7 +110,7 @@ export function ErrorPopup({
           </div>
 
           {/* Error description - uses text-foreground for better readability */}
-          <DialogDescription className="pt-2 text-foreground">
+          <DialogDescription className="text-foreground pt-2">
             {description}
           </DialogDescription>
         </DialogHeader>
@@ -145,7 +145,7 @@ export function ErrorPopup({
             <Button
               variant="default"
               onClick={onRetry}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 sm:flex-none"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 sm:flex-none dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               <RotateCcw className="mr-2 h-4 w-4" />
               Try Again

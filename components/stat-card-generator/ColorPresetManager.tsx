@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Switch } from "@/components/ui/Switch";

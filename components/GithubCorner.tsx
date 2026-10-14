@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SimpleGithubIcon } from "./SimpleIcons";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Star, GitFork, ExternalLink } from "lucide-react";
 
@@ -28,7 +28,7 @@ export default function GithubCorner() {
         stiffness: 200,
         damping: 20,
       }}
-      className="fixed right-4 top-20 z-50"
+      className="fixed top-20 right-4 z-50"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -68,7 +68,7 @@ export default function GithubCorner() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="absolute right-full top-0 mr-3"
+              className="absolute top-0 right-full mr-3"
             >
               <div className="relative">
                 {/* Tooltip Card */}
@@ -81,10 +81,10 @@ export default function GithubCorner() {
                         className="text-slate-700 dark:text-slate-300"
                       />
                       <div>
-                        <p className="whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
+                        <p className="text-sm font-bold whitespace-nowrap text-slate-900 dark:text-white">
                           AniCards
                         </p>
-                        <p className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">
                           by RLAlpha49
                         </p>
                       </div>
@@ -135,7 +135,7 @@ export default function GithubCorner() {
                 </div>
 
                 {/* Tooltip Arrow */}
-                <div className="absolute right-0 top-[15%] h-3 w-3 -translate-y-1/2 translate-x-1.5 rotate-45 border-r border-t border-slate-200/50 bg-white/95 dark:border-slate-700/50 dark:bg-slate-800/95" />
+                <div className="absolute top-[15%] right-0 h-3 w-3 translate-x-1.5 -translate-y-1/2 rotate-45 border-t border-r border-slate-200/50 bg-white/95 dark:border-slate-700/50 dark:bg-slate-800/95" />
               </div>
             </motion.div>
           )}
@@ -151,7 +151,7 @@ export default function GithubCorner() {
             stiffness: 500,
             damping: 20,
           }}
-          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 shadow-md"
+          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 shadow-md"
         >
           <Star className="h-3 w-3 fill-white text-white" />
         </motion.div>

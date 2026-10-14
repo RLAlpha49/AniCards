@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 import { Palette, Sun, Moon, Monitor } from "lucide-react";
 
@@ -167,7 +167,7 @@ export function ThemePreferences({
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30"
+                      className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/30"
                     >
                       <svg
                         className="h-3.5 w-3.5 text-white"

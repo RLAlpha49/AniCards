@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
   BarChart2,
   BookOpen,
@@ -134,7 +134,7 @@ export function CategorySection({
           <CategoryIcon className={`h-8 w-8 ${styles.text}`} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+          <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white">
             {category}
           </h2>
           <p className="text-slate-600 dark:text-slate-400">

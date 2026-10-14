@@ -41,7 +41,7 @@ export function StatCard({
       {/* Text content container */}
       <div className="space-y-1">
         {/* Title with medium font weight */}
-        <p className="text-sm font-medium leading-none">{title}</p>
+        <p className="text-sm leading-none font-medium">{title}</p>
 
         {/* Primary statistic display */}
         <p className="text-2xl font-bold">{description}</p>

@@ -121,7 +121,7 @@ export function AppSidebar() {
     >
       <SidebarContent className="px-0 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <SidebarGroupLabel className="mb-2 px-3 text-xs font-semibold tracking-wider text-slate-400 uppercase dark:text-slate-500">
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>

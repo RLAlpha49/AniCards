@@ -22,7 +22,7 @@ import {
   useGeneratorContext,
 } from "@/components/stat-card-generator/GeneratorContext";
 import { statCardTypes } from "@/components/stat-card-generator/constants";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   User,
   Palette,
@@ -473,7 +473,7 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
       {/* Skip link */}
       <a
         href="#card-generator-main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-slate-900 focus:px-3 focus:py-2 focus:text-white focus:outline-2 focus:outline-offset-2 focus:outline-blue-500 dark:focus:bg-white dark:focus:text-slate-900"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-slate-900 focus:px-3 focus:py-2 focus:text-white focus:outline-2 focus:outline-offset-2 focus:outline-blue-500 dark:focus:bg-white dark:focus:text-slate-900"
       >
         Skip to card generator steps
       </a>

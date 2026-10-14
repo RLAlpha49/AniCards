@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import PageShell from "@/components/PageShell";
 import {
   FileText,
@@ -151,8 +151,8 @@ export default function LicensePage() {
 
     return (
       <div className="group relative">
-        <div className="absolute left-0 top-0 h-full w-1 rounded-l-lg bg-gradient-to-b from-blue-500 via-purple-500 to-pink-500" />
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-6 font-mono text-sm leading-relaxed text-slate-700 dark:bg-slate-900/50 dark:text-slate-300 sm:p-8 sm:text-base">
+        <div className="absolute top-0 left-0 h-full w-1 rounded-l-lg bg-gradient-to-b from-blue-500 via-purple-500 to-pink-500" />
+        <pre className="overflow-x-auto rounded-2xl bg-slate-50 p-6 font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-700 sm:p-8 sm:text-base dark:bg-slate-900/50 dark:text-slate-300">
           {licenseText}
         </pre>
       </div>
@@ -197,7 +197,7 @@ export default function LicensePage() {
     >
       {/* License Content Section */}
       <section className="relative w-full overflow-hidden py-16 lg:py-24">
-        <div className="container relative mx-auto px-4">
+        <div className="relative container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
             {/* License Card */}
             <motion.div
@@ -208,7 +208,7 @@ export default function LicensePage() {
             >
               <div className="overflow-hidden rounded-3xl border border-slate-200/50 bg-white/80 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50">
                 {/* Card Header */}
-                <div className="flex flex-col gap-4 border-b border-slate-200/50 bg-slate-50/50 px-6 py-5 dark:border-slate-700/50 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 border-b border-slate-200/50 bg-slate-50/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700/50 dark:bg-slate-900/50">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/50">
                       <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />

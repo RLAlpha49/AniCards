@@ -14,7 +14,7 @@ import {
   Heart,
   AlertCircle,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -491,7 +491,7 @@ export function UserPageClient() {
   // Loading state with consistent styling
   if (loading) {
     return (
-      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
         <LoadingSpinner size="lg" text="Loading user data..." />
       </div>
     );
@@ -500,7 +500,7 @@ export function UserPageClient() {
   // Error state with consistent styling
   if (error) {
     return (
-      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -620,7 +620,7 @@ export function UserPageClient() {
   // Guard: Ensure userData is present before rendering URLs
   if (!userData) {
     return (
-      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -655,7 +655,7 @@ export function UserPageClient() {
         <div className="relative">
           {cardTypes.length > 0 && <FloatingCardsLayer layout="search" />}
           <section className="relative w-full overflow-hidden">
-            <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
+            <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
               <motion.div
                 variants={containerVariants}
                 initial="hidden"
@@ -673,7 +673,7 @@ export function UserPageClient() {
                 {/* Main heading */}
                 <motion.h1
                   variants={itemVariants}
-                  className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+                  className="mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl dark:text-white"
                 >
                   {userData?.username ? (
                     <>
@@ -712,7 +712,7 @@ export function UserPageClient() {
           {/* Info Cards Section */}
           {cardTypes.length > 0 && (
             <section className="relative w-full overflow-hidden pb-8">
-              <div className="container relative mx-auto px-4">
+              <div className="relative container mx-auto px-4">
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -801,7 +801,7 @@ export function UserPageClient() {
 
         {/* Cards Section */}
         <section className="relative mx-auto w-full max-w-[80vw] overflow-hidden py-8 lg:py-16">
-          <div className="container relative px-4">
+          <div className="relative container px-4">
             {cardTypes.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
@@ -871,7 +871,7 @@ export function UserPageClient() {
 
         {/* CTA Section */}
         <section className="relative w-full overflow-hidden py-20">
-          <div className="container relative mx-auto px-4">
+          <div className="relative container mx-auto px-4">
             <motion.div className="mx-auto max-w-4xl">
               <CTASection
                 title={

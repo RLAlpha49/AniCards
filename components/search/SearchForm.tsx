@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
@@ -92,7 +92,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       transition={{ delay: 0.3 }}
       className="w-full max-w-2xl"
     >
-      <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50 sm:p-10">
+      <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur-xl sm:p-10 dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Error Alert */}
           <AnimatePresence>
@@ -171,7 +171,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                 : "AniList User ID"}
             </label>
             <div className="relative">
-              <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+              <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400 dark:text-slate-500">
                 {searchMethod === "username" ? (
                   <Search className="h-5 w-5" />
                 ) : (

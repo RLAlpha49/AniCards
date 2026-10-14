@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Button, type ButtonProps } from "@/components/ui/Button";
 
 export type CTAButton = Readonly<{
@@ -83,7 +83,7 @@ export default function CTASection({
 
   return (
     <section className={`relative w-full overflow-hidden ${className}`}>
-      <div className="container relative mx-auto px-4">
+      <div className="relative container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -105,7 +105,7 @@ export default function CTASection({
                 className={`${
                   variant === "dark"
                     ? "text-3xl font-bold sm:text-4xl"
-                    : "text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl lg:text-4xl"
+                    : "text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl dark:text-white"
                 }`}
               >
                 {title}

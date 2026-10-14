@@ -1015,8 +1015,7 @@ type BatchConversionFailure = {
 
 /** Union type representing the result of a batch conversion (success or failure). @source */
 export type BatchConversionResult =
-  | BatchConversionSuccess
-  | BatchConversionFailure;
+  BatchConversionSuccess | BatchConversionFailure;
 
 /** Image data used internally when packaging converted images into a ZIP. @source */
 interface BatchConversionImage {

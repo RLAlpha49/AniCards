@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Sun, Moon } from "lucide-react";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 
@@ -58,7 +58,7 @@ export default function DarkModeToggle() {
       aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
       role="switch"
       aria-checked={currentTheme === "dark"}
-      className="relative inline-flex h-7 w-14 items-center rounded-full p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+      className="focus-visible:ring-primary relative inline-flex h-7 w-14 items-center rounded-full p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       style={{
         backgroundColor: currentTheme === "dark" ? "#e7e7e7" : "#D1D5DB",
       }}

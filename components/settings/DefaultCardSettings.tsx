@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { AnimatePresence, motion as m, motion } from "framer-motion";
+import { AnimatePresence, motion as m, motion } from "motion/react";
 
 import { Label } from "@/components/ui/Label";
 import {
@@ -188,7 +188,7 @@ export function DefaultCardSettings({
                 Configure default card types and styling for new generations
               </p>
             </div>
-            <div className="hidden rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300 sm:block">
+            <div className="hidden rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 sm:block dark:bg-slate-800 dark:text-slate-300">
               {defaultCardTypes.length} / {statCardTypes.length} selected
             </div>
           </div>

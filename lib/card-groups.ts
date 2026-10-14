@@ -36,8 +36,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
  * @source
  */
 type VariationDef =
-  | string
-  | { variation: string; extras?: Record<string, string> };
+  string | { variation: string; extras?: Record<string, string> };
 
 /**
  * A group of related cards represented in the UI such as genres, tags and

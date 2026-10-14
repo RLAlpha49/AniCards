@@ -378,9 +378,7 @@ export function reconstructUserRecord(
   const activity = parts.activity as UserSection["stats"] | undefined;
   const favourites = parts.favourites as UserSection["favourites"] | undefined;
   const statisticsPart = parts.statistics as
-    | UserSection["statistics"]
-    | null
-    | undefined;
+    UserSection["statistics"] | null | undefined;
 
   const pagesInput = parts.pages as
     | {

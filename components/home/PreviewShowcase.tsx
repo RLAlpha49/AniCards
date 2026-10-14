@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
@@ -167,7 +167,7 @@ export function PreviewShowcase({
       id="preview-showcase"
       className="relative w-full overflow-hidden py-24 lg:py-32"
     >
-      <div className="container relative mx-auto px-4">
+      <div className="relative container mx-auto px-4">
         <div className="mx-auto max-w-7xl">
           {/* Section header */}
           <div className="mb-12 text-center lg:mb-16">
@@ -187,7 +187,7 @@ export function PreviewShowcase({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="mb-4 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl lg:text-5xl"
+              className="mb-4 text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl dark:text-white"
             >
               Over{" "}
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -259,7 +259,7 @@ export function PreviewShowcase({
                         {/* Gradient accent */}
                         <div
                           className={cn(
-                            "absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
+                            "absolute -top-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
                             card.gradient,
                           )}
                         />
@@ -284,7 +284,7 @@ export function PreviewShowcase({
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-300 group-hover:bg-slate-900/60">
                           <Button
                             onClick={onGetStarted}
-                            className="translate-y-4 rounded-full bg-white text-slate-900 opacity-0 shadow-lg transition-all duration-300 hover:bg-slate-100 group-hover:translate-y-0 group-hover:opacity-100"
+                            className="translate-y-4 rounded-full bg-white text-slate-900 opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-slate-100"
                           >
                             <Play className="mr-2 h-4 w-4 fill-current" />
                             Create This Card
@@ -321,6 +321,7 @@ export function PreviewShowcase({
               <Button
                 variant="outline"
                 size="icon"
+                aria-label="Previous page"
                 onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
                 disabled={currentPage === 0}
                 className="h-10 w-10 rounded-full"
@@ -347,6 +348,7 @@ export function PreviewShowcase({
               <Button
                 variant="outline"
                 size="icon"
+                aria-label="Next page"
                 onClick={() =>
                   setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
                 }

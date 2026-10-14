@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { GridPattern } from "@/components/GridPattern";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
@@ -62,14 +62,14 @@ export default function PageShell({
     <>
       <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
       <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
-      <div className="absolute left-0 top-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
-      <div className="absolute bottom-1/4 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
+      <div className="absolute top-1/4 left-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
+      <div className="absolute right-0 bottom-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
     </>
   );
 
   const homeOrbs = (
     <>
-      <div className="absolute -left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-3xl" />
+      <div className="absolute top-0 -left-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-3xl" />
       <div className="absolute -right-1/4 bottom-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/20 to-orange-500/20 blur-3xl" />
     </>
   );
@@ -115,7 +115,7 @@ export default function PageShell({
           {/* Hero Section (render only when hero props are present) */}
           {hasHero && (
             <section className="relative h-full w-full overflow-hidden">
-              <div className="container relative z-10 mx-auto px-0">
+              <div className="relative z-10 container mx-auto px-0">
                 <motion.div
                   variants={containerVariants}
                   initial="hidden"
@@ -128,7 +128,7 @@ export default function PageShell({
 
                   <motion.h1
                     variants={itemVariants}
-                    className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl"
+                    className="mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-7xl dark:text-white"
                   >
                     {title}
                   </motion.h1>
@@ -136,7 +136,7 @@ export default function PageShell({
                   {subtitle && (
                     <motion.p
                       variants={itemVariants}
-                      className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+                      className="mt-6 max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
                     >
                       {subtitle}
                     </motion.p>

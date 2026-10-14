@@ -1,5 +1,5 @@
 import { Input } from "@/components/ui/Input";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { User, Check, AtSign } from "lucide-react";
 
 /**
@@ -55,12 +55,12 @@ export function DefaultUsernameSettings({
           <div className="space-y-4">
             {/* Input container */}
             <div className="relative">
-              <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+              <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2">
                 <AtSign className="h-5 w-5 text-slate-400" />
               </div>
               <Input
                 id="default-username"
-                className="h-14 rounded-xl border-slate-200 bg-white/80 pl-12 pr-12 text-lg shadow-sm transition-all placeholder:text-slate-400 hover:border-purple-300 focus:border-purple-500 focus:bg-white focus:shadow-md focus:shadow-purple-500/10 focus:ring-2 focus:ring-purple-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:placeholder:text-slate-500 dark:hover:border-purple-700 dark:focus:border-purple-500 dark:focus:bg-slate-800 dark:focus:shadow-purple-500/10"
+                className="h-14 rounded-xl border-slate-200 bg-white/80 pr-12 pl-12 text-lg shadow-sm transition-all placeholder:text-slate-400 hover:border-purple-300 focus:border-purple-500 focus:bg-white focus:shadow-md focus:ring-2 focus:shadow-purple-500/10 focus:ring-purple-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:placeholder:text-slate-500 dark:hover:border-purple-700 dark:focus:border-purple-500 dark:focus:bg-slate-800 dark:focus:shadow-purple-500/10"
                 value={defaultUsername}
                 onChange={(e) => onUsernameChange(e.target.value)}
                 placeholder="Enter your AniList username"
@@ -70,7 +70,7 @@ export function DefaultUsernameSettings({
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="absolute right-4 top-1/4"
+                  className="absolute top-1/4 right-4"
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/30">
                     <Check className="h-4 w-4 text-white" strokeWidth={3} />

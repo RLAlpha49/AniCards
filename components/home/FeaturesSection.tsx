@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 import {
   BarChart2,
@@ -145,7 +145,7 @@ export function FeaturesSection() {
       ref={sectionRef}
       className="relative w-full overflow-hidden py-24 lg:py-32"
     >
-      <div className="container relative mx-auto px-4">
+      <div className="relative container mx-auto px-4">
         <div className="mx-auto max-w-7xl">
           {/* Section header */}
           <div className="mb-16 text-center lg:mb-20">
@@ -164,7 +164,7 @@ export function FeaturesSection() {
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="mb-4 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl lg:text-5xl"
+              className="mb-4 text-3xl font-bold text-slate-900 sm:text-4xl lg:text-5xl dark:text-white"
             >
               Everything You Need to{" "}
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -230,7 +230,7 @@ export function FeaturesSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, delay: 0.6 }}
-            className="rounded-2xl border border-slate-200/50 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 p-8 dark:border-slate-700/50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 lg:p-10"
+            className="rounded-2xl border border-slate-200/50 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 p-8 lg:p-10 dark:border-slate-700/50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20"
           >
             <div className="grid gap-8 sm:grid-cols-3">
               {HIGHLIGHTS.map((highlight, index) => (

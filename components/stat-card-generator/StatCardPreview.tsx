@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Dialog,
   DialogContent,
@@ -117,7 +117,7 @@ export function StatCardPreview({
           {/* Header */}
           <div className="relative border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-white p-5 dark:border-slate-700/50 dark:from-slate-800/50 dark:to-slate-900">
             {/* Decorative gradient accent */}
-            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+            <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
 
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3">

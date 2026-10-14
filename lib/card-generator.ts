@@ -125,12 +125,7 @@ type PlanningBacklogVariant = "default";
 type MostRewatchedVariant = "default" | "anime" | "manga";
 /** @source */
 type FavoritesGridVariant =
-  | "anime"
-  | "manga"
-  | "characters"
-  | "staff"
-  | "studios"
-  | "mixed";
+  "anime" | "manga" | "characters" | "staff" | "studios" | "mixed";
 /** @source */
 type ComparativeVariant = "default";
 /** @source */
@@ -730,11 +725,7 @@ function generateCategoryCard(
         .map((item: unknown) =>
           mapCategoryItem(
             item as
-              | GenreItem
-              | TagItem
-              | VoiceActorItem
-              | StudioItem
-              | StaffItem,
+              GenreItem | TagItem | VoiceActorItem | StudioItem | StaffItem,
             categoryKey,
           ),
         )

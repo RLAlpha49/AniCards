@@ -2,7 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
 import { ThemePreferences } from "@/components/settings/ThemePreferences";
 import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
@@ -161,7 +161,7 @@ export default function SettingsPage() {
         backgroundClassName="fixed inset-0 -z-10"
         heroContent={
           <section className="relative w-full overflow-hidden">
-            <div className="container relative z-10 mx-auto px-4">
+            <div className="relative z-10 container mx-auto px-4">
               <motion.div
                 variants={containerVariants}
                 initial="hidden"
@@ -179,7 +179,7 @@ export default function SettingsPage() {
                 {/* Main heading */}
                 <motion.h1
                   variants={itemVariants}
-                  className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+                  className="mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl dark:text-white"
                 >
                   Application{" "}
                   <span className="relative">
@@ -197,7 +197,7 @@ export default function SettingsPage() {
                 {/* Subheading */}
                 <motion.p
                   variants={itemVariants}
-                  className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+                  className="mt-6 max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
                 >
                   Customize your AniCards experience with personalization
                   options, theme preferences, and default configurations.
@@ -210,7 +210,7 @@ export default function SettingsPage() {
       >
         {/* Settings Container */}
         <section className="relative w-full overflow-hidden py-20 lg:py-28">
-          <div className="container relative mx-auto px-4">
+          <div className="relative container mx-auto px-4">
             <div className="mx-auto max-w-6xl">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}

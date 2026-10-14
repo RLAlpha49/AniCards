@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import {
@@ -410,7 +410,7 @@ function ColorPresetSelectorComponent({
 
                       {/* Badges */}
                       {!isCustom && (
-                        <div className="absolute left-1.5 top-1.5 flex gap-1">
+                        <div className="absolute top-1.5 left-1.5 flex gap-1">
                           {containsGradient && (
                             <div className="rounded-full bg-purple-500/90 p-1 shadow-sm">
                               <Layers className="h-2.5 w-2.5 text-white" />
@@ -420,7 +420,7 @@ function ColorPresetSelectorComponent({
                       )}
 
                       {!isCustom && (
-                        <div className="absolute bottom-1.5 right-1.5">
+                        <div className="absolute right-1.5 bottom-1.5">
                           <div
                             className={cn(
                               "rounded-full p-1 shadow-sm",
@@ -443,7 +443,7 @@ function ColorPresetSelectorComponent({
                     side="bottom"
                     className="flex items-center gap-2 rounded-lg border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
                   >
-                    <span className="font-semibold capitalize text-slate-900 dark:text-white">
+                    <span className="font-semibold text-slate-900 capitalize dark:text-white">
                       {key.replaceAll(/([A-Z])/g, " $1").trim()}
                     </span>
                     <span className="text-xs text-slate-500">

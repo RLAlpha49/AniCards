@@ -151,7 +151,7 @@ export class ErrorBoundary extends Component<
               <AlertCircle className="h-6 w-6" />
             </span>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-600 dark:text-red-400">
+              <p className="text-sm font-semibold tracking-[0.3em] text-red-600 uppercase dark:text-red-400">
                 Error
               </p>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">

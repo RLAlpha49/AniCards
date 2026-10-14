@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";
@@ -319,7 +319,7 @@ export function StatCardTypeSelection({
                 >
                   {/* Selection Indicator */}
                   {isSelected && (
-                    <div className="absolute -right-1 -top-1">
+                    <div className="absolute -top-1 -right-1">
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 shadow-md">
                         <CheckCircle2 className="h-4 w-4 text-white" />
                       </div>
@@ -339,7 +339,7 @@ export function StatCardTypeSelection({
                         )}
                       />
                       <div className="space-y-1">
-                        <Label className="cursor-pointer text-base font-semibold leading-tight text-slate-900 dark:text-white">
+                        <Label className="cursor-pointer text-base leading-tight font-semibold text-slate-900 dark:text-white">
                           {type.label.split(" (")[0]}
                         </Label>
                         {type.label.includes("(") && labelTextInParens && (

@@ -646,7 +646,7 @@ export default function ExamplesPage() {
       >
         {/* Card Showcase by Category */}
         <section className="relative w-full overflow-hidden py-20 lg:py-28">
-          <div className="container relative mx-auto px-4">
+          <div className="relative container mx-auto px-4">
             <div className="mx-auto max-w-7xl space-y-24">
               {CATEGORIES.map((category, categoryIndex) => {
                 const categoryCardTypes = filteredCardTypes.filter(
