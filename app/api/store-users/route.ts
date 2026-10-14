@@ -1,7 +1,12 @@
 import type { NextResponse } from "next/server";
 import { UserRecord } from "@/lib/types/records";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { saveUserRecord, fetchUserDataParts } from "@/lib/server/user-data";
+import {
+  buildUsernameIndexKey,
+  fetchUserDataParts,
+  saveUserRecord,
+  syncUsernameIndex,
+} from "@/lib/server/user-data";
 import {
   incrementAnalytics,
   handleError,
@@ -50,11 +55,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     let createdAt = new Date().toISOString();
+    let previousUsername: string | undefined;
 
     const partsData = await fetchUserDataParts(data.userId, ["meta"]);
     if (partsData.meta) {
       const meta = partsData.meta as Record<string, unknown>;
       createdAt = (meta.createdAt as string) || createdAt;
+      previousUsername =
+        typeof meta.username === "string" ? meta.username : undefined;
     }
 
     const userData: UserRecord = {
@@ -68,10 +76,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Normalize and prune data before saving to Redis
     const normalizationResult = validateAndNormalizeUserRecord(userData);
-    const finalUserData =
-      "normalized" in normalizationResult
-        ? normalizationResult.normalized
-        : userData;
+    if ("error" in normalizationResult) {
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return jsonWithCors({ error: "Invalid user statistics" }, request, 400);
+    }
+    const finalUserData = normalizationResult.normalized;
 
     console.log(
       `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
@@ -79,15 +90,21 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     await saveUserRecord(finalUserData);
 
-    // Create/update the username index if a username is provided.
-    if (data.username) {
-      const normalizedUsername = data.username.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
+    const previousUsernameIndexKey = buildUsernameIndexKey(previousUsername);
+    const currentUsernameIndexKey = buildUsernameIndexKey(
+      finalUserData.username,
+    );
+    if (currentUsernameIndexKey) {
       console.log(
-        `📝 [${endpoint}] Updating username index for: ${normalizedUsername}`,
+        `📝 [${endpoint}] Updating username index for: ${currentUsernameIndexKey.slice("username:".length)}`,
       );
-      await redisClient.set(usernameIndexKey, data.userId.toString());
     }
+    await syncUsernameIndex(
+      redisClient,
+      previousUsernameIndexKey,
+      currentUsernameIndexKey,
+      data.userId,
+    );
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, data.userId, duration);

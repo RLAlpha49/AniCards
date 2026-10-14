@@ -92,12 +92,14 @@ export const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
  * This is safer and more efficient than the KEYS command for large datasets.
  * @param pattern - The pattern to match (e.g., "user:*").
  * @param count - The number of keys to fetch per scan iteration.
+ * @param onScanPage - Optional callback invoked after each successful SCAN command.
  * @returns A promise that resolves to an array of all matching keys.
  * @source
  */
 export async function scanAllKeys(
   pattern: string,
   count: number = 1000,
+  onScanPage?: () => void,
 ): Promise<string[]> {
   let cursor: string | number = 0;
   const allKeys: string[] = [];
@@ -108,6 +110,7 @@ export async function scanAllKeys(
       count,
     })) as [string | number, string[]];
     cursor = nextCursor;
+    onScanPage?.();
     allKeys.push(...keys);
   } while (cursor !== 0 && cursor !== "0");
 

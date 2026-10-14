@@ -1,5 +1,5 @@
 import { redisClient } from "@/lib/api-utils";
-import { safeParse } from "@/lib/utils";
+import type { Redis as UpstashRedis } from "@upstash/redis";
 import {
   UserRecord,
   UserStatsData,
@@ -34,6 +34,47 @@ export type UserDataPart =
 
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
+
+const REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT = `
+  if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+  end
+  return 0
+`;
+
+export function buildUsernameIndexKey(
+  username: string | undefined,
+): string | null {
+  const normalizedUsername = username?.trim().toLowerCase();
+  return normalizedUsername ? `username:${normalizedUsername}` : null;
+}
+
+export async function syncUsernameIndex(
+  redisClient: UpstashRedis,
+  previousUsernameIndexKey: string | null,
+  currentUsernameIndexKey: string | null,
+  userId: string | number,
+): Promise<boolean> {
+  const userIdValue = String(userId);
+  if (currentUsernameIndexKey) {
+    await redisClient.set(currentUsernameIndexKey, userIdValue);
+  }
+
+  if (
+    !previousUsernameIndexKey ||
+    previousUsernameIndexKey === currentUsernameIndexKey
+  ) {
+    return false;
+  }
+
+  const removed = await redisClient.eval<[string], number>(
+    REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
+    [previousUsernameIndexKey],
+    [userIdValue],
+  );
+
+  return removed === 1;
+}
 
 interface UserMeta {
   userId: string;
@@ -544,9 +585,6 @@ export async function saveUserRecord(record: UserRecord): Promise<void> {
     );
   });
 
-  // Ensure legacy key is removed if it exists
-  pipeline.del(`user:${record.userId}`);
-
   await pipeline.exec();
 }
 
@@ -567,31 +605,11 @@ export async function deleteUserRecord(userId: string | number): Promise<void> {
     "aggregates",
   ];
   const keys = parts.map((part) => getUserDataKey(userId, part));
-  keys.push(`user:${userId}`);
   await redisClient.del(...keys);
 }
 
 /**
- * Migrates a legacy user record to the new split format.
- */
-export async function migrateUserRecord(
-  userId: string | number,
-): Promise<UserRecord | null> {
-  const legacyKey = `user:${userId}`;
-  const legacyDataRaw = await redisClient.get(legacyKey);
-
-  if (!legacyDataRaw) return null;
-
-  const record = safeParse<UserRecord>(legacyDataRaw as string);
-  if (!record) return null;
-
-  await saveUserRecord(record);
-
-  return record;
-}
-
-/**
- * Fetches specific parts of user data, migrating if necessary.
+ * Fetches specific parts of a user record from Redis.
  */
 export async function fetchUserDataParts(
   userId: string | number,
@@ -601,7 +619,6 @@ export async function fetchUserDataParts(
   const results = await redisClient.mget(...keys);
 
   const data: Partial<Record<UserDataPart, unknown>> = {};
-  let missingAny = false;
 
   results.forEach((val, i) => {
     if (val) {
@@ -614,25 +631,9 @@ export async function fetchUserDataParts(
           userId,
           e,
         );
-        missingAny = true;
       }
-    } else {
-      missingAny = true;
     }
   });
-
-  if (missingAny) {
-    const fullRecord = await migrateUserRecord(userId);
-    if (!fullRecord) return data;
-
-    const split = splitUserRecord(fullRecord) as unknown as Record<
-      UserDataPart,
-      unknown
-    >;
-    parts.forEach((part) => {
-      data[part] = split[part];
-    });
-  }
 
   return data;
 }

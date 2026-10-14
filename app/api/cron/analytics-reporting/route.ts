@@ -1,9 +1,18 @@
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
+const ANALYTICS_REPORTS_LOCK_KEY = "cron:analytics-reporting:lock";
 const ANALYTICS_REPORT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const ANALYTICS_REPORTS_LOCK_TTL_SECONDS = 300;
+const RELEASE_ANALYTICS_REPORTS_LOCK_SCRIPT = `
+  if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+  end
+  return 0
+`;
 
 function getReportMetadata(report: unknown): {
   timestamp: number;
@@ -68,7 +77,7 @@ async function pruneAnalyticsReports(
     Array.from(monthlyArchives.values(), ({ index }) => index),
   );
   const reportsToRemove = metadata.flatMap((report, index) =>
-    report && report.timestamp < cutoff && !archivedIndices.has(index)
+    !report || (report.timestamp < cutoff && !archivedIndices.has(index))
       ? [reports[index]]
       : [],
   );
@@ -94,8 +103,27 @@ function checkCronAuthorization(request: Request): Response | null {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");
 
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
+  if (!CRON_SECRET) {
+    if (process.env.NODE_ENV !== "development") {
+      console.error("🔒 [Analytics & Reporting] CRON_SECRET is not configured");
+      return new Response("Cron authorization is not configured", {
+        status: 503,
+        headers: apiJsonHeaders(request),
+      });
+    }
+
+    console.warn(
+      "[Analytics & Reporting] CRON_SECRET is not configured. Skipping authorization in development.",
+    );
+  } else {
+    const configuredSecretDigest = createHash("sha256")
+      .update(CRON_SECRET)
+      .digest();
+    const headerSecretDigest = createHash("sha256")
+      .update(cronSecretHeader ?? "")
+      .digest();
+
+    if (!timingSafeEqual(configuredSecretDigest, headerSecretDigest)) {
       console.error(
         "🔒 [Analytics & Reporting] Unauthorized: Invalid Cron secret",
       );
@@ -104,10 +132,8 @@ function checkCronAuthorization(request: Request): Response | null {
         headers: apiJsonHeaders(request),
       });
     }
-  } else {
-    console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
-    );
+
+    console.info("[Analytics & Reporting] Cron secret verified.");
   }
   return null;
 }
@@ -201,8 +227,43 @@ async function createAndSaveReport(
     generatedAt: now.toISOString(),
   };
 
-  await redisClient.rpush(ANALYTICS_REPORTS_KEY, JSON.stringify(report));
-  await pruneAnalyticsReports(redisClient, now);
+  const lockToken = randomUUID();
+  const lockResult = await redisClient.set(
+    ANALYTICS_REPORTS_LOCK_KEY,
+    lockToken,
+    { nx: true, ex: ANALYTICS_REPORTS_LOCK_TTL_SECONDS },
+  );
+  if (lockResult === null) {
+    throw new Error("Another analytics report save is already in progress.");
+  }
+
+  try {
+    try {
+      await pruneAnalyticsReports(redisClient, now);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `[Analytics & Reporting] Failed to prune stored reports. Saving the new report anyway: ${errorMessage}`,
+      );
+    }
+
+    await redisClient.rpush(ANALYTICS_REPORTS_KEY, JSON.stringify(report));
+  } finally {
+    try {
+      await redisClient.eval<[string], number>(
+        RELEASE_ANALYTICS_REPORTS_LOCK_SCRIPT,
+        [ANALYTICS_REPORTS_LOCK_KEY],
+        [lockToken],
+      );
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `[Analytics & Reporting] Failed to release report lock: ${errorMessage}`,
+      );
+    }
+  }
   return report;
 }
 

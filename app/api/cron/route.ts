@@ -1,5 +1,5 @@
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { UserRecord } from "@/lib/types/records";
+import type { UserStatsData } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
@@ -9,6 +9,8 @@ import {
   reconstructUserRecord,
   saveUserRecord,
   deleteUserRecord,
+  buildUsernameIndexKey,
+  syncUsernameIndex,
   UserDataPart,
 } from "@/lib/server/user-data";
 
@@ -16,66 +18,155 @@ import {
  * Tracks the outcome of a user's AniList stats refresh.
  * @source
  */
-interface UpdateResult {
-  success: boolean;
-  is404Error: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  statsData?: any;
+type UpdateResult =
+  | { success: true; is404Error: false; statsData: UserStatsData }
+  | { success: false; is404Error: boolean };
+
+const MAX_GRAPHQL_INT = 2_147_483_647;
+const MAX_STATS_FETCH_ATTEMPTS = 3;
+const STATS_FETCH_TIMEOUT_MS = 5_000;
+const STATS_FETCH_RETRY_DELAY_MS = 500;
+const REFRESH_COOLDOWN_SECONDS = 15 * 60;
+
+const USER_STATS_RESPONSE_FIELDS = [
+  "User",
+  "followersPage",
+  "followingPage",
+  "threadsPage",
+  "threadCommentsPage",
+  "reviewsPage",
+  "userReviews",
+  "userRecommendations",
+  "animePlanning",
+  "animeCurrent",
+  "animeRewatched",
+  "animeCompleted",
+  "animeDropped",
+  "mangaPlanning",
+  "mangaCurrent",
+  "mangaReread",
+  "mangaCompleted",
+  "mangaDropped",
+] as const;
+
+function parseAniListUserId(userId: string): number | null {
+  if (!/^\d+$/.test(userId)) return null;
+
+  const parsedUserId = Number(userId);
+  return Number.isInteger(parsedUserId) &&
+    parsedUserId > 0 &&
+    parsedUserId <= MAX_GRAPHQL_INT
+    ? parsedUserId
+    : null;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasStatsCount(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+
+  const count = value.count;
+  return typeof count === "number" && Number.isInteger(count) && count >= 0;
+}
+
+function parseUserStatsResponse(payload: unknown): UserStatsData {
+  if (!isObjectRecord(payload)) {
+    throw new Error("Invalid GraphQL response");
+  }
+
+  if (payload.errors !== undefined) {
+    if (!Array.isArray(payload.errors) || payload.errors.length === 0) {
+      throw new Error("Malformed GraphQL errors field");
+    }
+    throw new Error("GraphQL response contained errors");
+  }
+
+  const data = payload.data;
+  if (
+    !isObjectRecord(data) ||
+    !USER_STATS_RESPONSE_FIELDS.every((field) => Object.hasOwn(data, field)) ||
+    !isObjectRecord(data.User)
+  ) {
+    throw new Error("GraphQL response is missing required stats data");
+  }
+
+  const statistics = data.User.statistics;
+  if (
+    !isObjectRecord(statistics) ||
+    (!hasStatsCount(statistics.anime) && !hasStatsCount(statistics.manga))
+  ) {
+    throw new Error("GraphQL response is missing user statistics");
+  }
+
+  return data as unknown as UserStatsData;
 }
 
 /**
- * Attempts to fetch AniList stats for the given user with up to three retries.
+ * Attempts to fetch AniList stats with a timeout and delayed retries.
  * @param userId - AniList identifier whose stats should be refreshed.
  * @returns Result detailing the fetch success, 404 status, and payload if available.
  * @source
  */
 async function updateUserStats(userId: string): Promise<UpdateResult> {
-  let retries = 3;
-  let is404Error = false;
+  const graphqlUserId = parseAniListUserId(userId);
+  if (graphqlUserId === null) {
+    console.error(`[Cron Job] User ${userId}: Invalid AniList user ID`);
+    return { success: false, is404Error: false };
+  }
 
-  while (retries > 0) {
+  for (let attempt = 1; attempt <= MAX_STATS_FETCH_ATTEMPTS; attempt++) {
     try {
       console.log(
-        `🔄 [Cron Job] User ${userId}: Attempt ${4 - retries}/3 - Fetching AniList data`,
+        `🔄 [Cron Job] User ${userId}: Attempt ${attempt}/${MAX_STATS_FETCH_ATTEMPTS} - Fetching AniList data`,
       );
 
       const statsResponse = await fetch("https://graphql.anilist.co", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(STATS_FETCH_TIMEOUT_MS),
         body: JSON.stringify({
           query: USER_STATS_QUERY,
-          variables: { userId },
+          variables: { userId: graphqlUserId },
         }),
       });
 
+      if (statsResponse.status === 404) {
+        return { success: false, is404Error: true };
+      }
+
       if (!statsResponse.ok) {
-        is404Error = statsResponse.status === 404;
         throw new Error(`HTTP ${statsResponse.status}`);
       }
 
-      const statsData = await statsResponse.json();
+      const payload: unknown = await statsResponse.json();
+      const statsData = parseUserStatsResponse(payload);
       return { success: true, is404Error: false, statsData };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      retries--;
-      if (error.stack) {
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.stack) {
         console.error(
           `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
         );
       }
-      if (retries === 0) {
+      if (attempt === MAX_STATS_FETCH_ATTEMPTS) {
         console.error(
-          `🔥 [Cron Job] User ${userId}: Final attempt failed - ${error.message}`,
+          `🔥 [Cron Job] User ${userId}: Final attempt failed - ${errorMessage}`,
         );
       } else {
         console.warn(
-          `⚠️ [Cron Job] User ${userId}: Retrying (${retries} left) - ${error.message}`,
+          `⚠️ [Cron Job] User ${userId}: Retrying (${MAX_STATS_FETCH_ATTEMPTS - attempt} left) - ${errorMessage}`,
+        );
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, STATS_FETCH_RETRY_DELAY_MS * 2 ** (attempt - 1)),
         );
       }
     }
   }
 
-  return { success: false, is404Error };
+  return { success: false, is404Error: false };
 }
 
 /**
@@ -101,7 +192,7 @@ async function getUsernameIndexKey(
 
     const rawUsername = parsed ? parsed["username"] : undefined;
     if (typeof rawUsername === "string" && rawUsername.trim()) {
-      return `username:${rawUsername.trim().toLowerCase()}`;
+      return buildUsernameIndexKey(rawUsername);
     }
   } catch (err) {
     console.warn(
@@ -127,19 +218,22 @@ async function handleFailureTracking(
   if (newFailureCount >= 3) {
     const cardsKey = `cards:${userId}`;
     const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
+    const usernameIndexRemoval = usernameIndexKey
+      ? syncUsernameIndex(redisClient, usernameIndexKey, null, userId)
+      : Promise.resolve(false);
 
-    const deletions = [
+    const [usernameIndexRemoved] = await Promise.all([
+      usernameIndexRemoval,
       deleteUserRecord(userId), // Remove user data (all parts)
       redisClient.del(failureKey), // Remove failure tracking
       redisClient.del(cardsKey), // Remove user's card configurations
-      ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
-    ];
-
-    await Promise.all(deletions);
+    ]);
 
     console.log(
       `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
+        usernameIndexRemoved && usernameIndexKey
+          ? ` (removed ${usernameIndexKey})`
+          : ""
       }`,
     );
     return true; // User was removed
@@ -150,18 +244,34 @@ async function handleFailureTracking(
 }
 
 /**
- * Clears any stored failure counter for the specified user after a successful update.
+ * Clears stored failure and cooldown state after a successful update.
  * @param redisClient - Redis client managing failure counters.
  * @param userId - AniList identifier whose failure tracking should be removed.
  * @returns Promise that resolves once the failure counter is deleted.
  * @source
  */
-async function clearFailureTracking(
+async function clearRefreshState(
   redisClient: UpstashRedis,
   userId: string,
 ): Promise<void> {
-  const failureKey = `failed_updates:${userId}`;
-  await redisClient.del(failureKey);
+  await redisClient.del(
+    `failed_updates:${userId}`,
+    `cron:refresh-cooldown:${userId}`,
+  );
+}
+
+async function setRefreshCooldown(
+  redisClient: UpstashRedis,
+  userId: string,
+): Promise<void> {
+  await redisClient.set(`cron:refresh-cooldown:${userId}`, "1", {
+    ex: REFRESH_COOLDOWN_SECONDS,
+  });
+}
+
+function getUpdatedAtTimestamp(updatedAt: string | number): number {
+  const timestamp = new Date(updatedAt || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 /**
@@ -258,18 +368,26 @@ export async function POST(request: Request) {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");
 
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
-      console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-      return new Response("Unauthorized", {
-        status: 401,
+  if (!CRON_SECRET) {
+    if (process.env.NODE_ENV !== "development") {
+      console.error("🔒 [Cron Job] CRON_SECRET is not configured");
+      return new Response("Cron authorization is not configured", {
+        status: 503,
         headers: apiJsonHeaders(request),
       });
     }
-  } else {
+
     console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
+      "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
     );
+  } else if (cronSecretHeader !== CRON_SECRET) {
+    console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: apiJsonHeaders(request),
+    });
+  } else {
+    console.info("[Cron Job] Cron secret verified.");
   }
 
   try {
@@ -277,7 +395,11 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const allKeys = await scanAllKeys("user:*");
+    const selectionStartedAt = Date.now();
+    let scanCommandCount = 0;
+    const allKeys = await scanAllKeys("user:*", 1000, () => {
+      scanCommandCount++;
+    });
     // Filter to only include numeric user IDs and avoid analytics or other keys
     const userIds = Array.from(
       new Set(
@@ -297,47 +419,129 @@ export async function POST(request: Request) {
           )
         : [];
 
-    const missingMetaIndices: number[] = [];
     const validUsers: { id: string; updatedAt: string | number }[] = [];
+    let missingMetadataCount = 0;
+    let malformedMetadataCount = 0;
+    const missingMetadataSampleIds: string[] = [];
+    const malformedMetadataSampleIds: string[] = [];
 
     metaResults.forEach((meta, i) => {
-      if (meta) {
-        const parsed = typeof meta === "string" ? JSON.parse(meta) : meta;
-        validUsers.push({ id: userIds[i], updatedAt: parsed.updatedAt || 0 });
-      } else {
-        missingMetaIndices.push(i);
+      const id = userIds[i];
+      if (meta == null) {
+        missingMetadataCount++;
+        if (missingMetadataSampleIds.length < 5) {
+          missingMetadataSampleIds.push(id);
+        }
+        return;
+      }
+
+      try {
+        const parsed: unknown =
+          typeof meta === "string" ? JSON.parse(meta) : meta;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new TypeError("Expected user metadata to be an object");
+        }
+
+        const updatedAt = (parsed as Record<string, unknown>).updatedAt;
+        if (
+          updatedAt != null &&
+          typeof updatedAt !== "string" &&
+          (typeof updatedAt !== "number" || !Number.isFinite(updatedAt))
+        ) {
+          throw new TypeError(
+            "Expected metadata.updatedAt to be a string or number",
+          );
+        }
+
+        validUsers.push({
+          id,
+          updatedAt:
+            typeof updatedAt === "string" || typeof updatedAt === "number"
+              ? updatedAt
+              : 0,
+        });
+      } catch {
+        malformedMetadataCount++;
+        if (malformedMetadataSampleIds.length < 5) {
+          malformedMetadataSampleIds.push(id);
+        }
       }
     });
 
-    if (missingMetaIndices.length > 0) {
-      const legacyKeys = missingMetaIndices.map((i) => `user:${userIds[i]}`);
-      const legacyResults = await Promise.all(
-        legacyKeys.map((key) => redisClient.get(key)),
+    if (missingMetadataCount > 0) {
+      console.warn(
+        `[Cron Job] Skipping ${missingMetadataCount} user IDs without the required meta part. Sample IDs: ${missingMetadataSampleIds.join(", ")}`,
       );
-
-      legacyResults.forEach((legacy, i) => {
-        if (legacy) {
-          const record = safeParse<UserRecord>(legacy as string);
-          validUsers.push({
-            id: userIds[missingMetaIndices[i]],
-            updatedAt: record?.updatedAt || 0,
-          });
-        }
-      });
+    }
+    if (malformedMetadataCount > 0) {
+      console.error(
+        `[Cron Job] Skipping ${malformedMetadataCount} users with malformed metadata; repair required. Sample IDs: ${malformedMetadataSampleIds.join(", ")}`,
+      );
     }
 
-    // Sort by updatedAt (oldest first)
-    validUsers.sort((a, b) => {
-      const dateA = new Date(a.updatedAt || 0).getTime();
-      const dateB = new Date(b.updatedAt || 0).getTime();
-      return dateA - dateB;
+    const cooldownKeys = userIds.map((id) => `cron:refresh-cooldown:${id}`);
+    const cooldownResults: (string | null)[] = cooldownKeys.length
+      ? await redisClient.mget<(string | null)[]>(...cooldownKeys)
+      : [];
+    const cooledDownUserIds = new Set(
+      userIds.filter((_, index) => Boolean(cooldownResults[index])),
+    );
+
+    // Sort by last successful refresh, then skip records in cooldown.
+    validUsers.sort(
+      (a, b) =>
+        getUpdatedAtTimestamp(a.updatedAt) - getUpdatedAtTimestamp(b.updatedAt),
+    );
+
+    const eligibleUsers = validUsers.filter(
+      ({ id }) => !cooledDownUserIds.has(id),
+    );
+    const batch = eligibleUsers.slice(0, 5);
+    const approximateReturnedPayloadBytes =
+      allKeys.reduce((bytes, key) => bytes + Buffer.byteLength(key), 0) +
+      metaResults.reduce(
+        (bytes, value) =>
+          bytes +
+          Buffer.byteLength(
+            typeof value === "string"
+              ? value
+              : (JSON.stringify(value ?? null) ?? ""),
+          ),
+        0,
+      ) +
+      cooldownResults.reduce(
+        (bytes, value) => bytes + Buffer.byteLength(value ?? ""),
+        0,
+      );
+    const selectionDurationMs = Date.now() - selectionStartedAt;
+    const selectionRedisCommandCount =
+      scanCommandCount +
+      Number(metaKeys.length > 0) +
+      Number(cooldownKeys.length > 0);
+
+    console.log("[Cron Job] User selection metrics:", {
+      scanCommands: scanCommandCount,
+      redisCommands: selectionRedisCommandCount,
+      scannedKeys: allKeys.length,
+      numericUserIds: totalUsers,
+      validMetadataUsers: validUsers.length,
+      missingMetadata: missingMetadataCount,
+      malformedMetadata: malformedMetadataCount,
+      approximateReturnedPayloadBytes,
+      durationMs: selectionDurationMs,
     });
 
-    // Select the 5 oldest users
-    const batch = validUsers.slice(0, 5);
+    const oldestStaleAgeMinutes = validUsers.length
+      ? Math.floor(
+          Math.max(
+            0,
+            Date.now() - getUpdatedAtTimestamp(validUsers[0].updatedAt),
+          ) / 60_000,
+        )
+      : null;
 
     console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} users (5 oldest out of ${totalUsers}).`,
+      `🚀 [Cron Job] Starting background update for ${batch.length} eligible users (${eligibleUsers.length} eligible, ${validUsers.length - eligibleUsers.length} cooling down, ${totalUsers} total).`,
     );
 
     let successfulUpdates = 0;
@@ -359,6 +563,7 @@ export async function POST(request: Request) {
 
     await Promise.all(
       batch.map(async ({ id }) => {
+        let outcome: "success" | "failed" | "removed" = "failed";
         try {
           const partsData = await fetchUserDataParts(id, allParts);
           const user = reconstructUserRecord(partsData);
@@ -373,41 +578,66 @@ export async function POST(request: Request) {
 
           if (updateResult.success) {
             // Update user data in Redis with the fetched stats
-            user.stats = updateResult.statsData.data;
+            user.stats = updateResult.statsData;
 
             // Normalize and prune data before saving to keep Redis size down
-            const normalizationResult = validateAndNormalizeUserRecord(user);
-            const finalUser =
-              "normalized" in normalizationResult
-                ? normalizationResult.normalized
-                : user;
+            const normalizationResult = validateAndNormalizeUserRecord(user, {
+              recomputeAggregates: true,
+            });
+            if ("error" in normalizationResult) {
+              console.warn(
+                `[Cron Job] User ${user.userId}: Refresh rejected: ${normalizationResult.error}`,
+              );
+              return;
+            }
+            const finalUser = normalizationResult.normalized;
 
             finalUser.updatedAt = new Date().toISOString();
 
             await saveUserRecord(finalUser);
 
+            await clearRefreshState(redisClient, user.userId);
+            outcome = "success";
+
             console.log(
               `✅ [Cron Job] User ${user.userId}: Successfully updated`,
             );
-            successfulUpdates++;
-            await clearFailureTracking(redisClient, user.userId);
-          } else if (updateResult.is404Error) {
-            failedUpdates++;
-            const wasRemoved = await handleFailureTracking(
-              redisClient,
-              user.userId,
-            );
-            if (wasRemoved) {
-              removedUsers++;
+          } else {
+            if (updateResult.is404Error) {
+              const wasRemoved = await handleFailureTracking(
+                redisClient,
+                user.userId,
+              );
+              if (wasRemoved) {
+                outcome = "removed";
+              }
             }
           }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           console.error(
-            `🔥 [Cron Job] Error processing user ${id}: ${error.message}`,
+            `🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`,
           );
-          if (error.stack) {
+          if (error instanceof Error && error.stack) {
             console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+          }
+        } finally {
+          if (outcome === "success") {
+            successfulUpdates++;
+          } else {
+            failedUpdates++;
+            if (outcome === "removed") {
+              removedUsers++;
+            } else {
+              try {
+                await setRefreshCooldown(redisClient, id);
+              } catch (error) {
+                console.error(
+                  `[Cron Job] User ${id}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            }
           }
         }
       }),
@@ -415,7 +645,7 @@ export async function POST(request: Request) {
 
     console.log(
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
-      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
+      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed, ${removedUsers} removed. Oldest stale record: ${oldestStaleAgeMinutes === null ? "none" : `${oldestStaleAgeMinutes} minutes`}.`,
     );
 
     // Compute recommended cron expressions for 5 and 10 users per run
@@ -437,6 +667,7 @@ export async function POST(request: Request) {
 
     const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
+      `Eligible users: ${eligibleUsers.length}/${validUsers.length}; cooling down: ${validUsers.length - eligibleUsers.length}; oldest stale record: ${oldestStaleAgeMinutes === null ? "none" : `${oldestStaleAgeMinutes} minutes`}.`,
       "",
       `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
       ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,

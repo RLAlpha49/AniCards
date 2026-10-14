@@ -36,7 +36,6 @@ export async function GET(request: Request) {
     );
   }
   let numericUserId: number | null = null;
-  let key: string;
 
   if (userIdParam) {
     numericUserId = Number.parseInt(userIdParam, 10);
@@ -47,7 +46,6 @@ export async function GET(request: Request) {
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return jsonWithCors({ error: "Invalid userId parameter" }, request, 400);
     }
-    key = `user:${numericUserId}`;
     console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
   } else {
     if (!isValidUsername(usernameParam)) {
@@ -96,7 +94,6 @@ export async function GET(request: Request) {
     }
 
     numericUserId = userId;
-    key = `user:${numericUserId}`;
   }
 
   try {
@@ -122,7 +119,8 @@ export async function GET(request: Request) {
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
-    const userData = reconstructUserRecord(userDataParts);
+    const { ip: _submitterIp, ...userData } =
+      reconstructUserRecord(userDataParts);
     console.log(
       `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );
@@ -134,7 +132,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(
-      `🔥 [User API] Error fetching user data for key ${key} [${duration}ms]: ${error.message}`,
+      `🔥 [User API] Error fetching user data for user ${numericUserId} [${duration}ms]: ${error.message}`,
     );
     if (error.stack) {
       console.error(`💥 [User API] Stack Trace: ${error.stack}`);

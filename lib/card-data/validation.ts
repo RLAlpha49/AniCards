@@ -185,11 +185,13 @@ export function getFavoritesForCardType(
  * Returns either a normalized UserRecord or an error object with an optional HTTP status.
  * This prepares nested pages, statistics blocks, and favourites into consistent shapes.
  * @param raw - Raw object pulled from the data store (redis), often JSON-parsed.
+ * @param options - Controls whether stored aggregate totals are reused.
  * @returns Normalized object on success or an { error, status } object on failure.
  * @source
  */
 export function validateAndNormalizeUserRecord(
   raw: unknown,
+  options: { recomputeAggregates?: boolean } = {},
 ): { normalized: UserRecord } | { error: string; status?: number } {
   if (!raw || typeof raw !== "object") {
     return { error: "Invalid user record: not an object" };
@@ -1173,11 +1175,14 @@ export function validateAndNormalizeUserRecord(
     return items.length ? items : undefined;
   };
 
-  const storedAggregates = isObject(
-    (user as Record<string, unknown>).aggregates,
-  )
-    ? ((user as Record<string, unknown>).aggregates as Record<string, unknown>)
-    : undefined;
+  const storedAggregates = options.recomputeAggregates
+    ? undefined
+    : isObject((user as Record<string, unknown>).aggregates)
+      ? ((user as Record<string, unknown>).aggregates as Record<
+          string,
+          unknown
+        >)
+      : undefined;
 
   const storedAnimeSourceTotals = normalizeStoredSourceTotals(
     storedAggregates?.animeSourceMaterialDistributionTotals,
