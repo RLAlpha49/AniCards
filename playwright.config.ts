@@ -31,10 +31,14 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: process.env.CI ? "bun run build && bun run start" : "bun run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: process.env.CI
+          ? "bun run build && bun run start"
+          : "bun run dev",
+        url: "http://localhost:3000",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      },
 });

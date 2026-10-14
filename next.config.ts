@@ -17,6 +17,7 @@ import type { NextConfig } from "next";
  * @source
  */
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["anicards.test", "api.anicards.test"],
   env: {
     API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
@@ -129,6 +130,7 @@ const nextConfig: NextConfig = {
       "api.lvh.me",
       "api.anicards.localhost",
       "api.anicards.lvh.me",
+      "api.anicards.test",
     ];
 
     const devRules = devHosts.flatMap((h) => [

@@ -5,15 +5,19 @@
 # Upstash REST protocol onto the Redis server below, which lets the unmodified
 # application code run against a local database.
 #
-# Start:  docker compose up -d
+# Start Redis:  docker compose up -d redis serverless-redis-http
+# Start app and RedisInsight: docker compose --profile dev up -d --build
+# Run browser tests: bun run test:e2e:docker
 # Logs:   docker compose logs -f serverless-redis-http
+# GUI:    http://localhost:5540 (connect to redis:6379 from the GUI)
 # Stop:   docker compose down
-# Reset:  docker compose down -v   (deletes the local data volume)
+# Seed:   bun run db:seed
+# Reset:  bun run db:reset   (deletes all local Redis data)
 
 services:
   redis:
     image: redis:8.4.0-alpine
-    restart: unless-stopped
+    restart: on-failure
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       # Published for inspection with redis-cli or a GUI. The app uses the
@@ -30,7 +34,7 @@ services:
 
   serverless-redis-http:
     image: hiett/serverless-redis-http:0.0.10
-    restart: unless-stopped
+    restart: on-failure
     depends_on:
       redis:
         condition: service_healthy
@@ -42,6 +46,93 @@ services:
       # Must match UPSTASH_REDIS_REST_TOKEN in .env.development.
       SRH_TOKEN: local_dev_token
       SRH_CONNECTION_STRING: redis://redis:6379
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "80"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redisinsight:
+    image: redis/redisinsight:2.70
+    restart: on-failure
+    profiles: [dev]
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5540:5540"
+    volumes:
+      - redisinsight-data:/data
+
+  app:
+    build:
+      context: .
+      target: dev
+    profiles: [dev]
+    restart: on-failure
+    init: true
+    depends_on:
+      serverless-redis-http:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      ANILIST_TOKEN: ""
+      API_SECRET_TOKEN: ""
+      CRON_SECRET: ""
+      VERCEL_AUTOMATION_BYPASS_SECRET: ""
+      VERCEL: ""
+      NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: ""
+      LOCAL_REDIS_URL: http://serverless-redis-http:80
+      LOCAL_REDIS_TOKEN: local_dev_token
+      UPSTASH_REDIS_REST_URL: http://serverless-redis-http
+      UPSTASH_REDIS_REST_TOKEN: local_dev_token
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://anicards.test:3000
+      NEXT_PUBLIC_API_URL: http://anicards.test:3000
+      NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN: http://anicards.test:3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      default:
+        aliases:
+          - anicards.test
+          - api.anicards.test
+    volumes:
+      - .:/app
+      - app-node-modules:/app/node_modules
+      - app-next-cache:/app/.next
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((response) => process.exit(response.status < 500 ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.64.0-noble
+    profiles: [test]
+    init: true
+    ipc: host
+    working_dir: /app
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://anicards.test:3000
+    volumes:
+      - .:/app
+      - app-node-modules:/app/node_modules
+    command: ["./node_modules/.bin/playwright", "test"]
 
 volumes:
   redis-data:
+  redisinsight-data:
+  app-node-modules:
+  app-next-cache:

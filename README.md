@@ -151,38 +151,42 @@ To run the project locally:
 
 1. **Clone the repository**
 
-   ```bash
-   git clone https://github.com/RLAlpha49/AniCards.git
-   cd AniCards
-   ```
+    ```bash
+    git clone https://github.com/RLAlpha49/AniCards.git
+    cd AniCards
+    ```
 
 2. **Install dependencies**
 
-   ```bash
-   bun install
-   ```
+    ```bash
+    bun install
+    ```
 
 3. **Start the local Redis database**
 
-   The app keeps its data in Redis. The Compose setup in `docker-compose.yml`
-   runs Redis together with the HTTP proxy that the Upstash client requires:
+    The Compose setup starts Redis and the HTTP proxy required by the Upstash client.
 
-   ```bash
-   docker compose up -d
-   ```
+    Run `bun run db:setup` to start both services.
 
-   `next dev` reads the connection details from `.env.development.local`, which
-   already points at these containers, so no extra configuration is needed. To
-   delete the local data and start over, run `docker compose down -v`.
+    Run `bun run db:seed` to fetch the public AniList profile for `Alpha49` (user ID `542244`) and seed all supported card configurations. The seed script requires an internet connection. Run `bun run db:reset` to clear the local Redis database.
+
+    Run `bun run dev:docker` to start the app and RedisInsight in Docker. RedisInsight is available at [http://localhost:5540](http://localhost:5540). The app is available at [http://localhost:3000](http://localhost:3000). Run `bun run test:e2e:docker` to run Playwright tests in Docker.
+
+    The tracked `.env.development` file is included in fresh clones. It sets the
+    local REST proxy URL and token for host-based `next dev`:
+
+    ```text
+    UPSTASH_REDIS_REST_URL=http://localhost:8079
+    UPSTASH_REDIS_REST_TOKEN=local_dev_token
+    ```
 
 4. **Run the development server**
 
-   ```bash
-   bun run dev
-   ```
+  Run `bun run dev` to start Next.js on the host.
 
 5. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
+
+  Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
 
 ## 🤝 Contributing
 
