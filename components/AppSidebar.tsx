@@ -9,7 +9,7 @@ import {
   Search,
   Folder,
   Grid3X3,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   Sidebar,
   SidebarContent,

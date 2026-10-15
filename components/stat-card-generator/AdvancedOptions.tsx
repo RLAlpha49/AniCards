@@ -13,13 +13,13 @@ import {
   Film,
   BookOpen,
   Percent,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import type { ComponentType, SVGProps } from "react";
+import type { HugeIcon } from "@/lib/icons";
 
 type OptionListItem = {
   id: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  icon: HugeIcon;
   label: string;
   description?: string;
   checked: boolean;
@@ -29,7 +29,7 @@ type OptionListItem = {
 
 type OptionListGroupProps = {
   title: string;
-  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  Icon: HugeIcon;
   headerGradientClasses?: string;
   items: OptionListItem[];
   groupDelay?: number;

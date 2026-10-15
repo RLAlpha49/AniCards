@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { AlertCircle, ChevronRight, RotateCcw } from "lucide-react";
+import { AlertCircle, ChevronRight, RotateCcw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { trackError, safeTrack } from "@/lib/utils/google-analytics";
 import { useEffect } from "react";

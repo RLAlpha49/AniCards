@@ -33,7 +33,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Wand2,
-} from "lucide-react";
+} from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import { useEffect, useRef } from "react";
 

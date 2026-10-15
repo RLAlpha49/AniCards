@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
-import { Download, Link, Check, Copy } from "lucide-react";
+import { Download, Link, Check, Copy } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import {
   Popover,

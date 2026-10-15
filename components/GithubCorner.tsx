@@ -4,7 +4,7 @@ import Link from "next/link";
 import { SimpleGithubIcon } from "./SimpleIcons";
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
-import { Star, GitFork, ExternalLink } from "lucide-react";
+import { Star, GitFork, ExternalLink } from "@/lib/icons";
 
 /**
  * Floating GitHub call-to-action with enhanced tooltip and interactive animations.

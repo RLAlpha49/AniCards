@@ -16,7 +16,7 @@ import {
   Filter,
   ChevronDown,
   Sparkles,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   Tooltip,
   TooltipContent,

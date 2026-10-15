@@ -3,7 +3,7 @@ import { isTrustedSvgString, cn } from "@/lib/utils";
 import type { TrustedSVG } from "@/lib/types/svg";
 import { stripTrustedSvgMarker } from "@/lib/types/svg";
 import { motion, AnimatePresence } from "motion/react";
-import { Eye, Sparkles } from "lucide-react";
+import { Eye, Sparkles } from "@/lib/icons";
 import { LivePreviewSkeleton } from "@/components/stat-card-generator/LivePreviewSkeleton";
 
 /**

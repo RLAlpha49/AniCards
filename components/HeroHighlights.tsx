@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
+import type { HugeIcon } from "@/lib/icons";
 
 export type HighlightItem = Readonly<{
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  icon: HugeIcon;
   title: string;
   description: string;
   bgLight?: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Search } from "lucide-react";
+import { Search } from "@/lib/icons";
 
 /**
  * Animation variants for staggered content reveal.

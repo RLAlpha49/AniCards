@@ -5,11 +5,11 @@ import {
   BarChart2,
   BookOpen,
   PieChart,
-  LucideIcon,
+  HugeIcon,
   Users,
   Calendar,
   TrendingUp,
-} from "lucide-react";
+} from "@/lib/icons";
 import { ExampleCard } from "./ExampleCard";
 
 interface CardVariant {
@@ -29,7 +29,7 @@ interface CardType {
     | "Activity & Engagement"
     | "Library & Progress"
     | "Advanced Analytics";
-  icon: LucideIcon;
+  icon: HugeIcon;
   color: string;
   gradient: string;
 }
@@ -41,7 +41,7 @@ interface CategorySectionProps {
   isFirstCategory: boolean;
 }
 
-const getCategoryIcon = (category: string): LucideIcon => {
+const getCategoryIcon = (category: string): HugeIcon => {
   switch (category) {
     case "Core Stats":
       return BarChart2;

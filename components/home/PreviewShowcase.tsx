@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Play, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, ArrowRight, ChevronLeft, ChevronRight } from "@/lib/icons";
 import Link from "next/link";
 import { cn, buildApiUrl } from "@/lib/utils";
 import {

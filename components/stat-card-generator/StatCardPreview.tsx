@@ -16,7 +16,7 @@ import {
   trackDialogClose,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { Eye, Info } from "lucide-react";
+import { Eye, Info } from "@/lib/icons";
 import { cn, buildApiUrl } from "@/lib/utils";
 import {
   buildCardUrlWithParams,

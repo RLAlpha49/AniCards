@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
+import type { HugeIcon } from "@/lib/icons";
 
 type HeroBadgeProps = Readonly<{
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  icon: HugeIcon;
   children: React.ReactNode;
   className?: string;
 }>;

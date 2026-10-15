@@ -21,7 +21,7 @@ import {
   ArrowRight,
   Send,
   ExternalLink,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Metadata that powers each social link card in the grid.

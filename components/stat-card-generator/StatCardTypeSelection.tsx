@@ -19,7 +19,7 @@ import {
   Star,
   Eye,
   CheckCircle2,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Definition for a stat card type used in selection.

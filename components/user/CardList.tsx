@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import { Check, Download, Link, Copy, FileArchive } from "lucide-react";
+import { Check, Download, Link, Copy, FileArchive } from "@/lib/icons";
 import { motion } from "motion/react";
 
 /**

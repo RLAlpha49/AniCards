@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, Home, RefreshCw } from "lucide-react";
+import { AlertCircle, Home, RefreshCw } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import { trackError, safeTrack } from "@/lib/utils/google-analytics";
 import { cn } from "@/lib/utils";

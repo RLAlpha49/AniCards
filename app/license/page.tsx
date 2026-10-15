@@ -13,7 +13,7 @@ import {
   Copy,
   Check,
   ExternalLink,
-} from "lucide-react";
+} from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { LoadingSpinner } from "@/components/LoadingSpinner";

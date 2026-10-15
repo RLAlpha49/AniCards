@@ -12,7 +12,7 @@ import {
   Search,
   Sparkles,
   TrendingUp,
-} from "lucide-react";
+} from "@/lib/icons";
 
 interface HeroSectionProps {
   searchQuery: string;

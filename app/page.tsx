@@ -13,7 +13,7 @@ import { PreviewShowcase } from "@/components/home/PreviewShowcase";
 import { FeaturesSection } from "@/components/home/FeaturesSection";
 import { Button } from "@/components/ui/Button";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@/lib/icons";
 import { motion } from "motion/react";
 
 /**

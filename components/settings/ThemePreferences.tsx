@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "motion/react";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
-import { Palette, Sun, Moon, Monitor } from "lucide-react";
+import { Palette, Sun, Moon, Monitor } from "@/lib/icons";
 
 /**
  * Props for ThemePreferences component.

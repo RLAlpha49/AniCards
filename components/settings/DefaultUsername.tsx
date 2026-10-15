@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/Input";
 import { motion } from "motion/react";
-import { User, Check, AtSign } from "lucide-react";
+import { User, Check, AtSign } from "@/lib/icons";
 
 /**
  * Props for the DefaultUsernameSettings component.

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
-import { User, Hash, ArrowRight, Search, Info, Loader2 } from "lucide-react";
+import { User, Hash, ArrowRight, Search, Info, Loader2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
   trackFormSubmission,

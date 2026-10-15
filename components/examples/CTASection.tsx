@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Play, Sparkles } from "lucide-react";
+import { ArrowRight, Play, Sparkles } from "@/lib/icons";
 import UiCtaSection from "@/components/CTASection";
 import HeroBadge from "@/components/HeroBadge";
 

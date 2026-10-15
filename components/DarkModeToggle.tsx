@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { motion } from "motion/react";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon } from "@/lib/icons";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 
 /**

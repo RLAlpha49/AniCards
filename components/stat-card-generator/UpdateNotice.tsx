@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Info, RefreshCw, Clock, Trash2 } from "lucide-react";
+import { Info, RefreshCw, Clock, Trash2 } from "@/lib/icons";
 
 /**
  * Presentational alert describing how to force-refresh or clear cached SVGs.

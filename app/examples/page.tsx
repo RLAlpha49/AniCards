@@ -16,7 +16,7 @@ import {
   Calendar,
   Clock,
   Activity,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   CARD_GROUPS,
   buildCardUrlWithParams,

@@ -1,3 +1,4 @@
+export { cn } from "cn"
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { StoredCardConfig } from "@/lib/types/records";
@@ -165,18 +166,6 @@ export interface BatchConversionProgress {
   success: number;
   failure: number;
   cardIndex: number;
-}
-
-/**
- * Merges and resolves conflicts between Tailwind CSS class names.
- * Uses clsx to conditionally join classes and twMerge to resolve conflicting tailwind directives.
- *
- * @param inputs - List of class names or expressions (of type ClassValue) to be merged.
- * @returns A single merged string of class names.
- * @source
- */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
 }
 
 /**

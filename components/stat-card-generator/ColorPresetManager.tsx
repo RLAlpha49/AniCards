@@ -19,7 +19,7 @@ import {
   CornerDownRight,
   Sparkles,
   ChevronRight,
-} from "lucide-react";
+} from "@/lib/icons";
 
 type ColorTab = "presets" | "custom" | "border";
 

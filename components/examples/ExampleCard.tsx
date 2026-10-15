@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Play, ExternalLink } from "lucide-react";
+import { Play, ExternalLink } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 interface CardVariant {

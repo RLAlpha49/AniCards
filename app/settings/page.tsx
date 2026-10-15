@@ -11,7 +11,7 @@ import { DefaultUsernameSettings } from "@/components/settings/DefaultUsername";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import PageShell from "@/components/PageShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Settings } from "lucide-react";
+import { Settings } from "@/lib/icons";
 
 /**
  * Animation variants for staggered content reveal.

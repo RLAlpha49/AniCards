@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Roboto } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -14,6 +14,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
+import { cn } from "@/lib/utils";
+
+const roboto = Roboto({subsets:['latin'],variable:'--font-sans'});
 
 /**
  * Maps the Geist Sans face to the global CSS variable for site typography.
@@ -89,7 +92,7 @@ export default async function RootLayout({
   const isVercelDeployment = process.env.VERCEL === "1";
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", roboto.variable)}>
       <head>
         <script
           type="application/ld+json"

@@ -21,7 +21,7 @@ import {
   BookOpen,
   Users,
   LayoutGrid,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Set of card type IDs that support the "Show Favorites" option.

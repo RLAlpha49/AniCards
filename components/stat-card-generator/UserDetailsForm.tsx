@@ -8,7 +8,7 @@ import {
   ExternalLink,
   Shield,
   Zap,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Props for the user details form used to enter AniList username.

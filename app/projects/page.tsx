@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Play,
   Sparkles,
-} from "lucide-react";
+} from "@/lib/icons";
 import PageShell from "@/components/PageShell";
 
 /**

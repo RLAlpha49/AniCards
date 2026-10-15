@@ -1,17 +1,17 @@
-import type { LucideIcon } from "lucide-react";
+import type { HugeIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
  * Props for the stat card component showing a small icon and a statistic.
  * @property className - Optional class names to customize the card styling.
- * @property icon - Lucide icon component to render visually.
+ * @property icon - Hugeicons component to render visually.
  * @property title - Small descriptive label for the statistic.
  * @property description - Prominent value or description to display.
  * @source
  */
 interface StatCardProps {
   className?: string;
-  icon: LucideIcon;
+  icon: HugeIcon;
   title: string;
   description: string;
 }
@@ -33,7 +33,7 @@ export function StatCard({
     <div className={cn("flex items-center space-x-4", className)}>
       {/* 
 				Icon display:
-				- Uses Lucide icons
+        - Uses Hugeicons
 				- Muted color for visual hierarchy
 			*/}
       <Icon className="h-6 w-6 text-gray-600 dark:text-gray-400" />

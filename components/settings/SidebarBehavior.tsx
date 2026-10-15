@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 import { Switch } from "@/components/ui/Switch";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
-import { PanelLeftClose, PanelLeft, LayoutPanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft, LayoutPanelLeft } from "@/lib/icons";
 
 /**
  * Props for SidebarBehavior component.

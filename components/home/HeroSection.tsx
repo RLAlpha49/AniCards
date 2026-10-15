@@ -10,7 +10,7 @@ import {
   TrendingUp,
   Palette,
   ArrowDown,
-} from "lucide-react";
+} from "@/lib/icons";
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
 
 /**

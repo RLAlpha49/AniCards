@@ -9,7 +9,7 @@ import {
   CreditCard,
   Database,
   ChevronDown,
-} from "lucide-react";
+} from "@/lib/icons";
 
 /**
  * Props for the ResetSettings component.

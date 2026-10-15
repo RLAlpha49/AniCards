@@ -20,7 +20,7 @@ import {
   CircleDot,
   Droplets,
   AlertCircle,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   Tooltip,
   TooltipContent,

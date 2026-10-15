@@ -6,7 +6,7 @@ import {
   trackExternalLinkClick,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { Mail, ExternalLink, Scale } from "lucide-react";
+import { Mail, ExternalLink, Scale } from "@/lib/icons";
 import {
   SimpleAniListIcon,
   SimpleDiscordIcon,

@@ -4,13 +4,12 @@ import { Fragment, useCallback } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useGeneratorContext } from "./GeneratorContext";
-import type { LucideIcon } from "lucide-react";
-import { Check } from "lucide-react";
+import { Check, type HugeIcon } from "@/lib/icons";
 
 export type WizardStep = {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: HugeIcon;
   description?: string;
 };
 

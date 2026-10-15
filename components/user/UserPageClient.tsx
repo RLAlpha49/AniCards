@@ -13,7 +13,7 @@ import {
   User,
   Heart,
   AlertCircle,
-} from "lucide-react";
+} from "@/lib/icons";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
