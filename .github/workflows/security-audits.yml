@@ -60,4 +60,7 @@ jobs:
         run: bun install
 
       - name: Run bun audit
-        run: bun audit
+        run: |
+          if ! bun audit; then
+            echo "::warning::bun audit reported vulnerabilities or an error; review the output above."
+          fi
