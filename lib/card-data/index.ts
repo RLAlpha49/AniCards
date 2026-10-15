@@ -43,9 +43,16 @@ export {
 // Re-export config module exports
 export {
   needsCardConfigFromDb,
+  classifyCardConfigSource,
   buildCardConfigFromParams,
   resolveEffectiveColorPreset,
   isCustomPreset,
   processCardConfig,
 } from "./config";
-export type { ColorOverrideParams } from "./config";
+export type {
+  CardConfigClassification,
+  CardConfigReason,
+  CardConfigSource,
+  CardConfigSourceParams,
+  ColorOverrideParams,
+} from "./config";

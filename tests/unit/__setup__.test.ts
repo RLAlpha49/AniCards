@@ -36,9 +36,13 @@ export const sharedRedisMockEval = mock(
     return 1;
   },
 );
+export const sharedRedisMockHincrby = mock(async (..._args: unknown[]) => 1);
+export const sharedRedisMockExpire = mock(async (..._args: unknown[]) => 1);
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
+export const sharedRedisMockPipelineHincrby = mock();
+export const sharedRedisMockPipelineExpire = mock();
 export const sharedRedisMockPipelineExec = mock(async () => []);
 
 const sharedRedisPipelineMock = {
@@ -52,6 +56,16 @@ const sharedRedisPipelineMock = {
     sharedRedisMockDel(...args);
     return sharedRedisPipelineMock;
   }),
+  hincrby: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineHincrby(...args);
+    sharedRedisMockHincrby(...args);
+    return sharedRedisPipelineMock;
+  }),
+  expire: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineExpire(...args);
+    sharedRedisMockExpire(...args);
+    return sharedRedisPipelineMock;
+  }),
   exec: sharedRedisMockPipelineExec,
 };
 
@@ -62,6 +76,8 @@ const sharedRedisFakeClient = {
   del: sharedRedisMockDel,
   eval: sharedRedisMockEval,
   incr: sharedRedisMockIncr,
+  hincrby: sharedRedisMockHincrby,
+  expire: sharedRedisMockExpire,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
   mget: sharedRedisMockMget,

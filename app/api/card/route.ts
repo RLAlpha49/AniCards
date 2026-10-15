@@ -20,6 +20,7 @@ import {
   CardDataError,
   resolveUserIdFromUsername,
   needsCardConfigFromDb,
+  classifyCardConfigSource,
   buildCardConfigFromParams,
   processFavorites,
 } from "@/lib/card-data";
@@ -31,6 +32,10 @@ import {
   trackCacheMetric,
 } from "@/lib/stores/svg-cache";
 import { trackUserActionError } from "@/lib/error-tracking";
+import {
+  buildCardUrlProfile,
+  trackCardUrlProfile,
+} from "@/lib/server/url-usage";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
@@ -537,6 +542,29 @@ export async function GET(request: Request) {
     `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
   );
 
+  // Canonical URL profile for the cards-key removal audit. Built before the
+  // cache lookup so cache hits are counted, and written once per request at the
+  // terminal points below so background revalidation cannot double count.
+  const urlProfile = buildCardUrlProfile({
+    routePath: new URL(request.url).pathname,
+    cardType: params.cardType,
+    baseCardType: params.baseCardType,
+    variationParam: params.variationParam,
+    colorPresetParam: params.colorPresetParam,
+    titleColorParam: params.titleColorParam,
+    backgroundColorParam: params.backgroundColorParam,
+    textColorParam: params.textColorParam,
+    circleColorParam: params.circleColorParam,
+    borderColorParam: params.borderColorParam,
+    borderRadiusParam: params.borderRadiusParam,
+    showFavoritesParam: params.showFavoritesParam,
+    statusColorsParam: params.statusColorsParam,
+    piePercentagesParam: params.piePercentagesParam,
+    gridColsParam: params.gridColsParam,
+    gridRowsParam: params.gridRowsParam,
+    classification: classifyCardConfigSource(params),
+  });
+
   const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
     if (raw === null || raw === undefined) return fallback;
     const parsed = Number.parseInt(raw, 10);
@@ -596,6 +624,7 @@ export async function GET(request: Request) {
       })();
 
       // Return stale content immediately while revalidating in background
+      void trackCardUrlProfile(urlProfile, { cache: "stale", status: 200 });
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
         request,
@@ -606,6 +635,7 @@ export async function GET(request: Request) {
     console.log(
       `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
     );
+    void trackCardUrlProfile(urlProfile, { cache: "hit", status: 200 });
     return createSuccessResponse(
       markTrustedSvg(cachedEntry.svg),
       request,
@@ -616,13 +646,18 @@ export async function GET(request: Request) {
   // Cache miss - track and proceed with generation
   void trackCacheMetric(false);
 
-  return generateCardResponse(
+  const response = await generateCardResponse(
     request,
     params,
     effectiveUserId,
     startTime,
     cacheKey,
   );
+  void trackCardUrlProfile(urlProfile, {
+    cache: "miss",
+    status: response.status,
+  });
+  return response;
 }
 
 /**

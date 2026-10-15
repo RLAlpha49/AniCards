@@ -5,11 +5,11 @@ import { ColorValue } from "@/lib/types/card";
 import { CardDataError, getFavoritesForCardType } from "./validation";
 
 /**
- * Determines if we need to fetch card config from DB or can build from URL params.
- * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
+ * Parameters that decide whether a card URL carries enough configuration to
+ * render without reading the stored card record.
  * @source
  */
-export function needsCardConfigFromDb(params: {
+export interface CardConfigSourceParams {
   colorPresetParam: string | null;
   titleColorParam?: string | null;
   backgroundColorParam?: string | null;
@@ -24,15 +24,44 @@ export function needsCardConfigFromDb(params: {
   variationParam?: string | null;
   gridColsParam?: string | null;
   gridRowsParam?: string | null;
-}): boolean {
+}
+
+/** Where a card request gets its rendering configuration. @source */
+export type CardConfigSource = "url" | "db";
+
+/** Why a card request cannot be rendered from URL parameters alone. @source */
+export type CardConfigReason =
+  | "custom_preset"
+  | "missing_colors"
+  | "missing_show_favorites"
+  | "missing_status_colors"
+  | "missing_pie_percentages"
+  | "missing_grid_dims";
+
+/** Configuration source for a card request, with the first missing group. @source */
+export interface CardConfigClassification {
+  source: CardConfigSource;
+  reason?: CardConfigReason;
+}
+
+/**
+ * Classifies whether a card request can be rendered from URL parameters or
+ * needs the stored card configuration, and reports the first missing group.
+ *
+ * Color resolution is satisfied when either a named preset (non-custom) is
+ * present in the URL, or every individual color param is provided. For
+ * presentation flags stored in the DB, the URL must specify the override
+ * explicitly; an absent param means the stored value applies.
+ *
+ * @source
+ */
+export function classifyCardConfigSource(
+  params: CardConfigSourceParams,
+): CardConfigClassification {
   if (params.colorPresetParam === "custom") {
-    return true;
+    return { source: "db", reason: "custom_preset" };
   }
-  // Determine whether the URL provides enough information to build
-  // a complete card config without consulting the DB.
-  // Color resolution is satisfied when either:
-  //  - a named preset (non-custom) is present in the URL, or
-  //  - every individual color param is provided in the URL.
+
   const hasNamedPreset = !!params.colorPresetParam;
   const hasIndividualColors =
     !!params.titleColorParam &&
@@ -40,13 +69,10 @@ export function needsCardConfigFromDb(params: {
     !!params.textColorParam &&
     !!params.circleColorParam;
 
-  const colorsResolved = hasNamedPreset || hasIndividualColors;
-  if (!colorsResolved) return true;
+  if (!hasNamedPreset && !hasIndividualColors) {
+    return { source: "db", reason: "missing_colors" };
+  }
 
-  // For booleans and other presentation flags that are stored in the DB,
-  // we only skip the DB fetch when the URL explicitly specifies the override.
-  // Note: The API accepts "true"/"false" in the query string to make the
-  // explicit override possible; absence of a param means we should consult DB.
   // Only check flags relevant to the base card type / variation.
   const baseType = params.baseCardType ?? "";
   const variation = params.variationParam ?? undefined;
@@ -58,31 +84,47 @@ export function needsCardConfigFromDb(params: {
     "animeStaff",
     "mangaStaff",
   ].includes(baseType);
-  if (favoritesRelevant && params.showFavoritesParam == null) return true;
+  if (favoritesRelevant && params.showFavoritesParam == null) {
+    return { source: "db", reason: "missing_show_favorites" };
+  }
 
   // Status color preference is only meaningful for status distribution cards
   const statusRelevant = [
     "animeStatusDistribution",
     "mangaStatusDistribution",
   ].includes(baseType);
-  if (statusRelevant && params.statusColorsParam == null) return true;
+  if (statusRelevant && params.statusColorsParam == null) {
+    return { source: "db", reason: "missing_status_colors" };
+  }
 
   // Pie-like chart percentages only matter in pie/donut variations
   const pieRelevant = variation === "pie" || variation === "donut";
-  if (pieRelevant && params.piePercentagesParam == null) return true;
-
-  // Favorites grid layout is only meaningful for the favoritesGrid card.
-  const favoritesGridRelevant = baseType === "favoritesGrid";
-  if (
-    favoritesGridRelevant &&
-    (params.gridColsParam == null || params.gridRowsParam == null)
-  ) {
-    return true;
+  if (pieRelevant && params.piePercentagesParam == null) {
+    return { source: "db", reason: "missing_pie_percentages" };
   }
 
-  // If we reached here, the URL includes enough params to build a complete
-  // card configuration without needing the database.
-  return false;
+  // Favorites grid layout is only meaningful for the favoritesGrid card.
+  if (
+    baseType === "favoritesGrid" &&
+    (params.gridColsParam == null || params.gridRowsParam == null)
+  ) {
+    return { source: "db", reason: "missing_grid_dims" };
+  }
+
+  // The URL includes enough params to build a complete card configuration
+  // without needing the database.
+  return { source: "url" };
+}
+
+/**
+ * Determines if we need to fetch card config from DB or can build from URL params.
+ * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
+ * @source
+ */
+export function needsCardConfigFromDb(
+  params: CardConfigSourceParams,
+): boolean {
+  return classifyCardConfigSource(params).source === "db";
 }
 
 /**
