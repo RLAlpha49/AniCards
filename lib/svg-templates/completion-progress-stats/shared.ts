@@ -70,13 +70,19 @@ export function normalizeStatusCounts(statuses: StatusCount[]): StatusCount[] {
 }
 
 export function toSvgIdFragment(value: string): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+/, "")
-    .replace(/-+$/, "")
-    .slice(0, 48);
+  return (
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      // Any run of unsupported characters becomes a single hyphen.
+      .replaceAll(/[^a-z0-9_-]+/g, "-")
+      // Hyphens are legal in the class above, so collapse runs of them here.
+      .replaceAll(/-{2,}/g, "-")
+      // Anchored single-character strips, so no trailing quantifier has to backtrack.
+      .replace(/^-/, "")
+      .replace(/-$/, "")
+      .slice(0, 48)
+  );
 }
 
 /**
