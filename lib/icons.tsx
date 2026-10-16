@@ -87,12 +87,13 @@ import {
 } from "@hugeicons/core-free-icons";
 
 type IconData = HugeiconsIconProps["icon"];
-export type HugeIcon = React.ComponentType<
-  Omit<HugeiconsIconProps, "icon">
->;
+export type HugeIcon = React.ComponentType<Omit<HugeiconsIconProps, "icon">>;
 
 function createIcon(icon: IconData, displayName: string): HugeIcon {
-  function Icon({ color = "currentColor", ...props }: Omit<HugeiconsIconProps, "icon">) {
+  function Icon({
+    color = "currentColor",
+    ...props
+  }: Omit<HugeiconsIconProps, "icon">) {
     return <HugeiconsIcon icon={icon} color={color} {...props} />;
   }
 
@@ -123,7 +124,10 @@ export const CircleDot = createIcon(CircleDotData, "CircleDot");
 export const Clock = createIcon(ClockData, "Clock");
 export const Code2 = createIcon(CodeData, "Code2");
 export const Copy = createIcon(CopyData, "Copy");
-export const CornerDownRight = createIcon(CornerDownRightData, "CornerDownRight");
+export const CornerDownRight = createIcon(
+  CornerDownRightData,
+  "CornerDownRight",
+);
 export const CreditCard = createIcon(CreditCardData, "CreditCard");
 export const Database = createIcon(DatabaseData, "Database");
 export const Download = createIcon(DownloadData, "Download");
@@ -145,7 +149,10 @@ export const Home = createIcon(HomeData, "Home");
 export const Info = createIcon(InfoData, "Info");
 export const Layers = createIcon(LayersData, "Layers");
 export const LayoutGrid = createIcon(LayoutGridData, "LayoutGrid");
-export const LayoutPanelLeft = createIcon(LayoutPanelLeftData, "LayoutPanelLeft");
+export const LayoutPanelLeft = createIcon(
+  LayoutPanelLeftData,
+  "LayoutPanelLeft",
+);
 export const Lightbulb = createIcon(LightbulbData, "Lightbulb");
 export const Link = createIcon(LinkData, "Link");
 export const List = createIcon(ListData, "List");

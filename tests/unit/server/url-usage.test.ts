@@ -128,7 +128,9 @@ describe("Card URL usage tracking", () => {
 
     it("should record a named preset by name and an unknown preset as unknown", () => {
       expect(
-        buildCardUrlProfile(createProfileInput({ colorPresetParam: "default" })),
+        buildCardUrlProfile(
+          createProfileInput({ colorPresetParam: "default" }),
+        ),
       ).toContain("colorPreset=default");
 
       expect(

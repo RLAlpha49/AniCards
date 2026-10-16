@@ -1,4 +1,4 @@
-export { cn } from "cn"
+export { cn } from "cn";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { StoredCardConfig } from "@/lib/types/records";

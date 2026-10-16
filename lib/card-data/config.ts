@@ -121,9 +121,7 @@ export function classifyCardConfigSource(
  * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
  * @source
  */
-export function needsCardConfigFromDb(
-  params: CardConfigSourceParams,
-): boolean {
+export function needsCardConfigFromDb(params: CardConfigSourceParams): boolean {
   return classifyCardConfigSource(params).source === "db";
 }
 

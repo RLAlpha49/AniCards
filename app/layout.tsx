@@ -16,7 +16,7 @@ import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
 import { cn } from "@/lib/utils";
 
-const roboto = Roboto({subsets:['latin'],variable:'--font-sans'});
+const roboto = Roboto({ subsets: ["latin"], variable: "--font-sans" });
 
 /**
  * Maps the Geist Sans face to the global CSS variable for site typography.
@@ -92,7 +92,11 @@ export default async function RootLayout({
   const isVercelDeployment = process.env.VERCEL === "1";
 
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", roboto.variable)}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn("font-sans", roboto.variable)}
+    >
       <head>
         <script
           type="application/ld+json"
