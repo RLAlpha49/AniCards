@@ -70,7 +70,7 @@ const nextConfig: NextConfig = {
    * - Referrer-Policy: Control referrer information sent to other origins
    * - Permissions-Policy: Disable unnecessary browser features
    */
-  async headers() {
+  headers() {
     return [
       {
         // Apply security headers to all routes
@@ -110,7 +110,7 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  async rewrites() {
+  rewrites() {
     const primaryRules = [
       {
         source: "/:path((?!api/).*)",

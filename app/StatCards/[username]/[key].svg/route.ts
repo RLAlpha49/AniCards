@@ -3,7 +3,7 @@
  * @returns Response containing the update prompt SVG content.
  * @source
  */
-export async function GET() {
+export function GET() {
   const svgContent = `
     <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">
       <rect width="100%" height="100%" fill="#0b1622"/>

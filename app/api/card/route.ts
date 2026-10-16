@@ -341,8 +341,8 @@ function extractAndValidateParams(
  * @returns Promise that resolves once the analytics call is fired.
  * @source
  */
-async function trackFailedRequest(): Promise<void> {
-  incrementAnalytics(
+function trackFailedRequest(): Promise<void> {
+  return incrementAnalytics(
     buildAnalyticsMetricKey("card_svg", "failed_requests"),
   ).catch(() => {});
 }
@@ -353,8 +353,8 @@ async function trackFailedRequest(): Promise<void> {
  * @returns Promise that resolves once the analytics call is fired.
  * @source
  */
-async function trackSuccessfulRequest(): Promise<void> {
-  incrementAnalytics(
+function trackSuccessfulRequest(): Promise<void> {
+  return incrementAnalytics(
     buildAnalyticsMetricKey("card_svg", "successful_requests"),
   ).catch(() => {});
 }

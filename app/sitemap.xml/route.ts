@@ -54,7 +54,7 @@ const pages = [
  * @returns {Promise<NextResponse>} Sitemap response consumed by crawlers.
  * @source
  */
-export async function GET() {
+export function GET() {
   const lastmod = new Date().toISOString();
 
   const urls = pages

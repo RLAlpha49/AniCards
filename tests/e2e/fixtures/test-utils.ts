@@ -254,7 +254,7 @@ export class GeneratorPage {
   }
 
   /** Check if error popup is visible */
-  async isErrorPopupVisible() {
+  isErrorPopupVisible() {
     const errorPopup = this.page
       .locator('[role="alert"]')
       .or(this.page.getByText(/error|failed/i));
@@ -262,7 +262,7 @@ export class GeneratorPage {
   }
 
   /** Get the error message from the error popup */
-  async getErrorMessage() {
+  getErrorMessage() {
     const errorText = this.page.locator('[role="alert"]').first();
     return errorText.textContent();
   }
