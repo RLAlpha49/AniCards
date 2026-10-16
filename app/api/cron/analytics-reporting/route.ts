@@ -153,13 +153,21 @@ async function fetchAnalyticsData(
     (key) => key !== ANALYTICS_REPORTS_KEY,
   );
 
+  if (analyticsKeys.length === 0) {
+    return {};
+  }
+
+  // One MGET instead of a GET per key: Upstash Redis is HTTP-based, so each
+  // individual command costs a round trip.
+  const rawValues = await redisClient.mget<(string | null)[]>(...analyticsKeys);
+
   const analyticsData: Record<string, number> = {};
 
-  for (const key of analyticsKeys) {
-    const valueStr = await redisClient.get(key);
+  analyticsKeys.forEach((key, index) => {
+    const valueStr = rawValues[index];
     if (!valueStr) {
       analyticsData[key] = 0;
-      continue;
+      return;
     }
 
     let parsedValue = Number(valueStr);
@@ -168,7 +176,7 @@ async function fetchAnalyticsData(
       parsedValue = safeParse<any>(valueStr);
     }
     analyticsData[key] = parsedValue;
-  }
+  });
 
   return analyticsData;
 }
