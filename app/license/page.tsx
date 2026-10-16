@@ -87,7 +87,8 @@ export default function LicensePage() {
       }
     };
 
-    fetchLicense();
+    // Errors are handled inside fetchLicense's own try/catch/finally.
+    void fetchLicense();
   }, []);
 
   /**

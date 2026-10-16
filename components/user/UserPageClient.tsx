@@ -329,9 +329,7 @@ export function UserPageClient() {
   const [showAllCards, setShowAllCards] = useState(false);
   const pageTimestamp = useMemo(() => Date.now(), []);
 
-  async function resolveCardsFromParam(
-    cardsParam: string,
-  ): Promise<CardData[] | null> {
+  function resolveCardsFromParam(cardsParam: string): CardData[] | null {
     try {
       return parseAndValidateCards(cardsParam);
     } catch (e) {
@@ -407,7 +405,7 @@ export function UserPageClient() {
     cards: CardData[];
     showAll: boolean;
   } | null> {
-    const parsed = await resolveCardsFromParam(cardsParamArg);
+    const parsed = resolveCardsFromParam(cardsParamArg);
     if (!parsed) return null;
     if (userIdArg) {
       return {
@@ -485,7 +483,8 @@ export function UserPageClient() {
       }
     };
 
-    loadUserData();
+    // Errors are handled inside loadUserData's own try/catch/finally.
+    void loadUserData();
   }, [searchParams]);
 
   // Loading state with consistent styling

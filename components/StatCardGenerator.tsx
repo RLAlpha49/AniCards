@@ -132,7 +132,8 @@ function useGeneratorKeyboardShortcuts({
       // Ctrl+Enter or Cmd+Enter to generate
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && isFinalStep) {
         if (canGenerate && !loading) {
-          handleSubmit();
+          // handleSubmit reports failures through the generator's error state.
+          void handleSubmit();
         }
         e.preventDefault();
       }

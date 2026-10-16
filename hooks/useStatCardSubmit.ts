@@ -671,8 +671,8 @@ export function useStatCardSubmit() {
       ]);
 
       // Validate storage responses and surface helpful errors
-      checkResponseOrThrow(storeUserResponse, "Store users failed");
-      checkResponseOrThrow(storeCardsResponse, "Store cards failed");
+      await checkResponseOrThrow(storeUserResponse, "Store users failed");
+      await checkResponseOrThrow(storeCardsResponse, "Store cards failed");
 
       return { success: true, userId: userIdData.User.id };
     } catch (err) {
