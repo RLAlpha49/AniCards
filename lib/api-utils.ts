@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
@@ -59,6 +59,158 @@ function createRealRedisClient(): Redis {
     latencyLogging: process.env.NODE_ENV !== "production",
   });
   return _realRedisClient;
+}
+
+/**
+ * Public site origin used as the production fallback for JSON API CORS.
+ * Mirrors the default in `lib/seo.ts` so both read one value.
+ * @source
+ */
+const DEFAULT_SITE_ORIGIN = "https://anicards.alpha49.com";
+
+/**
+ * Resolves the configured site origin, or the hardcoded default.
+ *
+ * Read at call time rather than at import time so a test or a script can set
+ * the variable after this module is loaded.
+ *
+ * @returns A parseable origin. Never empty, because a misconfigured value
+ *   falls back to the default rather than to an empty string that no browser
+ *   would match.
+ * @source
+ */
+function getSiteOrigin(): string {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_ORIGIN;
+  return normalizeOrigin(raw) ?? DEFAULT_SITE_ORIGIN;
+}
+
+/**
+ * Resolves the origin configured for the JSON APIs.
+ *
+ * `NEXT_PUBLIC_APP_URL` is the API origin; `NEXT_PUBLIC_SITE_URL` is the
+ * public site origin used by `lib/seo.ts`. They stay separate variables
+ * because they describe different deployments, and the site origin is used
+ * only as the production fallback below, never as a substitute for the
+ * configured API origin.
+ *
+ * @returns The configured origin, or null when the variable is unset or unusable.
+ * @source
+ */
+function getConfiguredApiOrigin(): string | null {
+  return normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
+}
+
+/**
+ * Key prefix `@upstash/ratelimit` uses for its analytics event buckets.
+ * Only keys with this prefix receive the analytics TTL below.
+ * @source
+ */
+const RATE_LIMIT_ANALYTICS_KEY_PREFIX = "@upstash/ratelimit:events:";
+
+/**
+ * Retention applied to rate limit analytics buckets, in seconds (90 days).
+ * Matches the `retention: "90d"` value `@upstash/ratelimit` asks
+ * `@upstash/core-analytics` for.
+ * @source
+ */
+const RATE_LIMIT_ANALYTICS_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+/**
+ * Wraps a Redis client so that rate limit analytics buckets expire.
+ *
+ * `@upstash/ratelimit` configures `@upstash/core-analytics` with a 90 day
+ * retention, but core-analytics 0.0.10 ignores it: the shipped package contains
+ * no `retention`, `expire`, or delete path, and reading a bucket does not evict
+ * it either. Without this wrapper every `@upstash/ratelimit:events:<hour>` key
+ * would live forever.
+ *
+ * The wrapper sends the analytics write and its `EXPIRE ... NX` as one
+ * pipeline, so Redis runs them in order within a single request and the key
+ * always exists before the expiry is applied. `NX` means only the first write
+ * of an hour bucket sets the TTL, so later events in the same hour do not push
+ * the expiry forward. Sending both commands in one request also makes the
+ * ordering a property of the command batch rather than of a shared write
+ * buffer, so the wrapper needs nothing from the client's auto-pipelining
+ * configuration.
+ *
+ * `EXPIRE ... NX` returns 1 when it set the TTL and 0 when the key already had
+ * one, so 0 is the healthy reply for every write after the first in a bucket.
+ * Anything else means the bucket was missing or the reply could not be read,
+ * and that is what the wrapper reports. Warning on 0 would fire on essentially
+ * every request and misreport a bucket that does have a TTL.
+ *
+ * Only `zincrby` is wrapped, because it is the only write
+ * `@upstash/core-analytics` issues against an events bucket; the aggregation
+ * path reads through `eval` instead. `@upstash/ratelimit` is `~2.0.8` and it
+ * depends on `@upstash/core-analytics` at `^0.0.10`, which for a 0.0.x version
+ * resolves to 0.0.10 alone. An upgrade that switched ingest to another command
+ * would create un-expiring keys again, so
+ * `tests/unit/lib/api-utils.test.ts` pins the wrapped command name.
+ *
+ * @param client - The Redis client to wrap.
+ * @returns A client whose rate limit analytics writes carry a TTL.
+ * @source
+ */
+function withExpiringRateLimitAnalytics(client: Redis): Redis {
+  return new Proxy(client as unknown as Record<string, unknown>, {
+    get(target, prop: string | symbol) {
+      const value: unknown = (target as Record<string | symbol, unknown>)[prop];
+      if (prop === "zincrby" && typeof value === "function") {
+        return (key: string, ...rest: unknown[]) => {
+          if (!key.startsWith(RATE_LIMIT_ANALYTICS_KEY_PREFIX)) {
+            return (value as (...args: unknown[]) => Promise<unknown>).apply(
+              target,
+              [key, ...rest],
+            );
+          }
+          const pipeline = (
+            target.pipeline as () => {
+              zincrby: (
+                key: string,
+                increment: number,
+                member: unknown,
+              ) => unknown;
+              expire: (key: string, seconds: number, mode: string) => unknown;
+              exec: () => Promise<unknown[]>;
+            }
+          ).call(target);
+          pipeline.zincrby(key, ...(rest as [number, unknown]));
+          pipeline.expire(key, RATE_LIMIT_ANALYTICS_TTL_SECONDS, "NX");
+          return pipeline.exec().then((results) => {
+            const expiryReply = Number(results[1]);
+            // 1 set the TTL, 0 found one already present. Any other reply means
+            // the bucket did not exist for the EXPIRE or the reply was
+            // unreadable, so the key could outlive its retention.
+            if (expiryReply !== 1 && expiryReply !== 0) {
+              console.warn(
+                `[Rate Limit] Analytics expiry for ${key} returned ${String(results[1])}; the bucket may not expire.`,
+              );
+            }
+            return results[0];
+          });
+        };
+      }
+      if (typeof value === "function")
+        return (...args: unknown[]) =>
+          (value as (...args: unknown[]) => unknown).apply(target, args);
+      return value;
+    },
+  }) as unknown as Redis;
+}
+
+/**
+ * Lazily-initialized Redis client reserved for rate limiter instances.
+ *
+ * Kept separate from {@link redisClient} so the analytics expiry wrapper sits
+ * only on the limiter path and application reads and writes stay untouched.
+ * @source
+ */
+let _rateLimitRedisClient: Redis | undefined;
+function createRateLimitRedisClient(): Redis {
+  _rateLimitRedisClient ??= withExpiringRateLimitAnalytics(
+    createRealRedisClient(),
+  );
+  return _rateLimitRedisClient;
 }
 
 /**
@@ -126,9 +278,9 @@ let _realRatelimit: Ratelimit | undefined;
 export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   get(_: unknown, prop: string | symbol) {
     _realRatelimit ??= new Ratelimit({
-      redis: createRealRedisClient(),
+      redis: createRateLimitRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
-      analytics: false,
+      analytics: true,
     });
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -140,9 +292,9 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   },
   set(_: unknown, prop: string | symbol, value: unknown) {
     _realRatelimit ??= new Ratelimit({
-      redis: createRealRedisClient(),
+      redis: createRateLimitRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
-      analytics: false,
+      analytics: true,
     });
     (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -166,12 +318,16 @@ export function createRateLimiter(options?: {
   const limit = options?.limit ?? 10;
   const window =
     options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
-  const redis = options?.redis ?? createRealRedisClient();
+  // A supplied client is wrapped too, so analytics writes expire whichever
+  // client the limiter was handed.
+  const redis = withExpiringRateLimitAnalytics(
+    options?.redis ?? createRealRedisClient(),
+  );
 
   return new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit, window),
-    analytics: false,
+    analytics: true,
   });
 }
 
@@ -226,20 +382,28 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
 
 /**
  * Determine the Access-Control-Allow-Origin value used by JSON API endpoints.
- * Priority: NEXT_PUBLIC_APP_URL env -> production fallback -> request origin or '*'.
- * This helper centralizes CORS policy for JSON APIs.
+ *
+ * Precedence: the configured app or site origin, then the site origin in
+ * production, then the request origin in development. The wildcard is only
+ * reachable in development; in production the site origin is always available,
+ * so a request origin is never reflected back.
+ *
  * @param request - Optional Request used to extract the request origin in development.
+ * @returns An origin, or `*` when running outside production with nothing configured.
+ * @source
  */
 export function getAllowedApiOrigin(request?: Request): string {
-  const rawConfigured = process.env.NEXT_PUBLIC_APP_URL;
-  const configured = normalizeOrigin(rawConfigured);
+  const configured = getConfiguredApiOrigin();
 
-  let origin: string | undefined;
+  let origin: string;
 
   if (configured) {
     origin = configured;
   } else if (process.env.NODE_ENV === "production") {
-    origin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ?? "*";
+    origin = getSiteOrigin();
+    console.warn(
+      "[API CORS] No API origin is configured; using the site origin for Access-Control-Allow-Origin",
+    );
   } else {
     const requestOrigin = request?.headers?.get("origin");
     const requestNormalized = normalizeOrigin(requestOrigin);
@@ -303,7 +467,18 @@ export async function checkRateLimit(
   limiter?: Ratelimit,
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
-  const { success } = await effectiveLimiter.limit(ip);
+  const { success, pending } = await effectiveLimiter.limit(ip);
+  // The analytics write is a separate request the limiter reports through
+  // `pending`. Upstash documents that a serverless runtime can freeze before it
+  // lands, which under-reports the dashboard, so hand it to `after` to keep the
+  // invocation alive without delaying this response. Outside a request scope
+  // (unit tests, scripts) the scheduling is skipped and the promise is left to
+  // settle on its own.
+  try {
+    after(pending);
+  } catch {
+    /* no request scope; let `pending` settle on its own */
+  }
   if (!success) {
     console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
     await incrementAnalytics(
@@ -331,7 +506,7 @@ export function validateSameOrigin(
 ): NextResponse<ApiError> | null {
   const origin = request.headers.get("origin");
   const requestOrigin = new URL(request.url).origin;
-  const configuredAppOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  const configuredAppOrigin = getConfiguredApiOrigin();
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
   // Allow internal requests (no origin) or same-origin requests
