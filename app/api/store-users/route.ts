@@ -6,6 +6,7 @@ import {
   fetchUserDataParts,
   saveUserRecord,
   syncUsernameIndex,
+  USER_DATA_PARTS,
 } from "@/lib/server/user-data";
 import {
   incrementAnalytics,
@@ -33,7 +34,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, ip, endpoint, endpointKey } = init;
+  const { startTime, endpoint, endpointKey } = init;
 
   try {
     const data = await request.json();
@@ -57,7 +58,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     let createdAt = new Date().toISOString();
     let previousUsername: string | undefined;
 
-    const partsData = await fetchUserDataParts(data.userId, ["meta"]);
+    // Every part is read because `saveUserRecord` diffs the record against
+    // what is stored and writes only what changed, which keeps a refresh from
+    // rewriting sections it did not touch. The read is one MGET, so it costs
+    // payload bytes rather than extra round trips.
+    const partsData = await fetchUserDataParts(data.userId, USER_DATA_PARTS);
     if (partsData.meta) {
       const meta = partsData.meta as Record<string, unknown>;
       createdAt = (meta.createdAt as string) || createdAt;
@@ -69,7 +74,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       userId: data.userId,
       username: data.username,
       stats: data.stats,
-      ip,
       createdAt,
       updatedAt: new Date().toISOString(),
     };
@@ -88,7 +92,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
     );
 
-    await saveUserRecord(finalUserData);
+    await saveUserRecord(finalUserData, partsData);
 
     const previousUsernameIndexKey = buildUsernameIndexKey(previousUsername);
     const currentUsernameIndexKey = buildUsernameIndexKey(

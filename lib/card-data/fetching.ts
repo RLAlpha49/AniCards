@@ -9,6 +9,7 @@ import { CardDataError } from "./validation";
 import {
   fetchUserDataParts,
   reconstructUserRecord,
+  USER_DATA_PARTS,
   UserDataPart,
   getPartsForCard,
 } from "@/lib/server/user-data";
@@ -82,19 +83,10 @@ export async function fetchUserDataOnly(
   numericUserId: number,
 ): Promise<UserRecord> {
   try {
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
+    const userDataParts = await fetchUserDataParts(
+      numericUserId,
+      USER_DATA_PARTS,
+    );
 
     if (!userDataParts.meta) {
       throw new CardDataError("Not Found: User data not found", 404);
@@ -124,19 +116,7 @@ export async function fetchUserData(
   numericUserId: number,
   cardName?: string,
 ): Promise<{ cardDoc: CardsRecord; userDoc: UserRecord }> {
-  const parts = cardName
-    ? getPartsForCard(cardName)
-    : ([
-        "meta",
-        "activity",
-        "favourites",
-        "statistics",
-        "pages",
-        "planning",
-        "current",
-        "rewatched",
-        "completed",
-      ] as UserDataPart[]);
+  const parts = cardName ? getPartsForCard(cardName) : USER_DATA_PARTS;
 
   // Fetch cards data first - if this fails with a Redis error, let it bubble up
   // to generate a generic "Internal Error" response as expected by tests.

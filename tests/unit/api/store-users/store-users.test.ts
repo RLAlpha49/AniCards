@@ -12,10 +12,17 @@ import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockDel,
+  sharedRedisMockEval,
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
+  sharedRedisMockZadd,
   sharedRatelimitMockLimit,
 } from "@/tests/unit/__setup__.test";
+import {
+  USER_DATA_PARTS,
+  USER_REFRESH_INDEX_KEY,
+  getUserDataKey,
+} from "@/lib/server/user-data";
 
 // Set the app URL for same-origin validation testing
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -80,6 +87,18 @@ async function mgetReturnCorruptedData(
   ...keys: string[]
 ): Promise<(string | null)[]> {
   return keys.map(() => "corrupted data");
+}
+
+function createValidStatsPayload() {
+  return {
+    User: {
+      statistics: {
+        anime: { count: 1 },
+        manga: { count: 0 },
+      },
+      stats: { activityHistory: [] },
+    },
+  };
 }
 
 describe("Store Users API", () => {
@@ -295,10 +314,14 @@ describe("Store Users API", () => {
   describe("POST - Successful User Creation & Updates", () => {
     it("should successfully store new user with username", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
+      const reqBody = {
+        userId: 1,
+        username: "UserOne",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -307,19 +330,20 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(1);
 
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
-      // 9 parts (split storage) + 1 username index = 10 sets
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        ...USER_DATA_PARTS.map((part) => getUserDataKey(1, part)),
+      );
+      // The record is new, so every part is written: 9 parts + 1 username index
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(String(metaValue.userId)).toBe(String(1));
       expect(metaValue.username).toBe("UserOne");
-      expect(metaValue.ip).toBe("127.0.0.1");
+      expect(metaValue.ip).toBeUndefined();
       expect(metaValue).toHaveProperty("createdAt");
       expect(metaValue).toHaveProperty("updatedAt");
 
-      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
-      expect(statsValue).toEqual({ score: 10 });
+      expect(sharedRedisMockSet.mock.calls[3][0]).toBe("user:1:statistics");
 
       expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:userone");
       expect(sharedRedisMockSet.mock.calls[9][1]).toBe("1");
@@ -331,10 +355,10 @@ describe("Store Users API", () => {
 
     it("should successfully store new user without username", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 2, stats: { score: 20 } };
+      const reqBody = { userId: 2, stats: createValidStatsPayload() };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -352,10 +376,14 @@ describe("Store Users API", () => {
 
     it("should accept null username explicitly", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 3, username: null, stats: { score: 30 } };
+      const reqBody = {
+        userId: 3,
+        username: null,
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -367,13 +395,13 @@ describe("Store Users API", () => {
 
     it("should normalize username (trim and lowercase)", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = {
         userId: 4,
         username: "  UserName  ",
-        stats: { score: 40 },
+        stats: createValidStatsPayload(),
       };
       const req = createTestRequest(reqBody, "http://localhost");
 
@@ -387,7 +415,7 @@ describe("Store Users API", () => {
 
     it("should compute and store animeSourceMaterialDistributionTotals before pruning", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
       const statsPayload = {
@@ -485,7 +513,7 @@ describe("Store Users API", () => {
 
     it("should compute and store animeSeasonalPreferenceTotals before pruning", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
       sharedRedisMockSet.mockResolvedValue(true);
 
       const statsPayload = {
@@ -587,7 +615,6 @@ describe("Store Users API", () => {
 
     it("should compute and store animeGenreSynergyTotals before pruning", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
       const statsPayload = {
@@ -675,7 +702,6 @@ describe("Store Users API", () => {
 
     it("should persist userReviews/userRecommendations and dropped lists", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
       const statsPayload = {
@@ -817,35 +843,36 @@ describe("Store Users API", () => {
 
     it("should update existing user and preserve createdAt", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const existingRecord = {
-        userId: 5,
-        username: "OldName",
-        stats: { score: 5 },
-        ip: "127.0.0.1",
-        createdAt: "2022-01-01T00:00:00.000Z",
-        updatedAt: "2022-01-01T00:00:00.000Z",
-      };
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockEval.mockResolvedValueOnce(1);
+      sharedRedisMockMget.mockResolvedValueOnce([
+        JSON.stringify({
+          userId: "5",
+          username: "OldName",
+          ip: "127.0.0.1",
+          createdAt: "2022-01-01T00:00:00.000Z",
+          updatedAt: "2022-01-01T00:00:00.000Z",
+        }),
+      ]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 5, username: "NewName", stats: { score: 100 } };
+      const reqBody = {
+        userId: 5,
+        username: "NewName",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) + 1 (username) = 19
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
-      // The last save's meta is at index 9
-      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.username).toBe("NewName");
 
-      // The last save's stats is at index 10
-      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[10][1]);
-      expect(statsValue).toEqual({ score: 100 });
+      expect(sharedRedisMockSet.mock.calls[3][0]).toBe("user:5:statistics");
     });
 
     it("should handle complex stats objects", async () => {
@@ -854,11 +881,14 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const complexStats = {
-        animeCount: 150,
-        mangaCount: 75,
-        totalGenres: 20,
-        topGenres: ["Action", "Drama", "Sci-Fi"],
-        stats: { avg_score: 7.5 },
+        ...createValidStatsPayload(),
+        custom: {
+          animeCount: 150,
+          mangaCount: 75,
+          totalGenres: 20,
+          topGenres: ["Action", "Drama", "Sci-Fi"],
+          stats: { avg_score: 7.5 },
+        },
       };
       const reqBody = { userId: 6, username: "user6", stats: complexStats };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -867,58 +897,125 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
 
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
-      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
-      expect(statsValue).toEqual(complexStats);
+      expect(sharedRedisMockSet.mock.calls[3][0]).toBe("user:6:statistics");
     });
 
     it("should update existing user without username when not provided", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const existingRecord = {
-        userId: 7,
-        username: "ExistingName",
-        stats: { score: 10 },
-        ip: "127.0.0.1",
-        createdAt: "2022-01-01T00:00:00.000Z",
-        updatedAt: "2022-01-01T00:00:00.000Z",
-      };
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockEval.mockResolvedValueOnce(1);
+      sharedRedisMockMget.mockResolvedValueOnce([
+        JSON.stringify({
+          userId: "7",
+          username: "ExistingName",
+          ip: "127.0.0.1",
+          createdAt: "2022-01-01T00:00:00.000Z",
+          updatedAt: "2022-01-01T00:00:00.000Z",
+        }),
+      ]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 7, stats: { score: 50 } };
+      const reqBody = { userId: 7, stats: createValidStatsPayload() };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) = 18
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(18);
-      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(metaValue.username).toBeUndefined();
     });
 
     it("should replace username when changing from existing name to new name", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const existingRecord = {
-        userId: 8,
-        username: "OldName",
-        stats: { score: 10 },
-        ip: "127.0.0.1",
-        createdAt: "2022-01-01T00:00:00.000Z",
-        updatedAt: "2022-01-01T00:00:00.000Z",
-      };
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockEval.mockResolvedValueOnce(1);
+      sharedRedisMockMget.mockResolvedValueOnce([
+        JSON.stringify({
+          userId: "8",
+          username: "OldName",
+          ip: "127.0.0.1",
+          createdAt: "2022-01-01T00:00:00.000Z",
+          updatedAt: "2022-01-01T00:00:00.000Z",
+        }),
+      ]);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 8, username: "NewName", stats: { score: 50 } };
+      const reqBody = {
+        userId: 8,
+        username: "NewName",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) + 1 (username) = 19
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
-      expect(sharedRedisMockSet.mock.calls[18][0]).toBe("username:newname");
-      expect(sharedRedisMockSet.mock.calls[18][1]).toBe("8");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
+      expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:newname");
+      expect(sharedRedisMockSet.mock.calls[9][1]).toBe("8");
+    });
+
+    it("should skip unchanged parts when the stored record matches", async () => {
+      sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const reqBody = {
+        userId: 21,
+        username: "user21",
+        stats: createValidStatsPayload(),
+      };
+
+      // A new user has no stored parts, so the first save writes all of them.
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
+      expect((await POST(createTestRequest(reqBody))).status).toBe(200);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
+
+      const storedByKey = new Map(
+        sharedRedisMockSet.mock.calls.map(([key, value]) => [key, value]),
+      );
+      sharedRedisMockSet.mockClear();
+      sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+        keys.map((key) => (storedByKey.get(key) as string | undefined) ?? null),
+      );
+
+      // Re-saving the same stats rewrites at most meta (new updatedAt) and the
+      // username index, and leaves the data parts untouched.
+      expect((await POST(createTestRequest(reqBody))).status).toBe(200);
+
+      const rewrittenKeys = sharedRedisMockSet.mock.calls.map(([key]) => key);
+      expect(rewrittenKeys).not.toContain("user:21:statistics");
+      expect(rewrittenKeys).not.toContain("user:21:activity");
+      expect(rewrittenKeys).not.toContain("user:21:completed");
+      expect(rewrittenKeys.length).toBeLessThanOrEqual(2);
+    });
+
+    it("should rescore the refresh index when a save writes parts", async () => {
+      sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+      sharedRedisMockZadd.mockClear();
+      sharedRedisMockMget.mockResolvedValueOnce([null]);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const reqBody = {
+        userId: 31,
+        username: "user31",
+        stats: createValidStatsPayload(),
+      };
+      const res = await POST(createTestRequest(reqBody));
+
+      expect(res.status).toBe(200);
+      // The index is what the cron job selects from, so a save that writes
+      // anything has to move the user to the back of the refresh queue. A
+      // regression here would leave users permanently at the head.
+      expect(sharedRedisMockZadd).toHaveBeenCalledWith(USER_REFRESH_INDEX_KEY, {
+        score: expect.any(Number),
+        member: "31",
+      });
+      const zaddArgs = sharedRedisMockZadd.mock.calls[0] as [
+        string,
+        { score: number },
+      ];
+      // A freshly saved record scores as "just now", so it sorts behind every
+      // older record rather than at the head.
+      expect(zaddArgs[1].score).toBeGreaterThan(Date.now() - 60_000);
     });
   });
 
@@ -929,7 +1026,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 9, username: "user9", stats: { score: 10 } };
+      const reqBody = {
+        userId: 9,
+        username: "user9",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -949,7 +1050,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 10, username: "user10", stats: { score: 10 } };
+      const reqBody = {
+        userId: 10,
+        username: "user10",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -972,7 +1077,11 @@ describe("Store Users API", () => {
         new Error("Redis failure"),
       );
 
-      const reqBody = { userId: 11, username: "user11", stats: { score: 30 } };
+      const reqBody = {
+        userId: 11,
+        username: "user11",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -988,7 +1097,11 @@ describe("Store Users API", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockMget.mockRejectedValueOnce(new Error("Redis get failure"));
 
-      const reqBody = { userId: 12, username: "user12", stats: { score: 30 } };
+      const reqBody = {
+        userId: 12,
+        username: "user12",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1003,7 +1116,11 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 13, username: "user13", stats: { score: 30 } };
+      const reqBody = {
+        userId: 13,
+        username: "user13",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1022,7 +1139,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 14, username: "user14", stats: { score: 30 } };
+      const reqBody = {
+        userId: 14,
+        username: "user14",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1070,10 +1191,13 @@ describe("Store Users API", () => {
   describe("POST - Analytics Tracking", () => {
     it("should increment successful_requests metric on success", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValueOnce(true);
 
-      const reqBody = { userId: 16, username: "user16", stats: { score: 10 } };
+      const reqBody = {
+        userId: 16,
+        username: "user16",
+        stats: createValidStatsPayload(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);
@@ -1108,7 +1232,6 @@ describe("Store Users API", () => {
 
     it("should increment failed_requests metric on Redis error", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockPipelineExec.mockRejectedValueOnce(
         new Error("Redis failure"),
       );

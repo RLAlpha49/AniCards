@@ -18,9 +18,24 @@ export const sharedRedisMockDel = mock();
 export const sharedRedisMockIncr = mock(async () => 1);
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock(async () => []);
+/**
+ * Shared MGET mock.
+ *
+ * The return type mirrors what `@upstash/redis` actually hands back: it parses
+ * stored JSON, so a value written as `"1"` arrives as the number 1 rather than
+ * a string. Typing it as string-only let a real `Buffer.byteLength` failure
+ * pass CI, so the wider type is deliberate.
+ */
 export const sharedRedisMockMget = mock(
-  async (...keys: string[]): Promise<(string | null)[]> => keys.map(() => null),
+  async (...keys: string[]): Promise<(string | number | null)[]> =>
+    keys.map(() => null),
 );
+export const sharedRedisMockZadd = mock(async (..._args: unknown[]) => 0);
+export const sharedRedisMockZrange = mock(
+  async (..._args: unknown[]): Promise<(string | number)[]> => [],
+);
+export const sharedRedisMockZcard = mock(async (..._args: unknown[]) => 0);
+export const sharedRedisMockZrem = mock(async (..._args: unknown[]) => 0);
 export const sharedRedisMockEval = mock(
   async (_script: string, keys: string[], args: string[]) => {
     const key = keys[0];
@@ -37,11 +52,13 @@ export const sharedRedisMockEval = mock(
   },
 );
 export const sharedRedisMockHincrby = mock(async (..._args: unknown[]) => 1);
+export const sharedRedisMockZincrby = mock(async (..._args: unknown[]) => 1);
 export const sharedRedisMockExpire = mock(async (..._args: unknown[]) => 1);
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
 export const sharedRedisMockPipelineHincrby = mock();
+export const sharedRedisMockPipelineZincrby = mock();
 export const sharedRedisMockPipelineExpire = mock();
 export const sharedRedisMockPipelineExec = mock(async () => []);
 
@@ -61,9 +78,21 @@ const sharedRedisPipelineMock = {
     sharedRedisMockHincrby(...args);
     return sharedRedisPipelineMock;
   }),
+  zincrby: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineZincrby(...args);
+    return sharedRedisPipelineMock;
+  }),
   expire: mock((...args: unknown[]) => {
     sharedRedisMockPipelineExpire(...args);
     sharedRedisMockExpire(...args);
+    return sharedRedisPipelineMock;
+  }),
+  zadd: mock((...args: unknown[]) => {
+    sharedRedisMockZadd(...args);
+    return sharedRedisPipelineMock;
+  }),
+  zrem: mock((...args: unknown[]) => {
+    sharedRedisMockZrem(...args);
     return sharedRedisPipelineMock;
   }),
   exec: sharedRedisMockPipelineExec,
@@ -77,10 +106,15 @@ const sharedRedisFakeClient = {
   eval: sharedRedisMockEval,
   incr: sharedRedisMockIncr,
   hincrby: sharedRedisMockHincrby,
+  zincrby: sharedRedisMockZincrby,
   expire: sharedRedisMockExpire,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
   mget: sharedRedisMockMget,
+  zadd: sharedRedisMockZadd,
+  zrange: sharedRedisMockZrange,
+  zcard: sharedRedisMockZcard,
+  zrem: sharedRedisMockZrem,
   pipeline: mock(() => sharedRedisPipelineMock),
 };
 

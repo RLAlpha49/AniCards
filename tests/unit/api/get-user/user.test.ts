@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockMget,
 } from "@/tests/unit/__setup__.test";
+import { splitUserRecord, UserDataPart } from "@/lib/server/user-data";
+import type { UserRecord } from "@/lib/types/records";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
 
@@ -57,18 +60,20 @@ async function expectOkJson(
   expect(String(json.userId)).toBe(String(expected.userId));
   if (expected.username) expect(json.username).toBe(expected.username);
 
-  // Check statistics if present in expected (allow explicit null)
+  // `stats` is the full AniList response; `statistics` is only its statistics block.
   if (
     Object.hasOwn(expected, "statistics") ||
     Object.hasOwn(expected, "stats")
   ) {
-    const expStats = expected.statistics ?? expected.stats;
+    const usesFullStats = Object.hasOwn(expected, "stats");
+    const expStats = usesFullStats ? expected.stats : expected.statistics;
+    const actualStats = usesFullStats ? json.stats : json.statistics;
     if (expStats === null || expStats === undefined) {
-      expect(json.statistics).toEqual(expStats);
+      expect(actualStats).toEqual(expStats);
     } else if (typeof expStats === "object") {
-      expect(json.statistics).toMatchObject(expStats);
+      expect(actualStats).toMatchObject(expStats);
     } else {
-      expect(json.statistics).toEqual(expStats);
+      expect(actualStats).toEqual(expStats);
     }
   }
 
@@ -89,6 +94,7 @@ async function expectOkJson(
         "userId",
         "username",
         "updatedAt",
+        "ip",
         "statistics",
         "stats",
         "User",
@@ -107,17 +113,6 @@ function mockRedisSequence(...values: Array<unknown>) {
 
   let callIndex = 0;
   sharedRedisMockGet.mockImplementation(async (key: string) => {
-    // If we are looking for a part key and we only have one value (legacy mock), return null
-    if (
-      values.length === 1 &&
-      (key.endsWith(":meta") ||
-        key.endsWith(":activity") ||
-        key.endsWith(":favourites") ||
-        key.endsWith(":pages"))
-    ) {
-      return null;
-    }
-
     if (callIndex < values.length) {
       const v = values[callIndex++];
       if (v instanceof Error) throw v;
@@ -125,6 +120,33 @@ function mockRedisSequence(...values: Array<unknown>) {
     }
     return null;
   });
+}
+
+function mockUserRecord(userId: number, username: string) {
+  return {
+    userId: String(userId),
+    username,
+    stats: {
+      User: {
+        statistics: { anime: { count: 1 }, manga: { count: 0 } },
+        stats: { activityHistory: [] },
+      },
+    },
+    ip: "127.0.0.1",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-01-02T00:00:00.000Z",
+  };
+}
+
+function mockSplitUserData(userData: Record<string, unknown>) {
+  const parts = splitUserRecord(userData as unknown as UserRecord);
+  sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+    keys.map((key) => {
+      const part = key.split(":").at(-1) as UserDataPart;
+      const value = parts[part];
+      return value === undefined ? null : JSON.stringify(value);
+    }),
+  );
 }
 
 describe("User API GET Endpoint", () => {
@@ -135,6 +157,10 @@ describe("User API GET Endpoint", () => {
 
   afterEach(() => {
     mock.clearAllMocks();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map(() => null),
+    );
     delete (process.env as Record<string, string | undefined>)[
       "NEXT_PUBLIC_APP_URL"
     ];
@@ -167,67 +193,82 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should accept userId as a valid positive integer", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123", userData);
+      expect(sharedRedisMockMget).toHaveBeenCalledWith(
+        "user:123:meta",
+        "user:123:activity",
+        "user:123:favourites",
+        "user:123:statistics",
+        "user:123:pages",
+        "user:123:planning",
+        "user:123:current",
+        "user:123:rewatched",
+        "user:123:completed",
+        "user:123:aggregates",
+      );
     });
 
     it("should accept valid username with letters, numbers, hyphens, underscores", async () => {
-      const userData = { userId: 123, username: "test_user-123" };
-      mockRedisSequence("123", JSON.stringify(userData));
+      const userData = mockUserRecord(123, "test_user-123");
+      mockRedisSequence("123");
+      mockSplitUserData(userData);
       await expectOkJson("username=test_user-123", userData);
     });
 
     it("should normalize username by trimming whitespace", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence("123", JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockRedisSequence("123");
+      mockSplitUserData(userData);
       await expectOkJson("username= testUser ", userData);
     });
 
     it("should accept exactly 100 character username", async () => {
       const username = "a".repeat(100);
-      const userData = { userId: 123, username };
-      mockRedisSequence("123", JSON.stringify(userData));
+      const userData = mockUserRecord(123, username);
+      mockRedisSequence("123");
+      mockSplitUserData(userData);
       await expectOkJson(`username=${username}`, userData);
     });
   });
 
   describe("UserId Query Path", () => {
     it("should fetch user data by userId when parameter is provided", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: { score: 10 },
-      };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123", userData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockMget).toHaveBeenCalled();
     });
 
     it("should return 404 when user data is not found in Redis", async () => {
-      mockRedisSequence(null);
       await expectError("userId=123", 404, "User not found");
     });
 
     it("should handle large userId values", async () => {
-      const userData = { userId: 2147483647, username: "largeId" };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(2147483647, "largeId");
+      mockSplitUserData(userData);
       await expectOkJson("userId=2147483647", userData);
     });
 
     it("should return 500 when Redis throws an error during fetch", async () => {
-      mockRedisSequence(new Error("Redis connection failed"));
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
       await expectError("userId=123", 500, "Failed to fetch user data");
     });
   });
 
   describe("Username Query Path", () => {
     it("should resolve username to userId via index and fetch user data", async () => {
-      const userData = { userId: 456, username: "alice" };
-      mockRedisSequence("456", JSON.stringify(userData));
-      await expectOkJson("username=alice", userData);
+      mockRedisSequence("456");
+      mockSplitUserData(mockUserRecord(456, "alice"));
+      await expectOkJson("username=alice", {
+        userId: "456",
+        username: "alice",
+      });
       expect(sharedRedisMockGet).toHaveBeenCalledWith("username:alice");
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:456");
+      expect(sharedRedisMockMget).toHaveBeenCalled();
     });
 
     it("should return 404 when username index does not exist", async () => {
@@ -241,42 +282,44 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should handle case-insensitive username lookup (normalized)", async () => {
-      const userData = { userId: 111, username: "TestUser" };
-      mockRedisSequence("111", JSON.stringify(userData));
+      const userData = mockUserRecord(111, "TestUser");
+      mockRedisSequence("111");
+      mockSplitUserData(userData);
       await expectOkJson("username=TESTUSER", userData);
       expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
     it("should handle username with spaces (normalized)", async () => {
-      const userData = { userId: 222, username: "test user" };
-      mockRedisSequence("222", JSON.stringify(userData));
+      const userData = mockUserRecord(222, "test user");
+      mockRedisSequence("222");
+      mockSplitUserData(userData);
       await expectOkJson("username=test user", userData);
     });
 
     it("should return 500 when Redis throws error during user data fetch", async () => {
-      mockRedisSequence("333", new Error("Redis disconnected"));
+      mockRedisSequence("333");
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Redis disconnected"),
+      );
       await expectError("username=someuser", 500, "Failed to fetch user data");
     });
   });
 
   describe("Response Headers and CORS", () => {
     it("should include Content-Type application/json header", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123");
       expect(res.headers.get("Content-Type")).toBe("application/json");
     });
 
     it("should include Vary: Origin header for CORS cache control", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123");
       expect(res.headers.get("Vary")).toBe("Origin");
     });
 
     it("should set CORS Access-Control-Allow-Origin from request origin when no config", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123", {
         origin: "http://example.dev",
       });
@@ -289,8 +332,7 @@ describe("User API GET Endpoint", () => {
       (process.env as Record<string, string | undefined>)[
         "NEXT_PUBLIC_APP_URL"
       ] = "https://configured.example";
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123", {
         origin: "http://different-origin.dev",
       });
@@ -303,8 +345,7 @@ describe("User API GET Endpoint", () => {
       delete (process.env as Record<string, string | undefined>)[
         "NEXT_PUBLIC_APP_URL"
       ];
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123", {
         "x-forwarded-for": "127.0.0.1",
       });
@@ -312,8 +353,7 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should include CORS Access-Control-Allow-Methods header on success", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123");
       const methods = res.headers.get("Access-Control-Allow-Methods");
       expect(methods).toContain("GET");
@@ -321,58 +361,38 @@ describe("User API GET Endpoint", () => {
   });
 
   describe("Data Serialization", () => {
-    it("should parse and return valid user data from Redis JSON string", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: { score: 100, level: 5 },
-      };
-      mockRedisSequence(JSON.stringify(userData));
+    it("should reconstruct user data from split Redis JSON parts", async () => {
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123", userData);
     });
 
     it("should handle user data with nested objects", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        stats: {
-          anime: { watched: 50, completed: 30 },
-          manga: { read: 100, completed: 50 },
-        },
-      };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123", userData);
     });
 
     it("should handle user data with arrays", async () => {
-      const userData = {
-        userId: 123,
-        username: "testUser",
-        favorites: [
-          { id: 1, title: "Attack on Titan" },
-          { id: 2, title: "Death Note" },
-        ],
-      };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123", userData);
     });
 
     it("should handle user data with null values", async () => {
-      const userData = {
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData({ ...userData, stats: null });
+      await expectOkJson("userId=123", {
         userId: 123,
         username: "testUser",
-        bio: null,
-        stats: null,
-      };
-      mockRedisSequence(JSON.stringify(userData));
-      await expectOkJson("userId=123", userData);
+        statistics: null,
+      });
     });
   });
 
   describe("Analytics Tracking", () => {
     it("should increment successful_requests analytics on successful fetch", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       await callGet("userId=123");
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:successful_requests",
@@ -387,7 +407,7 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should increment failed_requests analytics when Redis error occurs", async () => {
-      mockRedisSequence(new Error("Redis error"));
+      sharedRedisMockMget.mockRejectedValueOnce(new Error("Redis error"));
       await callGet("userId=123");
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:failed_requests",
@@ -396,8 +416,7 @@ describe("User API GET Endpoint", () => {
 
     it("should handle analytics increment failure gracefully", async () => {
       sharedRedisMockIncr.mockRejectedValue(new Error("Analytics failed"));
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123");
       expect(res.status).toBe(200);
     });
@@ -405,26 +424,27 @@ describe("User API GET Endpoint", () => {
 
   describe("Edge Cases and Error Handling", () => {
     it("should handle malformed JSON from Redis", async () => {
-      mockRedisSequence("{ invalid json");
-      await expectError("userId=123", 500, "Failed to fetch user data");
+      sharedRedisMockMget.mockResolvedValueOnce([
+        "{ invalid json",
+        ...Array.from({ length: 9 }, () => null),
+      ]);
+      await expectError("userId=123", 404, "User not found");
     });
 
     it("should handle undefined Redis response", async () => {
-      mockRedisSequence(undefined);
       await expectError("userId=123", 404, "User not found");
     });
 
     it("should prioritize userId over username when both provided", async () => {
-      const userData = { userId: 123, username: "testUser" };
-      mockRedisSequence(JSON.stringify(userData));
+      const userData = mockUserRecord(123, "testUser");
+      mockSplitUserData(userData);
       await expectOkJson("userId=123&username=ignored", userData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockMget).toHaveBeenCalled();
       expect(sharedRedisMockGet).not.toHaveBeenCalledWith("username:ignored");
     });
 
     it("should handle IP header extraction for logging", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const req = new Request(`${API_BASE}?userId=123`, {
         headers: { "x-forwarded-for": "192.168.1.1" },
       });
@@ -433,8 +453,7 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should default to 127.0.0.1 when no IP header provided", async () => {
-      const userData = { userId: 123, username: "test" };
-      mockRedisSequence(JSON.stringify(userData));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const req = new Request(`${API_BASE}?userId=123`, {
         headers: {},
       });
@@ -445,16 +464,14 @@ describe("User API GET Endpoint", () => {
 
   describe("HTTP Status Codes", () => {
     it("should return 200 for successful user fetch by userId", async () => {
-      mockRedisSequence(JSON.stringify({ userId: 123, username: "test" }));
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("userId=123");
       expect(res.status).toBe(200);
     });
 
     it("should return 200 for successful user fetch by username", async () => {
-      mockRedisSequence(
-        "123",
-        JSON.stringify({ userId: 123, username: "test" }),
-      );
+      mockRedisSequence("123");
+      mockSplitUserData(mockUserRecord(123, "test"));
       const res = await callGet("username=test");
       expect(res.status).toBe(200);
     });
@@ -465,13 +482,14 @@ describe("User API GET Endpoint", () => {
     });
 
     it("should return 404 when user not found", async () => {
-      mockRedisSequence(null);
       const res = await callGet("userId=999");
       expect(res.status).toBe(404);
     });
 
     it("should return 500 for Redis errors", async () => {
-      mockRedisSequence(new Error("Connection timeout"));
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Connection timeout"),
+      );
       const res = await callGet("userId=123");
       expect(res.status).toBe(500);
     });

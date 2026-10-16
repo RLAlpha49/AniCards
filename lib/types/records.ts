@@ -417,7 +417,8 @@ export interface UserRecord {
     threadCommentsPage?: ThreadCommentsPage;
     reviewsPage?: ReviewsPage;
   };
-  ip: string;
+  /** Legacy input field. User storage and API responses omit it. */
+  ip?: string;
   createdAt: string;
   updatedAt: string;
 }

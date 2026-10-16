@@ -130,5 +130,4 @@ export interface UserDocument {
   stats: unknown;
   createdAt: Date;
   updatedAt: Date;
-  ip: string;
 }

@@ -169,7 +169,6 @@ async function fetchUserRecord(signal: AbortSignal): Promise<UserRecord> {
   const normalized = validateAndNormalizeUserRecord({
     userId: String(USER_ID),
     username: USERNAME,
-    ip: "127.0.0.1",
     createdAt: now,
     updatedAt: now,
     stats: result.data as unknown as UserRecord["stats"],

@@ -352,14 +352,21 @@ paths:
         - CronSecret: []
       responses:
         "200":
-          description: "Text summary describing number of users updated and failures"
+          description: "Text summary describing number of users updated, selection counts, and recommended schedules"
           content:
             text/plain:
               schema:
                 type: string
               examples:
                 success:
-                  value: "Updated 5/10 users successfully. Failed: 2, Removed: 1"
+                  value: |
+                    Updated 5/7 users successfully. Failed: 2, Removed: 0, Stale index entries dropped: 1
+                    Eligible users: 5/25; cooling down: 20; indexes scanned: 1 page(s) of 25; oldest stale record: 42 minutes.
+                    Index spans 120, unreadable meta 0, missing meta 0, stale entries dropped 1.
+
+                    Recommended schedules to refresh all 120 users at least once per 24 hours:
+                     - Update 5 users/run: 0 */1 * * * (24 runs/day, ~every 60 min)
+                     - Update 10 users/run: 0 */2 * * * (12 runs/day, ~every 120 min)
         "401":
           description: "Unauthorized - invalid or missing cron secret header"
           content:

@@ -1,7 +1,13 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import type { UserStatsData } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
-import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
+import {
+  redisClient,
+  apiJsonHeaders,
+  incrementAnalytics,
+  buildAnalyticsMetricKey,
+} from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
@@ -11,8 +17,32 @@ import {
   deleteUserRecord,
   buildUsernameIndexKey,
   syncUsernameIndex,
-  UserDataPart,
+  rebuildUserRefreshIndex,
+  USER_DATA_PARTS,
+  USER_REFRESH_INDEX_KEY,
+  USER_REFRESH_INDEX_UNREADABLE_SCORE,
+  type UserRefreshIndexRebuildResult,
 } from "@/lib/server/user-data";
+
+/**
+ * Compares the presented cron secret against the configured one without
+ * letting the comparison time depend on how many leading characters match.
+ * Both values are hashed first, so the comparison always covers 32 bytes and
+ * no length information leaks either.
+ * @param presented - Value of the x-cron-secret header, if any.
+ * @returns True when the presented secret matches the configured one.
+ * @source
+ */
+function cronSecretMatches(presented: string | null): boolean {
+  const configuredSecret = process.env.CRON_SECRET ?? "";
+  const configuredDigest = createHash("sha256")
+    .update(configuredSecret)
+    .digest();
+  const presentedDigest = createHash("sha256")
+    .update(presented ?? "")
+    .digest();
+  return timingSafeEqual(configuredDigest, presentedDigest);
+}
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
@@ -27,6 +57,24 @@ const MAX_STATS_FETCH_ATTEMPTS = 3;
 const STATS_FETCH_TIMEOUT_MS = 5_000;
 const STATS_FETCH_RETRY_DELAY_MS = 500;
 const REFRESH_COOLDOWN_SECONDS = 15 * 60;
+/** Users refreshed per run. */
+const BATCH_SIZE = 5;
+/**
+ * Index entries read per page. Five batches wide, so a page can lose users to
+ * cooldown and still fill the batch from the rest of the page.
+ * @source
+ */
+const INDEX_WINDOW_PAGE_SIZE = BATCH_SIZE * 5;
+/**
+ * Maximum index pages read per run. Reasons to page: skipped cooldown entries
+ * and index entries whose record is gone. The cap bounds selection to ten
+ * ZRANGE and ten MGET commands no matter how far the queue has drifted.
+ * @source
+ */
+const INDEX_WINDOW_PAGE_LIMIT = 10;
+/** How long an index repair marker suppresses the next rebuild. */
+const INDEX_REPAIR_INTERVAL_SECONDS = 24 * 60 * 60;
+const INDEX_REPAIR_LEASE_KEY = "users:refresh-index:repair-lease";
 
 const USER_STATS_RESPONSE_FIELDS = [
   "User",
@@ -269,9 +317,72 @@ async function setRefreshCooldown(
   });
 }
 
-function getUpdatedAtTimestamp(updatedAt: string | number): number {
-  const timestamp = new Date(updatedAt || 0).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
+/**
+ * Formats how long the oldest selected record has been waiting, using its
+ * index score, which is already a millisecond timestamp.
+ *
+ * @param score - Score read from the refresh index, or undefined when nothing
+ *   was selected.
+ * @returns A minute count, `none` when nothing was selected, or `unknown` for
+ *   a score that is not a usable timestamp.
+ * @source
+ */
+function formatOldestStaleAge(score: number | undefined): string {
+  if (score === undefined) return "none";
+  if (score === USER_REFRESH_INDEX_UNREADABLE_SCORE) return "unknown";
+  // A zero or non-finite score is not a timestamp, so it has no age to report.
+  // Printing the epoch-relative difference here would read as tens of millions
+  // of minutes and misrepresent the queue's health.
+  if (!Number.isFinite(score) || score <= 0) return "unknown";
+  return `${Math.floor(Math.max(0, Date.now() - score) / 60_000)} minutes`;
+}
+
+/**
+ * Measures a value read back from Redis for the payload-size metric.
+ *
+ * The Upstash client parses stored JSON, so a cooldown written as `"1"` comes
+ * back as the number `1`, and an absent key comes back as null. Coercing here
+ * keeps the metric from throwing on a numeric reply.
+ *
+ * @param value - Value returned by a Redis read.
+ * @returns Byte length of the value's string form, or 0 when it is empty.
+ * @source
+ */
+function measureRedisValueBytes(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  return Buffer.byteLength(typeof value === "string" ? value : String(value));
+}
+
+/**
+ * Outcome of the index repair lease claim.
+ * - `due`: this run won the lease and should rebuild.
+ * - `held`: another run holds the lease, so this run normally skips the rebuild.
+ * - `unavailable`: the claim itself failed, which is a Redis problem, not a
+ *   cadence decision, and the log line says so.
+ * @source
+ */
+type IndexRepairLeaseState = "due" | "held" | "unavailable";
+
+/**
+ * Claims the index repair lease so a rebuild runs at most once per interval.
+ * The lease is a plain key with a TTL, so a failed run simply allows the next
+ * run to try again after the TTL expires.
+ * @returns Whether this run owns the repair cadence.
+ * @source
+ */
+async function claimIndexRepairLease(): Promise<IndexRepairLeaseState> {
+  try {
+    const claimed = await redisClient.set(INDEX_REPAIR_LEASE_KEY, "1", {
+      nx: true,
+      ex: INDEX_REPAIR_INTERVAL_SECONDS,
+    });
+    return claimed !== null ? "due" : "held";
+  } catch (error) {
+    console.warn(
+      `[Cron Job] Failed to claim the index repair lease; skipping the cadence repair: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return "unavailable";
+  }
 }
 
 /**
@@ -380,7 +491,7 @@ export async function POST(request: Request) {
     console.warn(
       "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
     );
-  } else if (cronSecretHeader !== CRON_SECRET) {
+  } else if (!cronSecretMatches(cronSecretHeader)) {
     console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
     return new Response("Unauthorized", {
       status: 401,
@@ -391,181 +502,195 @@ export async function POST(request: Request) {
   }
 
   try {
-    console.log(
-      "🛠️ [Cron Job] QStash authorized, starting background update...",
-    );
+    console.log("🛠️ [Cron Job] Authorized, starting background update...");
 
     const selectionStartedAt = Date.now();
-    let scanCommandCount = 0;
-    const allKeys = await scanAllKeys("user:*", 1000, () => {
-      scanCommandCount++;
-    });
-    // Filter to only include numeric user IDs and avoid analytics or other keys
-    const userIds = Array.from(
-      new Set(
-        allKeys
-          .map((k) => k.split(":")[1])
-          .filter((id) => id && /^\d+$/.test(id)),
-      ),
-    );
-    const totalUsers = userIds.length;
-
-    // Fetch meta for all users to sort by updatedAt
-    const metaKeys = userIds.map((id) => `user:${id}:meta`);
-    const metaResults: (Record<string, unknown> | string | null)[] =
-      metaKeys.length
-        ? await redisClient.mget<(Record<string, unknown> | string | null)[]>(
-            ...metaKeys,
-          )
-        : [];
-
-    const validUsers: { id: string; updatedAt: string | number }[] = [];
-    let missingMetadataCount = 0;
-    let malformedMetadataCount = 0;
-    const missingMetadataSampleIds: string[] = [];
-    const malformedMetadataSampleIds: string[] = [];
-
-    metaResults.forEach((meta, i) => {
-      const id = userIds[i];
-      if (meta == null) {
-        missingMetadataCount++;
-        if (missingMetadataSampleIds.length < 5) {
-          missingMetadataSampleIds.push(id);
-        }
-        return;
-      }
-
+    let totalUsers = Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY));
+    let indexRebuilt = false;
+    let rebuildCounts: UserRefreshIndexRebuildResult | null = null;
+    const indexIsEmpty = totalUsers === 0;
+    // An empty index is the deploy case: no save has run yet, so nothing is
+    // scored, and selection has nothing to read, so a failed rebuild aborts.
+    // A non-empty index can still be stale, for example when its key was lost
+    // and only recent saves repopulated it, so repair on a cadence as well.
+    // That rebuild is best-effort: the current index still has work in it, so
+    // a failure is logged and the run continues. Rebuilds are idempotent and
+    // keep the live key, so a release followed by a retry on the next run is
+    // safe. The lease is only released when this run still owns it, which a
+    // concurrent run suppresses.
+    const indexRepair = indexIsEmpty ? "held" : await claimIndexRepairLease();
+    if (indexIsEmpty || indexRepair === "due") {
       try {
-        const parsed: unknown =
-          typeof meta === "string" ? JSON.parse(meta) : meta;
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new TypeError("Expected user metadata to be an object");
-        }
-
-        const updatedAt = (parsed as Record<string, unknown>).updatedAt;
-        if (
-          updatedAt != null &&
-          typeof updatedAt !== "string" &&
-          (typeof updatedAt !== "number" || !Number.isFinite(updatedAt))
-        ) {
-          throw new TypeError(
-            "Expected metadata.updatedAt to be a string or number",
+        const rebuild = await rebuildUserRefreshIndex();
+        // Read the size back rather than trusting the scan count: the index can
+        // hold members whose meta key is gone, and those are not scanned.
+        totalUsers =
+          Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
+        rebuildCounts = rebuild;
+        indexRebuilt = true;
+        console.log(
+          `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (indexIsEmpty) {
+          console.error(
+            `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
           );
+          throw error;
         }
+        if (indexRepair === "due") {
+          try {
+            await redisClient.del(INDEX_REPAIR_LEASE_KEY);
+          } catch {
+            // The lease expires on its own; nothing to do here.
+          }
+        }
+        console.error(
+          `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
+        );
+      }
+    }
 
-        validUsers.push({
+    const rebuildSummary = rebuildCounts
+      ? `Index spans ${rebuildCounts.indexedUsers}, unreadable meta ${rebuildCounts.malformedMetaCount}, missing meta ${rebuildCounts.missingMetaCount}, stale entries dropped ${rebuildCounts.droppedStaleMembers}.`
+      : "";
+
+    // Walk the index from the stalest score upward, one page at a time, and
+    // keep the first batch that is not cooling down. A single page is not
+    // enough: cooled-down and stale entries stay in the index until the job
+    // reaches them, so they can fill a page on their own and would otherwise
+    // stall every later user behind them.
+    // Cooldown reads return a parsed number rather than a string, so the type
+    // mirrors what the client actually hands back.
+    const cooldownResults: (string | number | null)[] = [];
+    const fetchedCandidateIds: string[] = [];
+    const candidates: { id: string; updatedAt: number }[] = [];
+    const cooledDownUserIds = new Set<string>();
+    const eligibleUsers: { id: string; updatedAt: number }[] = [];
+    const seenUserIds = new Set<string>();
+    let indexPagesRead = 0;
+    let indexExhausted = true;
+
+    for (
+      let page = 0;
+      page < INDEX_WINDOW_PAGE_LIMIT && eligibleUsers.length < BATCH_SIZE;
+      page++
+    ) {
+      const start = page * INDEX_WINDOW_PAGE_SIZE;
+      if (start >= totalUsers) {
+        indexExhausted = true;
+        break;
+      }
+
+      indexPagesRead++;
+      indexExhausted = start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
+
+      const indexEntries = await redisClient.zrange<(number | string)[]>(
+        USER_REFRESH_INDEX_KEY,
+        start,
+        start + INDEX_WINDOW_PAGE_SIZE - 1,
+        { withScores: true },
+      );
+
+      const pageCandidates: { id: string; updatedAt: number }[] = [];
+      for (let i = 0; i + 1 < indexEntries.length; i += 2) {
+        const id = String(indexEntries[i]);
+        if (!/^\d+$/.test(id)) continue;
+        if (seenUserIds.has(id)) continue;
+        seenUserIds.add(id);
+        pageCandidates.push({
           id,
-          updatedAt:
-            typeof updatedAt === "string" || typeof updatedAt === "number"
-              ? updatedAt
-              : 0,
+          updatedAt: Number(indexEntries[i + 1]) || 0,
         });
-      } catch {
-        malformedMetadataCount++;
-        if (malformedMetadataSampleIds.length < 5) {
-          malformedMetadataSampleIds.push(id);
+      }
+
+      if (pageCandidates.length === 0) continue;
+
+      const pageCandidateIds = pageCandidates.map(({ id }) => id);
+      fetchedCandidateIds.push(...pageCandidateIds);
+      const cooldownKeys = pageCandidateIds.map(
+        (id) => `cron:refresh-cooldown:${id}`,
+      );
+      const pageCooldowns = await redisClient.mget<(string | number | null)[]>(
+        ...cooldownKeys,
+      );
+      cooldownResults.push(...pageCooldowns);
+
+      for (let i = 0; i < pageCandidateIds.length; i++) {
+        if (pageCooldowns[i]) {
+          cooledDownUserIds.add(pageCandidateIds[i]);
+          continue;
+        }
+        candidates.push(pageCandidates[i]);
+        if (eligibleUsers.length < BATCH_SIZE) {
+          eligibleUsers.push(pageCandidates[i]);
         }
       }
-    });
-
-    if (missingMetadataCount > 0) {
-      console.warn(
-        `[Cron Job] Skipping ${missingMetadataCount} user IDs without the required meta part. Sample IDs: ${missingMetadataSampleIds.join(", ")}`,
-      );
-    }
-    if (malformedMetadataCount > 0) {
-      console.error(
-        `[Cron Job] Skipping ${malformedMetadataCount} users with malformed metadata; repair required. Sample IDs: ${malformedMetadataSampleIds.join(", ")}`,
-      );
     }
 
-    const cooldownKeys = userIds.map((id) => `cron:refresh-cooldown:${id}`);
-    const cooldownResults: (string | null)[] = cooldownKeys.length
-      ? await redisClient.mget<(string | null)[]>(...cooldownKeys)
-      : [];
-    const cooledDownUserIds = new Set(
-      userIds.filter((_, index) => Boolean(cooldownResults[index])),
-    );
-
-    // Sort by last successful refresh, then skip records in cooldown.
-    validUsers.sort(
-      (a, b) =>
-        getUpdatedAtTimestamp(a.updatedAt) - getUpdatedAtTimestamp(b.updatedAt),
-    );
-
-    const eligibleUsers = validUsers.filter(
-      ({ id }) => !cooledDownUserIds.has(id),
-    );
-    const batch = eligibleUsers.slice(0, 5);
-    const approximateReturnedPayloadBytes =
-      allKeys.reduce((bytes, key) => bytes + Buffer.byteLength(key), 0) +
-      metaResults.reduce(
-        (bytes, value) =>
-          bytes +
-          Buffer.byteLength(
-            typeof value === "string"
-              ? value
-              : (JSON.stringify(value ?? null) ?? ""),
-          ),
-        0,
-      ) +
-      cooldownResults.reduce(
-        (bytes, value) => bytes + Buffer.byteLength(value ?? ""),
-        0,
-      );
+    const candidateIds = fetchedCandidateIds;
+    const batch = eligibleUsers;
     const selectionDurationMs = Date.now() - selectionStartedAt;
+    // Selection costs one ZCARD, plus one ZRANGE and one cooldown MGET per
+    // index page read. The rebuild is not counted here; it logs on its own.
     const selectionRedisCommandCount =
-      scanCommandCount +
-      Number(metaKeys.length > 0) +
-      Number(cooldownKeys.length > 0);
+      1 + indexPagesRead * 2 + Number(indexPagesRead > 0);
 
     console.log("[Cron Job] User selection metrics:", {
-      scanCommands: scanCommandCount,
-      redisCommands: selectionRedisCommandCount,
-      scannedKeys: allKeys.length,
-      numericUserIds: totalUsers,
-      validMetadataUsers: validUsers.length,
-      missingMetadata: missingMetadataCount,
-      malformedMetadata: malformedMetadataCount,
-      approximateReturnedPayloadBytes,
+      indexCommands: selectionRedisCommandCount,
+      indexedUsers: totalUsers,
+      indexRebuilt,
+      indexPagesRead,
+      candidateUsers: candidateIds.length,
+      coolingDownUsers: cooledDownUserIds.size,
+      approximateReturnedPayloadBytes:
+        candidateIds.reduce((bytes, id) => bytes + Buffer.byteLength(id), 0) +
+        cooldownResults.reduce<number>(
+          (bytes, value) => bytes + measureRedisValueBytes(value),
+          0,
+        ),
       durationMs: selectionDurationMs,
     });
 
-    const oldestStaleAgeMinutes = validUsers.length
-      ? Math.floor(
-          Math.max(
-            0,
-            Date.now() - getUpdatedAtTimestamp(validUsers[0].updatedAt),
-          ) / 60_000,
-        )
-      : null;
+    const oldestStaleAge = formatOldestStaleAge(candidates[0]?.updatedAt);
+
+    if (batch.length === 0 && totalUsers > 0) {
+      console.warn(
+        `⚠️ [Cron Job] No user in the selection window was eligible (${candidateIds.length} checked, ${cooledDownUserIds.size} cooling down, index ${indexExhausted ? "exhausted" : "window limit reached"}).`,
+      );
+      // A run that selects nobody refreshes nobody, so it is worth a durable
+      // counter. The log line above is the only other signal, and log lines do
+      // not survive long enough to show the queue stalling over days.
+      await incrementAnalytics(
+        buildAnalyticsMetricKey("cron", "ineligible_selection_windows"),
+      ).catch(() => {});
+    }
 
     console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} eligible users (${eligibleUsers.length} eligible, ${validUsers.length - eligibleUsers.length} cooling down, ${totalUsers} total).`,
+      `🚀 [Cron Job] Starting background update for ${batch.length} eligible users (${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
     );
 
     let successfulUpdates = 0;
     let failedUpdates = 0;
     let removedUsers = 0;
-
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
+    let staleIndexEntriesRemoved = 0;
 
     await Promise.all(
       batch.map(async ({ id }) => {
-        let outcome: "success" | "failed" | "removed" = "failed";
+        let outcome: "success" | "failed" | "removed" | "stale" = "failed";
         try {
-          const partsData = await fetchUserDataParts(id, allParts);
+          const partsData = await fetchUserDataParts(id, USER_DATA_PARTS);
+          if (!partsData.meta) {
+            // The record was deleted but the index entry survived. Remove it
+            // so it stops occupying the head of the refresh queue.
+            console.warn(
+              `[Cron Job] User ${id}: no stored meta; removing stale refresh index entry.`,
+            );
+            await redisClient.zrem(USER_REFRESH_INDEX_KEY, id);
+            outcome = "stale";
+            return;
+          }
           const user = reconstructUserRecord(partsData);
 
           console.log(
@@ -594,7 +719,7 @@ export async function POST(request: Request) {
 
             finalUser.updatedAt = new Date().toISOString();
 
-            await saveUserRecord(finalUser);
+            await saveUserRecord(finalUser, partsData);
 
             await clearRefreshState(redisClient, user.userId);
             outcome = "success";
@@ -625,6 +750,8 @@ export async function POST(request: Request) {
         } finally {
           if (outcome === "success") {
             successfulUpdates++;
+          } else if (outcome === "stale") {
+            staleIndexEntriesRemoved++;
           } else {
             failedUpdates++;
             if (outcome === "removed") {
@@ -645,12 +772,12 @@ export async function POST(request: Request) {
 
     console.log(
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
-      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed, ${removedUsers} removed. Oldest stale record: ${oldestStaleAgeMinutes === null ? "none" : `${oldestStaleAgeMinutes} minutes`}.`,
+      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed, ${removedUsers} removed, ${staleIndexEntriesRemoved} stale index entries dropped. Oldest stale record: ${oldestStaleAge}.`,
     );
 
     // Compute recommended cron expressions for 5 and 10 users per run
-    const recFor5 = computeCronForBatch(totalUsers, 5);
-    const recFor10 = computeCronForBatch(totalUsers, 10);
+    const recFor5 = computeCronForBatch(totalUsers, BATCH_SIZE);
+    const recFor10 = computeCronForBatch(totalUsers, BATCH_SIZE * 2);
 
     console.log(
       `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
@@ -665,9 +792,15 @@ export async function POST(request: Request) {
     const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
     const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
 
+    const attemptedUsers = successfulUpdates + failedUpdates;
+    const staleSuffix = staleIndexEntriesRemoved
+      ? `, Stale index entries dropped: ${staleIndexEntriesRemoved}`
+      : "";
+
     const scheduleMessage = [
-      `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
-      `Eligible users: ${eligibleUsers.length}/${validUsers.length}; cooling down: ${validUsers.length - eligibleUsers.length}; oldest stale record: ${oldestStaleAgeMinutes === null ? "none" : `${oldestStaleAgeMinutes} minutes`}.`,
+      `Updated ${successfulUpdates}/${attemptedUsers} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}${staleSuffix}`,
+      `Eligible users: ${eligibleUsers.length}/${candidateIds.length}; cooling down: ${cooledDownUserIds.size}; indexes scanned: ${indexPagesRead} page(s) of ${INDEX_WINDOW_PAGE_SIZE}; oldest stale record: ${oldestStaleAge}.`,
+      ...(rebuildSummary ? [rebuildSummary] : []),
       "",
       `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
       ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,

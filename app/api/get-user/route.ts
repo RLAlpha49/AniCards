@@ -8,7 +8,7 @@ import {
 import {
   fetchUserDataParts,
   reconstructUserRecord,
-  UserDataPart,
+  USER_DATA_PARTS,
 } from "@/lib/server/user-data";
 
 /**
@@ -97,19 +97,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
+    const userDataParts = await fetchUserDataParts(
+      numericUserId,
+      USER_DATA_PARTS,
+    );
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
@@ -119,8 +110,7 @@ export async function GET(request: Request) {
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
-    const { ip: _submitterIp, ...userData } =
-      reconstructUserRecord(userDataParts);
+    const userData = reconstructUserRecord(userDataParts);
     console.log(
       `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );

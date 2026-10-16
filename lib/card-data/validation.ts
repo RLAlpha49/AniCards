@@ -1301,7 +1301,6 @@ export function validateAndNormalizeUserRecord(
   const normalizedUser: UserRecord = {
     userId: String(user.userId ?? ""),
     username: user.username ?? undefined,
-    ip: String(user.ip ?? ""),
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
     ...(Object.keys(aggregatesObj).length ? { aggregates: aggregatesObj } : {}),
