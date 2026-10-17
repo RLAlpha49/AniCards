@@ -124,7 +124,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
+        run: bun run playwright install --with-deps
 
       - name: Start isolated Redis for E2E
         run: docker compose up -d --wait redis serverless-redis-http
@@ -194,7 +194,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright browsers and system dependencies
-        run: bunx playwright install --with-deps
+        run: bun run playwright install --with-deps
 
       - name: Start isolated Redis for E2E
         run: docker compose up -d --wait redis serverless-redis-http
