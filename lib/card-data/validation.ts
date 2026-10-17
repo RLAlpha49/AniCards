@@ -1175,14 +1175,11 @@ export function validateAndNormalizeUserRecord(
     return items.length ? items : undefined;
   };
 
-  const storedAggregates = options.recomputeAggregates
-    ? undefined
-    : isObject((user as Record<string, unknown>).aggregates)
-      ? ((user as Record<string, unknown>).aggregates as Record<
-          string,
-          unknown
-        >)
-      : undefined;
+  let storedAggregates: Record<string, unknown> | undefined;
+  const aggregatesCandidate = (user as Record<string, unknown>).aggregates;
+  if (!options.recomputeAggregates && isObject(aggregatesCandidate)) {
+    storedAggregates = aggregatesCandidate;
+  }
 
   const storedAnimeSourceTotals = normalizeStoredSourceTotals(
     storedAggregates?.animeSourceMaterialDistributionTotals,
@@ -1252,51 +1249,47 @@ export function validateAndNormalizeUserRecord(
     };
   };
 
-  let favoriteAnimeNodes: unknown[] = [];
-  let favoriteMangaNodes: unknown[] = [];
-  let favoriteStaffNodes: unknown[] = [];
-  let favoriteStudiosNodes: unknown[] = [];
-  let favoriteCharactersNodes: unknown[] = [];
-  if (Array.isArray(statsData.User?.favourites?.anime?.nodes)) {
-    favoriteAnimeNodes = statsData.User.favourites.anime.nodes;
-  }
-  if (Array.isArray(statsData.User?.favourites?.manga?.nodes)) {
-    favoriteMangaNodes = statsData.User.favourites.manga.nodes;
-  }
-  if (Array.isArray(statsData.User?.favourites?.staff?.nodes)) {
-    favoriteStaffNodes = statsData.User.favourites.staff.nodes;
-  }
-  if (Array.isArray(statsData.User?.favourites?.studios?.nodes)) {
-    favoriteStudiosNodes = statsData.User.favourites.studios.nodes;
-  }
-  if (Array.isArray(statsData.User?.favourites?.characters?.nodes)) {
-    favoriteCharactersNodes = statsData.User.favourites.characters.nodes;
-  }
+  const collectFavouriteNodes = () => {
+    const favourites = statsData.User?.favourites;
+    const nodesOf = (value: unknown): unknown[] =>
+      Array.isArray(value) ? value : [];
+    return {
+      anime: nodesOf(favourites?.anime?.nodes),
+      manga: nodesOf(favourites?.manga?.nodes),
+      staff: nodesOf(favourites?.staff?.nodes),
+      studios: nodesOf(favourites?.studios?.nodes),
+      characters: nodesOf(favourites?.characters?.nodes),
+    };
+  };
+  const favouriteNodes = collectFavouriteNodes();
 
-  const aggregatedAnimeSource =
-    storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals();
-  const aggregatedAnimeSeason =
-    storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals();
-  const aggregatedAnimeGenreSynergy =
-    storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals();
-  const aggregatedStudioCollaboration =
-    storedStudioCollaborationTotals ?? computeStudioCollaborationTotals();
-
-  const aggregatesObj: Record<string, unknown> = {};
-  if (Array.isArray(aggregatedAnimeSource) && aggregatedAnimeSource.length)
-    aggregatesObj.animeSourceMaterialDistributionTotals = aggregatedAnimeSource;
-  if (Array.isArray(aggregatedAnimeSeason) && aggregatedAnimeSeason.length)
-    aggregatesObj.animeSeasonalPreferenceTotals = aggregatedAnimeSeason;
-  if (
-    Array.isArray(aggregatedAnimeGenreSynergy) &&
-    aggregatedAnimeGenreSynergy.length
-  )
-    aggregatesObj.animeGenreSynergyTotals = aggregatedAnimeGenreSynergy;
-  if (
-    Array.isArray(aggregatedStudioCollaboration) &&
-    aggregatedStudioCollaboration.length
-  )
-    aggregatesObj.studioCollaborationTotals = aggregatedStudioCollaboration;
+  const buildAggregates = (): Record<string, unknown> => {
+    const aggregates: Record<string, unknown> = {};
+    const totals: [string, unknown][] = [
+      [
+        "animeSourceMaterialDistributionTotals",
+        storedAnimeSourceTotals ??
+          computeAnimeSourceMaterialDistributionTotals(),
+      ],
+      [
+        "animeSeasonalPreferenceTotals",
+        storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals(),
+      ],
+      [
+        "animeGenreSynergyTotals",
+        storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals(),
+      ],
+      [
+        "studioCollaborationTotals",
+        storedStudioCollaborationTotals ?? computeStudioCollaborationTotals(),
+      ],
+    ];
+    for (const [key, value] of totals) {
+      if (Array.isArray(value) && value.length) aggregates[key] = value;
+    }
+    return aggregates;
+  };
+  const aggregatesObj = buildAggregates();
 
   const normalizedUser: UserRecord = {
     userId: String(user.userId ?? ""),
@@ -1424,12 +1417,14 @@ export function validateAndNormalizeUserRecord(
           activityHistory: normalizedActivityHistory,
         },
         favourites: {
-          anime: { nodes: favoriteAnimeNodes.map(mapFavouriteMediaNode) },
-          manga: { nodes: favoriteMangaNodes.map(mapFavouriteMediaNode) },
-          staff: { nodes: favoriteStaffNodes.map(mapFavouritePersonNode) },
-          studios: { nodes: favoriteStudiosNodes.map(mapFavouriteStudioNode) },
+          anime: { nodes: favouriteNodes.anime.map(mapFavouriteMediaNode) },
+          manga: { nodes: favouriteNodes.manga.map(mapFavouriteMediaNode) },
+          staff: { nodes: favouriteNodes.staff.map(mapFavouritePersonNode) },
+          studios: {
+            nodes: favouriteNodes.studios.map(mapFavouriteStudioNode),
+          },
           characters: {
-            nodes: favoriteCharactersNodes.map(mapFavouritePersonNode),
+            nodes: favouriteNodes.characters.map(mapFavouritePersonNode),
           },
         },
         statistics: {

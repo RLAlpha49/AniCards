@@ -135,6 +135,10 @@ async function fetchUserRecord(signal: AbortSignal): Promise<UserRecord> {
     }
   }
 
+  return normalizeAniListPayload(payload);
+}
+
+function normalizeAniListPayload(payload: unknown): UserRecord {
   if (!payload || typeof payload !== "object") {
     throw new Error("AniList returned an invalid response.");
   }
@@ -181,19 +185,19 @@ async function fetchUserRecord(signal: AbortSignal): Promise<UserRecord> {
   return normalized.normalized;
 }
 
+function getCardVariation(cardName: string): string {
+  if (cardName === "activityHeatmap") return "github";
+  if (cardName === "favoritesGrid") return "mixed";
+  if (FAVORITE_CARD_NAMES.has(cardName) || PIE_CARD_NAMES.has(cardName)) {
+    return "bar";
+  }
+  return "default";
+}
+
 function makeCardConfigurations() {
   return Object.keys(displayNames).map((cardName) => ({
     cardName,
-    variation:
-      cardName === "activityHeatmap"
-        ? "github"
-        : cardName === "favoritesGrid"
-          ? "mixed"
-          : FAVORITE_CARD_NAMES.has(cardName)
-            ? "bar"
-            : PIE_CARD_NAMES.has(cardName)
-              ? "bar"
-              : "default",
+    variation: getCardVariation(cardName),
     colorPreset: "anilistDark",
     ...(FAVORITE_CARD_NAMES.has(cardName) ? { showFavorites: true } : {}),
     ...(cardName === "favoritesGrid" ? { gridCols: 3, gridRows: 3 } : {}),
