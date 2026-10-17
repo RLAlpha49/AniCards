@@ -80,6 +80,27 @@ export class GeneratorPage {
     await expect(input).toHaveValue(username);
   }
 
+  /** Locator for the wizard's step label, e.g. "Step 2 of 4: Colors" */
+  private getStepLabel() {
+    return this.page.getByText(/^Step \d+ of \d+: /).first();
+  }
+
+  /** Read the current step label, failing if the wizard has not rendered it. */
+  private async readStepLabel(): Promise<string> {
+    const stepLabel = this.getStepLabel();
+    await expect(stepLabel).toHaveText(/^Step \d+ of \d+: /);
+    const text = await stepLabel.textContent();
+    return (text ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  /** Wait until the wizard leaves `previousLabel` instead of sleeping. */
+  private async expectStepToChange(previousLabel: string) {
+    await expect(this.getStepLabel()).not.toHaveText(previousLabel, {
+      timeout: 15000,
+    });
+    await expect(this.getDialog()).toBeVisible({ timeout: 5000 });
+  }
+
   /** Click the Continue/Next button */
   async clickContinue() {
     // The button shows "Go to next step (X)" where X is the next step name
@@ -88,9 +109,9 @@ export class GeneratorPage {
     });
     await continueBtn.waitFor({ state: "visible", timeout: 20000 });
     await expect(continueBtn).toBeEnabled({ timeout: 10000 });
+    const previousStep = await this.readStepLabel();
     await continueBtn.click();
-    await this.page.waitForTimeout(1200);
-    await expect(this.getDialog()).toBeVisible({ timeout: 5000 });
+    await this.expectStepToChange(previousStep);
   }
 
   /** Click the Back button */
@@ -99,9 +120,9 @@ export class GeneratorPage {
       name: /go to previous step|back/i,
     });
     await backBtn.waitFor({ state: "visible", timeout: 10000 });
+    const previousStep = await this.readStepLabel();
     await backBtn.click();
-    await this.page.waitForTimeout(600);
-    await expect(this.getDialog()).toBeVisible({ timeout: 5000 });
+    await this.expectStepToChange(previousStep);
   }
 
   /** Click the Cancel button */
@@ -143,13 +164,12 @@ export class GeneratorPage {
   async goToColorsStep() {
     const tab = this.page.getByRole("tab", { name: /Colors/i });
     if (await tab.isVisible().catch(() => false)) {
+      const previousStep = await this.readStepLabel();
       await tab.click();
-      await this.page.waitForTimeout(800);
+      await this.expectStepToChange(previousStep);
     } else {
       // Mobile: navigate from step 1 (User) to step 2 (Colors)
       await this.clickContinue();
-      // Wait for Colors step to fully render
-      await this.page.waitForTimeout(1000);
     }
   }
 
@@ -157,17 +177,15 @@ export class GeneratorPage {
   async goToAdvancedStep() {
     const tab = this.page.getByRole("tab", { name: /Advanced/i });
     if (await tab.isVisible().catch(() => false)) {
+      const previousStep = await this.readStepLabel();
       await tab.click();
-      await this.page.waitForTimeout(800);
+      await this.expectStepToChange(previousStep);
     } else {
       // Mobile: navigate sequentially to Advanced step
       // From User -> Colors -> Cards -> Advanced
       await this.clickContinue(); // User -> Colors
-      await this.page.waitForTimeout(800);
       await this.clickContinue(); // Colors -> Cards
-      await this.page.waitForTimeout(800);
       await this.clickContinue(); // Cards -> Advanced
-      await this.page.waitForTimeout(800);
     }
   }
 

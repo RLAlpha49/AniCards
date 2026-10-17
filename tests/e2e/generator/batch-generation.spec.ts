@@ -29,9 +29,7 @@ const goToCardSelectionStep = async (generatorPage: GeneratorPage) => {
 };
 
 const getCardTypeCheckboxes = (generatorPage: GeneratorPage) =>
-  generatorPage
-    .getDialog()
-    .locator('[role="checkbox"]:not([id^="fav-"])');
+  generatorPage.getDialog().locator('[role="checkbox"]:not([id^="fav-"])');
 
 const getCardSelectionSummary = (generatorPage: GeneratorPage) =>
   generatorPage.getDialog().getByText(/^\d+ of \d+ cards selected$/);
@@ -123,11 +121,9 @@ test.describe("Batch Generation Tests", () => {
     test("should select all cards when clicking select all", async () => {
       await goToCardSelectionStep(generatorPage);
 
-      const selectAll = generatorPage
-        .getDialog()
-        .getByRole("button", {
-          name: /select all cards|unselect all cards/i,
-        });
+      const selectAll = generatorPage.getDialog().getByRole("button", {
+        name: /select all cards|unselect all cards/i,
+      });
       const checkboxes = getCardTypeCheckboxes(generatorPage);
       await selectAll.click();
 
