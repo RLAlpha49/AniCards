@@ -546,11 +546,13 @@ export async function GET(request: Request) {
   // cache lookup so cache hits are counted, and written once per request at the
   // terminal points below so background revalidation cannot double count.
   const cardConfigClassification = classifyCardConfigSource(params);
-  const trackingUserIdentifier = params.userId
-    ? { type: "userId" as const, value: params.userId }
-    : params.userName
-      ? { type: "userName" as const, value: params.userName }
-      : undefined;
+  let trackingUserIdentifier:
+    { type: "userId" | "userName"; value: string } | undefined;
+  if (params.userId) {
+    trackingUserIdentifier = { type: "userId", value: params.userId };
+  } else if (params.userName) {
+    trackingUserIdentifier = { type: "userName", value: params.userName };
+  }
   const urlProfile = buildCardUrlProfile({
     routePath: new URL(request.url).pathname,
     cardType: params.cardType,
