@@ -191,9 +191,7 @@ async function handleStatsFetchFailure(
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : String(error);
   if (error instanceof Error && error.stack) {
-    console.error(
-      `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
-    );
+    console.error(`💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`);
   }
   if (attempt === MAX_STATS_FETCH_ATTEMPTS) {
     console.error(
@@ -519,46 +517,64 @@ function computeCronForBatch(
   }
 }
 
+async function rebuildRefreshIndexForRepair(
+  indexIsEmpty: boolean,
+  indexRepair: IndexRepairLeaseState,
+): Promise<{
+  totalUsers: number;
+  rebuildCounts: UserRefreshIndexRebuildResult;
+} | null> {
+  try {
+    const rebuild = await rebuildUserRefreshIndex();
+    const totalUsers =
+      Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
+    console.log(
+      `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
+    );
+    return { totalUsers, rebuildCounts: rebuild };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (indexIsEmpty) {
+      console.error(
+        `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
+      );
+      throw error;
+    }
+    if (indexRepair === "due") {
+      try {
+        await redisClient.del(INDEX_REPAIR_LEASE_KEY);
+      } catch {
+        // The lease expires on its own; nothing to do here.
+      }
+    }
+    console.error(
+      `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
+    );
+    return null;
+  }
+}
+
 async function repairUserRefreshIndex(
   initialTotalUsers: number,
 ): Promise<UserRefreshIndexState> {
-  let totalUsers = initialTotalUsers;
-  let indexRebuilt = false;
-  let rebuildCounts: UserRefreshIndexRebuildResult | null = null;
-  const indexIsEmpty = totalUsers === 0;
+  const indexIsEmpty = initialTotalUsers === 0;
   const indexRepair = indexIsEmpty ? "held" : await claimIndexRepairLease();
 
   if (indexIsEmpty || indexRepair === "due") {
-    try {
-      const rebuild = await rebuildUserRefreshIndex();
-      totalUsers = Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
-      rebuildCounts = rebuild;
-      indexRebuilt = true;
-      console.log(
-        `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (indexIsEmpty) {
-        console.error(
-          `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
-        );
-        throw error;
-      }
-      if (indexRepair === "due") {
-        try {
-          await redisClient.del(INDEX_REPAIR_LEASE_KEY);
-        } catch {
-          // The lease expires on its own; nothing to do here.
-        }
-      }
-      console.error(
-        `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
-      );
+    const repaired = await rebuildRefreshIndexForRepair(
+      indexIsEmpty,
+      indexRepair,
+    );
+    if (repaired) {
+      return { ...repaired, indexRebuilt: true };
     }
   }
 
-  return { totalUsers, indexRebuilt, rebuildCounts };
+  return {
+    totalUsers: initialTotalUsers,
+    indexRebuilt: false,
+    rebuildCounts: null,
+  };
 }
 
 async function readRefreshIndexPage(
@@ -587,9 +603,7 @@ async function readRefreshIndexPage(
   if (candidates.length === 0) return null;
 
   const candidateIds = candidates.map(({ id }) => id);
-  const cooldownKeys = candidateIds.map(
-    (id) => `cron:refresh-cooldown:${id}`,
-  );
+  const cooldownKeys = candidateIds.map((id) => `cron:refresh-cooldown:${id}`);
   const cooldowns = await redisClient.mget<(string | number | null)[]>(
     ...cooldownKeys,
   );
@@ -640,8 +654,7 @@ async function selectRefreshIndexUsers(
     }
 
     selection.indexPagesRead++;
-    selection.indexExhausted =
-      start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
+    selection.indexExhausted = start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
 
     const page = await readRefreshIndexPage(start, seenUserIds);
     if (!page) continue;
@@ -727,19 +740,14 @@ async function processRefreshUser(
 
       console.log(`✅ [Cron Job] User ${user.userId}: Successfully updated`);
     } else if (updateResult.is404Error) {
-      const wasRemoved = await handleFailureTracking(
-        redisClient,
-        user.userId,
-      );
+      const wasRemoved = await handleFailureTracking(redisClient, user.userId);
       if (wasRemoved) {
         outcome = "removed";
       }
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(
-      `🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`,
-    );
+    console.error(`🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`);
     if (error instanceof Error && error.stack) {
       console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
     }
@@ -761,10 +769,38 @@ async function processRefreshBatch(
     staleIndexEntriesRemoved: 0,
   };
 
-  await Promise.all(
-    batch.map(({ id }) => processRefreshUser(id, result)),
-  );
+  await Promise.all(batch.map(({ id }) => processRefreshUser(id, result)));
   return result;
+}
+
+function authorizeCronRequest(request: Request): Response | null {
+  const cronSecret = process.env.CRON_SECRET;
+  const cronSecretHeader = request.headers.get("x-cron-secret");
+
+  if (!cronSecret) {
+    if (process.env.NODE_ENV !== "development") {
+      console.error("🔒 [Cron Job] CRON_SECRET is not configured");
+      return new Response("Cron authorization is not configured", {
+        status: 503,
+        headers: apiJsonHeaders(request),
+      });
+    }
+    console.warn(
+      "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
+    );
+    return null;
+  }
+
+  if (!cronSecretMatches(cronSecretHeader)) {
+    console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: apiJsonHeaders(request),
+    });
+  }
+
+  console.info("[Cron Job] Cron secret verified.");
+  return null;
 }
 
 /**
@@ -774,28 +810,8 @@ async function processRefreshBatch(
  * @source
  */
 export async function POST(request: Request) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
-
-  if (!CRON_SECRET && process.env.NODE_ENV !== "development") {
-    console.error("🔒 [Cron Job] CRON_SECRET is not configured");
-    return new Response("Cron authorization is not configured", {
-      status: 503,
-      headers: apiJsonHeaders(request),
-    });
-  } else if (!CRON_SECRET) {
-    console.warn(
-      "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
-    );
-  } else if (!cronSecretMatches(cronSecretHeader)) {
-    console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-    return new Response("Unauthorized", {
-      status: 401,
-      headers: apiJsonHeaders(request),
-    });
-  } else {
-    console.info("[Cron Job] Cron secret verified.");
-  }
+  const authorizationFailure = authorizeCronRequest(request);
+  if (authorizationFailure) return authorizationFailure;
 
   try {
     console.log("🛠️ [Cron Job] Authorized, starting background update...");

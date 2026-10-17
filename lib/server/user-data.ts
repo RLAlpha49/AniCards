@@ -835,7 +835,7 @@ async function dropStaleIndexMembers(
     -1,
   );
   const uncovered = indexMembers
-    .map((member) => String(member))
+    .map(String)
     .filter((id) => /^\d+$/.test(id) && !scanned.has(id));
 
   let dropped = 0;
