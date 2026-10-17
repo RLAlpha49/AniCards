@@ -79,6 +79,14 @@ jobs:
     name: E2E Chromium
     runs-on: ubuntu-latest
     needs: [build, unit-tests]
+    env:
+      UPSTASH_REDIS_REST_URL: http://localhost:8079
+      UPSTASH_REDIS_REST_TOKEN: local_dev_token
+      LOCAL_REDIS_URL: http://localhost:8079
+      LOCAL_REDIS_TOKEN: local_dev_token
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
     steps:
       - name: Cache Bun deps & node_modules
@@ -117,6 +125,12 @@ jobs:
 
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
+
+      - name: Start isolated Redis for E2E
+        run: docker compose up -d --wait redis serverless-redis-http
+
+      - name: Seed isolated Redis for E2E
+        run: bun run db:seed
 
       - name: Run Playwright E2E tests (Chromium)
         id: playwright_chromium
@@ -135,6 +149,14 @@ jobs:
     name: E2E Mobile Chrome
     runs-on: ubuntu-latest
     needs: [build, unit-tests]
+    env:
+      UPSTASH_REDIS_REST_URL: http://localhost:8079
+      UPSTASH_REDIS_REST_TOKEN: local_dev_token
+      LOCAL_REDIS_URL: http://localhost:8079
+      LOCAL_REDIS_TOKEN: local_dev_token
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
     steps:
       - name: Cache Bun deps & node_modules
@@ -173,6 +195,12 @@ jobs:
 
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
+
+      - name: Start isolated Redis for E2E
+        run: docker compose up -d --wait redis serverless-redis-http
+
+      - name: Seed isolated Redis for E2E
+        run: bun run db:seed
 
       - name: Run Playwright E2E tests (Mobile Chrome)
         id: playwright_mobile
