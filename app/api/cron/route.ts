@@ -52,6 +52,39 @@ type UpdateResult =
   | { success: true; is404Error: false; statsData: UserStatsData }
   | { success: false; is404Error: boolean };
 
+type UserRefreshCandidate = { id: string; updatedAt: number };
+
+type UserRefreshIndexSelection = {
+  cooldownResults: (string | number | null)[];
+  fetchedCandidateIds: string[];
+  candidates: UserRefreshCandidate[];
+  cooledDownUserIds: Set<string>;
+  eligibleUsers: UserRefreshCandidate[];
+  indexPagesRead: number;
+  indexExhausted: boolean;
+};
+
+type UserRefreshIndexPage = {
+  candidateIds: string[];
+  candidates: UserRefreshCandidate[];
+  cooldowns: (string | number | null)[];
+};
+
+type UserRefreshIndexState = {
+  totalUsers: number;
+  indexRebuilt: boolean;
+  rebuildCounts: UserRefreshIndexRebuildResult | null;
+};
+
+type UserRefreshOutcome = "success" | "failed" | "removed" | "stale";
+
+type UserRefreshBatchResult = {
+  successfulUpdates: number;
+  failedUpdates: number;
+  removedUsers: number;
+  staleIndexEntriesRemoved: number;
+};
+
 const MAX_GRAPHQL_INT = 2_147_483_647;
 const MAX_STATS_FETCH_ATTEMPTS = 3;
 const STATS_FETCH_TIMEOUT_MS = 15_000;
@@ -151,6 +184,32 @@ function parseUserStatsResponse(payload: unknown): UserStatsData {
   return data as unknown as UserStatsData;
 }
 
+async function handleStatsFetchFailure(
+  userId: string,
+  attempt: number,
+  error: unknown,
+): Promise<void> {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (error instanceof Error && error.stack) {
+    console.error(
+      `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
+    );
+  }
+  if (attempt === MAX_STATS_FETCH_ATTEMPTS) {
+    console.error(
+      `🔥 [Cron Job] User ${userId}: Final attempt failed - ${errorMessage}`,
+    );
+    return;
+  }
+
+  console.warn(
+    `⚠️ [Cron Job] User ${userId}: Retrying (${MAX_STATS_FETCH_ATTEMPTS - attempt} left) - ${errorMessage}`,
+  );
+  await new Promise<void>((resolve) =>
+    setTimeout(resolve, STATS_FETCH_RETRY_DELAY_MS * 2 ** (attempt - 1)),
+  );
+}
+
 /**
  * Attempts to fetch AniList stats with a timeout and delayed retries.
  * @param userId - AniList identifier whose stats should be refreshed.
@@ -192,25 +251,7 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
       const statsData = parseUserStatsResponse(payload);
       return { success: true, is404Error: false, statsData };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (error instanceof Error && error.stack) {
-        console.error(
-          `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
-        );
-      }
-      if (attempt === MAX_STATS_FETCH_ATTEMPTS) {
-        console.error(
-          `🔥 [Cron Job] User ${userId}: Final attempt failed - ${errorMessage}`,
-        );
-      } else {
-        console.warn(
-          `⚠️ [Cron Job] User ${userId}: Retrying (${MAX_STATS_FETCH_ATTEMPTS - attempt} left) - ${errorMessage}`,
-        );
-        await new Promise<void>((resolve) =>
-          setTimeout(resolve, STATS_FETCH_RETRY_DELAY_MS * 2 ** (attempt - 1)),
-        );
-      }
+      await handleStatsFetchFailure(userId, attempt, error);
     }
   }
 
@@ -469,6 +510,254 @@ function computeCronForBatch(
   }
 }
 
+async function repairUserRefreshIndex(
+  initialTotalUsers: number,
+): Promise<UserRefreshIndexState> {
+  let totalUsers = initialTotalUsers;
+  let indexRebuilt = false;
+  let rebuildCounts: UserRefreshIndexRebuildResult | null = null;
+  const indexIsEmpty = totalUsers === 0;
+  const indexRepair = indexIsEmpty ? "held" : await claimIndexRepairLease();
+
+  if (indexIsEmpty || indexRepair === "due") {
+    try {
+      const rebuild = await rebuildUserRefreshIndex();
+      totalUsers = Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
+      rebuildCounts = rebuild;
+      indexRebuilt = true;
+      console.log(
+        `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (indexIsEmpty) {
+        console.error(
+          `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
+        );
+        throw error;
+      }
+      if (indexRepair === "due") {
+        try {
+          await redisClient.del(INDEX_REPAIR_LEASE_KEY);
+        } catch {
+          // The lease expires on its own; nothing to do here.
+        }
+      }
+      console.error(
+        `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
+      );
+    }
+  }
+
+  return { totalUsers, indexRebuilt, rebuildCounts };
+}
+
+async function readRefreshIndexPage(
+  start: number,
+  seenUserIds: Set<string>,
+): Promise<UserRefreshIndexPage | null> {
+  const indexEntries = await redisClient.zrange<(number | string)[]>(
+    USER_REFRESH_INDEX_KEY,
+    start,
+    start + INDEX_WINDOW_PAGE_SIZE - 1,
+    { withScores: true },
+  );
+
+  const candidates: UserRefreshCandidate[] = [];
+  for (let i = 0; i + 1 < indexEntries.length; i += 2) {
+    const id = String(indexEntries[i]);
+    if (!/^\d+$/.test(id)) continue;
+    if (seenUserIds.has(id)) continue;
+    seenUserIds.add(id);
+    candidates.push({
+      id,
+      updatedAt: Number(indexEntries[i + 1]) || 0,
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  const candidateIds = candidates.map(({ id }) => id);
+  const cooldownKeys = candidateIds.map(
+    (id) => `cron:refresh-cooldown:${id}`,
+  );
+  const cooldowns = await redisClient.mget<(string | number | null)[]>(
+    ...cooldownKeys,
+  );
+
+  return { candidateIds, candidates, cooldowns };
+}
+
+function collectEligibleRefreshCandidates(
+  page: UserRefreshIndexPage,
+  selection: UserRefreshIndexSelection,
+): void {
+  for (let i = 0; i < page.candidateIds.length; i++) {
+    if (page.cooldowns[i]) {
+      selection.cooledDownUserIds.add(page.candidateIds[i]);
+      continue;
+    }
+    selection.candidates.push(page.candidates[i]);
+    if (selection.eligibleUsers.length < BATCH_SIZE) {
+      selection.eligibleUsers.push(page.candidates[i]);
+    }
+  }
+}
+
+async function selectRefreshIndexUsers(
+  totalUsers: number,
+): Promise<UserRefreshIndexSelection> {
+  const selection: UserRefreshIndexSelection = {
+    cooldownResults: [],
+    fetchedCandidateIds: [],
+    candidates: [],
+    cooledDownUserIds: new Set<string>(),
+    eligibleUsers: [],
+    indexPagesRead: 0,
+    indexExhausted: true,
+  };
+  const seenUserIds = new Set<string>();
+
+  for (
+    let pageNumber = 0;
+    pageNumber < INDEX_WINDOW_PAGE_LIMIT &&
+    selection.eligibleUsers.length < BATCH_SIZE;
+    pageNumber++
+  ) {
+    const start = pageNumber * INDEX_WINDOW_PAGE_SIZE;
+    if (start >= totalUsers) {
+      selection.indexExhausted = true;
+      break;
+    }
+
+    selection.indexPagesRead++;
+    selection.indexExhausted =
+      start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
+
+    const page = await readRefreshIndexPage(start, seenUserIds);
+    if (!page) continue;
+
+    selection.fetchedCandidateIds.push(...page.candidateIds);
+    selection.cooldownResults.push(...page.cooldowns);
+    collectEligibleRefreshCandidates(page, selection);
+  }
+
+  return selection;
+}
+
+async function setFailedRefreshCooldown(userId: string): Promise<void> {
+  try {
+    await setRefreshCooldown(redisClient, userId);
+  } catch (error) {
+    console.error(
+      `[Cron Job] User ${userId}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function recordRefreshOutcome(
+  result: UserRefreshBatchResult,
+  outcome: UserRefreshOutcome,
+): void {
+  switch (outcome) {
+    case "success":
+      result.successfulUpdates++;
+      return;
+    case "stale":
+      result.staleIndexEntriesRemoved++;
+      return;
+    case "removed":
+      result.failedUpdates++;
+      result.removedUsers++;
+      return;
+    case "failed":
+      result.failedUpdates++;
+  }
+}
+
+async function processRefreshUser(
+  id: string,
+  result: UserRefreshBatchResult,
+): Promise<void> {
+  let outcome: UserRefreshOutcome = "failed";
+  try {
+    const partsData = await fetchUserDataParts(id, USER_DATA_PARTS);
+    if (!partsData.meta) {
+      console.warn(
+        `[Cron Job] User ${id}: no stored meta; removing stale refresh index entry.`,
+      );
+      await redisClient.zrem(USER_REFRESH_INDEX_KEY, id);
+      outcome = "stale";
+      return;
+    }
+    const user = reconstructUserRecord(partsData);
+
+    console.log(
+      `👤 [Cron Job] User ${user.userId} (${user.username || "no username"}): Starting update`,
+    );
+
+    const updateResult = await updateUserStats(user.userId);
+
+    if (updateResult.success) {
+      user.stats = updateResult.statsData;
+      const normalizationResult = validateAndNormalizeUserRecord(user, {
+        recomputeAggregates: true,
+      });
+      if ("error" in normalizationResult) {
+        console.warn(
+          `[Cron Job] User ${user.userId}: Refresh rejected: ${normalizationResult.error}`,
+        );
+        return;
+      }
+      const finalUser = normalizationResult.normalized;
+
+      finalUser.updatedAt = new Date().toISOString();
+      await saveUserRecord(finalUser, partsData);
+      await clearRefreshState(redisClient, user.userId);
+      outcome = "success";
+
+      console.log(`✅ [Cron Job] User ${user.userId}: Successfully updated`);
+    } else if (updateResult.is404Error) {
+      const wasRemoved = await handleFailureTracking(
+        redisClient,
+        user.userId,
+      );
+      if (wasRemoved) {
+        outcome = "removed";
+      }
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(
+      `🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`,
+    );
+    if (error instanceof Error && error.stack) {
+      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+    }
+  } finally {
+    recordRefreshOutcome(result, outcome);
+    if (outcome === "failed") {
+      await setFailedRefreshCooldown(id);
+    }
+  }
+}
+
+async function processRefreshBatch(
+  batch: UserRefreshCandidate[],
+): Promise<UserRefreshBatchResult> {
+  const result: UserRefreshBatchResult = {
+    successfulUpdates: 0,
+    failedUpdates: 0,
+    removedUsers: 0,
+    staleIndexEntriesRemoved: 0,
+  };
+
+  await Promise.all(
+    batch.map(({ id }) => processRefreshUser(id, result)),
+  );
+  return result;
+}
+
 /**
  * Executes the cron job that batches AniList stat refreshes for the oldest users.
  * @param request - Incoming request which must include the cron secret header.
@@ -479,15 +768,13 @@ export async function POST(request: Request) {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");
 
-  if (!CRON_SECRET) {
-    if (process.env.NODE_ENV !== "development") {
-      console.error("🔒 [Cron Job] CRON_SECRET is not configured");
-      return new Response("Cron authorization is not configured", {
-        status: 503,
-        headers: apiJsonHeaders(request),
-      });
-    }
-
+  if (!CRON_SECRET && process.env.NODE_ENV !== "development") {
+    console.error("🔒 [Cron Job] CRON_SECRET is not configured");
+    return new Response("Cron authorization is not configured", {
+      status: 503,
+      headers: apiJsonHeaders(request),
+    });
+  } else if (!CRON_SECRET) {
     console.warn(
       "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
     );
@@ -505,52 +792,10 @@ export async function POST(request: Request) {
     console.log("🛠️ [Cron Job] Authorized, starting background update...");
 
     const selectionStartedAt = Date.now();
-    let totalUsers = Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY));
-    let indexRebuilt = false;
-    let rebuildCounts: UserRefreshIndexRebuildResult | null = null;
-    const indexIsEmpty = totalUsers === 0;
-    // An empty index is the deploy case: no save has run yet, so nothing is
-    // scored, and selection has nothing to read, so a failed rebuild aborts.
-    // A non-empty index can still be stale, for example when its key was lost
-    // and only recent saves repopulated it, so repair on a cadence as well.
-    // That rebuild is best-effort: the current index still has work in it, so
-    // a failure is logged and the run continues. Rebuilds are idempotent and
-    // keep the live key, so a release followed by a retry on the next run is
-    // safe. The lease is only released when this run still owns it, which a
-    // concurrent run suppresses.
-    const indexRepair = indexIsEmpty ? "held" : await claimIndexRepairLease();
-    if (indexIsEmpty || indexRepair === "due") {
-      try {
-        const rebuild = await rebuildUserRefreshIndex();
-        // Read the size back rather than trusting the scan count: the index can
-        // hold members whose meta key is gone, and those are not scanned.
-        totalUsers =
-          Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
-        rebuildCounts = rebuild;
-        indexRebuilt = true;
-        console.log(
-          `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (indexIsEmpty) {
-          console.error(
-            `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
-          );
-          throw error;
-        }
-        if (indexRepair === "due") {
-          try {
-            await redisClient.del(INDEX_REPAIR_LEASE_KEY);
-          } catch {
-            // The lease expires on its own; nothing to do here.
-          }
-        }
-        console.error(
-          `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
-        );
-      }
-    }
+    const indexState = await repairUserRefreshIndex(
+      Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)),
+    );
+    const { totalUsers, indexRebuilt, rebuildCounts } = indexState;
 
     const rebuildSummary = rebuildCounts
       ? `Index spans ${rebuildCounts.indexedUsers}, unreadable meta ${rebuildCounts.malformedMetaCount}, missing meta ${rebuildCounts.missingMetaCount}, stale entries dropped ${rebuildCounts.droppedStaleMembers}.`
@@ -563,77 +808,19 @@ export async function POST(request: Request) {
     // stall every later user behind them.
     // Cooldown reads return a parsed number rather than a string, so the type
     // mirrors what the client actually hands back.
-    const cooldownResults: (string | number | null)[] = [];
-    const fetchedCandidateIds: string[] = [];
-    const candidates: { id: string; updatedAt: number }[] = [];
-    const cooledDownUserIds = new Set<string>();
-    const eligibleUsers: { id: string; updatedAt: number }[] = [];
-    const seenUserIds = new Set<string>();
-    let indexPagesRead = 0;
-    let indexExhausted = true;
-
-    for (
-      let page = 0;
-      page < INDEX_WINDOW_PAGE_LIMIT && eligibleUsers.length < BATCH_SIZE;
-      page++
-    ) {
-      const start = page * INDEX_WINDOW_PAGE_SIZE;
-      if (start >= totalUsers) {
-        indexExhausted = true;
-        break;
-      }
-
-      indexPagesRead++;
-      indexExhausted = start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
-
-      const indexEntries = await redisClient.zrange<(number | string)[]>(
-        USER_REFRESH_INDEX_KEY,
-        start,
-        start + INDEX_WINDOW_PAGE_SIZE - 1,
-        { withScores: true },
-      );
-
-      const pageCandidates: { id: string; updatedAt: number }[] = [];
-      for (let i = 0; i + 1 < indexEntries.length; i += 2) {
-        const id = String(indexEntries[i]);
-        if (!/^\d+$/.test(id)) continue;
-        if (seenUserIds.has(id)) continue;
-        seenUserIds.add(id);
-        pageCandidates.push({
-          id,
-          updatedAt: Number(indexEntries[i + 1]) || 0,
-        });
-      }
-
-      if (pageCandidates.length === 0) continue;
-
-      const pageCandidateIds = pageCandidates.map(({ id }) => id);
-      fetchedCandidateIds.push(...pageCandidateIds);
-      const cooldownKeys = pageCandidateIds.map(
-        (id) => `cron:refresh-cooldown:${id}`,
-      );
-      const pageCooldowns = await redisClient.mget<(string | number | null)[]>(
-        ...cooldownKeys,
-      );
-      cooldownResults.push(...pageCooldowns);
-
-      for (let i = 0; i < pageCandidateIds.length; i++) {
-        if (pageCooldowns[i]) {
-          cooledDownUserIds.add(pageCandidateIds[i]);
-          continue;
-        }
-        candidates.push(pageCandidates[i]);
-        if (eligibleUsers.length < BATCH_SIZE) {
-          eligibleUsers.push(pageCandidates[i]);
-        }
-      }
-    }
-
+    const selection = await selectRefreshIndexUsers(totalUsers);
+    const {
+      cooldownResults,
+      fetchedCandidateIds,
+      candidates,
+      cooledDownUserIds,
+      eligibleUsers,
+      indexPagesRead,
+      indexExhausted,
+    } = selection;
     const candidateIds = fetchedCandidateIds;
     const batch = eligibleUsers;
     const selectionDurationMs = Date.now() - selectionStartedAt;
-    // Selection costs one ZCARD, plus one ZRANGE and one cooldown MGET per
-    // index page read. The rebuild is not counted here; it logs on its own.
     const selectionRedisCommandCount =
       1 + indexPagesRead * 2 + Number(indexPagesRead > 0);
 
@@ -659,9 +846,6 @@ export async function POST(request: Request) {
       console.warn(
         `⚠️ [Cron Job] No user in the selection window was eligible (${candidateIds.length} checked, ${cooledDownUserIds.size} cooling down, index ${indexExhausted ? "exhausted" : "window limit reached"}).`,
       );
-      // A run that selects nobody refreshes nobody, so it is worth a durable
-      // counter. The log line above is the only other signal, and log lines do
-      // not survive long enough to show the queue stalling over days.
       await incrementAnalytics(
         buildAnalyticsMetricKey("cron", "ineligible_selection_windows"),
       ).catch(() => {});
@@ -671,104 +855,12 @@ export async function POST(request: Request) {
       `🚀 [Cron Job] Starting background update for ${batch.length} eligible users (${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
     );
 
-    let successfulUpdates = 0;
-    let failedUpdates = 0;
-    let removedUsers = 0;
-    let staleIndexEntriesRemoved = 0;
-
-    await Promise.all(
-      batch.map(async ({ id }) => {
-        let outcome: "success" | "failed" | "removed" | "stale" = "failed";
-        try {
-          const partsData = await fetchUserDataParts(id, USER_DATA_PARTS);
-          if (!partsData.meta) {
-            // The record was deleted but the index entry survived. Remove it
-            // so it stops occupying the head of the refresh queue.
-            console.warn(
-              `[Cron Job] User ${id}: no stored meta; removing stale refresh index entry.`,
-            );
-            await redisClient.zrem(USER_REFRESH_INDEX_KEY, id);
-            outcome = "stale";
-            return;
-          }
-          const user = reconstructUserRecord(partsData);
-
-          console.log(
-            `👤 [Cron Job] User ${user.userId} (${
-              user.username || "no username"
-            }): Starting update`,
-          );
-
-          const updateResult = await updateUserStats(user.userId);
-
-          if (updateResult.success) {
-            // Update user data in Redis with the fetched stats
-            user.stats = updateResult.statsData;
-
-            // Normalize and prune data before saving to keep Redis size down
-            const normalizationResult = validateAndNormalizeUserRecord(user, {
-              recomputeAggregates: true,
-            });
-            if ("error" in normalizationResult) {
-              console.warn(
-                `[Cron Job] User ${user.userId}: Refresh rejected: ${normalizationResult.error}`,
-              );
-              return;
-            }
-            const finalUser = normalizationResult.normalized;
-
-            finalUser.updatedAt = new Date().toISOString();
-
-            await saveUserRecord(finalUser, partsData);
-
-            await clearRefreshState(redisClient, user.userId);
-            outcome = "success";
-
-            console.log(
-              `✅ [Cron Job] User ${user.userId}: Successfully updated`,
-            );
-          } else {
-            if (updateResult.is404Error) {
-              const wasRemoved = await handleFailureTracking(
-                redisClient,
-                user.userId,
-              );
-              if (wasRemoved) {
-                outcome = "removed";
-              }
-            }
-          }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error(
-            `🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`,
-          );
-          if (error instanceof Error && error.stack) {
-            console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-          }
-        } finally {
-          if (outcome === "success") {
-            successfulUpdates++;
-          } else if (outcome === "stale") {
-            staleIndexEntriesRemoved++;
-          } else {
-            failedUpdates++;
-            if (outcome === "removed") {
-              removedUsers++;
-            } else {
-              try {
-                await setRefreshCooldown(redisClient, id);
-              } catch (error) {
-                console.error(
-                  `[Cron Job] User ${id}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
-                );
-              }
-            }
-          }
-        }
-      }),
-    );
+    const {
+      successfulUpdates,
+      failedUpdates,
+      removedUsers,
+      staleIndexEntriesRemoved,
+    } = await processRefreshBatch(batch);
 
     console.log(
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
