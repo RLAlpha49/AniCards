@@ -777,6 +777,14 @@ components:
         updatedAt:
           type: string
           format: date-time
+        lastCardRequestAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: "When a card was last successfully requested for this user; null when no card request is recorded."
+        isActive:
+          type: boolean
+          description: "True when a card for this user was requested within the last 30 days. Cron stats refreshes do not affect this value."
       required: ["userId", "stats", "createdAt", "updatedAt"]
     AnalyticsReport:
       type: object

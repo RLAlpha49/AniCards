@@ -36,6 +36,7 @@ import {
   buildCardUrlProfile,
   trackCardUrlProfile,
 } from "@/lib/server/url-usage";
+import { recordUserCardRequest } from "@/lib/server/user-activity";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
@@ -458,13 +459,21 @@ async function handleCardDataError(
 
 /**
  * Creates the success response with SVG content and headers.
+ *
+ * Every served card records a card request for the resolved user, because this
+ * is the one funnel all successful paths pass through: cache hit, stale cache,
+ * and fresh render. Failed requests do not record activity, so they cannot keep
+ * a removed or invalid user looking active.
+ *
  * @source
  */
 function createSuccessResponse(
   svgContent: TrustedSVG,
   request: Request,
   borderRadius: number | undefined,
+  userId: number,
 ): Response {
+  void recordUserCardRequest(userId);
   const cleaned = toCleanSvgResponse(svgContent);
   const headerRadius = getCardBorderRadius(borderRadius);
   const responseHeaders = {
@@ -643,6 +652,7 @@ export async function GET(request: Request) {
         markTrustedSvg(cachedEntry.svg),
         request,
         undefined,
+        effectiveUserId,
       );
     }
 
@@ -660,6 +670,7 @@ export async function GET(request: Request) {
       markTrustedSvg(cachedEntry.svg),
       request,
       undefined,
+      effectiveUserId,
     );
   }
 
@@ -819,7 +830,12 @@ async function generateCardResponse(
     }
 
     await trackSuccessfulRequest();
-    return createSuccessResponse(svgContent, request, cardConfig.borderRadius);
+    return createSuccessResponse(
+      svgContent,
+      request,
+      cardConfig.borderRadius,
+      effectiveUserId,
+    );
   } catch (err: unknown) {
     if (err instanceof CardDataError) {
       return handleCardDataError(err, request, params.baseCardType);

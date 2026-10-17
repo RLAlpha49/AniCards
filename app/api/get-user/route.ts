@@ -10,6 +10,7 @@ import {
   reconstructUserRecord,
   USER_DATA_PARTS,
 } from "@/lib/server/user-data";
+import { getUserActivity } from "@/lib/server/user-activity";
 
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
@@ -111,13 +112,16 @@ export async function GET(request: Request) {
     }
 
     const userData = reconstructUserRecord(userDataParts);
+    // Activity is derived from card requests only, so a cron refresh that
+    // rewrites the record does not make the user look active.
+    const activity = await getUserActivity(numericUserId);
     console.log(
       `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );
     incrementAnalytics("analytics:user_api:successful_requests").catch(
       () => {},
     );
-    return jsonWithCors(userData, request);
+    return jsonWithCors({ ...userData, ...activity }, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
