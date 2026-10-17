@@ -83,6 +83,7 @@ export function DefaultUsernameSettings({
             <div className="flex items-start gap-3 rounded-xl border border-blue-200/50 bg-blue-50/50 p-4 dark:border-blue-800/50 dark:bg-blue-900/20">
               <div className="mt-0.5 flex-shrink-0 rounded-lg bg-blue-100 p-1.5 dark:bg-blue-900/50">
                 <svg
+                  aria-hidden="true"
                   className="h-4 w-4 text-blue-600 dark:text-blue-400"
                   fill="none"
                   viewBox="0 0 24 24"
