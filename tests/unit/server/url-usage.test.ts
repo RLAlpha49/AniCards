@@ -3,7 +3,7 @@ import {
   sharedRedisMockPipelineHincrby,
   sharedRedisMockPipelineExpire,
   sharedRedisMockPipelineExec,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { VARIATION_LABEL_MAP } from "@/lib/card-groups";
 import {
   KNOWN_VARIATIONS,

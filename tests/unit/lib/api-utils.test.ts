@@ -5,7 +5,7 @@ import {
   sharedRedisMockPipelineExpire,
   sharedRedisMockPipelineExec,
   sharedRedisMockPipelineZincrby,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { createRateLimiter, getAllowedApiOrigin } from "@/lib/api-utils";
 
 /**

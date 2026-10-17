@@ -13,7 +13,7 @@ import {
   sharedRedisMockIncr,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { displayNames } from "@/lib/card-data/validation";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;

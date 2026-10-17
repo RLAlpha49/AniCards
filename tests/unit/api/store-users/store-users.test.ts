@@ -17,7 +17,7 @@ import {
   sharedRedisMockPipelineExec,
   sharedRedisMockZadd,
   sharedRatelimitMockLimit,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import {
   USER_DATA_PARTS,
   USER_REFRESH_INDEX_KEY,

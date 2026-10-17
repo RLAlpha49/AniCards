@@ -3,7 +3,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { splitUserRecord, UserDataPart } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
 
@@ -568,7 +568,7 @@ describe("User API OPTIONS Endpoint", () => {
     it("should return empty response body for OPTIONS", () => {
       const req = createReq();
       const res = OPTIONS(req);
-      expect(res.body).toBe(null);
+      expect(res.body).toBeNull();
     });
   });
 });

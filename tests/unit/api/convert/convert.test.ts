@@ -258,67 +258,83 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("URL Authorization & Security", () => {
-    it("should reject requests with unauthorized domains", async () => {
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgUrl: "https://malicious-domain.com/evil.svg",
-        }),
-      }) as unknown as NextRequest;
+    const authorizationScenarios = [
+      {
+        name: "should reject requests with unauthorized domains",
+        apiUrl: "https://example.com",
+        svgUrl: "https://malicious-domain.com/evil.svg",
+        expectedStatus: 403,
+        expectedError: "Unauthorized or unsafe domain/protocol",
+        resolveSvg: false,
+      },
+      {
+        name: "should reject HTTP requests when allowed domain requires HTTPS",
+        apiUrl: "https://example.com",
+        svgUrl: "http://example.com/evil.svg",
+        expectedStatus: 403,
+        expectedError: "Unauthorized or unsafe domain/protocol",
+        resolveSvg: false,
+      },
+      {
+        name: "should accept HTTPS requests for the allowlisted domain",
+        apiUrl: "https://example.com",
+        svgUrl: "https://example.com/ok.svg",
+        expectedStatus: 200,
+        expectedError: null,
+        resolveSvg: true,
+      },
+      {
+        name: "should accept localhost URLs in development",
+        apiUrl: "http://localhost",
+        svgUrl: "http://localhost/dummy.svg",
+        expectedStatus: 200,
+        expectedError: null,
+        resolveSvg: true,
+      },
+    ] as const;
 
-      const res = await POST(req);
-      expect(res.status).toBe(403);
-      const data = await res.json();
-      expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
-    });
+    for (const scenario of authorizationScenarios) {
+      it(scenario.name, async () => {
+        // The allowlist is read from the environment on every request, so each
+        // scenario configures its own API host and restores it afterwards.
+        const previousApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        process.env.NEXT_PUBLIC_API_URL = scenario.apiUrl;
 
-    it("should reject HTTP requests when allowed domain requires HTTPS", async () => {
-      // This test verifies that HTTP is rejected for non-localhost domains
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://example.com/evil.svg",
-        }),
-      }) as unknown as NextRequest;
+        try {
+          const req = new Request("http://localhost/api/convert", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-forwarded-for": "127.0.0.1",
+              ...(scenario.resolveSvg ? { host: "localhost" } : {}),
+            },
+            body: JSON.stringify({ svgUrl: scenario.svgUrl }),
+          }) as unknown as NextRequest;
 
-      const res = await POST(req);
-      expect(res.status).toBe(403);
-      const data = await res.json();
-      expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
-    });
+          if (scenario.resolveSvg) {
+            mockFetchResolve(
+              new Response("<svg></svg>", {
+                status: 200,
+                headers: { "Content-Type": "image/svg+xml" },
+              }),
+            );
+          }
 
-    it("should accept localhost URLs in development", async () => {
-      const dummySVG = `<svg></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-          host: "localhost",
-        },
-        body: JSON.stringify({
-          svgUrl: "http://localhost/dummy.svg",
-        }),
-      }) as unknown as NextRequest;
-
-      mockFetchResolve(
-        new Response(dummySVG, {
-          status: 200,
-          headers: { "Content-Type": "image/svg+xml" },
-        }),
-      );
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-    });
+          const res = await POST(req);
+          expect(res.status).toBe(scenario.expectedStatus);
+          if (scenario.expectedError) {
+            const data = await res.json();
+            expect(data.error).toBe(scenario.expectedError);
+          }
+        } finally {
+          if (previousApiUrl === undefined) {
+            delete process.env.NEXT_PUBLIC_API_URL;
+          } else {
+            process.env.NEXT_PUBLIC_API_URL = previousApiUrl;
+          }
+        }
+      });
+    }
 
     it("should reject private IP addresses", async () => {
       const req = new Request("http://localhost/api/convert", {

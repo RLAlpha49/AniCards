@@ -11,7 +11,7 @@ import {
   sharedRedisMockZcard,
   sharedRedisMockZrem,
   sharedRedisMockPipelineExec,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import {
   splitUserRecord,
   USER_REFRESH_INDEX_KEY,

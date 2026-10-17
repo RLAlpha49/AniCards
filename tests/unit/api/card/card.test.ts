@@ -7,7 +7,7 @@ import {
   sharedRedisMockMget,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 import { splitUserRecord } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
@@ -1932,7 +1932,7 @@ describe("Card SVG Route", () => {
         const res = await GET(req);
         expect(res.status).toBe(200);
 
-        expect(templateMock.mock.calls.length).toBe(callsBefore + 1);
+        expect(templateMock.mock.calls).toHaveLength(callsBefore + 1);
         const callArgs = templateMock.mock.calls.at(-1)![0];
         expect(callArgs.variant).toBe("radar");
       }
