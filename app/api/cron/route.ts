@@ -386,12 +386,21 @@ function formatOldestStaleAge(score: number | undefined): string {
  * keeps the metric from throwing on a numeric reply.
  *
  * @param value - Value returned by a Redis read.
- * @returns Byte length of the value's string form, or 0 when it is empty.
+ * @returns Byte length of the value's serialized form, or 0 when it is empty.
+ * Never throws on unusual or non-serializable values.
  * @source
  */
 function measureRedisValueBytes(value: unknown): number {
   if (value === null || value === undefined) return 0;
-  return Buffer.byteLength(typeof value === "string" ? value : String(value));
+  if (typeof value === "string") return Buffer.byteLength(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return Buffer.byteLength(String(value));
+  }
+  try {
+    return Buffer.byteLength(JSON.stringify(value) ?? "");
+  } catch {
+    return Buffer.byteLength(String(value));
+  }
 }
 
 /**
