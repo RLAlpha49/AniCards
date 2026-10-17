@@ -3,8 +3,10 @@
  *
  * Records a canonical profile for each valid card SVG request so the audit can
  * report which URL shapes people use and how many of them still need the stored
- * card configuration. Profiles exclude user identifiers, IP addresses, and
- * cache-busting parameters, and counts live in bounded daily buckets.
+ * card configuration. A separate daily hash maps database-dependent profiles
+ * to the URL's user identifier, stored as either `userId` or `userName`.
+ * Neither hash stores IP addresses or cache-busting parameters, and both expire
+ * after 90 days.
  *
  * @source
  */
@@ -16,6 +18,9 @@ import type { CardConfigClassification } from "@/lib/card-data/config";
 
 /** Redis key prefix for daily card URL profile buckets. @source */
 const CARD_URL_PROFILE_PREFIX = "card_url_profiles";
+
+/** Redis key prefix for daily users of database-backed URL profiles. @source */
+const CARD_URL_USER_PROFILE_PREFIX = "card_url_user_profiles";
 
 /** Retention for daily profile buckets, matching the analytics report window. @source */
 const CARD_URL_PROFILE_TTL_SECONDS = 90 * 24 * 60 * 60;
@@ -110,6 +115,16 @@ export interface CardUrlOutcome {
  */
 export function buildCardUrlProfileKey(now: Date = new Date()): string {
   return `${CARD_URL_PROFILE_PREFIX}:${now.toISOString().slice(0, 10)}`;
+}
+
+/**
+ * Builds the Redis key for a day's user-to-profile counts.
+ * @param now - Timestamp used to pick the UTC day; defaults to the current time.
+ * @returns Key in the form `card_url_user_profiles:<YYYY-MM-DD>`.
+ * @source
+ */
+export function buildCardUrlUserProfileKey(now: Date = new Date()): string {
+  return `${CARD_URL_USER_PROFILE_PREFIX}:${now.toISOString().slice(0, 10)}`;
 }
 
 /**
@@ -238,8 +253,10 @@ function describeBorderRadius(raw: string | null): string | null {
  *
  * The profile carries the route path, card type, variation, the rendering
  * parameters that decide whether the stored card record is needed, and the
- * configuration source. It never carries `userId`, `userName`, an IP address,
- * the `_t` cache buster, or any unrecognized query parameter.
+ * configuration source. The profile never carries `userId`, `userName`, an IP
+ * address, the `_t` cache buster, or any unrecognized query parameter. A
+ * separate hash associates database-dependent profiles with the exact user
+ * identifier supplied by the URL, either `userId` or `userName`.
  *
  * @param input - Validated request fields and the configuration classification.
  * @returns A profile such as
@@ -286,6 +303,8 @@ export function buildCardUrlProfile(input: CardUrlProfileInput): string {
 
 /**
  * Counts one card request against its URL profile in the current daily bucket.
+ * When the URL needs stored configuration, also counts the profile against the
+ * `userId` or `userName` supplied by the URL.
  *
  * Tracking is best-effort: failures are logged and swallowed so they never
  * affect the card response. The bucket expires after 90 days, and the TTL is
@@ -293,19 +312,34 @@ export function buildCardUrlProfile(input: CardUrlProfileInput): string {
  *
  * @param profile - Canonical profile from {@link buildCardUrlProfile}.
  * @param outcome - Cache outcome and response status for this request.
+ * @param userIdentifier - User identifier from the URL for database-dependent
+ *   profiles, when present.
  * @source
  */
 export async function trackCardUrlProfile(
   profile: string,
   outcome: CardUrlOutcome,
+  userIdentifier?: { type: "userId" | "userName"; value: string },
 ): Promise<void> {
-  const key = buildCardUrlProfileKey();
+  const now = new Date();
+  const key = buildCardUrlProfileKey(now);
   const field = `${profile}|cache=${outcome.cache}|status=${statusClass(outcome.status)}`;
 
   try {
     const pipeline = redisClient.pipeline();
     pipeline.hincrby(key, field, 1);
     pipeline.expire(key, CARD_URL_PROFILE_TTL_SECONDS, "NX");
+
+    if (userIdentifier) {
+      const userKey = buildCardUrlUserProfileKey(now);
+      pipeline.hincrby(
+        userKey,
+        `${userIdentifier.type}=${userIdentifier.value}|${profile}`,
+        1,
+      );
+      pipeline.expire(userKey, CARD_URL_PROFILE_TTL_SECONDS, "NX");
+    }
+
     await pipeline.exec();
   } catch (error) {
     console.warn("[Card URL Usage] Failed to record URL profile:", error);

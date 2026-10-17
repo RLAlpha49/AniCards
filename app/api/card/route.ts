@@ -545,6 +545,12 @@ export async function GET(request: Request) {
   // Canonical URL profile for the cards-key removal audit. Built before the
   // cache lookup so cache hits are counted, and written once per request at the
   // terminal points below so background revalidation cannot double count.
+  const cardConfigClassification = classifyCardConfigSource(params);
+  const trackingUserIdentifier = params.userId
+    ? { type: "userId" as const, value: params.userId }
+    : params.userName
+      ? { type: "userName" as const, value: params.userName }
+      : undefined;
   const urlProfile = buildCardUrlProfile({
     routePath: new URL(request.url).pathname,
     cardType: params.cardType,
@@ -562,7 +568,7 @@ export async function GET(request: Request) {
     piePercentagesParam: params.piePercentagesParam,
     gridColsParam: params.gridColsParam,
     gridRowsParam: params.gridRowsParam,
-    classification: classifyCardConfigSource(params),
+    classification: cardConfigClassification,
   });
 
   const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
@@ -624,7 +630,13 @@ export async function GET(request: Request) {
       })();
 
       // Return stale content immediately while revalidating in background
-      void trackCardUrlProfile(urlProfile, { cache: "stale", status: 200 });
+      void trackCardUrlProfile(
+        urlProfile,
+        { cache: "stale", status: 200 },
+        cardConfigClassification.source === "db"
+          ? trackingUserIdentifier
+          : undefined,
+      );
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
         request,
@@ -635,7 +647,13 @@ export async function GET(request: Request) {
     console.log(
       `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
     );
-    void trackCardUrlProfile(urlProfile, { cache: "hit", status: 200 });
+    void trackCardUrlProfile(
+      urlProfile,
+      { cache: "hit", status: 200 },
+      cardConfigClassification.source === "db"
+        ? trackingUserIdentifier
+        : undefined,
+    );
     return createSuccessResponse(
       markTrustedSvg(cachedEntry.svg),
       request,
@@ -653,10 +671,13 @@ export async function GET(request: Request) {
     startTime,
     cacheKey,
   );
-  void trackCardUrlProfile(urlProfile, {
-    cache: "miss",
-    status: response.status,
-  });
+  void trackCardUrlProfile(
+    urlProfile,
+    { cache: "miss", status: response.status },
+    cardConfigClassification.source === "db"
+      ? trackingUserIdentifier
+      : undefined,
+  );
   return response;
 }
 
