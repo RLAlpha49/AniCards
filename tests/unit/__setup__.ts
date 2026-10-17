@@ -15,9 +15,9 @@ export const sharedRedisMockScan = mock();
 export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
 export const sharedRedisMockDel = mock();
-export const sharedRedisMockIncr = mock(async () => 1);
+export const sharedRedisMockIncr = mock(() => Promise.resolve(1));
 export const sharedRedisMockRpush = mock();
-export const sharedRedisMockLrange = mock(async () => []);
+export const sharedRedisMockLrange = mock(() => Promise.resolve([]));
 /**
  * Shared MGET mock.
  *
@@ -27,15 +27,21 @@ export const sharedRedisMockLrange = mock(async () => []);
  * pass CI, so the wider type is deliberate.
  */
 export const sharedRedisMockMget = mock(
-  async (...keys: string[]): Promise<(string | number | null)[]> =>
-    keys.map(() => null),
+  (...keys: string[]): Promise<(string | number | null)[]> =>
+    Promise.resolve(keys.map(() => null)),
 );
-export const sharedRedisMockZadd = mock(async (..._args: unknown[]) => 0);
+export const sharedRedisMockZadd = mock((..._args: unknown[]) =>
+  Promise.resolve(0),
+);
 export const sharedRedisMockZrange = mock(
-  async (..._args: unknown[]): Promise<(string | number)[]> => [],
+  (..._args: unknown[]): Promise<(string | number)[]> => Promise.resolve([]),
 );
-export const sharedRedisMockZcard = mock(async (..._args: unknown[]) => 0);
-export const sharedRedisMockZrem = mock(async (..._args: unknown[]) => 0);
+export const sharedRedisMockZcard = mock((..._args: unknown[]) =>
+  Promise.resolve(0),
+);
+export const sharedRedisMockZrem = mock((..._args: unknown[]) =>
+  Promise.resolve(0),
+);
 export const sharedRedisMockEval = mock(
   async (_script: string, keys: string[], args: string[]) => {
     const key = keys[0];
@@ -51,16 +57,22 @@ export const sharedRedisMockEval = mock(
     return 1;
   },
 );
-export const sharedRedisMockHincrby = mock(async (..._args: unknown[]) => 1);
-export const sharedRedisMockZincrby = mock(async (..._args: unknown[]) => 1);
-export const sharedRedisMockExpire = mock(async (..._args: unknown[]) => 1);
+export const sharedRedisMockHincrby = mock((..._args: unknown[]) =>
+  Promise.resolve(1),
+);
+export const sharedRedisMockZincrby = mock((..._args: unknown[]) =>
+  Promise.resolve(1),
+);
+export const sharedRedisMockExpire = mock((..._args: unknown[]) =>
+  Promise.resolve(1),
+);
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
 export const sharedRedisMockPipelineHincrby = mock();
 export const sharedRedisMockPipelineZincrby = mock();
 export const sharedRedisMockPipelineExpire = mock();
-export const sharedRedisMockPipelineExec = mock(async () => []);
+export const sharedRedisMockPipelineExec = mock(() => Promise.resolve([]));
 
 const sharedRedisPipelineMock = {
   set: mock((...args: unknown[]) => {
