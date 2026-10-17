@@ -78,6 +78,36 @@ function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * Rethrows a failed AniList attempt or waits before the next one.
+ *
+ * Kept out of {@link fetchUserRecord} so the retry loop stays within the
+ * configured cognitive-complexity budget.
+ * @param error - Error thrown by the failed attempt.
+ * @param timeoutSignal - Per-attempt timeout signal, aborted when the request timed out.
+ * @param attempt - Zero-based attempt number.
+ * @param signal - Seed-wide cancellation signal.
+ * @source
+ */
+async function handleAttemptFailure(
+  error: unknown,
+  timeoutSignal: AbortSignal,
+  attempt: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) {
+    throw signal.reason ?? error;
+  }
+
+  const isTransientNetworkError =
+    timeoutSignal.aborted || error instanceof TypeError;
+  if (!isTransientNetworkError || attempt === ANI_LIST_MAX_RETRIES) {
+    throw error;
+  }
+
+  await waitForRetry(ANI_LIST_RETRY_DELAY_MS * 2 ** attempt, signal);
+}
+
 async function fetchUserRecord(signal: AbortSignal): Promise<UserRecord> {
   let payload: unknown;
 
@@ -121,17 +151,7 @@ async function fetchUserRecord(signal: AbortSignal): Promise<UserRecord> {
       payload = await response.json();
       break;
     } catch (error: unknown) {
-      if (signal.aborted) {
-        throw signal.reason ?? error;
-      }
-
-      const isTransientNetworkError =
-        timeoutSignal.aborted || error instanceof TypeError;
-      if (!isTransientNetworkError || attempt === ANI_LIST_MAX_RETRIES) {
-        throw error;
-      }
-
-      await waitForRetry(ANI_LIST_RETRY_DELAY_MS * 2 ** attempt, signal);
+      await handleAttemptFailure(error, timeoutSignal, attempt, signal);
     }
   }
 
