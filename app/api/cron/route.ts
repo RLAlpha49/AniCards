@@ -397,7 +397,9 @@ function measureRedisValueBytes(value: unknown): number {
   try {
     return Buffer.byteLength(JSON.stringify(value) ?? "");
   } catch {
-    return Buffer.byteLength(String(value));
+    // A circular or otherwise unserializable value cannot be stored in Redis
+    // either, so it contributes no measurable payload bytes.
+    return 0;
   }
 }
 
