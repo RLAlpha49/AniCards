@@ -163,14 +163,13 @@ test.describe("Card Generation Flow", () => {
     // Click generate and immediately check for loading state
     await generatorPage.clickGenerate();
 
-    // Should show loading indicator - the button changes from "Generate" to "Generating..."
-    // Wait a brief moment for the state to update
-    await page.waitForTimeout(200);
-
-    // Check that the generate button now shows "Generating..." or similar
-    const button = page.getByRole("button", { name: /generate/i }).first();
-    const buttonText = await button.textContent();
-    expect(buttonText?.toLowerCase()).toContain("generat");
+    const dialog = generatorPage.getDialog();
+    const loadingStatus = dialog.locator('output[aria-busy="true"]');
+    await expect(loadingStatus).toBeVisible();
+    await expect(loadingStatus).toContainText(/Creating your stat cards/i);
+    await expect(
+      dialog.getByRole("button", { name: /Generate cards with/i }),
+    ).toBeDisabled();
   });
 
   test("should close generator when pressing Escape", async ({ page }) => {

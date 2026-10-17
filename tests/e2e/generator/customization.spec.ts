@@ -34,12 +34,8 @@ test.describe("Generator customization and options", () => {
 
       await generator.goToColorsStep();
 
-      // Wait for animations to complete and content to be visible
-      await page.waitForTimeout(1500);
-
-      // The ColorPresetManager renders with a live preview
       await expect(
-        dialog.getByText(/Live Preview|Presets/i).first(),
+        dialog.getByRole("heading", { name: /Live Preview/i }),
       ).toBeVisible({ timeout: 5000 });
 
       await expect(dialog.getByRole("button", { name: /Border/i })).toBeVisible(

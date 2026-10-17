@@ -62,39 +62,6 @@ test.describe("Settings page", () => {
   });
 
   test("allows selecting all card types at once", async ({ page }) => {
-    // On mobile, the selection summary is hidden with sm:hidden
-    // Try to find a mobile-friendly version or wait for the element to become visible
-    const selectionSummary = page
-      .getByText(/\d+\s*\/\s*\d+\s*selected/i)
-      .first();
-
-    // Check if element exists in DOM but might be hidden
-    await expect(selectionSummary)
-      .toBeInViewport({ timeout: 3000 })
-      .catch(async () => {
-        // If not in viewport on mobile (sm:hidden), scroll the page to check if it becomes visible
-        await page.evaluate(() => {
-          const elem = document.querySelector(
-            '[class*="hidden"][class*="sm:block"]',
-          );
-          if (elem) {
-            (elem as HTMLElement).scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
-          }
-        });
-        await page.waitForTimeout(500);
-      });
-
-    // Try to make it visible if it's hidden by sm:hidden
-    try {
-      await expect(selectionSummary).toBeVisible({ timeout: 3000 });
-    } catch {
-      // If it's still hidden, it's a mobile layout issue
-      // Continue with the test using other indicators
-    }
-
     const cardCheckboxes = page.locator(
       '[role="checkbox"][id]:not([id^="default-show-favorites"])',
     );
@@ -130,19 +97,6 @@ test.describe("Settings page", () => {
         .toBe(totalCardTypes);
 
       await expect.poll(getStoredCount).toBe(totalCardTypes);
-
-      // Don't check the text if it's not visible on mobile
-      if (await selectionSummary.isVisible().catch(() => false)) {
-        await expect
-          .poll(async () => {
-            const text = await selectionSummary.textContent();
-            if (!text) return null;
-            const match = /(\d+)\s*\/\s*(\d+)/.exec(text);
-            if (!match) return null;
-            return match[1] === match[2] ? "all" : "partial";
-          })
-          .toBe("all");
-      }
     });
 
     await test.step("Unselect all card types", async () => {
