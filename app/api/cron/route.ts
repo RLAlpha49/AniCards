@@ -54,7 +54,7 @@ type UpdateResult =
 
 const MAX_GRAPHQL_INT = 2_147_483_647;
 const MAX_STATS_FETCH_ATTEMPTS = 3;
-const STATS_FETCH_TIMEOUT_MS = 5_000;
+const STATS_FETCH_TIMEOUT_MS = 15_000;
 const STATS_FETCH_RETRY_DELAY_MS = 500;
 const REFRESH_COOLDOWN_SECONDS = 15 * 60;
 /** Users refreshed per run. */
