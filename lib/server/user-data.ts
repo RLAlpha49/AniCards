@@ -35,6 +35,9 @@ export type UserDataPart =
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
 
+/** Builds the Redis key holding a user's stored card configurations. */
+const getUserCardsKey = (userId: string | number): string => `cards:${userId}`;
+
 /** The ten parts a user record is split into. */
 export const USER_DATA_PARTS: UserDataPart[] = [
   "meta",
@@ -704,14 +707,297 @@ export async function saveUserRecord(
 }
 
 /**
- * Deletes all parts of a user record and removes it from the refresh index.
+ * Reads the username stored in a user's meta part.
+ * @param meta - Raw meta value returned by Redis.
+ * @returns The stored username, or null when it is absent or unreadable.
  */
-export async function deleteUserRecord(userId: string | number): Promise<void> {
-  const keys = USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
+function readStoredUsername(meta: unknown): string | null {
+  if (meta === null || meta === undefined) return null;
+  let parsed: unknown = meta;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  const username = (parsed as Record<string, unknown>).username;
+  return typeof username === "string" && username.trim() ? username : null;
+}
+
+/**
+ * Reads the username held by a user's meta part for a deletion.
+ *
+ * A read failure is treated as a missing username, because the deletion then
+ * falls back to searching the index. Throwing here would leave every key of
+ * the user in place over a single failed read.
+ *
+ * @param metaKey - Key of the user's meta part.
+ * @returns The stored username, or null when it cannot be read.
+ */
+async function readStoredUsernameForDeletion(
+  metaKey: string,
+): Promise<string | null> {
+  try {
+    return readStoredUsername(await redisClient.get(metaKey));
+  } catch (error) {
+    console.warn(
+      `⚠️ [User Data] Failed to read ${metaKey} during deletion; falling back to the username index: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Removes every Redis key that belongs to one user.
+ *
+ * One function owns the deletion contract, so a caller cannot remove part of
+ * a user and leave the rest behind. The keys a user owns are the ten record
+ * parts, the refresh index entry, `cards:<id>`, and `username:<name>`. The
+ * username key is removed with the compare-and-delete script, so a name that
+ * has since been taken by another user is kept.
+ *
+ * @param userId - Numeric AniList user ID.
+ * @returns Whether any username key was removed.
+ */
+export async function deleteUserStorage(
+  userId: string | number,
+): Promise<{ usernameKeyRemoved: boolean }> {
+  const userIdValue = String(userId);
+  const metaKey = getUserDataKey(userIdValue, "meta");
+  // A failed meta read must not abort the deletion: the index search below
+  // still finds the username key, so the rest of the record is removed too.
+  const username = await readStoredUsernameForDeletion(metaKey);
+
   const pipeline = redisClient.pipeline();
-  pipeline.del(...keys);
-  pipeline.zrem(USER_REFRESH_INDEX_KEY, String(userId));
+  pipeline.del(
+    ...USER_DATA_PARTS.map((part) => getUserDataKey(userIdValue, part)),
+  );
+  pipeline.del(getUserCardsKey(userIdValue));
+  pipeline.zrem(USER_REFRESH_INDEX_KEY, userIdValue);
   await pipeline.exec();
+
+  // The meta part is the only place that names the username key. When it is
+  // already gone, the index is searched instead, which is what left the
+  // sampled stale key behind when the cron removed an unreadable record.
+  const usernameKeys = username
+    ? [buildUsernameIndexKey(username)].filter((key): key is string => !!key)
+    : await findUsernameIndexKeysOwnedBy(userIdValue);
+
+  let usernameKeyRemoved = false;
+  for (const key of usernameKeys) {
+    const removed = await redisClient.eval<[string], number>(
+      REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
+      [key],
+      [userIdValue],
+    );
+    if (removed === 1) usernameKeyRemoved = true;
+  }
+
+  return { usernameKeyRemoved };
+}
+
+/**
+ * Finds username index entries that point at one user.
+ *
+ * Used when the user's meta part is gone, so the username cannot be read from
+ * the record. Only an entry whose value equals the user ID is returned, which
+ * makes the removal safe even though the name is unknown.
+ *
+ * @param userId - User ID to match against entry values.
+ * @returns Matching `username:` keys, or an empty list when the scan fails.
+ */
+async function findUsernameIndexKeysOwnedBy(userId: string): Promise<string[]> {
+  try {
+    const keys = await scanAllKeys("username:*");
+    if (keys.length === 0) return [];
+    const owners = await redisClient.mget<(string | number | null)[]>(...keys);
+    return keys.filter((_, index) => {
+      const owner = owners[index];
+      return owner !== null && owner !== undefined && String(owner) === userId;
+    });
+  } catch (error) {
+    console.warn(
+      `⚠️ [User Data] Failed to search the username index for user ${userId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Counts of orphaned keys found or removed by {@link reconcileUserKeyOrphans}.
+ */
+export interface UserKeyReconciliationResult {
+  /** `cards:` keys scanned. */
+  cardsKeysScanned: number;
+  /** `cards:` keys whose owner has no record. */
+  orphanedCardsKeys: number;
+  /** `cards:` keys deleted. */
+  deletedCardsKeys: number;
+  /** `username:` keys scanned. */
+  usernameKeysScanned: number;
+  /** `username:` keys pointing at a user with no record. */
+  orphanedUsernameKeys: number;
+  /** `username:` keys deleted. */
+  deletedUsernameKeys: number;
+}
+
+/** Default cap on keys read per prefix in one reconciliation run. */
+const RECONCILIATION_KEY_LIMIT = 5_000;
+
+/** Age an ownerless `cards:` key must reach before reconciliation deletes it. */
+const ORPHAN_KEY_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Reads the `updatedAt` field from a stored `cards:` value.
+ * @param raw - Value returned by Redis.
+ * @returns The timestamp in milliseconds, or null when it is absent or unreadable.
+ */
+function readStoredCardsUpdatedAt(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  let parsed: unknown = raw;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  const updatedAt = (parsed as Record<string, unknown>).updatedAt;
+  const timestamp =
+    typeof updatedAt === "string" ? Date.parse(updatedAt) : Number(updatedAt);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
+}
+
+/**
+ * Deletes `cards:` and `username:` keys whose user record no longer exists.
+ *
+ * Both key families have no TTL, and neither is removed by every deletion
+ * path, so they can outlive the user they describe. The scan is bounded by
+ * {@link RECONCILIATION_KEY_LIMIT} per prefix, and a key is deleted only after
+ * one `MGET` confirms its `user:<id>:meta` is absent, so a user saved while
+ * the scan runs keeps their keys.
+ *
+ * @param keyLimit - Maximum keys read per prefix.
+ * @returns Per-prefix scan and deletion counts.
+ */
+export async function reconcileUserKeyOrphans(
+  keyLimit: number = RECONCILIATION_KEY_LIMIT,
+): Promise<UserKeyReconciliationResult> {
+  const result: UserKeyReconciliationResult = {
+    cardsKeysScanned: 0,
+    orphanedCardsKeys: 0,
+    deletedCardsKeys: 0,
+    usernameKeysScanned: 0,
+    orphanedUsernameKeys: 0,
+    deletedUsernameKeys: 0,
+  };
+
+  const cardsKeys = (await scanAllKeys("cards:*")).slice(0, keyLimit);
+  result.cardsKeysScanned = cardsKeys.length;
+  const orphanedCards = await filterKeysWithMissingOwner(cardsKeys);
+  result.orphanedCardsKeys = orphanedCards.length;
+  if (orphanedCards.length > 0) {
+    // `store-cards` accepts a save before the user record exists, and the
+    // generator sends both saves in parallel. A card record written in that
+    // window is orphaned only until the slower request lands, so deletion
+    // waits for the record to age past the grace period first.
+    const values = await redisClient.mget<(unknown[] | null)[]>(
+      ...orphanedCards,
+    );
+    const cutoff = Date.now() - ORPHAN_KEY_GRACE_MS;
+    const expiredCards = orphanedCards.filter((_, index) => {
+      // An unreadable record cannot be reconciled later either, so it is
+      // deleted with the aged ones.
+      const updatedAt = readStoredCardsUpdatedAt(values[index]);
+      return updatedAt === null || updatedAt < cutoff;
+    });
+    if (expiredCards.length > 0) {
+      const pipeline = redisClient.pipeline();
+      for (const key of expiredCards) pipeline.del(key);
+      await pipeline.exec();
+      result.deletedCardsKeys = expiredCards.length;
+    }
+  }
+
+  // The username key's owner is the value itself, not part of the key name.
+  const usernameKeys = (await scanAllKeys("username:*")).slice(0, keyLimit);
+  result.usernameKeysScanned = usernameKeys.length;
+  if (usernameKeys.length > 0) {
+    const owners = await redisClient.mget<(string | number | null)[]>(
+      ...usernameKeys,
+    );
+    const ownerByKey = new Map<string, string>();
+    usernameKeys.forEach((key, index) => {
+      const owner = owners[index];
+      if (owner === null || owner === undefined) return;
+      const id = String(owner);
+      if (/^\d+$/.test(id)) ownerByKey.set(key, id);
+    });
+
+    const candidateIds = Array.from(new Set(ownerByKey.values()));
+    const metaValues = candidateIds.length
+      ? await redisClient.mget<(unknown[] | null)[]>(
+          ...candidateIds.map((id) => getUserDataKey(id, "meta")),
+        )
+      : [];
+    const liveIds = new Set(
+      candidateIds.filter((_, index) => metaValues[index] != null),
+    );
+
+    const orphanedUsernames = Array.from(ownerByKey.entries())
+      .filter(([, owner]) => !liveIds.has(owner))
+      .map(([key]) => key);
+    result.orphanedUsernameKeys = orphanedUsernames.length;
+    if (orphanedUsernames.length > 0) {
+      const pipeline = redisClient.pipeline();
+      for (const key of orphanedUsernames) pipeline.del(key);
+      await pipeline.exec();
+      result.deletedUsernameKeys = orphanedUsernames.length;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Returns the keys whose `user:<id>:meta` is absent.
+ *
+ * @param keys - Keys in the form `<prefix>:<numericUserId>`.
+ * @returns The subset with no stored record.
+ */
+async function filterKeysWithMissingOwner(keys: string[]): Promise<string[]> {
+  if (keys.length === 0) return [];
+
+  const userIds: string[] = [];
+  const ownerByKey = new Map<string, string>();
+  for (const key of keys) {
+    const id = key.slice(key.indexOf(":") + 1);
+    if (!/^\d+$/.test(id)) continue;
+    userIds.push(id);
+    ownerByKey.set(key, id);
+  }
+
+  const uniqueIds = Array.from(new Set(userIds));
+  const metas = await redisClient.mget<(unknown[] | null)[]>(
+    ...uniqueIds.map((id) => getUserDataKey(id, "meta")),
+  );
+  const liveIds = new Set(uniqueIds.filter((_, index) => metas[index] != null));
+
+  return keys.filter((key) => {
+    const owner = ownerByKey.get(key);
+    return owner !== undefined && !liveIds.has(owner);
+  });
 }
 
 /**

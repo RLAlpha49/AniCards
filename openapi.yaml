@@ -447,6 +447,13 @@ paths:
   /api/store-cards:
     post:
       summary: "Store or update a user's card configuration in Redis"
+      description: >
+        Saves the card configuration for a numeric user ID. A user record is
+        not required first: the endpoint accepts a card save for a user ID
+        that has no stored record, and the daily reconciliation keeps that
+        save instead of treating it as an orphan for the first hour after it
+        is written. Send `/api/store-users` as well, because card rendering
+        reads the user record.
       tags:
         - "store"
       requestBody:

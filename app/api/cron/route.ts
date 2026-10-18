@@ -1,12 +1,12 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import type { UserStatsData } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
 import {
   redisClient,
   apiJsonHeaders,
   incrementAnalytics,
   buildAnalyticsMetricKey,
+  isValidUsername,
 } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
@@ -14,13 +14,15 @@ import {
   fetchUserDataParts,
   reconstructUserRecord,
   saveUserRecord,
-  deleteUserRecord,
+  deleteUserStorage,
   buildUsernameIndexKey,
   syncUsernameIndex,
   rebuildUserRefreshIndex,
+  reconcileUserKeyOrphans,
   USER_DATA_PARTS,
   USER_REFRESH_INDEX_KEY,
   USER_REFRESH_INDEX_UNREADABLE_SCORE,
+  type UserKeyReconciliationResult,
   type UserRefreshIndexRebuildResult,
 } from "@/lib/server/user-data";
 
@@ -74,6 +76,7 @@ type UserRefreshIndexState = {
   totalUsers: number;
   indexRebuilt: boolean;
   rebuildCounts: UserRefreshIndexRebuildResult | null;
+  reconciliation: UserKeyReconciliationResult | null;
 };
 
 type UserRefreshOutcome = "success" | "failed" | "removed" | "stale";
@@ -258,38 +261,15 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 
 /**
  * Records repeated AniList 404 failures and removes stale entries after three attempts.
+ *
+ * Removal is delegated to `deleteUserStorage`, which owns the full list of
+ * keys a user has.
+ *
  * @param redisClient - Redis client used to store failure counters and related keys.
  * @param userId - AniList identifier whose failures are being tracked.
- * @param userKey - Redis key for the user's record to delete when removing.
  * @returns True when the user was removed from Redis, false otherwise.
  * @source
  */
-async function getUsernameIndexKey(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<string | null> {
-  try {
-    const metaRaw = await redisClient.get(`user:${userId}:meta`);
-    if (!metaRaw) return null;
-
-    const parsed =
-      typeof metaRaw === "string"
-        ? safeParse<Record<string, unknown>>(metaRaw)
-        : (metaRaw as Record<string, unknown>);
-
-    const rawUsername = parsed ? parsed["username"] : undefined;
-    if (typeof rawUsername === "string" && rawUsername.trim()) {
-      return buildUsernameIndexKey(rawUsername);
-    }
-  } catch (err) {
-    console.warn(
-      `⚠️ [Cron Job] User ${userId}: Failed to read meta for username cleanup: ${err}`,
-    );
-  }
-
-  return null;
-}
-
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
@@ -303,24 +283,12 @@ async function handleFailureTracking(
   );
 
   if (newFailureCount >= 3) {
-    const cardsKey = `cards:${userId}`;
-    const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
-    const usernameIndexRemoval = usernameIndexKey
-      ? syncUsernameIndex(redisClient, usernameIndexKey, null, userId)
-      : Promise.resolve(false);
-
-    const [usernameIndexRemoved] = await Promise.all([
-      usernameIndexRemoval,
-      deleteUserRecord(userId), // Remove user data (all parts)
-      redisClient.del(failureKey), // Remove failure tracking
-      redisClient.del(cardsKey), // Remove user's card configurations
-    ]);
+    const { usernameKeyRemoved } = await deleteUserStorage(userId);
+    await redisClient.del(failureKey);
 
     console.log(
       `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        usernameIndexRemoved && usernameIndexKey
-          ? ` (removed ${usernameIndexKey})`
-          : ""
+        usernameKeyRemoved ? " (removed the username key)" : ""
       }`,
     );
     return true; // User was removed
@@ -354,6 +322,59 @@ async function setRefreshCooldown(
   await redisClient.set(`cron:refresh-cooldown:${userId}`, "1", {
     ex: REFRESH_COOLDOWN_SECONDS,
   });
+}
+
+/**
+ * Reads the username AniList reports in a stats response.
+ *
+ * AniList returns the account's current handle as `User.name`. The stats query
+ * already requests it, so the refresh gets the current name without an extra
+ * request.
+ *
+ * @param statsData - Stats payload returned by AniList.
+ * @returns The reported username, or null when it is absent or implausible.
+ */
+function readReportedUsername(statsData: UserStatsData): string | null {
+  const name = statsData?.User?.name;
+  if (typeof name !== "string" || !isValidUsername(name)) return null;
+  return name.trim();
+}
+
+/**
+ * Moves the username index from the stored handle to the one AniList reports.
+ *
+ * A rename is only visible here for a user who never saves through the
+ * generator, so this is the only place that can keep their index entry
+ * current. A failed sync is logged and does not fail the refresh, but it must
+ * not leave the record naming a handle the index does not point at: the next
+ * refresh would see the two as equal and skip the repair.
+ *
+ * @param userId - User whose index entry should follow the rename.
+ * @param storedUsername - Username held by the stored record.
+ * @param reportedUsername - Username in the fresh AniList response.
+ * @returns True when the index now matches the reported username.
+ */
+async function syncRefreshedUsername(
+  userId: string,
+  storedUsername: string | undefined,
+  reportedUsername: string,
+): Promise<boolean> {
+  const previousKey = buildUsernameIndexKey(storedUsername);
+  const currentKey = buildUsernameIndexKey(reportedUsername);
+  if (previousKey === currentKey) return true;
+
+  try {
+    await syncUsernameIndex(redisClient, previousKey, currentKey, userId);
+    console.log(
+      `🔁 [Cron Job] User ${userId}: Username index moved from ${previousKey ?? "no username"} to ${currentKey ?? "no username"}.`,
+    );
+    return true;
+  } catch (error) {
+    console.warn(
+      `⚠️ [Cron Job] User ${userId}: Failed to sync the username index; keeping the stored username so the next refresh retries: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return false;
+  }
 }
 
 /**
@@ -568,7 +589,11 @@ async function repairUserRefreshIndex(
       indexRepair,
     );
     if (repaired) {
-      return { ...repaired, indexRebuilt: true };
+      return {
+        ...repaired,
+        indexRebuilt: true,
+        reconciliation: await reconcileOrphanedUserKeys(),
+      };
     }
   }
 
@@ -576,7 +601,33 @@ async function repairUserRefreshIndex(
     totalUsers: initialTotalUsers,
     indexRebuilt: false,
     rebuildCounts: null,
+    reconciliation: null,
   };
+}
+
+/**
+ * Removes `cards:` and `username:` keys whose user record is gone.
+ *
+ * The work runs on the same daily lease as the index repair: it is a
+ * recovery routine, not part of the refresh path, and a bounded scan is not
+ * worth repeating on every run. A failure is logged and swallowed so a
+ * cleanup problem cannot stop the refresh that the run exists for.
+ *
+ * @returns Reconciliation counts, or null when the scan failed.
+ */
+async function reconcileOrphanedUserKeys(): Promise<UserKeyReconciliationResult | null> {
+  try {
+    const reconciliation = await reconcileUserKeyOrphans();
+    console.log(
+      `🧹 [Cron Job] Key reconciliation: cards ${reconciliation.cardsKeysScanned} scanned, ${reconciliation.deletedCardsKeys} orphaned deleted; usernames ${reconciliation.usernameKeysScanned} scanned, ${reconciliation.deletedUsernameKeys} orphaned deleted.`,
+    );
+    return reconciliation;
+  } catch (error) {
+    console.warn(
+      `⚠️ [Cron Job] Key reconciliation failed; continuing with the refresh: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
 }
 
 async function readRefreshIndexPage(
@@ -735,6 +786,22 @@ async function processRefreshUser(
       }
       const finalUser = normalizationResult.normalized;
 
+      // Normalization keeps the stored username, but AniList now reports the
+      // handle the account currently uses. The refresh response is the only
+      // place a rename shows up for a user who never saves through the
+      // generator, so the username index is moved first. The record keeps the
+      // old handle when that fails, which makes the next refresh retry
+      // instead of accepting a record that names a key the index lacks.
+      const reportedUsername = readReportedUsername(updateResult.statsData);
+      if (reportedUsername) {
+        const indexSynced = await syncRefreshedUsername(
+          user.userId,
+          user.username,
+          reportedUsername,
+        );
+        if (indexSynced) finalUser.username = reportedUsername;
+      }
+
       finalUser.updatedAt = new Date().toISOString();
       await saveUserRecord(finalUser, partsData);
       await clearRefreshState(redisClient, user.userId);
@@ -822,10 +889,14 @@ export async function POST(request: Request) {
     const indexState = await repairUserRefreshIndex(
       Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)),
     );
-    const { totalUsers, indexRebuilt, rebuildCounts } = indexState;
+    const { totalUsers, indexRebuilt, rebuildCounts, reconciliation } =
+      indexState;
 
     const rebuildSummary = rebuildCounts
       ? `Index spans ${rebuildCounts.indexedUsers}, unreadable meta ${rebuildCounts.malformedMetaCount}, missing meta ${rebuildCounts.missingMetaCount}, stale entries dropped ${rebuildCounts.droppedStaleMembers}.`
+      : "";
+    const reconciliationSummary = reconciliation
+      ? `Orphan keys removed: cards ${reconciliation.deletedCardsKeys} of ${reconciliation.orphanedCardsKeys}, usernames ${reconciliation.deletedUsernameKeys} of ${reconciliation.orphanedUsernameKeys}.`
       : "";
 
     // Walk the index from the stalest score upward, one page at a time, and
@@ -920,6 +991,7 @@ export async function POST(request: Request) {
       `Updated ${successfulUpdates}/${attemptedUsers} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}${staleSuffix}`,
       `Eligible users: ${eligibleUsers.length}/${candidateIds.length}; cooling down: ${cooledDownUserIds.size}; indexes scanned: ${indexPagesRead} page(s) of ${INDEX_WINDOW_PAGE_SIZE}; oldest stale record: ${oldestStaleAge}.`,
       ...(rebuildSummary ? [rebuildSummary] : []),
+      ...(reconciliationSummary ? [reconciliationSummary] : []),
       "",
       `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
       ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,

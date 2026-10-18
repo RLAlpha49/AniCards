@@ -54,8 +54,7 @@ export interface UserActivity {
  */
 function parseStoredCardRequest(raw: unknown): number | null {
   if (typeof raw !== "string" && typeof raw !== "number") return null;
-  const timestamp =
-    typeof raw === "number" ? raw : Date.parse(raw as string);
+  const timestamp = typeof raw === "number" ? raw : Date.parse(raw as string);
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
 }
 
