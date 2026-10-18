@@ -23,7 +23,7 @@ tags:
   - name: "convert"
     description: "Convert remote SVG resources into raster images"
   - name: "cron"
-    description: "Background cron endpoints: statistics refresh, analytics reporting, validation, uptime monitor"
+    description: "Background cron endpoints: refresh dispatch, per-user stats refresh, index repair, analytics reporting"
   - name: "store"
     description: "Store cards and users via POST endpoints"
   - name: "user"
@@ -339,7 +339,23 @@ paths:
                   value: { error: "Conversion failed" }
   /api/cron:
     post:
-      summary: "Run the background cron job to process user stats (refresh AniList stats)."
+      summary: "Dispatch the AniList stats refresh for the stalest users."
+      description: >
+        Selects the stalest users that are not cooling down and publishes one
+        QStash message per selected user to `/api/cron/refresh-user`. The
+        response reports the messages published, not per-user refresh results;
+        those appear in the QStash log and the dead letter queue. A user whose
+        publish failed stays in the refresh index, so the next run selects them
+        again.
+
+        Index repair and orphan reconciliation are not part of this endpoint.
+        They run on their own daily schedule at `/api/cron/repair-index`, so a
+        refresh failure cannot skip the cleanup and a cleanup failure cannot
+        fail the refresh.
+
+        The one repair this endpoint still performs is the empty-index
+        bootstrap: a dispatch cannot select from an empty index, so it rebuilds
+        one when it finds none.
       tags:
         - "cron"
       parameters:
@@ -352,21 +368,42 @@ paths:
         - CronSecret: []
       responses:
         "200":
-          description: "Text summary describing number of users updated, selection counts, and recommended schedules"
+          description: "Dispatch summary: messages published, their ids, and the selection that produced them. Returned unless every publish failed or the run could not complete, so an idle run with nothing to publish also answers 200."
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
+                $ref: "#/components/schemas/CronDispatchResult"
               examples:
                 success:
-                  value: |
-                    Updated 5/7 users successfully. Failed: 2, Removed: 0, Stale index entries dropped: 1
-                    Eligible users: 5/25; cooling down: 20; indexes scanned: 1 page(s) of 25; oldest stale record: 42 minutes.
-                    Index spans 120, unreadable meta 0, missing meta 0, stale entries dropped 1.
-
-                    Recommended schedules to refresh all 120 users at least once per 24 hours:
-                     - Update 5 users/run: 0 */1 * * * (24 runs/day, ~every 60 min)
-                     - Update 10 users/run: 0 */2 * * * (12 runs/day, ~every 120 min)
+                  value:
+                    published: 2
+                    failed: 0
+                    messageIds: ["msg_example_1", "msg_example_2"]
+                    failedUserIds: []
+                    selection:
+                      indexedUsers: 645
+                      candidates: 2
+                      coolingDown: 0
+                      eligible: 2
+                      pagesRead: 1
+                      indexExhausted: true
+                      oldestStaleRecord: "42 minutes"
+                    indexRebuilt: false
+                idle:
+                  value:
+                    published: 0
+                    failed: 0
+                    messageIds: []
+                    failedUserIds: []
+                    selection:
+                      indexedUsers: 645
+                      candidates: 5
+                      coolingDown: 5
+                      eligible: 0
+                      pagesRead: 1
+                      indexExhausted: true
+                      oldestStaleRecord: "12 minutes"
+                    indexRebuilt: false
         "401":
           description: "Unauthorized - invalid or missing cron secret header"
           content:
@@ -376,14 +413,209 @@ paths:
               examples:
                 unauthorized:
                   value: "Unauthorized"
-        "500":
-          description: "Server error during cron processing"
+        "503":
+          description: >
+            The endpoint cannot run. Two causes: `CRON_SECRET` is unset (plain
+            text body), or no usable app origin is configured (JSON body). An
+            origin is usable when it is https, or http on loopback.
           content:
             text/plain:
-              schema: { type: string }
+              schema:
+                type: string
               examples:
-                failure:
-                  value: "Cron job failed"
+                notConfigured:
+                  value: "Cron authorization is not configured"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                noOrigin:
+                  value:
+                    error: "Cron dispatch is not configured: no app origin"
+        "500":
+          description: >
+            Every publish failed, or the run could not complete. A failed run
+            that reached selection returns the dispatch payload with an
+            `error` field; a run that failed earlier returns `ApiError`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CronDispatchResult"
+                  - $ref: "#/components/schemas/ApiError"
+              examples:
+                allPublishesFailed:
+                  value:
+                    published: 0
+                    failed: 2
+                    messageIds: []
+                    failedUserIds: ["123", "456"]
+                    selection:
+                      indexedUsers: 645
+                      candidates: 2
+                      coolingDown: 0
+                      eligible: 2
+                      pagesRead: 1
+                      indexExhausted: true
+                      oldestStaleRecord: "42 minutes"
+                    indexRebuilt: false
+                queueUnavailable:
+                  value:
+                    published: 0
+                    failed: 2
+                    messageIds: []
+                    failedUserIds: ["123", "456"]
+                    selection:
+                      indexedUsers: 645
+                      candidates: 2
+                      coolingDown: 0
+                      eligible: 2
+                      pagesRead: 1
+                      indexExhausted: true
+                      oldestStaleRecord: "42 minutes"
+                    indexRebuilt: false
+                    error: "publish-unavailable"
+                unhandled:
+                  value: { error: "Cron job failed" }
+  /api/cron/refresh-user:
+    post:
+      summary: "Refresh one user's AniList stats (QStash consumer)"
+      description: >
+        Internal endpoint. The dispatcher publishes one message per user here.
+        Returns 200 for every outcome the code handles and 500 only for a
+        failure another delivery could fix, which is what makes QStash retry.
+        A malformed body answers 489 with `Upstash-NonRetryable-Error: true`,
+        which sends the message straight to the dead letter queue.
+      tags:
+        - "cron"
+      parameters:
+        - $ref: "#/components/parameters/x-cron-secret-header"
+      security:
+        - CronSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  description: "Numeric AniList user id, as a string or an integer"
+                  oneOf:
+                    - type: string
+                      pattern: "^[0-9]+$"
+                    - type: integer
+                      minimum: 1
+                      maximum: 2147483647
+              required: ["userId"]
+      responses:
+        "200":
+          description: "Handled outcome: stats updated, stale index entry removed, AniList 404 counted, user removed, duplicate delivery, or a rejected record"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshUserResult"
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "503":
+          $ref: "#/components/responses/CronNotConfiguredPlain"
+        "489":
+          description: "Request body is not a valid user id; QStash must not retry and moves the message to the dead letter queue"
+          headers:
+            Upstash-NonRetryable-Error:
+              schema:
+                type: string
+                enum: ["true"]
+              description: "Tells QStash to skip retries"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: "AniList timeout or 5xx, or a Redis failure; QStash retries the message"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshUserResult"
+  /api/cron/repair-index:
+    post:
+      summary: "Rebuild the user refresh index and reconcile orphaned keys"
+      description: >
+        Daily housekeeping, scheduled separately from the refresh dispatch.
+        Rescores every stored user in `users:refresh-index` from their meta
+        part, drops index entries whose record is gone, then deletes `cards:`
+        and `username:` keys whose `user:<id>:meta` no longer exists.
+
+        The rebuild and the cleanup fail independently: a cleanup failure is
+        reported as null and does not discard a successful rebuild. A rebuild
+        failure answers 500 so QStash retries, and releases the lease so the
+        retry does not wait out the 24 hour window.
+
+        A 200 with `outcome: skipped` means another invocation holds the lease.
+        That is the overlap guard, not an error.
+      tags:
+        - "cron"
+      parameters:
+        - $ref: "#/components/parameters/x-cron-secret-header"
+      security:
+        - CronSecret: []
+      responses:
+        "200":
+          description: "The repair ran, or another invocation owns the window"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairIndexResult"
+              examples:
+                repaired:
+                  value:
+                    outcome: "repaired"
+                    totalUsers: 645
+                    rebuildCounts:
+                      indexedUsers: 645
+                      missingMetaCount: 0
+                      malformedMetaCount: 0
+                      droppedStaleMembers: 2
+                    reconciliation:
+                      cardsKeysScanned: 610
+                      orphanedCardsKeys: 3
+                      deletedCardsKeys: 3
+                      usernameKeysScanned: 645
+                      orphanedUsernameKeys: 1
+                      deletedUsernameKeys: 1
+                skipped:
+                  value:
+                    outcome: "skipped"
+                    totalUsers: 645
+                    reason: "another invocation holds the repair lease"
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "503":
+          $ref: "#/components/responses/CronNotConfiguredPlain"
+        "500":
+          description: >
+            The rebuild or the lease claim failed, or the rebuild succeeded but
+            the key cleanup did not. QStash retries in every case; the rebuild
+            is idempotent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairIndexResult"
+              examples:
+                rebuildFailed:
+                  value:
+                    outcome: "failed"
+                    reason: "index-rebuild-failed"
+                cleanupFailed:
+                  value:
+                    outcome: "partial"
+                    totalUsers: 645
+                    rebuildCounts:
+                      indexedUsers: 645
+                      missingMetaCount: 0
+                      malformedMetaCount: 0
+                      droppedStaleMembers: 2
+                    reason: "key-reconciliation-failed"
   /api/cron/analytics-reporting:
     post:
       summary: "Generate analytics report and persist it to Redis"
@@ -619,7 +851,7 @@ components:
       type: apiKey
       in: header
       name: x-cron-secret
-      description: "A cron-specific secret header that protects background endpoints. If unset, these endpoints accept unauthenticated calls."
+      description: "A cron-specific secret header that protects background endpoints. If unset, these endpoints answer 503 and run nothing."
   parameters:
     x-cron-secret-header:
       in: header
@@ -637,6 +869,15 @@ components:
           examples:
             unauthorized:
               value: "Unauthorized"
+    CronNotConfiguredPlain:
+      description: "CRON_SECRET is unset, so the endpoint refuses to run"
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            notConfigured:
+              value: "Cron authorization is not configured"
     InternalErrorPlain:
       description: "Internal server error (plain text)"
       content:
@@ -852,6 +1093,144 @@ components:
           "analytics:store_cards:successful_requests": 10
           "analytics:store_users:failed_requests": 2
         generatedAt: "2025-01-01T12:00:00.000Z"
+    CronDispatchResult:
+      type: object
+      description: "Summary of one dispatcher run. Per-user outcomes are in the QStash log."
+      properties:
+        published:
+          type: integer
+          description: "Messages accepted by QStash"
+        failed:
+          type: integer
+          description: "Publishes that threw; those users stay in the refresh index"
+        messageIds:
+          type: array
+          items:
+            type: string
+        failedUserIds:
+          type: array
+          items:
+            type: string
+        selection:
+          type: object
+          properties:
+            indexedUsers:
+              type: integer
+            candidates:
+              type: integer
+            coolingDown:
+              type: integer
+            eligible:
+              type: integer
+            pagesRead:
+              type: integer
+            indexExhausted:
+              type: boolean
+            oldestStaleRecord:
+              type: string
+              description: "Age of the oldest selected record, `none` when nothing was selected, or `unknown` for an unreadable score"
+          required:
+            [
+              "indexedUsers",
+              "candidates",
+              "coolingDown",
+              "eligible",
+              "pagesRead",
+              "indexExhausted",
+              "oldestStaleRecord",
+            ]
+        indexRebuilt:
+          type: boolean
+          description: "True only when the dispatch found an empty index and rebuilt it before selecting"
+      required: ["published", "failed", "messageIds", "failedUserIds"]
+    RepairIndexResult:
+      type: object
+      description: >
+        Outcome of one index repair attempt. `partial` means the rebuild ran and
+        the key cleanup did not; it answers 500 so QStash retries the cleanup.
+      properties:
+        outcome:
+          type: string
+          enum: ["repaired", "partial", "skipped", "failed"]
+        totalUsers:
+          type: integer
+          description: "Index size after the attempt"
+        reason:
+          type: string
+          description: >
+            A short code, never an exception message. Examples:
+            `index-rebuild-failed`, `key-reconciliation-failed`,
+            `repair-lease-unavailable`.
+        leaseExpiresInSeconds:
+          type: integer
+          description: "Present on a skip: seconds until the held lease expires, or -1 when it has no TTL"
+        rebuildCounts:
+          type: object
+          properties:
+            indexedUsers:
+              type: integer
+            missingMetaCount:
+              type: integer
+            malformedMetaCount:
+              type: integer
+            droppedStaleMembers:
+              type: integer
+        reconciliation:
+          type: object
+          description: "Per-prefix scan and deletion counts; absent when the cleanup failed, which is the `partial` outcome"
+          properties:
+            cardsKeysScanned:
+              type: integer
+            orphanedCardsKeys:
+              type: integer
+            deletedCardsKeys:
+              type: integer
+            usernameKeysScanned:
+              type: integer
+            orphanedUsernameKeys:
+              type: integer
+            deletedUsernameKeys:
+              type: integer
+      required: ["outcome"]
+    RefreshUserResult:
+      type: object
+      description: "Outcome of one refresh attempt."
+      properties:
+        userId:
+          type: string
+        outcome:
+          type: string
+          enum:
+            [
+              "updated",
+              "stale-index-entry-removed",
+              "not-found",
+              "removed",
+              "duplicate-delivery",
+              "rejected",
+              "retryable",
+            ]
+        failures:
+          type: integer
+          description: "Recorded AniList 404 count, present for `not-found`"
+        reason:
+          type: string
+          description: >
+            A short code for `rejected` or `retryable`, never an exception
+            message: the detail stays in the server log because QStash keeps
+            and displays this body.
+          enum:
+            [
+              "invalid-stored-user-id",
+              "record-validation-failed",
+              "anilist-unavailable",
+              "redis-read-failed",
+              "index-entry-removal-failed",
+              "failure-claim-failed",
+              "failure-record-failed",
+              "record-save-failed",
+            ]
+      required: ["userId", "outcome"]
     DataValidationReport:
       type: object
       properties:

@@ -1,5 +1,6 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
+import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
@@ -91,51 +92,6 @@ async function pruneAnalyticsReports(
     pipeline.lrem(ANALYTICS_REPORTS_KEY, 1, report);
   }
   await pipeline.exec();
-}
-
-/**
- * Validates the cron secret header and returns an error response on failure.
- * @param request - Incoming request whose headers provide the cron secret.
- * @returns Response when authorization fails or null when allowed.
- * @source
- */
-function checkCronAuthorization(request: Request): Response | null {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
-
-  if (!CRON_SECRET) {
-    if (process.env.NODE_ENV !== "development") {
-      console.error("🔒 [Analytics & Reporting] CRON_SECRET is not configured");
-      return new Response("Cron authorization is not configured", {
-        status: 503,
-        headers: apiJsonHeaders(request),
-      });
-    }
-
-    console.warn(
-      "[Analytics & Reporting] CRON_SECRET is not configured. Skipping authorization in development.",
-    );
-  } else {
-    const configuredSecretDigest = createHash("sha256")
-      .update(CRON_SECRET)
-      .digest();
-    const headerSecretDigest = createHash("sha256")
-      .update(cronSecretHeader ?? "")
-      .digest();
-
-    if (!timingSafeEqual(configuredSecretDigest, headerSecretDigest)) {
-      console.error(
-        "🔒 [Analytics & Reporting] Unauthorized: Invalid Cron secret",
-      );
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: apiJsonHeaders(request),
-      });
-    }
-
-    console.info("[Analytics & Reporting] Cron secret verified.");
-  }
-  return null;
 }
 
 /**
@@ -283,7 +239,7 @@ async function createAndSaveReport(
  */
 export async function POST(request: Request) {
   // Check authorization
-  const authError = checkCronAuthorization(request);
+  const authError = authorizeCronRequest(request);
   if (authError) {
     return authError;
   }

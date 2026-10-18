@@ -1,58 +1,24 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-import { USER_STATS_QUERY } from "@/lib/anilist/queries";
-import type { UserStatsData } from "@/lib/types/records";
 import {
   redisClient,
   apiJsonHeaders,
   incrementAnalytics,
   buildAnalyticsMetricKey,
-  isValidUsername,
 } from "@/lib/api-utils";
-import type { Redis as UpstashRedis } from "@upstash/redis";
-import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import {
-  fetchUserDataParts,
-  reconstructUserRecord,
-  saveUserRecord,
-  deleteUserStorage,
-  buildUsernameIndexKey,
-  syncUsernameIndex,
-  rebuildUserRefreshIndex,
-  reconcileUserKeyOrphans,
-  USER_DATA_PARTS,
+  buildRefreshCooldownKey,
+  REFRESH_IN_FLIGHT_SECONDS,
+} from "@/lib/server/refresh-cooldown";
+import {
+  getQstashClient,
+  REFRESH_FLOW_CONTROL,
+  REFRESH_MESSAGE_RETRIES,
+} from "@/lib/server/qstash";
+import { bootstrapRefreshIndexIfEmpty } from "@/lib/server/refresh-index-repair";
+import {
   USER_REFRESH_INDEX_KEY,
   USER_REFRESH_INDEX_UNREADABLE_SCORE,
-  type UserKeyReconciliationResult,
-  type UserRefreshIndexRebuildResult,
 } from "@/lib/server/user-data";
-
-/**
- * Compares the presented cron secret against the configured one without
- * letting the comparison time depend on how many leading characters match.
- * Both values are hashed first, so the comparison always covers 32 bytes and
- * no length information leaks either.
- * @param presented - Value of the x-cron-secret header, if any.
- * @returns True when the presented secret matches the configured one.
- * @source
- */
-function cronSecretMatches(presented: string | null): boolean {
-  const configuredSecret = process.env.CRON_SECRET ?? "";
-  const configuredDigest = createHash("sha256")
-    .update(configuredSecret)
-    .digest();
-  const presentedDigest = createHash("sha256")
-    .update(presented ?? "")
-    .digest();
-  return timingSafeEqual(configuredDigest, presentedDigest);
-}
-
-/**
- * Tracks the outcome of a user's AniList stats refresh.
- * @source
- */
-type UpdateResult =
-  | { success: true; is404Error: false; statsData: UserStatsData }
-  | { success: false; is404Error: boolean };
 
 type UserRefreshCandidate = { id: string; updatedAt: number };
 
@@ -72,28 +38,10 @@ type UserRefreshIndexPage = {
   cooldowns: (string | number | null)[];
 };
 
-type UserRefreshIndexState = {
-  totalUsers: number;
-  indexRebuilt: boolean;
-  rebuildCounts: UserRefreshIndexRebuildResult | null;
-  reconciliation: UserKeyReconciliationResult | null;
-};
+type PublishResult =
+  { userId: string; messageId: string } | { userId: string; error: string };
 
-type UserRefreshOutcome = "success" | "failed" | "removed" | "stale";
-
-type UserRefreshBatchResult = {
-  successfulUpdates: number;
-  failedUpdates: number;
-  removedUsers: number;
-  staleIndexEntriesRemoved: number;
-};
-
-const MAX_GRAPHQL_INT = 2_147_483_647;
-const MAX_STATS_FETCH_ATTEMPTS = 3;
-const STATS_FETCH_TIMEOUT_MS = 15_000;
-const STATS_FETCH_RETRY_DELAY_MS = 500;
-const REFRESH_COOLDOWN_SECONDS = 15 * 60;
-/** Users refreshed per run. */
+/** Users published per run. */
 const BATCH_SIZE = 5;
 /**
  * Index entries read per page. Five batches wide, so a page can lose users to
@@ -108,527 +56,6 @@ const INDEX_WINDOW_PAGE_SIZE = BATCH_SIZE * 5;
  * @source
  */
 const INDEX_WINDOW_PAGE_LIMIT = 10;
-/** How long an index repair marker suppresses the next rebuild. */
-const INDEX_REPAIR_INTERVAL_SECONDS = 24 * 60 * 60;
-const INDEX_REPAIR_LEASE_KEY = "users:refresh-index:repair-lease";
-
-const USER_STATS_RESPONSE_FIELDS = [
-  "User",
-  "followersPage",
-  "followingPage",
-  "threadsPage",
-  "threadCommentsPage",
-  "reviewsPage",
-  "userReviews",
-  "userRecommendations",
-  "animePlanning",
-  "animeCurrent",
-  "animeRewatched",
-  "animeCompleted",
-  "animeDropped",
-  "mangaPlanning",
-  "mangaCurrent",
-  "mangaReread",
-  "mangaCompleted",
-  "mangaDropped",
-] as const;
-
-function parseAniListUserId(userId: string): number | null {
-  if (!/^\d+$/.test(userId)) return null;
-
-  const parsedUserId = Number(userId);
-  return Number.isInteger(parsedUserId) &&
-    parsedUserId > 0 &&
-    parsedUserId <= MAX_GRAPHQL_INT
-    ? parsedUserId
-    : null;
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasStatsCount(value: unknown): boolean {
-  if (!isObjectRecord(value)) return false;
-
-  const count = value.count;
-  return typeof count === "number" && Number.isInteger(count) && count >= 0;
-}
-
-function parseUserStatsResponse(payload: unknown): UserStatsData {
-  if (!isObjectRecord(payload)) {
-    throw new Error("Invalid GraphQL response");
-  }
-
-  if (payload.errors !== undefined) {
-    if (!Array.isArray(payload.errors) || payload.errors.length === 0) {
-      throw new Error("Malformed GraphQL errors field");
-    }
-    throw new Error("GraphQL response contained errors");
-  }
-
-  const data = payload.data;
-  if (
-    !isObjectRecord(data) ||
-    !USER_STATS_RESPONSE_FIELDS.every((field) => Object.hasOwn(data, field)) ||
-    !isObjectRecord(data.User)
-  ) {
-    throw new Error("GraphQL response is missing required stats data");
-  }
-
-  const statistics = data.User.statistics;
-  if (
-    !isObjectRecord(statistics) ||
-    (!hasStatsCount(statistics.anime) && !hasStatsCount(statistics.manga))
-  ) {
-    throw new Error("GraphQL response is missing user statistics");
-  }
-
-  return data as unknown as UserStatsData;
-}
-
-async function handleStatsFetchFailure(
-  userId: string,
-  attempt: number,
-  error: unknown,
-): Promise<void> {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  if (error instanceof Error && error.stack) {
-    console.error(`💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`);
-  }
-  if (attempt === MAX_STATS_FETCH_ATTEMPTS) {
-    console.error(
-      `🔥 [Cron Job] User ${userId}: Final attempt failed - ${errorMessage}`,
-    );
-    return;
-  }
-
-  console.warn(
-    `⚠️ [Cron Job] User ${userId}: Retrying (${MAX_STATS_FETCH_ATTEMPTS - attempt} left) - ${errorMessage}`,
-  );
-  await new Promise<void>((resolve) =>
-    setTimeout(resolve, STATS_FETCH_RETRY_DELAY_MS * 2 ** (attempt - 1)),
-  );
-}
-
-/**
- * Attempts to fetch AniList stats with a timeout and delayed retries.
- * @param userId - AniList identifier whose stats should be refreshed.
- * @returns Result detailing the fetch success, 404 status, and payload if available.
- * @source
- */
-async function updateUserStats(userId: string): Promise<UpdateResult> {
-  const graphqlUserId = parseAniListUserId(userId);
-  if (graphqlUserId === null) {
-    console.error(`[Cron Job] User ${userId}: Invalid AniList user ID`);
-    return { success: false, is404Error: false };
-  }
-
-  for (let attempt = 1; attempt <= MAX_STATS_FETCH_ATTEMPTS; attempt++) {
-    try {
-      console.log(
-        `🔄 [Cron Job] User ${userId}: Attempt ${attempt}/${MAX_STATS_FETCH_ATTEMPTS} - Fetching AniList data`,
-      );
-
-      const statsResponse = await fetch("https://graphql.anilist.co", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(STATS_FETCH_TIMEOUT_MS),
-        body: JSON.stringify({
-          query: USER_STATS_QUERY,
-          variables: { userId: graphqlUserId },
-        }),
-      });
-
-      if (statsResponse.status === 404) {
-        return { success: false, is404Error: true };
-      }
-
-      if (!statsResponse.ok) {
-        throw new Error(`HTTP ${statsResponse.status}`);
-      }
-
-      const payload: unknown = await statsResponse.json();
-      const statsData = parseUserStatsResponse(payload);
-      return { success: true, is404Error: false, statsData };
-    } catch (error) {
-      await handleStatsFetchFailure(userId, attempt, error);
-    }
-  }
-
-  return { success: false, is404Error: false };
-}
-
-/**
- * Records repeated AniList 404 failures and removes stale entries after three attempts.
- *
- * Removal is delegated to `deleteUserStorage`, which owns the full list of
- * keys a user has.
- *
- * @param redisClient - Redis client used to store failure counters and related keys.
- * @param userId - AniList identifier whose failures are being tracked.
- * @returns True when the user was removed from Redis, false otherwise.
- * @source
- */
-async function handleFailureTracking(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<boolean> {
-  const failureKey = `failed_updates:${userId}`;
-  const currentFailureCount = (await redisClient.get(failureKey)) || 0;
-  const newFailureCount = Number(currentFailureCount) + 1;
-
-  console.log(
-    `📋 [Cron Job] User ${userId}: Recording 404 failure (attempt ${newFailureCount}/3)`,
-  );
-
-  if (newFailureCount >= 3) {
-    const { usernameKeyRemoved } = await deleteUserStorage(userId);
-    await redisClient.del(failureKey);
-
-    console.log(
-      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        usernameKeyRemoved ? " (removed the username key)" : ""
-      }`,
-    );
-    return true; // User was removed
-  } else {
-    await redisClient.set(failureKey, newFailureCount);
-    return false; // User was not removed
-  }
-}
-
-/**
- * Clears stored failure and cooldown state after a successful update.
- * @param redisClient - Redis client managing failure counters.
- * @param userId - AniList identifier whose failure tracking should be removed.
- * @returns Promise that resolves once the failure counter is deleted.
- * @source
- */
-async function clearRefreshState(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<void> {
-  await redisClient.del(
-    `failed_updates:${userId}`,
-    `cron:refresh-cooldown:${userId}`,
-  );
-}
-
-async function setRefreshCooldown(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<void> {
-  await redisClient.set(`cron:refresh-cooldown:${userId}`, "1", {
-    ex: REFRESH_COOLDOWN_SECONDS,
-  });
-}
-
-/**
- * Reads the username AniList reports in a stats response.
- *
- * AniList returns the account's current handle as `User.name`. The stats query
- * already requests it, so the refresh gets the current name without an extra
- * request.
- *
- * @param statsData - Stats payload returned by AniList.
- * @returns The reported username, or null when it is absent or implausible.
- */
-function readReportedUsername(statsData: UserStatsData): string | null {
-  const name = statsData?.User?.name;
-  if (typeof name !== "string" || !isValidUsername(name)) return null;
-  return name.trim();
-}
-
-/**
- * Moves the username index from the stored handle to the one AniList reports.
- *
- * A rename is only visible here for a user who never saves through the
- * generator, so this is the only place that can keep their index entry
- * current. A failed sync is logged and does not fail the refresh, but it must
- * not leave the record naming a handle the index does not point at: the next
- * refresh would see the two as equal and skip the repair.
- *
- * @param userId - User whose index entry should follow the rename.
- * @param storedUsername - Username held by the stored record.
- * @param reportedUsername - Username in the fresh AniList response.
- * @returns True when the index now matches the reported username.
- */
-async function syncRefreshedUsername(
-  userId: string,
-  storedUsername: string | undefined,
-  reportedUsername: string,
-): Promise<boolean> {
-  const previousKey = buildUsernameIndexKey(storedUsername);
-  const currentKey = buildUsernameIndexKey(reportedUsername);
-  if (previousKey === currentKey) return true;
-
-  try {
-    await syncUsernameIndex(redisClient, previousKey, currentKey, userId);
-    console.log(
-      `🔁 [Cron Job] User ${userId}: Username index moved from ${previousKey ?? "no username"} to ${currentKey ?? "no username"}.`,
-    );
-    return true;
-  } catch (error) {
-    console.warn(
-      `⚠️ [Cron Job] User ${userId}: Failed to sync the username index; keeping the stored username so the next refresh retries: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return false;
-  }
-}
-
-/**
- * Formats how long the oldest selected record has been waiting, using its
- * index score, which is already a millisecond timestamp.
- *
- * @param score - Score read from the refresh index, or undefined when nothing
- *   was selected.
- * @returns A minute count, `none` when nothing was selected, or `unknown` for
- *   a score that is not a usable timestamp.
- * @source
- */
-function formatOldestStaleAge(score: number | undefined): string {
-  if (score === undefined) return "none";
-  if (score === USER_REFRESH_INDEX_UNREADABLE_SCORE) return "unknown";
-  // A zero or non-finite score is not a timestamp, so it has no age to report.
-  // Printing the epoch-relative difference here would read as tens of millions
-  // of minutes and misrepresent the queue's health.
-  if (!Number.isFinite(score) || score <= 0) return "unknown";
-  return `${Math.floor(Math.max(0, Date.now() - score) / 60_000)} minutes`;
-}
-
-/**
- * Measures a value read back from Redis for the payload-size metric.
- *
- * The Upstash client parses stored JSON, so a cooldown written as `"1"` comes
- * back as the number `1`, and an absent key comes back as null. Coercing here
- * keeps the metric from throwing on a numeric reply.
- *
- * @param value - Value returned by a Redis read.
- * @returns Byte length of the value's serialized form, or 0 when it is empty.
- * Never throws on unusual or non-serializable values.
- * @source
- */
-function measureRedisValueBytes(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "string") return Buffer.byteLength(value);
-  if (typeof value === "number" || typeof value === "boolean") {
-    return Buffer.byteLength(String(value));
-  }
-  try {
-    return Buffer.byteLength(JSON.stringify(value) ?? "");
-  } catch {
-    // A circular or otherwise unserializable value cannot be stored in Redis
-    // either, so it contributes no measurable payload bytes.
-    return 0;
-  }
-}
-
-/**
- * Outcome of the index repair lease claim.
- * - `due`: this run won the lease and should rebuild.
- * - `held`: another run holds the lease, so this run normally skips the rebuild.
- * - `unavailable`: the claim itself failed, which is a Redis problem, not a
- *   cadence decision, and the log line says so.
- * @source
- */
-type IndexRepairLeaseState = "due" | "held" | "unavailable";
-
-/**
- * Claims the index repair lease so a rebuild runs at most once per interval.
- * The lease is a plain key with a TTL, so a failed run simply allows the next
- * run to try again after the TTL expires.
- * @returns Whether this run owns the repair cadence.
- * @source
- */
-async function claimIndexRepairLease(): Promise<IndexRepairLeaseState> {
-  try {
-    const claimed = await redisClient.set(INDEX_REPAIR_LEASE_KEY, "1", {
-      nx: true,
-      ex: INDEX_REPAIR_INTERVAL_SECONDS,
-    });
-    return claimed !== null ? "due" : "held";
-  } catch (error) {
-    console.warn(
-      `[Cron Job] Failed to claim the index repair lease; skipping the cadence repair: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return "unavailable";
-  }
-}
-
-/**
- * Computes a recommended cron expression so that all users are refreshed at least once
- * every 24 hours given the number of users and the number processed per run.
- *
- * Strategy:
- * - runsNeeded = ceil(totalUsers / batchSize)
- * - If runsNeeded <= 1 => run once per day ("0 0 * * *").
- * - If runsNeeded > 1440 => impossible with this batch size, suggest every minute ("* * * * *").
- * - Otherwise pick N = floor(1440 / runsNeeded) minutes.
- *   - If N >= 60, convert to an hourly schedule (e.g. run at minute 0 every H hours).
- *   - Else use a minute-based schedule (every N minutes).
- *
- * Returns cron expression, estimated runs/day, and approximate interval (minutes).
- */
-function computeCronForBatch(
-  totalUsers: number,
-  batchSize: number,
-): {
-  runsNeeded: number;
-  cron: string;
-  runsPerDay: number;
-  intervalMinutes: number;
-  note?: string;
-} {
-  const runsNeeded =
-    totalUsers === 0 ? 0 : Math.max(1, Math.ceil(totalUsers / batchSize));
-
-  if (totalUsers === 0) {
-    return {
-      runsNeeded: 0,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-      note: "No users",
-    };
-  }
-
-  if (runsNeeded <= 1) {
-    return {
-      runsNeeded,
-      cron: "0 0 * * *",
-      runsPerDay: 1,
-      intervalMinutes: 1440,
-    };
-  }
-
-  if (runsNeeded > 1440) {
-    return {
-      runsNeeded,
-      cron: "* * * * *",
-      runsPerDay: 1440,
-      intervalMinutes: 1,
-      note: "Cannot satisfy with this batch size; consider increasing batch size or parallelism",
-    };
-  }
-
-  const Nmin = Math.max(1, Math.floor(1440 / runsNeeded));
-  if (Nmin >= 60) {
-    const H = Math.max(1, Math.floor(Nmin / 60));
-    if (H >= 24) {
-      return {
-        runsNeeded,
-        cron: "0 0 * * *",
-        runsPerDay: 1,
-        intervalMinutes: 1440,
-      };
-    }
-    const runsPerDay = Math.ceil(24 / H);
-    const interval = Math.round(1440 / runsPerDay);
-    return {
-      runsNeeded,
-      cron: `0 */${H} * * *`,
-      runsPerDay,
-      intervalMinutes: interval,
-    };
-  } else {
-    const cron = Nmin === 1 ? "* * * * *" : `*/${Nmin} * * * *`;
-    const runsPerHour = Math.ceil(60 / Nmin);
-    const runsPerDay = runsPerHour * 24;
-    const interval = Math.round(1440 / runsPerDay);
-    return { runsNeeded, cron, runsPerDay, intervalMinutes: interval };
-  }
-}
-
-async function rebuildRefreshIndexForRepair(
-  indexIsEmpty: boolean,
-  indexRepair: IndexRepairLeaseState,
-): Promise<{
-  totalUsers: number;
-  rebuildCounts: UserRefreshIndexRebuildResult;
-} | null> {
-  try {
-    const rebuild = await rebuildUserRefreshIndex();
-    const totalUsers =
-      Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)) || 0;
-    console.log(
-      `🧭 [Cron Job] Refreshed the user index (${indexIsEmpty ? "empty" : "repair due"}); indexed ${rebuild.indexedUsers} users, missing meta ${rebuild.missingMetaCount}, unreadable meta ${rebuild.malformedMetaCount}, dropped ${rebuild.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
-    );
-    return { totalUsers, rebuildCounts: rebuild };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (indexIsEmpty) {
-      console.error(
-        `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
-      );
-      throw error;
-    }
-    if (indexRepair === "due") {
-      try {
-        await redisClient.del(INDEX_REPAIR_LEASE_KEY);
-      } catch {
-        // The lease expires on its own; nothing to do here.
-      }
-    }
-    console.error(
-      `[Cron Job] Index repair failed; continuing with the current index: ${message}`,
-    );
-    return null;
-  }
-}
-
-async function repairUserRefreshIndex(
-  initialTotalUsers: number,
-): Promise<UserRefreshIndexState> {
-  const indexIsEmpty = initialTotalUsers === 0;
-  const indexRepair = indexIsEmpty ? "held" : await claimIndexRepairLease();
-
-  if (indexIsEmpty || indexRepair === "due") {
-    const repaired = await rebuildRefreshIndexForRepair(
-      indexIsEmpty,
-      indexRepair,
-    );
-    if (repaired) {
-      return {
-        ...repaired,
-        indexRebuilt: true,
-        reconciliation: await reconcileOrphanedUserKeys(),
-      };
-    }
-  }
-
-  return {
-    totalUsers: initialTotalUsers,
-    indexRebuilt: false,
-    rebuildCounts: null,
-    reconciliation: null,
-  };
-}
-
-/**
- * Removes `cards:` and `username:` keys whose user record is gone.
- *
- * The work runs on the same daily lease as the index repair: it is a
- * recovery routine, not part of the refresh path, and a bounded scan is not
- * worth repeating on every run. A failure is logged and swallowed so a
- * cleanup problem cannot stop the refresh that the run exists for.
- *
- * @returns Reconciliation counts, or null when the scan failed.
- */
-async function reconcileOrphanedUserKeys(): Promise<UserKeyReconciliationResult | null> {
-  try {
-    const reconciliation = await reconcileUserKeyOrphans();
-    console.log(
-      `🧹 [Cron Job] Key reconciliation: cards ${reconciliation.cardsKeysScanned} scanned, ${reconciliation.deletedCardsKeys} orphaned deleted; usernames ${reconciliation.usernameKeysScanned} scanned, ${reconciliation.deletedUsernameKeys} orphaned deleted.`,
-    );
-    return reconciliation;
-  } catch (error) {
-    console.warn(
-      `⚠️ [Cron Job] Key reconciliation failed; continuing with the refresh: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
-  }
-}
 
 async function readRefreshIndexPage(
   start: number,
@@ -656,7 +83,7 @@ async function readRefreshIndexPage(
   if (candidates.length === 0) return null;
 
   const candidateIds = candidates.map(({ id }) => id);
-  const cooldownKeys = candidateIds.map((id) => `cron:refresh-cooldown:${id}`);
+  const cooldownKeys = candidateIds.map(buildRefreshCooldownKey);
   const cooldowns = await redisClient.mget<(string | number | null)[]>(
     ...cooldownKeys,
   );
@@ -720,184 +147,220 @@ async function selectRefreshIndexUsers(
   return selection;
 }
 
-async function setFailedRefreshCooldown(userId: string): Promise<void> {
+/**
+ * Formats how long the oldest selected record has been waiting, using its
+ * index score, which is already a millisecond timestamp.
+ *
+ * @param score - Score read from the refresh index, or undefined when nothing
+ *   was selected.
+ * @returns A minute count, `none` when nothing was selected, or `unknown` for
+ *   a score that is not a usable timestamp.
+ * @source
+ */
+function formatOldestStaleAge(score: number | undefined): string {
+  if (score === undefined) return "none";
+  if (score === USER_REFRESH_INDEX_UNREADABLE_SCORE) return "unknown";
+  // A zero or non-finite score is not a timestamp, so it has no age to report.
+  // Printing the epoch-relative difference here would read as tens of millions
+  // of minutes and misrepresent the queue's health.
+  if (!Number.isFinite(score) || score <= 0) return "unknown";
+  return `${Math.floor(Math.max(0, Date.now() - score) / 60_000)} minutes`;
+}
+
+/**
+ * Measures a value read back from Redis for the payload-size metric.
+ *
+ * The Upstash client parses stored JSON, so a cooldown written as `"1"` comes
+ * back as the number `1`, and an absent key comes back as null. Coercing here
+ * keeps the metric from throwing on a numeric reply.
+ *
+ * @param value - Value returned by a Redis read.
+ * @returns Byte length of the value's serialized form, or 0 when it is empty.
+ * Never throws on unusual or non-serializable values.
+ * @source
+ */
+function measureRedisValueBytes(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return Buffer.byteLength(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return Buffer.byteLength(String(value));
+  }
   try {
-    await setRefreshCooldown(redisClient, userId);
-  } catch (error) {
-    console.error(
-      `[Cron Job] User ${userId}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return Buffer.byteLength(JSON.stringify(value) ?? "");
+  } catch {
+    // A circular or otherwise unserializable value cannot be stored in Redis
+    // either, so it contributes no measurable payload bytes.
+    return 0;
   }
 }
 
-function recordRefreshOutcome(
-  result: UserRefreshBatchResult,
-  outcome: UserRefreshOutcome,
-): void {
-  switch (outcome) {
-    case "success":
-      result.successfulUpdates++;
-      return;
-    case "stale":
-      result.staleIndexEntriesRemoved++;
-      return;
-    case "removed":
-      result.failedUpdates++;
-      result.removedUsers++;
-      return;
-    case "failed":
-      result.failedUpdates++;
-  }
-}
+/**
+ * Origins that may be addressed over plain HTTP.
+ *
+ * The cron secret travels in each published message header, so a deployment
+ * that publishes over HTTP would send it in cleartext. Loopback is the only
+ * exception, because that is what local development uses.
+ * @source
+ */
+const INSECURE_DISPATCH_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-async function processRefreshUser(
-  id: string,
-  result: UserRefreshBatchResult,
-): Promise<void> {
-  let outcome: UserRefreshOutcome = "failed";
+/**
+ * Resolves the origin the per-user messages are published to.
+ *
+ * The value comes from `NEXT_PUBLIC_APP_URL` or `NEXT_PUBLIC_SITE_URL`. Both
+ * are documented as public configuration, and the example environment uses
+ * `http://localhost:3000`, so the scheme is checked here rather than assumed.
+ *
+ * @returns A base URL without a trailing slash, or null when none is usable.
+ * @source
+ */
+function resolveDispatchBaseUrl(): string | null {
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (!configured) return null;
+  let url: URL;
   try {
-    const partsData = await fetchUserDataParts(id, USER_DATA_PARTS);
-    if (!partsData.meta) {
-      console.warn(
-        `[Cron Job] User ${id}: no stored meta; removing stale refresh index entry.`,
-      );
-      await redisClient.zrem(USER_REFRESH_INDEX_KEY, id);
-      outcome = "stale";
-      return;
-    }
-    const user = reconstructUserRecord(partsData);
-
-    console.log(
-      `👤 [Cron Job] User ${user.userId} (${user.username || "no username"}): Starting update`,
-    );
-
-    const updateResult = await updateUserStats(user.userId);
-
-    if (updateResult.success) {
-      user.stats = updateResult.statsData;
-      const normalizationResult = validateAndNormalizeUserRecord(user, {
-        recomputeAggregates: true,
-      });
-      if ("error" in normalizationResult) {
-        console.warn(
-          `[Cron Job] User ${user.userId}: Refresh rejected: ${normalizationResult.error}`,
-        );
-        return;
-      }
-      const finalUser = normalizationResult.normalized;
-
-      // Normalization keeps the stored username, but AniList now reports the
-      // handle the account currently uses. The refresh response is the only
-      // place a rename shows up for a user who never saves through the
-      // generator, so the username index is moved first. The record keeps the
-      // old handle when that fails, which makes the next refresh retry
-      // instead of accepting a record that names a key the index lacks.
-      const reportedUsername = readReportedUsername(updateResult.statsData);
-      if (reportedUsername) {
-        const indexSynced = await syncRefreshedUsername(
-          user.userId,
-          user.username,
-          reportedUsername,
-        );
-        if (indexSynced) finalUser.username = reportedUsername;
-      }
-
-      finalUser.updatedAt = new Date().toISOString();
-      await saveUserRecord(finalUser, partsData);
-      await clearRefreshState(redisClient, user.userId);
-      outcome = "success";
-
-      console.log(`✅ [Cron Job] User ${user.userId}: Successfully updated`);
-    } else if (updateResult.is404Error) {
-      const wasRemoved = await handleFailureTracking(redisClient, user.userId);
-      if (wasRemoved) {
-        outcome = "removed";
-      }
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`🔥 [Cron Job] Error processing user ${id}: ${errorMessage}`);
-    if (error instanceof Error && error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-    }
-  } finally {
-    recordRefreshOutcome(result, outcome);
-    if (outcome === "failed") {
-      await setFailedRefreshCooldown(id);
-    }
-  }
-}
-
-async function processRefreshBatch(
-  batch: UserRefreshCandidate[],
-): Promise<UserRefreshBatchResult> {
-  const result: UserRefreshBatchResult = {
-    successfulUpdates: 0,
-    failedUpdates: 0,
-    removedUsers: 0,
-    staleIndexEntriesRemoved: 0,
-  };
-
-  await Promise.all(batch.map(({ id }) => processRefreshUser(id, result)));
-  return result;
-}
-
-function authorizeCronRequest(request: Request): Response | null {
-  const cronSecret = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
-
-  if (!cronSecret) {
-    if (process.env.NODE_ENV !== "development") {
-      console.error("🔒 [Cron Job] CRON_SECRET is not configured");
-      return new Response("Cron authorization is not configured", {
-        status: 503,
-        headers: apiJsonHeaders(request),
-      });
-    }
-    console.warn(
-      "[Cron Job] CRON_SECRET is not configured. Skipping authorization in development.",
-    );
+    url = new URL(configured);
+  } catch {
     return null;
   }
-
-  if (!cronSecretMatches(cronSecretHeader)) {
-    console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-    return new Response("Unauthorized", {
-      status: 401,
-      headers: apiJsonHeaders(request),
-    });
+  if (url.protocol === "https:") return url.origin;
+  if (url.protocol === "http:" && INSECURE_DISPATCH_HOSTS.has(url.hostname)) {
+    return url.origin;
   }
-
-  console.info("[Cron Job] Cron secret verified.");
+  console.error(
+    `[Cron Job] Refusing to dispatch to ${url.origin}: the cron secret would travel in cleartext. Use an https origin, or loopback for local development.`,
+  );
   return null;
 }
 
 /**
- * Executes the cron job that batches AniList stat refreshes for the oldest users.
+ * Marks a user as queued so the next dispatch does not publish them again.
+ *
+ * QStash retries a failed delivery for up to about 32 minutes, and a dispatch
+ * runs every 20. Without this marker the second dispatch would publish the
+ * same user again while the first message is still retrying, which doubles the
+ * AniList traffic the flow control exists to bound.
+ *
+ * The write is best effort. A missing marker only means a duplicate message,
+ * and the consumer rewrites the same stats on a duplicate, so it cannot fail
+ * the run.
+ *
+ * @param userIds - Users whose messages QStash accepted.
+ * @source
+ */
+async function markUsersInFlight(userIds: string[]): Promise<void> {
+  await Promise.all(
+    userIds.map((userId) =>
+      redisClient
+        .set(buildRefreshCooldownKey(userId), "1", {
+          ex: REFRESH_IN_FLIGHT_SECONDS,
+        })
+        .catch((error) => {
+          console.warn(
+            `[Cron Job] User ${userId}: could not mark the message in flight: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }),
+    ),
+  );
+}
+
+/**
+ * Publishes one refresh message per selected user.
+ *
+ * Flow control keeps cron traffic inside the AniList budget: the messages
+ * share one key, so they queue behind each other instead of all reaching
+ * AniList at once. A failed publish leaves the user in the refresh index, so
+ * the next dispatch selects them again.
+ *
+ * The error string is a short code, not the SDK message: QStash and Upstash
+ * persist the response body and show it in their consoles.
+ *
+ * @param baseUrl - Origin of the deployment that hosts the consumer route.
+ * @param userIds - Users selected for this run.
+ * @returns One entry per user: the message id, or a failure code.
+ * @source
+ */
+async function publishRefreshMessages(
+  baseUrl: string,
+  userIds: string[],
+): Promise<PublishResult[]> {
+  const client = getQstashClient();
+  const cronSecret = process.env.CRON_SECRET;
+  const url = `${baseUrl}/api/cron/refresh-user`;
+
+  const results = await Promise.allSettled(
+    userIds.map((userId) =>
+      client.publishJSON({
+        url,
+        body: { userId },
+        headers: cronSecret ? { "x-cron-secret": cronSecret } : undefined,
+        retries: REFRESH_MESSAGE_RETRIES,
+        flowControl: REFRESH_FLOW_CONTROL,
+      }),
+    ),
+  );
+
+  return results.map((result, index) => {
+    const userId = userIds[index];
+    if (result.status === "fulfilled") {
+      return { userId, messageId: result.value.messageId };
+    }
+    // The detail stays in the server log.
+    console.error(
+      `🔥 [Cron Job] User ${userId}: publish failed - ${
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+      }`,
+    );
+    return { userId, error: "publish-failed" };
+  });
+}
+
+/**
+ * Dispatches the AniList stats refresh for the stalest users.
+ *
+ * The route keeps the selection work and publishes one message per selected
+ * user to `/api/cron/refresh-user`. Each message is delivered, retried, and
+ * logged on its own, so one slow or failing user cannot hold the run open or
+ * cost the rest of the batch its retries.
+ *
  * @param request - Incoming request which must include the cron secret header.
- * @returns Response summarizing processed, failed, and removed users.
+ * @returns JSON describing the messages published and the selection that
+ *   produced them.
  * @source
  */
 export async function POST(request: Request) {
   const authorizationFailure = authorizeCronRequest(request);
   if (authorizationFailure) return authorizationFailure;
 
+  const baseUrl = resolveDispatchBaseUrl();
+  if (!baseUrl) {
+    console.error(
+      "[Cron Job] Neither NEXT_PUBLIC_APP_URL nor NEXT_PUBLIC_SITE_URL is set; cannot address the consumer route.",
+    );
+    return new Response(
+      JSON.stringify({
+        error: "Cron dispatch is not configured: no app origin",
+      }),
+      { status: 503, headers: apiJsonHeaders(request) },
+    );
+  }
+
   try {
-    console.log("🛠️ [Cron Job] Authorized, starting background update...");
+    console.log("🛠️ [Cron Job] Authorized, starting refresh dispatch...");
 
     const selectionStartedAt = Date.now();
-    const indexState = await repairUserRefreshIndex(
-      Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)),
-    );
-    const { totalUsers, indexRebuilt, rebuildCounts, reconciliation } =
-      indexState;
-
-    const rebuildSummary = rebuildCounts
-      ? `Index spans ${rebuildCounts.indexedUsers}, unreadable meta ${rebuildCounts.malformedMetaCount}, missing meta ${rebuildCounts.missingMetaCount}, stale entries dropped ${rebuildCounts.droppedStaleMembers}.`
-      : "";
-    const reconciliationSummary = reconciliation
-      ? `Orphan keys removed: cards ${reconciliation.deletedCardsKeys} of ${reconciliation.orphanedCardsKeys}, usernames ${reconciliation.deletedUsernameKeys} of ${reconciliation.orphanedUsernameKeys}.`
-      : "";
+    // The dispatch cannot select from an empty index, so it rebuilds one when
+    // it finds none. Correcting drift in a populated index belongs to the
+    // scheduled repair (`/api/cron/repair-index`), not to every dispatch.
+    const { totalUsers, rebuilt: indexRebuilt } =
+      await bootstrapRefreshIndexIfEmpty(
+        Number(await redisClient.zcard(USER_REFRESH_INDEX_KEY)),
+      );
 
     // Walk the index from the stalest score upward, one page at a time, and
     // keep the first batch that is not cooling down. A single page is not
@@ -950,63 +413,109 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} eligible users (${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
+      `🚀 [Cron Job] Publishing ${batch.length} refresh messages (${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
     );
 
-    const {
-      successfulUpdates,
-      failedUpdates,
-      removedUsers,
-      staleIndexEntriesRemoved,
-    } = await processRefreshBatch(batch);
+    let publishResults: PublishResult[];
+    try {
+      publishResults = await publishRefreshMessages(
+        baseUrl,
+        batch.map(({ id }) => id),
+      );
+    } catch (error) {
+      // `getQstashClient` throws before any publish when the token is missing.
+      // That is a configuration failure for the whole run, so report it in the
+      // same dispatch shape instead of the generic error body.
+      console.error(
+        `🔥 [Cron Job] Could not publish: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return new Response(
+        JSON.stringify({
+          published: 0,
+          failed: batch.length,
+          messageIds: [],
+          failedUserIds: batch.map(({ id }) => id),
+          selection: {
+            indexedUsers: totalUsers,
+            candidates: candidateIds.length,
+            coolingDown: cooledDownUserIds.size,
+            eligible: eligibleUsers.length,
+            pagesRead: indexPagesRead,
+            indexExhausted,
+            oldestStaleRecord: oldestStaleAge,
+          },
+          indexRebuilt,
+          error: "publish-unavailable",
+        }),
+        { status: 500, headers: apiJsonHeaders(request) },
+      );
+    }
+    const published = publishResults.filter(
+      (result): result is { userId: string; messageId: string } =>
+        "messageId" in result,
+    );
+    const failed = publishResults.filter(
+      (result): result is { userId: string; error: string } =>
+        "error" in result,
+    );
+
+    for (const result of published) {
+      console.log(
+        `📨 [Cron Job] User ${result.userId}: queued as ${result.messageId}`,
+      );
+    }
+
+    // Only the users QStash accepted get the in-flight marker. A user whose
+    // publish failed stays selectable, which is what re-queues them next run.
+    await markUsersInFlight(published.map(({ userId }) => userId));
+
+    const payload = {
+      published: published.length,
+      failed: failed.length,
+      messageIds: published.map(({ messageId }) => messageId),
+      failedUserIds: failed.map(({ userId }) => userId),
+      selection: {
+        indexedUsers: totalUsers,
+        candidates: candidateIds.length,
+        coolingDown: cooledDownUserIds.size,
+        eligible: eligibleUsers.length,
+        pagesRead: indexPagesRead,
+        indexExhausted,
+        oldestStaleRecord: oldestStaleAge,
+      },
+      // Only the empty-index bootstrap runs here. Index repair and orphan
+      // reconciliation run on their own schedule; read that route's response
+      // for their counts.
+      indexRebuilt,
+    };
+
+    // A run where every publish failed means the dispatcher is misconfigured or
+    // the queue is unreachable. Answer 500 so the schedule's retry fires; a
+    // partial success is reported as 200 because the unpublished users stay
+    // in the index and the next run picks them up without republishing the
+    // messages that already went out. A run that published nothing and failed
+    // nothing (empty index, all cooling down) is healthy and answers 200.
+    const status = published.length === 0 && failed.length > 0 ? 500 : 200;
 
     console.log(
-      `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
-      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed, ${removedUsers} removed, ${staleIndexEntriesRemoved} stale index entries dropped. Oldest stale record: ${oldestStaleAge}.`,
+      `🎉 [Cron Job] Dispatch complete: ${published.length} published, ${failed.length} failed. Oldest stale record: ${oldestStaleAge}.`,
     );
 
-    // Compute recommended cron expressions for 5 and 10 users per run
-    const recFor5 = computeCronForBatch(totalUsers, BATCH_SIZE);
-    const recFor10 = computeCronForBatch(totalUsers, BATCH_SIZE * 2);
-
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
-    );
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 10/users -> ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min).`,
-    );
-
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
-
-    const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
-    const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
-
-    const attemptedUsers = successfulUpdates + failedUpdates;
-    const staleSuffix = staleIndexEntriesRemoved
-      ? `, Stale index entries dropped: ${staleIndexEntriesRemoved}`
-      : "";
-
-    const scheduleMessage = [
-      `Updated ${successfulUpdates}/${attemptedUsers} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}${staleSuffix}`,
-      `Eligible users: ${eligibleUsers.length}/${candidateIds.length}; cooling down: ${cooledDownUserIds.size}; indexes scanned: ${indexPagesRead} page(s) of ${INDEX_WINDOW_PAGE_SIZE}; oldest stale record: ${oldestStaleAge}.`,
-      ...(rebuildSummary ? [rebuildSummary] : []),
-      ...(reconciliationSummary ? [reconciliationSummary] : []),
-      "",
-      `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
-      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,
-      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10Note}`,
-    ].join("\n");
-
-    return new Response(scheduleMessage, { status: 200, headers });
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: apiJsonHeaders(request),
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);
     if (error.stack) {
       console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
     }
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
-    return new Response("Cron job failed", { status: 500, headers });
+    return new Response(JSON.stringify({ error: "Cron job failed" }), {
+      status: 500,
+      headers: apiJsonHeaders(request),
+    });
   }
 }

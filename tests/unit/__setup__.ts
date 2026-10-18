@@ -68,6 +68,9 @@ export const sharedRedisMockZincrby = mock((..._args: unknown[]) =>
 export const sharedRedisMockExpire = mock((..._args: unknown[]) =>
   Promise.resolve(1),
 );
+export const sharedRedisMockTtl = mock((..._args: unknown[]) =>
+  Promise.resolve(-1),
+);
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
@@ -130,6 +133,7 @@ const sharedRedisFakeClient = {
   hincrby: sharedRedisMockHincrby,
   zincrby: sharedRedisMockZincrby,
   expire: sharedRedisMockExpire,
+  ttl: sharedRedisMockTtl,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
   mget: sharedRedisMockMget,
@@ -164,4 +168,38 @@ const RatelimitMockClass = mock().mockImplementation(() => ({
 // Register the shared Ratelimit mock
 mock.module("@upstash/ratelimit", () => ({
   Ratelimit: RatelimitMockClass,
+}));
+
+/**
+ * Shared QStash mocks. `publishJSON` records every published message so tests
+ * can assert on the url, body, headers, and flow control of each one.
+ */
+export const sharedQstashPublishJSON = mock(
+  (..._args: unknown[]): Promise<{ messageId: string }> =>
+    Promise.resolve({
+      messageId: `msg_${sharedQstashPublishJSON.mock.calls.length}`,
+    }),
+);
+export const sharedQstashSchedulesCreate = mock(
+  (options?: { scheduleId?: string }): Promise<{ scheduleId: string }> =>
+    Promise.resolve({ scheduleId: options?.scheduleId ?? "scd_test" }),
+);
+export const sharedQstashSchedulesList = mock(
+  (..._args: unknown[]): Promise<unknown[]> => Promise.resolve([]),
+);
+export const sharedQstashSchedulesDelete = mock(
+  (..._args: unknown[]): Promise<void> => Promise.resolve(),
+);
+
+const QStashClientMock = mock().mockImplementation(() => ({
+  publishJSON: sharedQstashPublishJSON,
+  schedules: {
+    create: sharedQstashSchedulesCreate,
+    list: sharedQstashSchedulesList,
+    delete: sharedQstashSchedulesDelete,
+  },
+}));
+
+mock.module("@upstash/qstash", () => ({
+  Client: QStashClientMock,
 }));
