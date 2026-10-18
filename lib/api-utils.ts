@@ -252,6 +252,7 @@ export async function scanAllKeys(
   pattern: string,
   count: number = 1000,
   onScanPage?: () => void,
+  limit?: number,
 ): Promise<string[]> {
   let cursor: string | number = 0;
   const allKeys: string[] = [];
@@ -264,9 +265,71 @@ export async function scanAllKeys(
     cursor = nextCursor;
     onScanPage?.();
     allKeys.push(...keys);
+    // Stop as soon as the caller has enough keys. Without this the scan walks
+    // the whole keyspace and the caller's slice throws away the rest.
+    if (limit !== undefined && allKeys.length >= limit) {
+      return allKeys.slice(0, limit);
+    }
   } while (cursor !== 0 && cursor !== "0");
 
   return allKeys;
+}
+
+/**
+ * Reads many keys in bounded batches.
+ *
+ * A single `MGET` over thousands of keys is one oversized command, and the
+ * reply size grows with every key. Chunking keeps each round trip to a size
+ * Redis and the HTTP client both handle.
+ *
+ * @param keys - Keys to read, in order.
+ * @param batchSize - Keys per `MGET`.
+ * @returns One value per key, in the same order.
+ */
+export async function mgetInBatches<T>(
+  keys: string[],
+  batchSize: number = 500,
+): Promise<(T | null)[]> {
+  const values: (T | null)[] = [];
+  for (let offset = 0; offset < keys.length; offset += batchSize) {
+    const batch = keys.slice(offset, offset + batchSize);
+    const batchValues = await redisClient.mget<(T | null)[]>(...batch);
+    values.push(...batchValues);
+  }
+  return values;
+}
+
+/**
+ * Maximum identifiers held in one ephemeral rate limit cache.
+ *
+ * The cache stores `identifier -> reset time` and only evicts an entry when the
+ * same identifier is looked up after its window ends. A client that varies its
+ * `x-forwarded-for` value would otherwise grow the map for the life of the
+ * process, so entries are capped and the oldest is dropped first.
+ * @source
+ */
+const RATE_LIMIT_CACHE_MAX_ENTRIES = 10_000;
+
+/**
+ * Builds an ephemeral cache bounded to {@link RATE_LIMIT_CACHE_MAX_ENTRIES}.
+ *
+ * The SDK accepts a plain `Map` and calls `set`/`get` on it, so overriding
+ * `set` is enough to evict. Insertion order is preserved by `Map`, so the
+ * first key it yields is the oldest.
+ * @returns A Map the limiter can use as its ephemeral cache.
+ * @source
+ */
+function createBoundedRateLimitCache(): Map<string, number> {
+  const cache = new Map<string, number>();
+  const originalSet = cache.set.bind(cache);
+  cache.set = (key: string, value: number) => {
+    if (!cache.has(key) && cache.size >= RATE_LIMIT_CACHE_MAX_ENTRIES) {
+      const oldest = cache.keys().next();
+      if (!oldest.done) cache.delete(oldest.value);
+    }
+    return originalSet(key, value);
+  };
+  return cache;
 }
 
 let _realRatelimit: Ratelimit | undefined;
@@ -281,6 +344,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
       redis: createRateLimitRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
       analytics: true,
+      ephemeralCache: createBoundedRateLimitCache(),
     });
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -295,6 +359,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
       redis: createRateLimitRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
       analytics: true,
+      ephemeralCache: createBoundedRateLimitCache(),
     });
     (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
@@ -306,9 +371,19 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
 /**
  * Creates a new Upstash Ratelimit instance using the shared Redis client.
  * Allows per-endpoint overrides for window/limit settings.
+ *
+ * An ephemeral cache answers a repeat rejection from instance memory, so an
+ * over-limit caller that keeps retrying stops costing the limiter's Redis
+ * command. Each instance gets its own cache because the cached reset time
+ * belongs to that instance's limit and window.
+ *
+ * The cache does not replace Redis as the shared counter: an instance that
+ * has not seen the caller still asks Redis, and a new process starts empty.
+ *
  * @param options.limit - Maximum number of requests allowed per window
  * @param options.window - Duration string (e.g. "10 s", "1 m")
  * @returns A configured Ratelimit instance ready to be used for limiting
+ * @source
  */
 export function createRateLimiter(options?: {
   limit?: number;
@@ -328,6 +403,7 @@ export function createRateLimiter(options?: {
     redis,
     limiter: Ratelimit.slidingWindow(limit, window),
     analytics: true,
+    ephemeralCache: createBoundedRateLimitCache(),
   });
 }
 
@@ -467,7 +543,7 @@ export async function checkRateLimit(
   limiter?: Ratelimit,
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
-  const { success, pending } = await effectiveLimiter.limit(ip);
+  const { success, pending, reason } = await effectiveLimiter.limit(ip);
   // The analytics write is a separate request the limiter reports through
   // `pending`. Upstash documents that a serverless runtime can freeze before it
   // lands, which under-reports the dashboard, so hand it to `after` to keep the
@@ -481,9 +557,13 @@ export async function checkRateLimit(
   }
   if (!success) {
     console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    );
+    // A `cacheBlock` was answered from instance memory without touching Redis.
+    // Recording it would add the Redis write the cache exists to avoid.
+    if (reason !== "cacheBlock") {
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+    }
     return jsonWithCors({ error: "Too many requests" }, request, 429);
   }
   return null;

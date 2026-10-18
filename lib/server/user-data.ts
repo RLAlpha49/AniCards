@@ -1,4 +1,4 @@
-import { redisClient, scanAllKeys } from "@/lib/api-utils";
+import { mgetInBatches, redisClient, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import {
   UserRecord,
@@ -903,7 +903,12 @@ export async function reconcileUserKeyOrphans(
     deletedUsernameKeys: 0,
   };
 
-  const cardsKeys = (await scanAllKeys("cards:*")).slice(0, keyLimit);
+  const cardsKeys = await scanAllKeys(
+    "cards:*",
+    undefined,
+    undefined,
+    keyLimit,
+  );
   result.cardsKeysScanned = cardsKeys.length;
   const orphanedCards = await filterKeysWithMissingOwner(cardsKeys);
   result.orphanedCardsKeys = orphanedCards.length;
@@ -912,9 +917,7 @@ export async function reconcileUserKeyOrphans(
     // generator sends both saves in parallel. A card record written in that
     // window is orphaned only until the slower request lands, so deletion
     // waits for the record to age past the grace period first.
-    const values = await redisClient.mget<(unknown[] | null)[]>(
-      ...orphanedCards,
-    );
+    const values = await mgetInBatches<unknown>(orphanedCards);
     const cutoff = Date.now() - ORPHAN_KEY_GRACE_MS;
     const expiredCards = orphanedCards.filter((_, index) => {
       // An unreadable record cannot be reconciled later either, so it is
@@ -931,12 +934,15 @@ export async function reconcileUserKeyOrphans(
   }
 
   // The username key's owner is the value itself, not part of the key name.
-  const usernameKeys = (await scanAllKeys("username:*")).slice(0, keyLimit);
+  const usernameKeys = await scanAllKeys(
+    "username:*",
+    undefined,
+    undefined,
+    keyLimit,
+  );
   result.usernameKeysScanned = usernameKeys.length;
   if (usernameKeys.length > 0) {
-    const owners = await redisClient.mget<(string | number | null)[]>(
-      ...usernameKeys,
-    );
+    const owners = await mgetInBatches<string | number>(usernameKeys);
     const ownerByKey = new Map<string, string>();
     usernameKeys.forEach((key, index) => {
       const owner = owners[index];
@@ -947,8 +953,8 @@ export async function reconcileUserKeyOrphans(
 
     const candidateIds = Array.from(new Set(ownerByKey.values()));
     const metaValues = candidateIds.length
-      ? await redisClient.mget<(unknown[] | null)[]>(
-          ...candidateIds.map((id) => getUserDataKey(id, "meta")),
+      ? await mgetInBatches<unknown>(
+          candidateIds.map((id) => getUserDataKey(id, "meta")),
         )
       : [];
     const liveIds = new Set(
@@ -989,8 +995,8 @@ async function filterKeysWithMissingOwner(keys: string[]): Promise<string[]> {
   }
 
   const uniqueIds = Array.from(new Set(userIds));
-  const metas = await redisClient.mget<(unknown[] | null)[]>(
-    ...uniqueIds.map((id) => getUserDataKey(id, "meta")),
+  const metas = await mgetInBatches<unknown>(
+    uniqueIds.map((id) => getUserDataKey(id, "meta")),
   );
   const liveIds = new Set(uniqueIds.filter((_, index) => metas[index] != null));
 
