@@ -1,5 +1,4 @@
 import { LRUCache } from "lru-cache";
-import { incrementAnalytics, buildAnalyticsMetricKey } from "@/lib/api-utils";
 
 /**
  * Represents a cached SVG entry with metadata.
@@ -234,19 +233,6 @@ export function getSvgCacheStats() {
     maxSize: svgCache.maxSize,
     maxItems: svgCache.max,
   };
-}
-
-/**
- * Tracks aggregate cache hits and misses in analytics.
- * Should be called when checking cache to record metrics.
- *
- * @param hit - Whether this was a cache hit (true) or miss (false)
- * @source
- */
-export async function trackCacheMetric(hit: boolean): Promise<void> {
-  const metricType = hit ? "cache_hits" : "cache_misses";
-  const metric = buildAnalyticsMetricKey("card_svg", metricType);
-  await incrementAnalytics(metric);
 }
 
 /**

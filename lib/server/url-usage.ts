@@ -107,6 +107,22 @@ export interface CardUrlOutcome {
   status: number;
 }
 
+/** User identifier supplied by the card URL. @source */
+export interface CardUrlUserIdentifier {
+  type: "userId" | "userName";
+  value: string;
+}
+
+/**
+ * The pipeline surface the profile writes need. Structural, so callers can pass
+ * a real `@upstash/redis` pipeline and tests can pass a stub.
+ * @source
+ */
+export interface CardUrlProfilePipeline {
+  hincrby(key: string, field: string, increment: number): unknown;
+  expire(key: string, seconds: number, option: "NX"): unknown;
+}
+
 /**
  * Builds the Redis key for a day's URL profile bucket.
  * @param now - Timestamp used to pick the UTC day; defaults to the current time.
@@ -319,29 +335,53 @@ export function buildCardUrlProfile(input: CardUrlProfileInput): string {
 export async function trackCardUrlProfile(
   profile: string,
   outcome: CardUrlOutcome,
-  userIdentifier?: { type: "userId" | "userName"; value: string },
+  userIdentifier?: CardUrlUserIdentifier,
 ): Promise<void> {
-  const now = new Date();
-  const key = buildCardUrlProfileKey(now);
-  const field = `${profile}|cache=${outcome.cache}|status=${statusClass(outcome.status)}`;
-
   try {
     const pipeline = redisClient.pipeline();
-    pipeline.hincrby(key, field, 1);
-    pipeline.expire(key, CARD_URL_PROFILE_TTL_SECONDS, "NX");
-
-    if (userIdentifier) {
-      const userKey = buildCardUrlUserProfileKey(now);
-      pipeline.hincrby(
-        userKey,
-        `${userIdentifier.type}=${userIdentifier.value}|${profile}`,
-        1,
-      );
-      pipeline.expire(userKey, CARD_URL_PROFILE_TTL_SECONDS, "NX");
-    }
-
+    queueCardUrlProfileWrites(pipeline, profile, outcome, userIdentifier);
     await pipeline.exec();
   } catch (error) {
     console.warn("[Card URL Usage] Failed to record URL profile:", error);
+  }
+}
+
+/**
+ * Queues the profile increments and the non-sliding TTL onto an existing
+ * pipeline, so callers can send them with the rest of a request's writes.
+ *
+ * The aggregate bucket always gets one `HINCRBY`. When the URL needs stored
+ * configuration, the user bucket gets a second one. Both TTLs are `NX`, so the
+ * 90-day window starts at the first write of the day and does not slide.
+ *
+ * @param pipeline - Pipeline to queue the commands onto.
+ * @param profile - Canonical profile from {@link buildCardUrlProfile}.
+ * @param outcome - Cache outcome and response status for this request.
+ * @param userIdentifier - User identifier from the URL for database-dependent
+ *   profiles, when present.
+ * @param now - Timestamp used to pick the UTC day; defaults to the current time.
+ * @source
+ */
+export function queueCardUrlProfileWrites(
+  pipeline: CardUrlProfilePipeline,
+  profile: string,
+  outcome: CardUrlOutcome,
+  userIdentifier?: CardUrlUserIdentifier,
+  now: Date = new Date(),
+): void {
+  const key = buildCardUrlProfileKey(now);
+  const field = `${profile}|cache=${outcome.cache}|status=${statusClass(outcome.status)}`;
+
+  pipeline.hincrby(key, field, 1);
+  pipeline.expire(key, CARD_URL_PROFILE_TTL_SECONDS, "NX");
+
+  if (userIdentifier) {
+    const userKey = buildCardUrlUserProfileKey(now);
+    pipeline.hincrby(
+      userKey,
+      `${userIdentifier.type}=${userIdentifier.value}|${profile}`,
+      1,
+    );
+    pipeline.expire(userKey, CARD_URL_PROFILE_TTL_SECONDS, "NX");
   }
 }

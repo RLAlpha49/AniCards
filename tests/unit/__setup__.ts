@@ -15,7 +15,9 @@ export const sharedRedisMockScan = mock();
 export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
 export const sharedRedisMockDel = mock();
-export const sharedRedisMockIncr = mock(() => Promise.resolve(1));
+export const sharedRedisMockIncr = mock((..._args: unknown[]) =>
+  Promise.resolve(1),
+);
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock(() => Promise.resolve([]));
 /**
@@ -71,6 +73,7 @@ export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
 export const sharedRedisMockPipelineHincrby = mock();
 export const sharedRedisMockPipelineZincrby = mock();
+export const sharedRedisMockPipelineIncr = mock();
 export const sharedRedisMockPipelineExpire = mock();
 export const sharedRedisMockPipelineExec = mock(() => Promise.resolve([]));
 
@@ -88,6 +91,13 @@ const sharedRedisPipelineMock = {
   hincrby: mock((...args: unknown[]) => {
     sharedRedisMockPipelineHincrby(...args);
     sharedRedisMockHincrby(...args);
+    return sharedRedisPipelineMock;
+  }),
+  // Analytics counters are queued onto a pipeline, so forwarding here keeps
+  // assertions on `sharedRedisMockIncr` meaningful for both call paths.
+  incr: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineIncr(...args);
+    sharedRedisMockIncr(...args);
     return sharedRedisPipelineMock;
   }),
   zincrby: mock((...args: unknown[]) => {
