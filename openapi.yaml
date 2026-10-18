@@ -538,6 +538,13 @@ paths:
   /api/get-user:
     get:
       summary: "Retrieve stored user data by numeric userId or username"
+      description: >
+        Returns the user record rebuilt from its stored parts. The response
+        carries a weak `ETag` derived from the parts returned, the meta
+        `updatedAt` the cron writes, and the last card request time. Send it
+        back in `If-None-Match` to receive `304 Not Modified` when the record
+        has not changed. `Cache-Control` is `private, no-cache`, so a shared
+        cache never stores the response.
       tags:
         - "user"
       parameters:
@@ -554,13 +561,46 @@ paths:
           schema:
             type: string
           description: "username string; resolved against the username index to a numeric id. One of userId or username must be provided."
+        - in: query
+          name: parts
+          required: false
+          schema:
+            type: string
+            enum:
+              [
+                "meta",
+                "activity",
+                "favourites",
+                "statistics",
+                "pages",
+                "planning",
+                "current",
+                "rewatched",
+                "completed",
+                "aggregates",
+              ]
+          style: form
+          explode: false
+          description: >
+            Comma-separated list of stored parts to return. `meta` is always
+            returned because it carries the identity fields. When omitted,
+            every part is returned. Unknown part names return 400.
       responses:
         "200":
           description: "User record stored in Redis"
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: "Weak validator for the returned record."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserRecord"
+        "304":
+          description: >
+            The record still matches the `If-None-Match` validator. The body
+            is empty and the headers match a 200 response.
         "400":
           description: "Missing or invalid parameters"
           content:

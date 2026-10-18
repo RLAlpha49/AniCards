@@ -75,6 +75,13 @@ interface CardData {
   gridRows?: number;
 }
 
+/**
+ * Parts the user page needs. The page renders only the user ID and username,
+ * so the other stored parts are left in Redis.
+ * @source
+ */
+const USER_PAGE_PARTS = "meta";
+
 type ApiUser = { userId?: string | number; username?: string };
 type ApiCards = { userId?: number | string; cards?: CardData[] };
 
@@ -134,7 +141,7 @@ async function fetchUserById(
   setErrorCallback: (v: string | null) => void,
 ): Promise<ApiUser | null> {
   return fetchJsonWithValidation<ApiUser>(
-    `/api/get-user?userId=${userId}`,
+    `/api/get-user?userId=${userId}&parts=${USER_PAGE_PARTS}`,
     "user",
     setErrorCallback,
   );
@@ -148,7 +155,7 @@ async function fetchUserByUsername(
   setErrorCallback: (v: string | null) => void,
 ): Promise<ApiUser | null> {
   return fetchJsonWithValidation<ApiUser>(
-    `/api/get-user?username=${encodeURIComponent(username)}`,
+    `/api/get-user?username=${encodeURIComponent(username)}&parts=${USER_PAGE_PARTS}`,
     "user",
     setErrorCallback,
   );
