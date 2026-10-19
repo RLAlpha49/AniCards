@@ -160,9 +160,15 @@ function formatCardDataErrorMessage(err: CardDataError): string {
  * in a response header so clients can render a placeholder sized correctly.
  *
  * Implements stale-while-revalidate pattern:
- * - max-age: 24 hours (cache fresh for a full day)
+ * - max-age: 24 hours (browser cache fresh for a full day)
+ * - s-maxage: 24 hours (required for Vercel's CDN to cache a function response;
+ *   without it the edge stores the response only via max-age)
  * - stale-while-revalidate: 7 days (continue serving stale content for a week while revalidating)
  * - stale-if-error: 14 days (serve stale if origin is down)
+ *
+ * Vercel consumes `s-maxage`, `stale-while-revalidate`, and `stale-if-error` and
+ * strips them from the copy sent to the browser, so the client sees only
+ * `public, max-age=86400`.
  *
  * @param request - Optional incoming request used to determine allowed origin.
  * @returns A headers object suitable for passing to Response.
@@ -173,7 +179,7 @@ function svgHeaders(request?: Request) {
   return {
     "Content-Type": "image/svg+xml",
     "Cache-Control":
-      "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+      "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600",
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
     "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
