@@ -13,6 +13,7 @@ import {
 } from "@/lib/api-utils";
 import { clampBorderRadius, safeParse } from "@/lib/utils";
 import { isValidCardType } from "@/lib/card-data/validation";
+import { invalidateSvgCache } from "@/lib/stores/svg-cache";
 
 /**
  * Card types that support pie variation and thus can use showPiePercentages.
@@ -349,6 +350,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
+
+    // The stored configuration is an input to every card rendered for this
+    // user, and a `colorPreset=custom` URL carries none of it. Drop the cached
+    // renders so the next request reflects the configuration just saved.
+    // `validateCardData` already rejected anything that is not a positive
+    // integer, so the conversion cannot change the value.
+    await invalidateSvgCache(Number(userId));
 
     return jsonWithCors({ success: true, userId }, request);
   } catch (error) {

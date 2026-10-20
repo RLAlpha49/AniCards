@@ -1,5 +1,6 @@
 import {
   getAllowedCardSvgOrigin,
+  doesCardSvgOriginVary,
   createRateLimiter,
   checkRateLimit,
 } from "@/lib/api-utils";
@@ -26,7 +27,10 @@ import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   generateCacheKey,
   getSvgFromMemoryCache,
+  getSvgFromSharedCache,
+  setSvgInCache,
   setSvgInMemoryCache,
+  SVG_CACHE_TTL_SECONDS,
 } from "@/lib/stores/svg-cache";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { buildCardUrlProfile } from "@/lib/server/url-usage";
@@ -183,7 +187,10 @@ function svgHeaders(request?: Request) {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
     "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
-    Vary: "Origin", // Cache varies based on Origin header
+    // Only declared when the origin depends on the request. A constant origin
+    // does not need the variance, and declaring it stored one copy of every
+    // card per embedding context.
+    ...(doesCardSvgOriginVary() ? { Vary: "Origin" } : {}),
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
 }
@@ -207,7 +214,9 @@ function errorHeaders(request?: Request) {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
     "Access-Control-Expose-Headers": "X-Card-Border-Radius",
-    Vary: "Origin", // Header varies based on Origin
+    // Errors are never cached, so the variance costs nothing to declare and
+    // keeps the header correct when the origin is request-derived.
+    ...(doesCardSvgOriginVary() ? { Vary: "Origin" } : {}),
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
 }
@@ -596,9 +605,13 @@ export async function GET(request: Request) {
     piePercentages: params.piePercentagesParam,
     gridCols: normalizedGridCols,
     gridRows: normalizedGridRows,
-    _t: params._t,
   });
 
+  // The `_t` cache buster is deliberately absent from the key: it changes on
+  // every page load, so including it turned every request into a unique key and
+  // made the cache useless. It still busts the browser and CDN copies, which is
+  // all it ever needed to do. Stored configuration changes invalidate the
+  // server cache at the write instead of on the next read.
   const cachedEntry = getSvgFromMemoryCache(cacheKey);
   if (cachedEntry) {
     metrics.recordCache("hit");
@@ -649,7 +662,7 @@ export async function GET(request: Request) {
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
         request,
-        undefined,
+        cachedEntry.borderRadius,
         effectiveUserId,
       );
     }
@@ -668,12 +681,42 @@ export async function GET(request: Request) {
     return createSuccessResponse(
       markTrustedSvg(cachedEntry.svg),
       request,
-      undefined,
+      cachedEntry.borderRadius,
       effectiveUserId,
     );
   }
 
-  // Cache miss - record and proceed with generation
+  // Cache miss in this process; the shared tier is checked below, and the
+  // counter is recorded there once the real outcome is known.
+  const sharedEntry = await getSvgFromSharedCache(cacheKey);
+  if (sharedEntry) {
+    metrics.recordCache("hit");
+    // Warm the local tier so this process serves the next request instantly.
+    setSvgInMemoryCache(
+      cacheKey,
+      sharedEntry.svg,
+      effectiveUserId,
+      sharedEntry.borderRadius,
+    );
+    console.log(
+      `⚡ [Card SVG] Served from shared cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
+    );
+    metrics.recordUrlProfile(
+      urlProfile,
+      { cache: "hit", status: 200 },
+      cardConfigClassification.source === "db"
+        ? trackingUserIdentifier
+        : undefined,
+    );
+    metrics.flushInBackground();
+    return createSuccessResponse(
+      markTrustedSvg(sharedEntry.svg),
+      request,
+      sharedEntry.borderRadius,
+      effectiveUserId,
+    );
+  }
+
   metrics.recordCache("miss");
 
   const response = await generateCardResponse(
@@ -822,13 +865,15 @@ async function generateCardResponse(
       `✅ [Card SVG] Rendered ${params.cardType} card for ${effectiveUserId} in ${duration}ms`,
     );
 
-    // Cache the generated SVG for future requests
+    // Cache the generated SVG for future requests. The shared write is not
+    // awaited: a slow or failing Redis must not delay the response.
     if (cacheKey) {
-      setSvgInMemoryCache(
+      void setSvgInCache(
         cacheKey,
         toCleanSvgResponse(svgContent),
-        12 * 60 * 60 * 1000, // 12 hour TTL
+        SVG_CACHE_TTL_SECONDS * 1000,
         effectiveUserId,
+        cardConfig.borderRadius,
       );
       console.log(`💾 [Card SVG] Cached SVG for ${effectiveUserId}`);
     }

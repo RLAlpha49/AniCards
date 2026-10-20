@@ -429,6 +429,28 @@ function normalizeOrigin(value: string | null | undefined): string | null {
 }
 
 /**
+ * Reports whether `getAllowedCardSvgOrigin` can return a different value for
+ * two requests to the same URL.
+ *
+ * The card SVG response declares `Vary: Origin`, which tells a shared cache to
+ * store a separate copy per `Origin` value. That is only correct when the
+ * origin really depends on the request. In production it is a single constant,
+ * so declaring the variance split one cached card into one entry per embedding
+ * context and per no-`Origin` request, and each of those paid for its own
+ * render.
+ *
+ * @returns True when the origin is derived from the request, false when it is
+ *   fixed for the deployment.
+ * @source
+ */
+export function doesCardSvgOriginVary(): boolean {
+  if (normalizeOrigin(process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN)) {
+    return false;
+  }
+  return process.env.NODE_ENV !== "production";
+}
+
+/**
  * Determine the Access-Control-Allow-Origin value used by the Card SVG API.
  * Priority: NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN env -> production fallback -> request origin or '*'.
  * This helper centralizes CORS policy and is used by card route header helpers.

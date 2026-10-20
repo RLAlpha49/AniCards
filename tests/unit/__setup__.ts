@@ -123,11 +123,52 @@ const sharedRedisPipelineMock = {
   exec: sharedRedisMockPipelineExec,
 };
 
+/**
+ * Mock for reads of the shared SVG cache tier.
+ *
+ * The card route asks this tier before it renders. Sharing `sharedRedisMockGet`
+ * would consume the first value each test queues for the `cards:<id>` read and
+ * shift every later read by one. Keys with the `svg_cache:` prefix are routed
+ * here instead, so a test that does not care about the shared tier sees a miss
+ * and the queues it sets up keep their original meaning.
+ */
+export const sharedRedisMockSvgCacheGet = mock(
+  (..._args: unknown[]): Promise<unknown> => Promise.resolve(null),
+);
+export const sharedRedisMockSvgCacheSet = mock(
+  (..._args: unknown[]): Promise<unknown> => Promise.resolve("OK"),
+);
+export const sharedRedisMockSvgCacheDel = mock(
+  (..._args: unknown[]): Promise<unknown> => Promise.resolve(1),
+);
+
+const SVG_CACHE_KEY_PREFIX = "svg_cache:";
+
+const isSvgCacheKey = (key: unknown): boolean =>
+  typeof key === "string" && key.startsWith(SVG_CACHE_KEY_PREFIX);
+
+const routingRedisGet = mock((...args: unknown[]) => {
+  if (isSvgCacheKey(args[0])) return sharedRedisMockSvgCacheGet(...args);
+  return sharedRedisMockGet(...args);
+});
+
+const routingRedisSet = mock((...args: unknown[]) => {
+  if (isSvgCacheKey(args[0])) return sharedRedisMockSvgCacheSet(...args);
+  return sharedRedisMockSet(...args);
+});
+
+const routingRedisDel = mock((...args: unknown[]) => {
+  if (args.length > 0 && args.every(isSvgCacheKey)) {
+    return sharedRedisMockSvgCacheDel(...args);
+  }
+  return sharedRedisMockDel(...args);
+});
+
 const sharedRedisFakeClient = {
   scan: sharedRedisMockScan,
-  get: sharedRedisMockGet,
-  set: sharedRedisMockSet,
-  del: sharedRedisMockDel,
+  get: routingRedisGet,
+  set: routingRedisSet,
+  del: routingRedisDel,
   eval: sharedRedisMockEval,
   incr: sharedRedisMockIncr,
   hincrby: sharedRedisMockHincrby,
