@@ -1,4 +1,9 @@
 import { mgetInBatches, redisClient, scanAllKeys } from "@/lib/api-utils";
+import {
+  queryCardKeys,
+  queryUserMetaKeys,
+  USERS_SEARCH_INDEX,
+} from "@/lib/server/search-indexes";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import {
   UserRecord,
@@ -93,6 +98,52 @@ export function getUpdatedAtScore(
  * @source
  */
 const REFRESH_INDEX_REBUILD_CHUNK_SIZE = 1000;
+
+/**
+ * Most meta keys the search index may return for one rebuild.
+ *
+ * The index query caps paging at an offset of 10,000, so this is the largest
+ * key set it can return completely. A database past that size falls back to
+ * the scan, which has no such ceiling. A partial listing is never used: the
+ * rebuild would drop live users from the refresh index.
+ * @source
+ */
+const SEARCH_REBUILD_KEY_LIMIT = 10_000;
+
+/**
+ * Lists `user:<id>:meta` keys.
+ *
+ * The search index answers this in a bounded number of round trips, which is
+ * what the scan was standing in for. A missing index, an unsupported command,
+ * or a result set past {@link SEARCH_REBUILD_KEY_LIMIT} all fall back to the
+ * scan, so the repair behaves the same on a database without the index.
+ *
+ * The listing is expected to be identical to the scan. A document with no
+ * schema field is not searchable, so a meta whose `updatedAt` is missing still
+ * appears as long as it carries `userId`, and one carrying no schema field at
+ * all is not a record `saveUserRecord` can produce.
+ *
+ * @param onScanPage - Callback invoked after each scan page, used only on the
+ *   fallback path.
+ * @returns The meta keys.
+ * @source
+ */
+async function listUserMetaKeys(onScanPage?: () => void): Promise<string[]> {
+  const indexed = await queryUserMetaKeys(redisClient, SEARCH_REBUILD_KEY_LIMIT);
+  if (indexed && !indexed.truncated) return indexed.keys;
+
+  if (indexed?.truncated) {
+    console.warn(
+      `[Redis Search] ${USERS_SEARCH_INDEX} returned more than ${SEARCH_REBUILD_KEY_LIMIT} metas; falling back to the scan.`,
+    );
+  }
+
+  return scanAllKeys(
+    "user:*:meta",
+    REFRESH_INDEX_REBUILD_CHUNK_SIZE,
+    onScanPage,
+  );
+}
 
 /**
  * Reads the `updatedAt` field out of a stored meta value.
@@ -883,10 +934,13 @@ function readStoredCardsUpdatedAt(raw: unknown): number | null {
  * Deletes `cards:` and `username:` keys whose user record no longer exists.
  *
  * Both key families have no TTL, and neither is removed by every deletion
- * path, so they can outlive the user they describe. The scan is bounded by
- * {@link RECONCILIATION_KEY_LIMIT} per prefix, and a key is deleted only after
- * one `MGET` confirms its `user:<id>:meta` is absent, so a user saved while
- * the scan runs keeps their keys.
+ * path, so they can outlive the user they describe. The `cards:` listing comes
+ * from the search index when it is available and from a scan otherwise; the
+ * `username:` listing is always a scan, because its values are bare IDs with
+ * no addressable field. Each listing is bounded by
+ * {@link RECONCILIATION_KEY_LIMIT}, and a key is deleted only after one `MGET`
+ * confirms its `user:<id>:meta` is absent, so a user saved while the audit
+ * runs keeps their keys.
  *
  * @param keyLimit - Maximum keys read per prefix.
  * @returns Per-prefix scan and deletion counts.
@@ -903,12 +957,10 @@ export async function reconcileUserKeyOrphans(
     deletedUsernameKeys: 0,
   };
 
-  const cardsKeys = await scanAllKeys(
-    "cards:*",
-    undefined,
-    undefined,
-    keyLimit,
-  );
+  const indexedCards = await queryCardKeys(redisClient, keyLimit);
+  const cardsKeys =
+    indexedCards?.keys ??
+    (await scanAllKeys("cards:*", undefined, undefined, keyLimit));
   result.cardsKeysScanned = cardsKeys.length;
   const orphanedCards = await filterKeysWithMissingOwner(cardsKeys);
   result.orphanedCardsKeys = orphanedCards.length;
@@ -1037,21 +1089,18 @@ export interface UserRefreshIndexRebuildResult {
  * small slice of the queue. An entry whose record is gone therefore cannot be
  * left to the job: it would hold a slot and a cooldown read on every run until
  * the queue front reached it. Reconciliation reads the meta of the members the
- * scan did not cover and drops only the ones it confirms are absent, so a user
- * saved during the rebuild keeps their entry.
+ * listing did not cover and drops only the ones it confirms are absent, so a
+ * user saved during the rebuild keeps their entry.
  *
- * @param onScanPage - Optional callback invoked after each SCAN command.
+ * @param onScanPage - Optional callback invoked after each SCAN command on the
+ *   fallback path.
  * @returns Counts of indexed, missing, malformed, and dropped records.
  * @source
  */
 export async function rebuildUserRefreshIndex(
   onScanPage?: () => void,
 ): Promise<UserRefreshIndexRebuildResult> {
-  const metaKeys = await scanAllKeys(
-    "user:*:meta",
-    REFRESH_INDEX_REBUILD_CHUNK_SIZE,
-    onScanPage,
-  );
+  const metaKeys = await listUserMetaKeys(onScanPage);
   const userIds = Array.from(
     new Set(
       metaKeys
@@ -1107,13 +1156,13 @@ export async function rebuildUserRefreshIndex(
 /**
  * Drops refresh index members that have no stored record.
  *
- * The scan in {@link rebuildUserRefreshIndex} covers every live `user:<id>:meta`
- * key, so any index member missing from that set is either a leftover from a
- * deleted record or a user saved while the rebuild ran. Each uncovered member
- * is confirmed with one MGET before anything is removed, which keeps a
- * concurrent save from having its entry erased.
+ * The listing in {@link rebuildUserRefreshIndex} covers every live
+ * `user:<id>:meta` key, so any index member missing from that set is either a
+ * leftover from a deleted record or a user saved while the rebuild ran. Each
+ * uncovered member is confirmed with one MGET before anything is removed,
+ * which keeps a concurrent save from having its entry erased.
  *
- * @param scannedUserIds - User IDs proven to have a meta key by the scan.
+ * @param scannedUserIds - User IDs proven to have a meta key by the listing.
  * @returns How many index members were dropped.
  * @source
  */

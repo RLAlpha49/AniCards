@@ -11,6 +11,11 @@
  * on every request, so storage stays bounded and a stale record disappears on
  * its own once the user falls out of the activity window.
  *
+ * The value is a JSON object rather than the bare timestamp it used to be. A
+ * `STRING` search index only reads paths inside a JSON object, so the bare
+ * string could not be indexed at all. Reads still accept the old shape, and
+ * an old key becomes indexable the next time that user requests a card.
+ *
  * @source
  */
 
@@ -26,8 +31,15 @@ export const ACTIVE_USER_WINDOW_MS =
 /** Retention for a user's activity key, matching the activity window. @source */
 const USER_ACTIVITY_TTL_SECONDS = ACTIVE_USER_WINDOW_DAYS * 24 * 60 * 60;
 
-/** Redis key prefix for per-user activity records. @source */
-const USER_ACTIVITY_KEY_PREFIX = "user_activity:";
+/**
+ * Redis key prefix for per-user activity records.
+ *
+ * Exported so `lib/server/search-indexes.ts` indexes the same prefix this
+ * module writes. A literal in both places would drift silently: the index
+ * would keep reporting a healthy count for a key family nobody writes.
+ * @source
+ */
+export const USER_ACTIVITY_KEY_PREFIX = "user_activity:";
 
 /**
  * Builds the Redis key holding a user's last card request time.
@@ -47,14 +59,26 @@ export interface UserActivity {
 }
 
 /**
- * Parses a stored activity value into a timestamp.
- * @param raw - Value returned by Redis, which may be a string or a parsed date.
+ * Reads the timestamp out of a stored activity value.
+ *
+ * Two shapes are accepted. The current shape is the object
+ * `{ lastCardRequestAt }`. The previous shape was the bare ISO string, and a
+ * key written by the old code survives up to 30 days, so a bare string is
+ * still a valid record rather than a corrupt one.
+ *
+ * @param raw - Value returned by Redis, which may be a parsed object, a string,
+ *   or a number.
  * @returns The timestamp in milliseconds, or null when it is absent or invalid.
  * @source
  */
 function parseStoredCardRequest(raw: unknown): number | null {
-  if (typeof raw !== "string" && typeof raw !== "number") return null;
-  const timestamp = typeof raw === "number" ? raw : Date.parse(raw as string);
+  const value =
+    raw !== null && typeof raw === "object"
+      ? (raw as Record<string, unknown>).lastCardRequestAt
+      : raw;
+
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const timestamp = typeof value === "number" ? value : Date.parse(value);
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
 }
 
@@ -63,6 +87,10 @@ function parseStoredCardRequest(raw: unknown): number | null {
  *
  * Tracking is best-effort: failures are logged and swallowed so activity
  * bookkeeping never affects the card response.
+ *
+ * The value is written as a JSON object so `idx:activity` can index
+ * `lastCardRequestAt`. The SDK serializes an object argument itself, so the
+ * stored bytes are identical to a manual `JSON.stringify`.
  *
  * @param userId - Resolved numeric AniList user ID.
  * @param now - Time of the request; defaults to the current time.
@@ -73,9 +101,11 @@ export async function recordUserCardRequest(
   now: Date = new Date(),
 ): Promise<void> {
   try {
-    await redisClient.set(getUserActivityKey(userId), now.toISOString(), {
-      ex: USER_ACTIVITY_TTL_SECONDS,
-    });
+    await redisClient.set(
+      getUserActivityKey(userId),
+      { lastCardRequestAt: now.toISOString() },
+      { ex: USER_ACTIVITY_TTL_SECONDS },
+    );
   } catch (error) {
     console.warn(
       `[User Activity] Failed to record card request for user ${userId}:`,
@@ -88,7 +118,9 @@ export async function recordUserCardRequest(
  * Reads a user's activity state.
  *
  * A read failure is reported as inactive rather than thrown, so an optional
- * activity lookup cannot turn a successful user lookup into an error.
+ * activity lookup cannot turn a successful user lookup into an error. A key
+ * written by the previous bare-string format reads the same way.
+ *
  *
  * @param userId - Resolved numeric AniList user ID.
  * @param now - Reference time for the activity window; defaults to now.
