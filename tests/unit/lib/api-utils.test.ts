@@ -17,10 +17,10 @@ import {
 } from "@/lib/api-utils";
 
 /**
- * Retention the wrapper applies to rate limit analytics buckets (90 days).
+ * Retention the wrapper applies to rate limit analytics buckets (7 days).
  * @source
  */
-const EXPECTED_TTL_SECONDS = 90 * 24 * 60 * 60;
+const EXPECTED_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const ANALYTICS_KEY = "@upstash/ratelimit:events:1234567890";
 
