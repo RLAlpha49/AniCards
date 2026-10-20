@@ -108,12 +108,15 @@ function getConfiguredApiOrigin(): string | null {
 const RATE_LIMIT_ANALYTICS_KEY_PREFIX = "@upstash/ratelimit:events:";
 
 /**
- * Retention applied to rate limit analytics buckets, in seconds (90 days).
- * Matches the `retention: "90d"` value `@upstash/ratelimit` asks
- * `@upstash/core-analytics` for.
+ * Retention applied to rate limit analytics buckets, in seconds (7 days).
+ *
+ * Deliberately shorter than the `retention: "90d"` value `@upstash/ratelimit`
+ * asks `@upstash/core-analytics` for: the Upstash dashboard only shows the last
+ * week of rate limit traffic, so older hourly buckets carry no readable data
+ * and only cost keyspace. A week of hourly buckets is ~168 keys per limiter.
  * @source
  */
-const RATE_LIMIT_ANALYTICS_TTL_SECONDS = 90 * 24 * 60 * 60;
+const RATE_LIMIT_ANALYTICS_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * Wraps a Redis client so that rate limit analytics buckets expire.
@@ -122,7 +125,8 @@ const RATE_LIMIT_ANALYTICS_TTL_SECONDS = 90 * 24 * 60 * 60;
  * retention, but core-analytics 0.0.10 ignores it: the shipped package contains
  * no `retention`, `expire`, or delete path, and reading a bucket does not evict
  * it either. Without this wrapper every `@upstash/ratelimit:events:<hour>` key
- * would live forever.
+ * would live forever. The wrapper applies the 7 day retention below instead of
+ * the SDK's 90 days, because the dashboard only reports the last week.
  *
  * The wrapper sends the analytics write and its `EXPIRE ... NX` as one
  * pipeline, so Redis runs them in order within a single request and the key
@@ -180,7 +184,7 @@ function withExpiringRateLimitAnalytics(client: Redis): Redis {
             const expiryReply = Number(results[1]);
             // 1 set the TTL, 0 found one already present. Any other reply means
             // the bucket did not exist for the EXPIRE or the reply was
-            // unreadable, so the key could outlive its retention.
+            // unreadable, so the key could outlive its week of retention.
             if (expiryReply !== 1 && expiryReply !== 0) {
               console.warn(
                 `[Rate Limit] Analytics expiry for ${key} returned ${String(results[1])}; the bucket may not expire.`,
