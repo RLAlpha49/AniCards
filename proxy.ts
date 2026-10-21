@@ -12,25 +12,19 @@ import { buildCSPHeader } from "@/lib/csp-config";
  * @source
  */
 function generateNonce(): string {
-  // Use Web Crypto API which is available in Edge Runtime
+  // Use Web Crypto API which is available in the Node.js runtime
   const array = new Uint8Array(16);
   crypto.getRandomValues(array);
-  // Convert to base64 manually for Edge Runtime compatibility
+  // Convert to base64 manually for runtime compatibility
   return btoa(String.fromCodePoint(...array));
 }
 
 /**
- * Next.js Middleware for CSP and Route Protection
+ * Next.js Proxy for CSP injection
  *
- * This middleware performs two main functions:
- *
- * 1. **Content Security Policy (CSP) Injection**
- *    - Generates a unique cryptographic nonce for each request
- *    - Builds and sets CSP headers to protect against XSS and code injection
- *    - Passes the nonce to components via a custom x-nonce header
- *
- * 2. **Route Guards**
- *    - Redirects `/user` to `/user/lookup` when `userId` param is missing
+ * This proxy generates a unique cryptographic nonce for each request, builds
+ * the Content Security Policy header from it, and passes the nonce to the
+ * React tree so inline scripts can be authorised.
  *
  * Security Benefits:
  * - Prevents XSS attacks by only allowing scripts with valid nonces
@@ -39,21 +33,13 @@ function generateNonce(): string {
  * - Automatically upgrades HTTP to HTTPS
  *
  * @param request - The incoming Next.js request
- * @returns Response with CSP headers or redirect response
+ * @returns Response with CSP headers
  *
  * @see lib/csp-config.ts for CSP directive configuration
  * @see docs/SECURITY.md for comprehensive security documentation
  * @source
  */
-export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname;
-  const params = request.nextUrl.searchParams;
-
-  // Handle /user route redirect first
-  if (path === "/user" && !params.get("userId")) {
-    return NextResponse.redirect(new URL("/user/lookup", request.url));
-  }
-
+export function proxy(request: NextRequest) {
   // Generate a unique nonce for this request
   const nonce = generateNonce();
 
@@ -63,6 +49,10 @@ export function middleware(request: NextRequest) {
   // Create response with CSP headers and forward the nonce in request headers
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set("x-nonce", nonce);
+  // Next.js reads the nonce from the *request* Content-Security-Policy header
+  // and applies it to the scripts it injects. Without this, its bootstrap
+  // scripts carry no nonce and a strict policy would block them.
+  forwardedHeaders.set("Content-Security-Policy", cspHeader);
   const response = NextResponse.next({
     request: {
       headers: forwardedHeaders,
@@ -82,7 +72,7 @@ export function middleware(request: NextRequest) {
 }
 
 /**
- * Middleware configuration
+ * Proxy configuration
  *
  * Runs on all routes except:
  * - API routes (they don't render HTML with scripts)
