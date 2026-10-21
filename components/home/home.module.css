@@ -1,0 +1,1355 @@
+/* Home page surface: warm paper, sumi ink, vermillion seals, seigaiha rule. */
+
+.page {
+  --paper: #f3e9d5;
+  --paper-deep: #e8dcc3;
+  --paper-raise: #fbf4e5;
+  --ink: #191512;
+  --ink-soft: #4d443a;
+  --ink-faint: rgba(25, 21, 18, 0.68);
+  --line: rgba(25, 21, 18, 0.2);
+  --line-strong: rgba(25, 21, 18, 0.4);
+  --vermillion: #b83a24;
+  --vermillion-wash: rgba(184, 58, 36, 0.14);
+  --indigo: #2b4768;
+  --gold: #a67c33;
+  --shadow: rgba(25, 21, 18, 0.55);
+
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - 61px);
+  overflow-x: clip;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(
+      ellipse 60% 40% at 12% 3%,
+      rgba(166, 124, 51, 0.16),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 92% 45%,
+      rgba(43, 71, 104, 0.1),
+      transparent 64%
+    ),
+    radial-gradient(
+      ellipse 80% 40% at 50% 100%,
+      rgba(25, 21, 18, 0.07),
+      transparent 70%
+    );
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "palt" 1;
+}
+
+:global(.dark) .page {
+  --paper: #16120f;
+  --paper-deep: #1e1915;
+  --paper-raise: #221c17;
+  --ink: #ece1c9;
+  --ink-soft: #b6a88f;
+  --ink-faint: rgba(236, 225, 201, 0.72);
+  --line: rgba(236, 225, 201, 0.2);
+  --line-strong: rgba(236, 225, 201, 0.4);
+  --vermillion: #d4573c;
+  --vermillion-wash: rgba(212, 87, 60, 0.16);
+  --indigo: #6f92bb;
+  --gold: #c69a52;
+  --shadow: rgba(0, 0, 0, 0.8);
+
+  background-image:
+    radial-gradient(
+      ellipse 60% 40% at 12% 3%,
+      rgba(198, 154, 82, 0.1),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 92% 45%,
+      rgba(111, 146, 187, 0.1),
+      transparent 64%
+    ),
+    radial-gradient(
+      ellipse 80% 40% at 50% 100%,
+      rgba(0, 0, 0, 0.35),
+      transparent 70%
+    );
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100%;
+  opacity: 0.14;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+:global(.dark) .grain {
+  opacity: 0.09;
+  mix-blend-mode: soft-light;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+/* ── hero ────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.heroRule {
+  border-top: 2px solid var(--ink);
+}
+
+.heroInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+  padding-top: clamp(2.4rem, 5.5vw, 4.6rem);
+  padding-bottom: clamp(2.6rem, 5vw, 3.6rem);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.6rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.title {
+  position: relative;
+  z-index: 0;
+  margin-top: 1.5rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2.2rem, 3.9vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.title em {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.title em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: 0.2em;
+  left: -0.06em;
+  height: 0.9em;
+  background: var(--vermillion-wash);
+}
+
+.lede {
+  margin-top: 1.75rem;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.6rem;
+  margin-top: 2.4rem;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.95rem 2rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--vermillion);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.primary:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+.primaryIcon {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 180ms ease;
+}
+
+.primary:hover .primaryIcon {
+  transform: translateX(3px);
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 0.3rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    gap 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.secondary:hover {
+  gap: 0.9rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.secondaryIcon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.4rem, 3.5vw, 3.2rem);
+  margin-top: 2.8rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+
+.meta dt {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.meta dd {
+  margin-top: 0.2rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ── hero print ──────────────────────────────────────────────── */
+
+.printFrame {
+  /* How far a print may hang past the front card's right edge. The sheet's own
+     inline padding is clamp(1.25rem, 4vw, 4.5rem), so tracking 4vw keeps every
+     layer inside the page at any width. */
+  --hang: clamp(1.5rem, 4vw, 3.4rem);
+
+  position: relative;
+  width: min(100%, 24rem);
+  margin: 5.4rem auto;
+  padding: 0 0 0 1.4rem;
+}
+
+/* Print collage around the front card: a score strip above its top-left, a
+   genre pie off its right edge, and a wide manga print escaping from behind
+   the bottom-left. No layer ever covers the front card's content. */
+.printStack {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Behind: wide manga print escaping under the bottom-left corner. */
+.slipUnder {
+  --tilt: -4.5deg;
+  --drift: -3px;
+
+  position: absolute;
+  bottom: -2.6rem;
+  left: -2.9rem;
+  z-index: -1;
+  width: 12.6rem;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(155deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.4rem;
+  rotate: var(--tilt);
+  box-shadow: 0 18px 32px -24px var(--shadow);
+  animation:
+    enterIn 880ms cubic-bezier(0.22, 0.8, 0.3, 1) 220ms backwards,
+    drift 17s ease-in-out 1.1s infinite;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+/* In front: score strip laid over the top-left corner. It stops at the card's
+   top margin, so the card title stays readable. */
+.slipTop {
+  --tilt: -3deg;
+  --drift: -7px;
+
+  position: absolute;
+  top: -5.3rem;
+  left: -4.2rem;
+  z-index: 3;
+  width: 12rem;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(155deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.4rem;
+  rotate: var(--tilt);
+  box-shadow: 0 20px 34px -22px var(--shadow);
+  animation:
+    enterIn 880ms cubic-bezier(0.22, 0.8, 0.3, 1) 380ms backwards,
+    drift 11s ease-in-out 1.3s infinite reverse;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+/* In front: genre pie print hanging off the right edge, level with the empty
+   band beside the card's ring. Width tracks --hang, so the overlap onto the
+   card stays the same at every width while the outer edge stays on the page. */
+.slipSide {
+  --tilt: 6deg;
+  --drift: -9px;
+
+  position: absolute;
+  top: 32%;
+  right: calc((var(--hang) - 0.6rem) * -1);
+  z-index: 3;
+  width: calc(var(--hang) + 3.4rem);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(155deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.4rem;
+  rotate: var(--tilt);
+  box-shadow: 0 20px 34px -22px var(--shadow);
+  animation:
+    enterIn 880ms cubic-bezier(0.22, 0.8, 0.3, 1) 520ms backwards,
+    drift 13.5s ease-in-out 1.6s infinite;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.slipImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The card's intrinsic size is set on the element. Contain keeps the
+     artwork at its own shape when the frame and the card differ. */
+  object-fit: contain;
+}
+
+/* Main card, mounted on paper with a fine keyline. */
+.printInner {
+  --drift: -5px;
+
+  position: relative;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.7rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 30px 55px -34px var(--shadow);
+  animation:
+    enterIn 920ms cubic-bezier(0.22, 0.8, 0.3, 1) 80ms backwards,
+    drift 9.5s ease-in-out 1s infinite reverse;
+  transition:
+    transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+:global(.dark) .printInner {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 32px 64px -34px rgba(0, 0, 0, 0.92);
+}
+
+/* The collage parts fan out slightly while the print is held. Hover animates
+   transform, which the idle drift leaves free. */
+.printFrame:hover .printInner {
+  transform: translateY(-5px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 40px 70px -34px var(--shadow);
+}
+
+.printFrame:hover .slipTop {
+  transform: translate(-8px, -4px);
+}
+
+.printFrame:hover .slipSide {
+  transform: translate(8px, -3px);
+}
+
+.printFrame:hover .slipUnder {
+  transform: translate(-6px, 4px);
+}
+
+.printImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The card's intrinsic size is set on the element. Contain keeps the
+     artwork at its own shape when the frame and the card differ. */
+  object-fit: contain;
+}
+
+.tape {
+  --drift: -8px;
+
+  position: absolute;
+  top: -0.55rem;
+  left: 0.4rem;
+  z-index: 2;
+  width: 5.5rem;
+  height: 1.4rem;
+  rotate: -11deg;
+  border-right: 1px dashed rgba(25, 21, 18, 0.14);
+  border-left: 1px dashed rgba(25, 21, 18, 0.14);
+  background: rgba(214, 196, 158, 0.78);
+  backdrop-filter: blur(1px);
+  animation:
+    fadeIn 600ms ease 840ms both,
+    drift 12s ease-in-out 2s infinite;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.printFrame:hover .tape {
+  transform: translateY(2px);
+}
+
+:global(.dark) .tape {
+  border-color: rgba(236, 225, 201, 0.14);
+  background: rgba(198, 154, 82, 0.24);
+}
+
+/* Seal is stamped where the front card meets the manga print behind it. */
+.seal {
+  --drift: -11px;
+
+  position: absolute;
+  bottom: 2.2rem;
+  left: -1.3rem;
+  z-index: 5;
+  display: grid;
+  height: 3.2rem;
+  width: 3.2rem;
+  place-items: center;
+  rotate: 6deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.4rem;
+  box-shadow: 0 8px 18px -10px rgba(184, 58, 36, 0.9);
+  animation:
+    stampIn 640ms cubic-bezier(0.22, 0.8, 0.3, 1) 900ms both,
+    drift 10.5s ease-in-out 2.1s infinite reverse;
+  transition: scale 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.printFrame:hover .seal {
+  scale: 1.07;
+}
+
+/* ── seigaiha divider ────────────────────────────────────────── */
+
+/* A hairline rule with the 青海波 scallop pattern hanging from it. The SVG has
+   no viewBox, so the tile keeps its true pixel size instead of stretching with
+   the viewport; the mask fades the band into the paper below. */
+.wave {
+  height: clamp(2.9rem, 4.2vw, 3.8rem);
+  margin-top: clamp(1.5rem, 4vw, 3rem);
+  color: var(--indigo);
+}
+
+.wave svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+:global(.dark) .wave {
+  opacity: 0.7;
+}
+
+/* ── shared section head ─────────────────────────────────────── */
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: clamp(1.6rem, 3vw, 2.4rem);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 1.2rem;
+}
+
+.sectionNum {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.sectionHead h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.sectionHead p {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* ── collection ──────────────────────────────────────────────── */
+
+.collection {
+  scroll-margin-top: 5rem;
+  padding: clamp(2.5rem, 6vw, 4.6rem) 0 clamp(3rem, 7vw, 6rem);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.9rem;
+}
+
+.filter {
+  border: 1px solid var(--line-strong);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 220ms ease;
+}
+
+.filter:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.filter:active {
+  transform: translateY(0);
+}
+
+.filterActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 6px 14px -10px var(--shadow);
+}
+
+.filterActive:hover {
+  color: var(--paper);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(1.4rem, 3vw, 2.6rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plate {
+  container-type: inline-size;
+  scroll-margin-top: 5.5rem;
+}
+
+.plate:nth-child(even) {
+  margin-top: 1.9rem;
+}
+
+.plateFigure {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  align-self: start;
+}
+
+.plateFrame {
+  --plate-gap: 0.7rem;
+  --plate-image-height: calc((100cqw - var(--plate-gap) * 2) * 195 / 450);
+
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: var(--plate-gap);
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(155deg, var(--paper-raise), var(--paper-deep));
+  transition:
+    transform 320ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    border-color 320ms ease;
+}
+
+.plate:hover .plateFrame,
+.plateFrame:hover {
+  transform: translateY(-6px) rotate(-0.5deg);
+  border-color: var(--ink-faint);
+  box-shadow: 0 22px 38px -28px var(--shadow);
+}
+
+.plateImage {
+  display: block;
+  width: auto;
+  height: var(--plate-image-height);
+  max-width: 100%;
+  /* The card's intrinsic size is set on the element, so the frame reserves
+     its space before the SVG loads and the artwork is never stretched. */
+  object-fit: contain;
+  transition: transform 520ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.plate:hover .plateImage,
+.plateFrame:hover .plateImage,
+.plateFrame:focus-within .plateImage {
+  transform: scale(1.035);
+}
+
+.plate:focus-within .plateFrame {
+  border-color: var(--ink-faint);
+  box-shadow: 0 22px 38px -28px var(--shadow);
+}
+
+.cartouche {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 0.7rem;
+  padding-top: 0.75rem;
+}
+
+.plateIndex {
+  grid-row: span 2;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  color: var(--vermillion);
+}
+
+.plateTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.plateNote {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.plateAction {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  min-height: 2rem;
+  margin-top: 0.4rem;
+  padding-block: 0.3rem;
+  border-bottom: 1px solid transparent;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+  transition:
+    border-color 220ms ease,
+    gap 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.plateAction:hover,
+.plate:hover .plateAction {
+  border-color: var(--vermillion);
+}
+
+.plateActionIcon {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.plateAction:hover .plateActionIcon,
+.plate:hover .plateActionIcon {
+  transform: translateX(3px);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  margin-top: 3rem;
+}
+
+.pagerButton {
+  display: inline-grid;
+  height: 2.4rem;
+  width: 2.4rem;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition:
+    background-color 220ms ease,
+    color 220ms ease,
+    transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    border-color 220ms ease;
+}
+
+.pagerButton svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.pagerButton:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  transform: translateY(-2px);
+}
+
+.pagerButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.pagerButton:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pagerPages {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.pagerPage {
+  border-bottom: 1px solid transparent;
+  padding: 0.35rem 0.5rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    border-color 220ms ease,
+    color 220ms ease;
+}
+
+.pagerPage:hover {
+  color: var(--ink);
+}
+
+.pagerPageActive {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.galleryFoot {
+  margin-top: 3.4rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.inlineLink {
+  border-bottom: 1px solid var(--vermillion);
+  color: var(--vermillion);
+}
+
+/* ── craft ───────────────────────────────────────────────────── */
+
+.craft {
+  border-top: 2px solid var(--ink);
+  padding: clamp(2.5rem, 6vw, 5rem) 0;
+}
+
+.craftGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-left: 1px solid var(--line);
+}
+
+.craftCard {
+  border-right: 1px solid var(--line);
+  padding: 0 1.5rem 0 1.2rem;
+  background-color: transparent;
+  transition: background-color 340ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.craftCard:hover {
+  background-color: var(--vermillion-wash);
+}
+
+.craftNum {
+  display: block;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  color: var(--vermillion);
+  transition: letter-spacing 340ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.craftCard:hover .craftNum {
+  letter-spacing: 0.34em;
+}
+
+.craftCard h3 {
+  margin-top: 0.9rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: color 300ms ease;
+}
+
+.craftCard:hover h3 {
+  color: var(--vermillion);
+}
+
+.craftCard p {
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.craftAction {
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+/* ── call to action ──────────────────────────────────────────── */
+
+.ctaSection {
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.cta {
+  position: relative;
+  border: 2px solid var(--ink);
+  padding: clamp(2.6rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(166, 124, 51, 0.13),
+      transparent 70%
+    ),
+    rgba(251, 245, 231, 0.5);
+  text-align: center;
+}
+
+:global(.dark) .cta {
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(198, 154, 82, 0.12),
+      transparent 70%
+    ),
+    rgba(34, 28, 23, 0.6);
+}
+
+.cta::before,
+.cta::after {
+  content: "";
+  position: absolute;
+  right: 0.55rem;
+  left: 0.55rem;
+  height: 1px;
+  background: var(--line);
+}
+
+.cta::before {
+  top: 0.55rem;
+}
+
+.cta::after {
+  bottom: 0.55rem;
+}
+
+.ctaSeal {
+  display: inline-grid;
+  height: 2.4rem;
+  width: 2.4rem;
+  place-items: center;
+  margin-bottom: 1.4rem;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cta:hover .ctaSeal {
+  transform: rotate(-7deg) scale(1.06);
+}
+
+.cta h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.cta h2 em {
+  font-style: italic;
+  color: var(--indigo);
+}
+
+.cta p {
+  margin: 1.1rem auto 0;
+  max-width: 32rem;
+  font-size: 0.95rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem 2rem;
+  margin-top: 2rem;
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 2px solid var(--vermillion);
+  background: var(--vermillion);
+  color: #fbf3e2;
+  padding: 1rem 2.6rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.ctaButton:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.ctaButtonIcon {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.ctaButton:hover .ctaButtonIcon {
+  transform: translateX(4px);
+}
+
+/* Secondary action: scrolls back up to the card gallery. */
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 0.35rem;
+  color: var(--ink);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    gap 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.ctaSecondary:hover {
+  gap: 0.9rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.ctaSecondaryIcon {
+  width: 0.9rem;
+  height: 0.9rem;
+  /* The gallery sits above this section, so the arrow points up. */
+  rotate: 180deg;
+}
+
+.ctaFine {
+  margin-top: 1.4rem !important;
+  font-size: 0.64rem !important;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ── motion ──────────────────────────────────────────────────── */
+
+/* Paper settles onto the board. Opacity and blur only, so the hover and idle
+   animations can own translate, transform, and scale. */
+@keyframes enterIn {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* Idle drift for the hero collage. Each layer sets `--drift` to its own travel,
+   so the layers separate the way a real stack would. Opacity and transform stay
+   free for the entrance and hover states. */
+@keyframes drift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  33% {
+    translate: calc(var(--drift, -5px) * 0.35) var(--drift, -5px);
+  }
+  66% {
+    translate: calc(var(--drift, -5px) * -0.3) calc(var(--drift, -5px) * 0.45);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Vermillion seal pressed onto the print. */
+@keyframes stampIn {
+  0% {
+    opacity: 0;
+    rotate: -16deg;
+  }
+  55% {
+    opacity: 1;
+    rotate: 9deg;
+  }
+  100% {
+    opacity: 1;
+    rotate: 6deg;
+  }
+}
+
+/* Scroll entrance for gallery plates and capability cards. */
+@keyframes revealIn {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+/* A reveal container cascades its direct children in reading order. The
+   hidden state only exists after hydration, so server-rendered content stays
+   readable when JavaScript never runs. */
+.reveal[data-reveal="hidden"] > * {
+  opacity: 0;
+  translate: 0 26px;
+  filter: blur(6px);
+}
+
+.reveal[data-reveal="shown"] > * {
+  animation: revealIn 820ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(2) {
+  animation-delay: 70ms;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(4) {
+  animation-delay: 210ms;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(5) {
+  animation-delay: 280ms;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(6) {
+  animation-delay: 350ms;
+}
+
+.reveal[data-reveal="shown"] > :nth-child(n + 7) {
+  animation-delay: 420ms;
+}
+
+/* The closing block reveals as one piece rather than cascading its text. */
+.cta.reveal[data-reveal="hidden"] {
+  opacity: 0;
+  translate: 0 24px;
+}
+
+.cta.reveal[data-reveal="hidden"] > * {
+  opacity: 1;
+  translate: none;
+  filter: none;
+}
+
+.cta.reveal[data-reveal="shown"] {
+  animation: revealIn 820ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.cta.reveal[data-reveal="shown"] > * {
+  animation: none;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.filter:focus-visible,
+.plateAction:focus-visible,
+.pagerButton:focus-visible,
+.pagerPage:focus-visible,
+.ctaButton:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 1080px) {
+  .gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .craftGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 2rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .printFrame {
+    width: min(100%, 21rem);
+    margin: 4.8rem auto 4.2rem;
+    padding-left: 1.2rem;
+  }
+
+  .slipUnder {
+    bottom: -2.2rem;
+    left: -2rem;
+    width: 11rem;
+  }
+
+  .slipTop {
+    top: -4.5rem;
+    left: -2.6rem;
+    width: 10.2rem;
+  }
+
+  .seal {
+    bottom: 2rem;
+    left: -1rem;
+  }
+
+  .plate:nth-child(even) {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .edition {
+    gap: 0.55rem;
+    letter-spacing: 0.16em;
+  }
+
+  .printFrame {
+    width: min(100%, 17.5rem);
+    margin: 4.2rem auto 3.6rem;
+    padding-left: 1rem;
+  }
+
+  .slipUnder {
+    bottom: -1.9rem;
+    left: -1.7rem;
+    width: 9.6rem;
+  }
+
+  .slipTop {
+    top: -3.7rem;
+    left: -1.8rem;
+    width: 8.8rem;
+  }
+
+  .seal {
+    bottom: 1.7rem;
+    left: -0.9rem;
+    height: 2.7rem;
+    width: 2.7rem;
+    font-size: 1.15rem;
+  }
+
+  .tape {
+    width: 6rem;
+  }
+
+  .gallery {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .craftGrid {
+    grid-template-columns: minmax(0, 1fr);
+    border-left: none;
+  }
+
+  .craftCard {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 1.4rem 0;
+  }
+
+  .craftCard:first-child {
+    padding-top: 0;
+  }
+
+  .craftCard:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .meta {
+    gap: 1.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plateFrame,
+  .primary,
+  .primaryIcon,
+  .secondary,
+  .filter,
+  .plateAction,
+  .plateActionIcon,
+  .pagerButton,
+  .ctaButton,
+  .ctaButtonIcon,
+  .ctaSeal,
+  .craftCard,
+  .craftNum,
+  .craftCard h3,
+  .plateImage,
+  .pagerPage {
+    transition: none;
+  }
+
+  .filter:hover,
+  .filter:active,
+  .pagerButton:hover:not(:disabled),
+  .pagerButton:active:not(:disabled),
+  .plate:hover .plateImage,
+  .plateFrame:hover .plateImage,
+  .plateFrame:focus-within .plateImage {
+    transform: none;
+  }
+
+  .slipUnder,
+  .slipTop,
+  .slipSide,
+  .printInner,
+  .tape,
+  .seal,
+  .reveal[data-reveal="hidden"] > *,
+  .reveal[data-reveal="shown"] > * {
+    animation: none;
+    opacity: 1;
+    translate: none;
+    scale: none;
+    filter: none;
+  }
+
+  .plate:hover .plateFrame,
+  .plateFrame:hover,
+  .printFrame:hover .printInner,
+  .printFrame:hover .slipTop,
+  .printFrame:hover .slipSide,
+  .printFrame:hover .slipUnder,
+  .printFrame:hover .seal,
+  .printFrame:hover .tape,
+  .cta:hover .ctaSeal {
+    transform: none;
+    scale: none;
+    translate: none;
+  }
+
+  .cta.reveal[data-reveal="hidden"],
+  .cta.reveal[data-reveal="shown"] {
+    transform: none;
+    opacity: 1;
+    translate: none;
+  }
+}

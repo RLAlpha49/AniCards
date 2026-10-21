@@ -23,7 +23,7 @@ export const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
 
-export type PageShellVariant = "default" | "home" | "compact" | "none";
+export type PageShellVariant = "default" | "compact" | "none";
 
 type PageShellProps = Readonly<{
   badge?: React.ReactNode;
@@ -67,13 +67,6 @@ export default function PageShell({
     </>
   );
 
-  const homeOrbs = (
-    <>
-      <div className="absolute top-0 -left-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-3xl" />
-      <div className="absolute -right-1/4 bottom-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/20 to-orange-500/20 blur-3xl" />
-    </>
-  );
-
   const compactOrbs = (
     <div className="absolute -top-28 left-1/2 h-[340px] w-[340px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/10 via-purple-400/10 to-pink-400/10 blur-3xl" />
   );
@@ -81,13 +74,6 @@ export default function PageShell({
   let orbsToRender: React.ReactNode | null;
   if (variant === "none") {
     orbsToRender = null;
-  } else if (variant === "home") {
-    orbsToRender = (
-      <>
-        {defaultOrbs}
-        {homeOrbs}
-      </>
-    );
   } else if (variant === "compact") {
     orbsToRender = compactOrbs;
   } else {

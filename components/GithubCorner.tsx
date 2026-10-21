@@ -2,159 +2,146 @@
 
 import Link from "next/link";
 import { SimpleGithubIcon } from "./SimpleIcons";
-import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
-import { Star, GitFork, ExternalLink } from "@/lib/icons";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useState, type FocusEvent } from "react";
+import { ExternalLink, GitFork, Star } from "@/lib/icons";
+
+/** Repository the corner links to. @source */
+const REPO_URL = "https://github.com/RLAlpha49/Anicards";
+
+/** Fork action for the repository. @source */
+const FORK_URL = `${REPO_URL}/fork`;
 
 /**
- * Floating GitHub call-to-action with enhanced tooltip and interactive animations.
- * - Presents a modern glassmorphism button that links to the repository.
- * - Features an expandable tooltip with star and fork actions.
- * - Includes smooth entrance animations and hover effects.
+ * Floating repository call to action.
+ *
+ * The button is a vermillion seal block with an ink offset shadow, matching the
+ * paper theme's primary action and stamp marks. Hovering or focusing it expands
+ * a printed plate card with the repository title and star, fork, and source
+ * actions. The card closes when focus leaves the group, so keyboard users can
+ * still reach every action.
  * @returns A positioned repository link element.
  * @source
  */
 export default function GithubCorner() {
-  const [isHovered, setIsHovered] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  const closeWhenFocusLeaves = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsOpen(false);
+    }
+  };
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.8, y: -20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{
-        duration: 0.5,
-        delay: 0.3,
-        type: "spring",
-        stiffness: 200,
-        damping: 20,
-      }}
-      className="fixed top-20 right-4 z-50"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 0.8, 0.3, 1] }}
+      /* Below the header and the modal layer, so a dialog always covers the
+         corner. The footer reserves matching room so the social row never
+         sits under the seal. */
+      className="fixed right-5 bottom-5 z-40"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onFocusCapture={() => setIsOpen(true)}
+      onBlurCapture={closeWhenFocusLeaves}
     >
-      <div className="group relative">
-        {/* Main Button */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+      <div className="relative">
+        {/* Seal block */}
+        <Link
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="View the AniCards repository on GitHub"
+          className="flex h-14 w-14 items-center justify-center border-2 border-[#191512] bg-[#b83a24] text-[#f8efdc] shadow-[4px_4px_0_#191512] transition-[transform,box-shadow,background-color] duration-200 ease-out hover:translate-x-[2px] hover:translate-y-[2px] hover:bg-[#a83320] hover:shadow-[2px_2px_0_#191512] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b83a24] dark:border-[#ece1c9]/60 dark:bg-[#d4573c] dark:text-[#16120f] dark:shadow-[4px_4px_0_rgba(0,0,0,0.85)] dark:hover:bg-[#c24c33] dark:hover:shadow-[2px_2px_0_rgba(0,0,0,0.85)] dark:focus-visible:outline-[#d4573c]"
         >
-          <Link
-            href="https://github.com/RLAlpha49/Anicards"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/50 bg-white/80 shadow-lg backdrop-blur-xl transition-all duration-300 hover:border-slate-300 hover:shadow-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600"
-            aria-label="View project repository on GitHub"
-          >
-            {/* Gradient background on hover */}
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-white opacity-0 transition-opacity duration-300 group-hover:opacity-100 dark:from-slate-700 dark:to-slate-800" />
-
-            {/* Animated ring */}
-            <div className="absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-              <div className="absolute inset-0 animate-pulse rounded-2xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20" />
-            </div>
-
-            <SimpleGithubIcon
-              size={28}
-              className="relative z-10 text-slate-600 transition-all duration-300 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white"
-            />
-          </Link>
-        </motion.div>
+          <SimpleGithubIcon size={26} />
+        </Link>
 
         <AnimatePresence>
-          {isHovered && (
+          {isOpen && (
             <motion.div
-              initial={{ opacity: 0, x: 10, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 10, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="absolute top-0 right-full mr-3"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 12 }}
+              transition={{ duration: 0.22, ease: [0.22, 0.8, 0.3, 1] }}
+              /* Beside the seal on wide screens, above it on phones where the
+                 column is too narrow to hold the card to the left. The right
+                 padding bridges the gap so the pointer can cross into the
+                 card without closing it. */
+              className="absolute right-full bottom-0 w-[min(16.25rem,calc(100vw-7rem))] pr-3 max-sm:right-0 max-sm:bottom-full max-sm:mb-3 max-sm:w-[min(16.25rem,calc(100vw-2.5rem))] max-sm:pr-0"
             >
-              <div className="relative">
-                {/* Tooltip Card */}
-                <div className="overflow-hidden rounded-2xl border border-slate-200/50 bg-white/95 shadow-xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/95">
-                  {/* Header */}
-                  <div className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-white px-4 py-3 dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/50">
-                    <div className="flex items-center gap-2">
-                      <SimpleGithubIcon
-                        size={18}
-                        className="text-slate-700 dark:text-slate-300"
-                      />
-                      <div>
-                        <p className="text-sm font-bold whitespace-nowrap text-slate-900 dark:text-white">
-                          AniCards
-                        </p>
-                        <p className="text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">
-                          by RLAlpha49
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+              <div className="relative border border-[#191512]/70 bg-[#fbf4e5] shadow-[6px_6px_0_rgba(25,21,18,0.18)] dark:border-[#ece1c9]/45 dark:bg-[#221c17] dark:shadow-[6px_6px_0_rgba(0,0,0,0.6)]">
+                {/* Seal pressed over the top-right corner */}
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-2.5 -right-2.5 grid h-7 w-7 place-items-center bg-[#b83a24] font-[family-name:var(--font-display)] text-sm leading-none text-[#f8efdc] dark:bg-[#d4573c] dark:text-[#16120f]"
+                >
+                  源
+                </span>
 
-                  {/* Content */}
-                  <div className="p-3">
-                    <p className="mb-3 max-w-[180px] text-xs text-slate-600 dark:text-slate-400">
-                      Beautiful stat cards for your AniList profile
-                    </p>
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      <Link
-                        href="https://github.com/RLAlpha49/Anicards"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:from-amber-600 hover:to-orange-600 hover:shadow-md"
-                      >
-                        <Star className="h-3.5 w-3.5 fill-current" />
-                        Star
-                      </Link>
-                      <Link
-                        href="https://github.com/RLAlpha49/Anicards/fork"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                      >
-                        <GitFork className="h-3.5 w-3.5" />
-                        Fork
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="border-t border-slate-200/50 bg-slate-50/50 px-3 py-2 dark:border-slate-700/50 dark:bg-slate-900/50">
-                    <Link
-                      href="https://github.com/RLAlpha49/Anicards"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1.5 text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                      View Repository
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </div>
+                <div className="px-4 pt-3.5 pb-3">
+                  <p className="text-[0.55rem] tracking-[0.3em] text-[#b83a24] uppercase dark:text-[#d4573c]">
+                    Repository
+                  </p>
+                  <p className="mt-1.5 font-[family-name:var(--font-display)] text-lg leading-none font-semibold text-[#191512] dark:text-[#ece1c9]">
+                    AniCards
+                  </p>
+                  <p className="mt-1 text-[0.7rem] text-[#4d443a] dark:text-[#b6a88f]">
+                    by RLAlpha49
+                  </p>
+                  <p className="mt-2.5 border-t border-[#191512]/20 pt-2.5 text-[0.72rem] leading-relaxed text-[#4d443a] dark:border-[#ece1c9]/20 dark:text-[#b6a88f]">
+                    Beautiful stat cards for your AniList profile. Read the
+                    source, star it, or fork it.
+                  </p>
                 </div>
 
-                {/* Tooltip Arrow */}
-                <div className="absolute top-[15%] right-0 h-3 w-3 translate-x-1.5 -translate-y-1/2 rotate-45 border-t border-r border-slate-200/50 bg-white/95 dark:border-slate-700/50 dark:bg-slate-800/95" />
+                <div className="flex gap-1.5 px-4 pb-3">
+                  <Link
+                    href={REPO_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 border border-[#b83a24] bg-[#b83a24] px-2 py-1.5 text-[0.58rem] tracking-[0.18em] text-[#fbf3e2] uppercase transition-colors hover:border-[#191512] hover:bg-[#191512] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#191512] dark:border-[#d4573c] dark:bg-[#d4573c] dark:text-[#16120f] dark:hover:border-[#ece1c9] dark:hover:bg-[#ece1c9] dark:focus-visible:outline-[#ece1c9]"
+                  >
+                    <Star className="h-3 w-3" aria-hidden="true" />
+                    Star
+                  </Link>
+                  <Link
+                    href={FORK_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 border border-[#191512]/45 px-2 py-1.5 text-[0.58rem] tracking-[0.18em] text-[#191512] uppercase transition-colors hover:border-[#191512] hover:bg-[#191512]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#191512] dark:border-[#ece1c9]/45 dark:text-[#ece1c9] dark:hover:border-[#ece1c9] dark:hover:bg-[#ece1c9]/10 dark:focus-visible:outline-[#ece1c9]"
+                  >
+                    <GitFork className="h-3 w-3" aria-hidden="true" />
+                    Fork
+                  </Link>
+                </div>
+
+                <Link
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between border-t border-[#191512]/25 px-4 py-2 text-[0.58rem] tracking-[0.22em] text-[#191512] uppercase transition-colors hover:text-[#b83a24] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#b83a24] dark:border-[#ece1c9]/20 dark:text-[#ece1c9] dark:hover:text-[#d4573c] dark:focus-visible:outline-[#d4573c]"
+                >
+                  View repository
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </Link>
+
+                {/* Pointer into the seal block: the right edge when the card
+                    sits beside the seal, the bottom edge when it stacks above
+                    it on phones. A 45deg clockwise turn sends the top-right
+                    corner right and the bottom-right corner down, so the
+                    stacked variant swaps the top border for the bottom one to
+                    keep the right and bottom edges. */}
+                <span
+                  aria-hidden="true"
+                  className="absolute right-0 bottom-6 h-3 w-3 translate-x-1/2 rotate-45 border-t border-r border-[#191512]/70 bg-[#fbf4e5] max-sm:right-6 max-sm:bottom-0 max-sm:translate-x-0 max-sm:translate-y-1/2 max-sm:border-t-0 max-sm:border-b dark:border-[#ece1c9]/45 dark:bg-[#221c17]"
+                />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Notification badge */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{
-            delay: 0.8,
-            type: "spring",
-            stiffness: 500,
-            damping: 20,
-          }}
-          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 shadow-md"
-        >
-          <Star className="h-3 w-3 fill-white text-white" />
-        </motion.div>
       </div>
     </motion.div>
   );

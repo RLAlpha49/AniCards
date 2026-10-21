@@ -52,6 +52,7 @@ import {
   MailIcon as MailData,
   MessageSquareIcon as MessageSquareData,
   Mic01Icon as MicData,
+  Menu01Icon as MenuData,
   MinusIcon as MinusData,
   MonitorIcon as MonitorData,
   MoonIcon as MoonData,
@@ -158,6 +159,7 @@ export const Link = createIcon(LinkData, "Link");
 export const List = createIcon(ListData, "List");
 export const Loader2 = createIcon(LoaderData, "Loader2");
 export const Mail = createIcon(MailData, "Mail");
+export const Menu = createIcon(MenuData, "Menu");
 export const MessageSquare = createIcon(MessageSquareData, "MessageSquare");
 export const Mic = createIcon(MicData, "Mic");
 export const Minus = createIcon(MinusData, "Minus");

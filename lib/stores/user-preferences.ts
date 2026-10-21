@@ -7,8 +7,6 @@ import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
  * @source
  */
 export interface UserPreferencesState {
-  /** Whether the sidebar should default to open */
-  sidebarDefaultOpen: boolean;
   /** Pre-filled username for card generation */
   defaultUsername: string;
 }
@@ -18,8 +16,6 @@ export interface UserPreferencesState {
  * @source
  */
 export interface UserPreferencesActions {
-  /** Update sidebar default open preference */
-  setSidebarDefaultOpen: (value: boolean) => void;
   /** Update default username */
   setDefaultUsername: (value: string) => void;
   /** Reset all user preferences to defaults */
@@ -36,7 +32,6 @@ const APP_PREFIX = "anicards-";
  * Default values for user preferences
  */
 const defaultState: UserPreferencesState = {
-  sidebarDefaultOpen: false,
   defaultUsername: "",
 };
 
@@ -57,7 +52,6 @@ function migrateLegacyKeys(
   }
   const storage = maybeWindow.localStorage;
   const legacyKeys = [
-    { key: "sidebarDefaultOpen", stateKey: "sidebarDefaultOpen" },
     { key: "defaultUsername", stateKey: "defaultUsername" },
   ] as const;
 
@@ -90,7 +84,7 @@ function migrateLegacyKeys(
 
 /**
  * Zustand store for user preferences with persistence and devtools.
- * Handles sidebar default state and default username.
+ * Handles the default username.
  * @source
  */
 export const useUserPreferences = create<UserPreferencesStore>()(
@@ -98,10 +92,6 @@ export const useUserPreferences = create<UserPreferencesStore>()(
     persist(
       (set) => ({
         ...defaultState,
-
-        setSidebarDefaultOpen: (value: boolean) => {
-          set({ sidebarDefaultOpen: value }, false, "setSidebarDefaultOpen");
-        },
 
         setDefaultUsername: (value: string) => {
           set({ defaultUsername: value }, false, "setDefaultUsername");

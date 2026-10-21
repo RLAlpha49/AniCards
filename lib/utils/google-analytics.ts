@@ -191,15 +191,6 @@ export const trackNavigation = (
   });
 };
 
-/** Track sidebar expand/collapse actions in GA. @source */
-export const trackSidebarToggle = (action: "expand" | "collapse") => {
-  event({
-    action: "sidebar_toggled",
-    category: "ui_interaction",
-    label: action,
-  });
-};
-
 /** Track when a color preset is selected in the UI. @source */
 export const trackColorPresetSelection = (presetName: string) => {
   event({

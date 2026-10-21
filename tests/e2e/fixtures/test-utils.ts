@@ -38,13 +38,13 @@ export class GeneratorPage {
   async openGenerator() {
     // Look for the "Create Your Card" button on the hero section
     const getStartedButton = this.page.getByRole("button", {
-      name: /create your card|get started|create.*cards|generate/i,
+      name: /create your card|get started|create.*cards|generate|open the generator/i,
     });
 
     // If not found, try looking for a link
     if (!(await getStartedButton.count())) {
       const link = this.page.getByRole("link", {
-        name: /create your card|get started|create.*cards|generate/i,
+        name: /create your card|get started|create.*cards|generate|open the generator/i,
       });
       if (await link.count()) {
         await link.click();

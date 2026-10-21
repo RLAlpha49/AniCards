@@ -1,176 +1,252 @@
 "use client";
 
-import { motion } from "motion/react";
-import { Button } from "@/components/ui/Button";
-import {
-  ArrowRight,
-  Play,
-  Sparkles,
-  Star,
-  TrendingUp,
-  Palette,
-  ArrowDown,
-} from "@/lib/icons";
-import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
+import { useId } from "react";
+import { ArrowDown, ArrowRight, Play } from "@/lib/icons";
+import { useRevealInView } from "@/hooks/useRevealInView";
+import { cn } from "@/lib/utils";
+import { CardPreviewImage } from "@/components/CardPreviewImage";
+import styles from "./home.module.css";
 
-/**
- * Props for the home page hero section.
- * @property onGetStarted - Called when the primary action (Create Cards) is triggered.
- * @property onSeeExamples - Called when the secondary action (View Gallery) is triggered.
- * @source
- */
-interface HeroSectionProps {
+type HeroSectionProps = Readonly<{
   onGetStarted: () => void;
   onSeeExamples: () => void;
-}
+}>;
 
-/**
- * Quick value proposition badges shown below the hero buttons.
- * @source
- */
-const VALUE_PROPS = [
-  { icon: Star, text: "Free Forever" },
-  { icon: TrendingUp, text: "No Login Required" },
-  { icon: Palette, text: "Fully Customizable" },
+/** Figures quoted in the hero, matching the generator catalogue. @source */
+const FACTS = [
+  { label: "Card types", value: "54" },
+  { label: "Colour presets", value: "55" },
+  { label: "Sign-in", value: "Not needed" },
 ];
 
 /**
- * Animation variants for staggered text reveal.
+ * Seigaiha (青海波) scallop geometry for the hero divider.
+ *
+ * Three rows of concentric arcs hang from a hairline rule, each row offset by
+ * half a tile so the fans interlock. Arcs are generated once at module load and
+ * repeated through an SVG pattern, so the divider is a single small tile at any
+ * viewport width.
  * @source
  */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
+const SEIGAIHA = (() => {
+  const radius = 34;
+  const rowGap = radius / 2;
+  const tileWidth = radius * 2;
+  const rows = 3;
+  const rings = [1, 0.72, 0.44, 0.18];
+  const paths: string[] = [];
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+  for (let row = 0; row < rows; row += 1) {
+    const y = row * rowGap;
+    const offset = (row % 2) * radius;
+
+    for (let x = offset - tileWidth; x <= tileWidth + offset; x += tileWidth) {
+      for (const ring of rings) {
+        const r = Number((radius * ring).toFixed(2));
+        paths.push(`M${x - r} ${y}a${r} ${r} 0 0 0 ${2 * r} 0`);
+      }
+    }
+  }
+
+  // The tile must be tall enough for the lowest row's outermost arc, otherwise
+  // the pattern clips it and the fans lose their bottom edge.
+  const tileHeight = (rows - 1) * rowGap + radius;
+
+  return { paths, tileWidth, tileHeight };
+})();
 
 /**
- * Renders the hero section on the landing page with main actions and a
- * decorative floating cards layer.
+ * Hero for the home page.
  *
- * @param props - Component props.
- * @param props.onGetStarted - Handler invoked when the Create Cards button is clicked.
- * @param props.onSeeExamples - Handler invoked when the View Gallery button is clicked.
- * @returns The hero section element.
+ * Pairs the headline and actions with a collage of four cards: one square to
+ * the frame, one pinned above it, one fanned off the right edge, and one
+ * tucked underneath. The lower edge is closed by a seigaiha divider.
+ *
+ * @param props.onGetStarted - Opens the stat card generator.
+ * @param props.onSeeExamples - Scrolls to the card gallery.
  * @source
  */
-export function HeroSection({
-  onGetStarted,
-  onSeeExamples,
-}: Readonly<HeroSectionProps>) {
+export function HeroSection({ onGetStarted, onSeeExamples }: HeroSectionProps) {
+  const { ref, phase } = useRevealInView<HTMLDivElement>();
+  const dividerId = useId();
+
   return (
-    <section className="relative min-h-[100dvh] w-full overflow-hidden">
-      {/* Floating Cards Layer */}
-      <FloatingCardsLayer />
+    <section className={styles.hero}>
+      <div className={styles.sheet}>
+        <p className={styles.edition}>
+          <span>AniList stat card generator</span>
+          <span className={styles.editionRule} aria-hidden="true" />
+          <span>Free · No sign-in</span>
+        </p>
 
-      <div className="relative z-10 container mx-auto flex min-h-[100dvh] flex-col items-center justify-center px-4 py-20 text-center">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="flex max-w-5xl flex-col items-center gap-8"
-        >
-          {/* Badge */}
-          <motion.div variants={itemVariants}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
-              <Sparkles className="h-4 w-4" />
-              Your AniList Stats, Beautifully Visualized
-            </span>
-          </motion.div>
+        <div className={styles.heroRule} />
 
-          {/* Main heading */}
-          <motion.h1
-            variants={itemVariants}
-            className="text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl lg:text-7xl dark:text-white"
+        <div className={styles.heroInner}>
+          <div
+            ref={ref}
+            data-reveal={phase}
+            className={cn(styles.heroCopy, styles.reveal)}
           >
-            Transform Your{" "}
-            <span className="relative">
-              <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Anime Journey
-              </span>
-              <motion.span
-                className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                animate={{ opacity: [0.5, 0.8, 0.5] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-            </span>
-            <br />
-            Into Stunning Cards
-          </motion.h1>
+            <p className={styles.kicker}>
+              <span className={styles.kickerRule} aria-hidden="true" />
+              Built from public AniList data
+            </p>
 
-          {/* Subheading */}
-          <motion.p
-            variants={itemVariants}
-            className="max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
-          >
-            Create beautiful, shareable stat cards from your AniList profile.
-            Over 20+ card types with full customization — colors, themes, and
-            layouts that match your style.
-          </motion.p>
+            <h1 className={styles.title}>
+              Your AniList stats,
+              <br />
+              <em>as cards.</em>
+            </h1>
 
-          {/* CTA buttons */}
-          <motion.div
-            variants={itemVariants}
-            className="flex flex-col items-center gap-4 sm:flex-row"
-          >
-            <Button
-              size="lg"
-              onClick={onGetStarted}
-              className="group relative h-14 min-w-[200px] overflow-hidden rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
-            >
-              <span className="relative z-10 flex items-center">
-                <Play className="mr-2 h-5 w-5 fill-current" />
-                Create Your Card
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </span>
-            </Button>
+            <p className={styles.lede}>
+              AniCards turns a public AniList profile into shareable stat cards.
+              Choose a card type, adjust the colours, and download the result.
+              No account needed.
+            </p>
 
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={onSeeExamples}
-              className="h-14 min-w-[180px] rounded-full border-2 border-slate-300 bg-white/50 text-lg font-medium backdrop-blur-sm transition-all hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
-            >
-              View Examples
-            </Button>
-          </motion.div>
-
-          {/* Value props */}
-          <motion.div
-            variants={itemVariants}
-            className="flex flex-wrap items-center justify-center gap-6 pt-4"
-          >
-            {VALUE_PROPS.map((prop) => (
-              <div
-                key={prop.text}
-                className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400"
+            <div className={styles.actions}>
+              <button
+                type="button"
+                onClick={onGetStarted}
+                className={styles.primary}
               >
-                <prop.icon className="h-4 w-4 text-green-500" />
-                <span>{prop.text}</span>
-              </div>
-            ))}
-          </motion.div>
-        </motion.div>
+                <Play className={styles.primaryIcon} aria-hidden="true" />
+                Create your card
+                <ArrowRight className={styles.primaryIcon} aria-hidden="true" />
+              </button>
 
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, y: [0, 10, 0] }}
-          transition={{
-            opacity: { delay: 1, duration: 0.5 },
-            y: { repeat: Infinity, duration: 2 },
-          }}
-          className="absolute bottom-[10vh] left-1/2"
-        >
-          <ArrowDown className="h-6 w-6" />
-        </motion.div>
+              <button
+                type="button"
+                onClick={onSeeExamples}
+                className={styles.secondary}
+              >
+                View examples
+                <ArrowDown
+                  className={styles.secondaryIcon}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+
+            <dl className={styles.meta}>
+              {FACTS.map((fact) => (
+                <div key={fact.label}>
+                  <dt>{fact.label}</dt>
+                  <dd>{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <figure className={styles.printFrame}>
+            <span className={styles.tape} aria-hidden="true" />
+
+            <div className={styles.printStack}>
+              {/* Under: wide manga print slipping out below the bottom-left
+                  corner, behind the front print. */}
+              <div className={styles.slipUnder} aria-hidden="true">
+                <CardPreviewImage
+                  cardType="mangaStats"
+                  variation="default"
+                  alt=""
+                  className={styles.slipImage}
+                  eager
+                />
+              </div>
+
+              {/* Front: the main print, always fully readable. */}
+              <div className={styles.printInner}>
+                <CardPreviewImage
+                  cardType="animeStats"
+                  variation="vertical"
+                  alt="Anime statistics card in a vertical layout"
+                  className={styles.printImage}
+                  eager
+                />
+              </div>
+
+              {/* Above: score strip laid across the top edge, overlapping the
+                  other prints rather than hiding behind them. */}
+              <div className={styles.slipTop} aria-hidden="true">
+                <CardPreviewImage
+                  cardType="animeScoreDistribution"
+                  variation="horizontal"
+                  alt=""
+                  className={styles.slipImage}
+                  eager
+                />
+              </div>
+
+              {/* Side: genre pie fanned off the right edge, in front. */}
+              <div className={styles.slipSide} aria-hidden="true">
+                <CardPreviewImage
+                  cardType="animeGenres"
+                  variation="pie"
+                  alt=""
+                  className={styles.slipImage}
+                  eager
+                />
+              </div>
+            </div>
+
+            <span className={styles.seal} aria-hidden="true">
+              記
+            </span>
+          </figure>
+        </div>
+      </div>
+
+      <div className={styles.wave} aria-hidden="true">
+        <svg focusable="false">
+          <defs>
+            <pattern
+              id={`${dividerId}-tile`}
+              width={SEIGAIHA.tileWidth}
+              height={SEIGAIHA.tileHeight}
+              patternUnits="userSpaceOnUse"
+            >
+              <g
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              >
+                {SEIGAIHA.paths.map((d, index) => (
+                  <path key={index} d={d} />
+                ))}
+              </g>
+            </pattern>
+
+            {/* The band dissolves into the paper towards the gallery, so it
+                reads as a printed rule rather than a hard edge. */}
+            <linearGradient
+              id={`${dividerId}-fade`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0.06" stopColor="#fff" />
+              <stop offset="0.92" stopColor="#000" />
+            </linearGradient>
+            <mask id={`${dividerId}-mask`}>
+              <rect
+                width="100%"
+                height="100%"
+                fill={`url(#${dividerId}-fade)`}
+              />
+            </mask>
+          </defs>
+
+          <rect
+            width="100%"
+            height="100%"
+            fill={`url(#${dividerId}-tile)`}
+            opacity="0.8"
+            mask={`url(#${dividerId}-mask)`}
+          />
+          <rect width="100%" height="1" fill="currentColor" opacity="0.55" />
+        </svg>
       </div>
     </section>
   );

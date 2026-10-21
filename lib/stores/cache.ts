@@ -11,7 +11,6 @@ export const VALID_CACHE_KEYS = [
   "statCardConfig",
   "statCardColors",
   "statCardTypes",
-  "sidebarDefaultOpen",
   "defaultColorPreset",
   "defaultCardTypes",
   "defaultBorderEnabled",
