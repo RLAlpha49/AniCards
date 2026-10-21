@@ -129,7 +129,10 @@ const SEARCH_REBUILD_KEY_LIMIT = 10_000;
  * @source
  */
 async function listUserMetaKeys(onScanPage?: () => void): Promise<string[]> {
-  const indexed = await queryUserMetaKeys(redisClient, SEARCH_REBUILD_KEY_LIMIT);
+  const indexed = await queryUserMetaKeys(
+    redisClient,
+    SEARCH_REBUILD_KEY_LIMIT,
+  );
   if (indexed && !indexed.truncated) return indexed.keys;
 
   if (indexed?.truncated) {

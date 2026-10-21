@@ -153,7 +153,9 @@ export function generateCacheKey(
 ): string {
   // Create a stable hash of parameters (excluding null/undefined and cache busters)
   const sortedParams = Object.entries(params)
-    .filter(([k, v]) => v !== null && v !== undefined && !NON_RENDERING_PARAMS.has(k))
+    .filter(
+      ([k, v]) => v !== null && v !== undefined && !NON_RENDERING_PARAMS.has(k),
+    )
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
@@ -268,8 +270,7 @@ export async function getSvgFromSharedCache(
 
     return {
       svg,
-      borderRadius:
-        typeof borderRadius === "number" ? borderRadius : undefined,
+      borderRadius: typeof borderRadius === "number" ? borderRadius : undefined,
     };
   } catch (error) {
     console.warn("[SVG Cache] Shared cache read failed:", error);

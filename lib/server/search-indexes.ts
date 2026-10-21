@@ -242,7 +242,8 @@ async function getIndexHandle(
   const cached = availabilityByIndex.get(name);
   if (
     cached &&
-    (cached.available || Date.now() - cached.checkedAt < AVAILABILITY_RECHECK_MS)
+    (cached.available ||
+      Date.now() - cached.checkedAt < AVAILABILITY_RECHECK_MS)
   ) {
     return cached.available ? search.index({ name }) : null;
   }
@@ -359,12 +360,7 @@ export async function queryCardKeys(
   client: Redis,
   limit: number,
 ): Promise<SearchKeyResult | null> {
-  return queryIndexKeys(
-    client,
-    CARDS_SEARCH_INDEX,
-    MATCH_ALL_DOCUMENTS,
-    limit,
-  );
+  return queryIndexKeys(client, CARDS_SEARCH_INDEX, MATCH_ALL_DOCUMENTS, limit);
 }
 
 /**
