@@ -8,7 +8,7 @@ import {
   safeTrack,
 } from "@/lib/utils/google-analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { HomeSurface } from "@/components/home/HomeSurface";
+import { PaperSurface } from "@/components/PaperSurface";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PreviewShowcase } from "@/components/home/PreviewShowcase";
 import { FeaturesSection } from "@/components/home/FeaturesSection";
@@ -43,7 +43,7 @@ export default function HomePage() {
       resetKeys={[isGeneratorOpen ? "generator_open" : "generator_closed"]}
       onReset={() => setIsGeneratorOpen(false)}
     >
-      <HomeSurface>
+      <PaperSurface>
         <HeroSection
           onGetStarted={handleGetStartedClick}
           onSeeExamples={handleSeeExamplesClick}
@@ -65,7 +65,7 @@ export default function HomePage() {
             isGeneratorOpen ? "opacity-100" : "opacity-0"
           }`}
         />
-      </HomeSurface>
+      </PaperSurface>
     </ErrorBoundary>
   );
 }
