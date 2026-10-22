@@ -172,9 +172,40 @@ paths:
           schema:
             type: boolean
           description: "When true and rendering a pie variant, shows percentage labels on the pie slices."
+        - in: query
+          name: _t
+          required: false
+          schema:
+            type: string
+          description: >
+            Cache buster. Its presence asks the endpoint not to use a stored
+            copy of the card, so the card is rendered from current data. The
+            value is never read: any value, including an empty one, has the
+            same effect. A request without this parameter is served from the
+            cache whenever a cached copy is available.
       responses:
         "200":
           description: "SVG image payload representing the requested card. Returns image/svg+xml content type."
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: >-
+                `public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800,
+                stale-if-error=1209600`. The edge caches the response for a day.
+            X-Cache-Source:
+              schema:
+                type: string
+                enum: ["memory", "render", "bypass"]
+              description: >-
+                Where the returned SVG came from. `memory` means this process
+                already had the render. `render` means it was produced for this
+                request. `bypass` means the request carried `_t` and asked not
+                to use a stored copy.
+            X-Card-Border-Radius:
+              schema:
+                type: string
+              description: "The border radius the card was rendered with."
           content:
             image/svg+xml:
               schema:
@@ -1065,6 +1096,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+          description: "When the record was last written. This is the refresh queue's score, so it advances on every scheduled refresh whether or not the numbers moved. Do not use it to decide whether a rendered card is out of date."
+        dataUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: "When the stats a card renders from last changed. A scheduled refresh that finds identical stats leaves this alone, so a card URL stays valid and cached copies keep serving. This is the card URL's version, and is distinct from updatedAt. Absent on a record written before the field existed."
         lastCardRequestAt:
           type: string
           format: date-time

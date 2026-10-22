@@ -127,6 +127,26 @@ function parseStoredCardsRecord(
 }
 
 /**
+ * Reads the timestamp of a stored card record.
+ *
+ * @param rawValue - The stored record, as raw JSON.
+ * @returns The stored timestamp, or undefined when it cannot be read.
+ * @source
+ */
+function readStoredCardsUpdatedAt(rawValue: unknown): string | undefined {
+  if (rawValue === undefined || rawValue === null) return undefined;
+
+  try {
+    const parsedValue =
+      typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+    const updatedAt = (parsedValue as CardsRecord | null)?.updatedAt;
+    return typeof updatedAt === "string" ? updatedAt : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Computes the effective border radius from incoming and previous values.
  * @source
  */
@@ -298,6 +318,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         cardsKey,
       );
 
+      // The stored timestamp is read alongside the cards so a save that
+      // changes nothing can keep it.
+      const existingUpdatedAt = readStoredCardsUpdatedAt(existingData);
+
       const existingCardsMap = new Map<string, StoredCardConfig>(
         existingCards.map((card) => [card.cardName, card]),
       );
@@ -307,10 +331,22 @@ export async function POST(request: Request): Promise<NextResponse> {
         existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
       }
 
+      const mergedCards = Array.from(existingCardsMap.values());
+
+      // The timestamp moves only when the configuration actually changed. It
+      // is the card URL's version, so a save that changes nothing must not
+      // move it: that would ask every cached card for a fresh copy without
+      // any card having changed.
+      const configurationChanged =
+        !recordExists ||
+        JSON.stringify(existingCards) !== JSON.stringify(mergedCards);
+
       const cardData: CardsRecord = {
         userId,
-        cards: Array.from(existingCardsMap.values()),
-        updatedAt: new Date().toISOString(),
+        cards: mergedCards,
+        updatedAt: configurationChanged
+          ? new Date().toISOString()
+          : (existingUpdatedAt ?? new Date().toISOString()),
       };
       const saveResult = await redisClient.eval<
         [string, string, string],
@@ -352,11 +388,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     // The stored configuration is an input to every card rendered for this
-    // user, and a `colorPreset=custom` URL carries none of it. Drop the cached
-    // renders so the next request reflects the configuration just saved.
-    // `validateCardData` already rejected anything that is not a positive
-    // integer, so the conversion cannot change the value.
-    await invalidateSvgCache(Number(userId));
+    // user, and a `colorPreset=custom` URL carries none of it, so the renders
+    // this process holds are now wrong. `validateCardData` already rejected
+    // anything that is not a positive integer, so the conversion cannot change
+    // the value. Other processes and the CDN pick up the change from the
+    // `updatedAt` this save just wrote, which the user page puts in the URL.
+    invalidateSvgCache(Number(userId));
 
     return jsonWithCors({ success: true, userId }, request);
   } catch (error) {

@@ -27,10 +27,7 @@ import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   generateCacheKey,
   getSvgFromMemoryCache,
-  getSvgFromSharedCache,
-  setSvgInCache,
   setSvgInMemoryCache,
-  SVG_CACHE_TTL_SECONDS,
 } from "@/lib/stores/svg-cache";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { buildCardUrlProfile } from "@/lib/server/url-usage";
@@ -452,13 +449,29 @@ async function handleCardDataError(
 }
 
 /**
+ * Where the SVG in a response came from.
+ *
+ * `memory` means this process already had the render. `render` means the card
+ * was produced for this request. `bypass` means the request carried a `_t`
+ * parameter, which asks for a render that does not use a stored copy.
+ *
+ * @source
+ */
+type CardCacheSource = "memory" | "render" | "bypass";
+
+/**
  * Creates the success response with SVG content and headers.
  *
  * Every served card records a card request for the resolved user, because this
- * is the one funnel all successful paths pass through: cache hit, stale cache,
- * and fresh render. Failed requests do not record activity, so they cannot keep
+ * is the one funnel all successful paths pass through: cache hit and fresh
+ * render. Failed requests do not record activity, so they cannot keep
  * a removed or invalid user looking active.
  *
+ * @param svgContent - The trusted SVG to return.
+ * @param request - The incoming request, used to build CORS headers.
+ * @param borderRadius - The card's border radius, returned in a header.
+ * @param userId - The resolved user the card belongs to.
+ * @param cacheSource - Where the SVG came from, returned in `X-Cache-Source`.
  * @source
  */
 function createSuccessResponse(
@@ -466,6 +479,7 @@ function createSuccessResponse(
   request: Request,
   borderRadius: number | undefined,
   userId: number,
+  cacheSource: CardCacheSource,
 ): Response {
   void recordUserCardRequest(userId);
   const cleaned = toCleanSvgResponse(svgContent);
@@ -473,6 +487,7 @@ function createSuccessResponse(
   const responseHeaders = {
     ...svgHeaders(request),
     "X-Card-Border-Radius": String(headerRadius),
+    "X-Cache-Source": cacheSource,
   } as Record<string, string>;
   return new Response(cleaned, { headers: responseHeaders });
 }
@@ -607,65 +622,18 @@ export async function GET(request: Request) {
     gridRows: normalizedGridRows,
   });
 
-  // The `_t` cache buster is deliberately absent from the key: it changes on
-  // every page load, so including it turned every request into a unique key and
-  // made the cache useless. It still busts the browser and CDN copies, which is
-  // all it ever needed to do. Stored configuration changes invalidate the
-  // server cache at the write instead of on the next read.
-  const cachedEntry = getSvgFromMemoryCache(cacheKey);
+  // The `_t` parameter is deliberately absent from the key. It exists to bust
+  // the browser and CDN copies, not to describe the render, so including it
+  // would turn every request into a unique key.
+  //
+  // Its presence is also a request to not use a stored copy. A caller that
+  // adds `_t` wants the card rendered from current data, so the server cache
+  // is skipped for that request. The value is irrelevant: only its presence
+  // matters. Every other request is served from the cache when it can be.
+  const bypassCache = params._t !== null;
+  const cachedEntry = bypassCache ? null : getSvgFromMemoryCache(cacheKey);
   if (cachedEntry) {
     metrics.recordCache("hit");
-
-    if (cachedEntry.isStale) {
-      console.log(
-        `♻️ [Card SVG] Serving stale cache for user ${effectiveUserId} (will revalidate in background)`,
-      );
-
-      // Fire-and-forget revalidation: start background generation to refresh the cache.
-      // Ensure any errors are caught and logged so the response is not blocked.
-      // It gets its own collector so its counters cannot join the stale response
-      // batch, which is flushed and cleared below.
-      void (async () => {
-        const revalidationMetrics = createCardRequestMetrics();
-        try {
-          await generateCardResponse(
-            request,
-            params,
-            effectiveUserId,
-            startTime,
-            revalidationMetrics,
-            cacheKey,
-          );
-          console.log(
-            `♻️ [Card SVG] Background revalidation completed for user ${effectiveUserId}`,
-          );
-        } catch (err: unknown) {
-          console.error(
-            `⚠️ [Card SVG] Background revalidation failed for user ${effectiveUserId} (cacheKey: ${cacheKey}):`,
-            err,
-          );
-        } finally {
-          await revalidationMetrics.flush();
-        }
-      })();
-
-      // Return stale content immediately while revalidating in background
-      metrics.recordUrlProfile(
-        urlProfile,
-        { cache: "stale", status: 200 },
-        cardConfigClassification.source === "db"
-          ? trackingUserIdentifier
-          : undefined,
-      );
-      // Not awaited, a cache hit must not wait on analytics.
-      metrics.flushInBackground();
-      return createSuccessResponse(
-        markTrustedSvg(cachedEntry.svg),
-        request,
-        cachedEntry.borderRadius,
-        effectiveUserId,
-      );
-    }
 
     console.log(
       `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
@@ -683,41 +651,14 @@ export async function GET(request: Request) {
       request,
       cachedEntry.borderRadius,
       effectiveUserId,
+      "memory",
     );
   }
 
-  // Cache miss in this process; the shared tier is checked below, and the
-  // counter is recorded there once the real outcome is known.
-  const sharedEntry = await getSvgFromSharedCache(cacheKey);
-  if (sharedEntry) {
-    metrics.recordCache("hit");
-    // Warm the local tier so this process serves the next request instantly.
-    setSvgInMemoryCache(
-      cacheKey,
-      sharedEntry.svg,
-      effectiveUserId,
-      sharedEntry.borderRadius,
-    );
-    console.log(
-      `⚡ [Card SVG] Served from shared cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
-    );
-    metrics.recordUrlProfile(
-      urlProfile,
-      { cache: "hit", status: 200 },
-      cardConfigClassification.source === "db"
-        ? trackingUserIdentifier
-        : undefined,
-    );
-    metrics.flushInBackground();
-    return createSuccessResponse(
-      markTrustedSvg(sharedEntry.svg),
-      request,
-      sharedEntry.borderRadius,
-      effectiveUserId,
-    );
-  }
-
+  // A miss in this process renders the card. There is no shared tier to check,
+  // so a miss here is the real miss that the counter records.
   metrics.recordCache("miss");
+  if (bypassCache) metrics.recordCacheBypass();
 
   const response = await generateCardResponse(
     request,
@@ -726,6 +667,7 @@ export async function GET(request: Request) {
     startTime,
     metrics,
     cacheKey,
+    bypassCache,
   );
   metrics.recordUrlProfile(
     urlProfile,
@@ -821,6 +763,7 @@ async function generateCardResponse(
   startTime: number,
   metrics: CardRequestMetrics,
   cacheKey?: string,
+  bypassCache: boolean = false,
 ): Promise<Response> {
   try {
     const needsDbCardConfig = needsCardConfigFromDb(params);
@@ -865,13 +808,16 @@ async function generateCardResponse(
       `✅ [Card SVG] Rendered ${params.cardType} card for ${effectiveUserId} in ${duration}ms`,
     );
 
-    // Cache the generated SVG for future requests. The shared write is not
-    // awaited: a slow or failing Redis must not delay the response.
+    // Keep the render in this process for the next request. Nothing is written
+    // to Redis; the CDN holds the shared copy.
+    //
+    // A request that carried `_t` asked not to use a stored copy, but its
+    // render is current, so it replaces the stored one. Otherwise the next
+    // request without `_t` would still find the older render.
     if (cacheKey) {
-      void setSvgInCache(
+      setSvgInMemoryCache(
         cacheKey,
         toCleanSvgResponse(svgContent),
-        SVG_CACHE_TTL_SECONDS * 1000,
         effectiveUserId,
         cardConfig.borderRadius,
       );
@@ -884,6 +830,7 @@ async function generateCardResponse(
       request,
       cardConfig.borderRadius,
       effectiveUserId,
+      bypassCache ? "bypass" : "render",
     );
   } catch (err: unknown) {
     if (err instanceof CardDataError) {

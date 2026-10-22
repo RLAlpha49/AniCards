@@ -101,9 +101,13 @@ export interface CardUrlProfileInput {
   classification: CardConfigClassification;
 }
 
-/** Cache outcome and response status recorded alongside a URL profile. @source */
+/**
+ * Cache outcome and response status recorded alongside a URL profile.
+ *
+ * @source
+ */
 export interface CardUrlOutcome {
-  cache: "hit" | "stale" | "miss";
+  cache: "hit" | "miss";
   status: number;
 }
 

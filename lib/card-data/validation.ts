@@ -21,6 +21,7 @@ import {
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
+import { isValidTimestamp } from "@/lib/server/card-version";
 
 /**
  * Error wrapper including an HTTP status code, error category, and recovery suggestions.
@@ -1296,6 +1297,12 @@ export function validateAndNormalizeUserRecord(
     username: user.username ?? undefined,
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
+    // A version that is not a readable timestamp is dropped rather than
+    // stored. It could not be compared with another version, so a card URL
+    // built from it would never move again.
+    ...(isValidTimestamp(user.dataUpdatedAt)
+      ? { dataUpdatedAt: user.dataUpdatedAt as string }
+      : {}),
     ...(Object.keys(aggregatesObj).length ? { aggregates: aggregatesObj } : {}),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {

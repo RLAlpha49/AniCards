@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Link, Check, Copy } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
 import {
@@ -62,13 +62,6 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
     clampBorderRadius(borderRadius ?? DEFAULT_CARD_BORDER_RADIUS),
   );
 
-  // Add cache-busting timestamp to force SVG reload. Prefer a timestamp provided
-  // in the svgUrl (via `_t=`) and fall back to a local per-instance timestamp.
-  const cacheBustedSvgUrl = useMemo(() => {
-    if (svgUrl.includes("_t=")) return svgUrl;
-    return `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${Date.now()}`;
-  }, [svgUrl]);
-
   useEffect(() => {
     if (!svgUrl) {
       return undefined;
@@ -82,7 +75,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
 
     const fetchBorderRadius = async () => {
       try {
-        const parsed = await getSvgBorderRadius(cacheBustedSvgUrl);
+        const parsed = await getSvgBorderRadius(svgUrl);
         if (parsed !== null && !isCancelled)
           setCardBorderRadius(clampBorderRadius(parsed));
       } catch (error) {
@@ -95,7 +88,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
     return () => {
       isCancelled = true;
     };
-  }, [svgUrl, borderRadius, cacheBustedSvgUrl]);
+  }, [svgUrl, borderRadius]);
 
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
@@ -103,7 +96,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
    * @source
    */
   const handleDownload = async (fmt: ConversionFormat = "png") => {
-    const url = await svgToPng(cacheBustedSvgUrl, fmt);
+    const url = await svgToPng(svgUrl, fmt);
     const link = document.createElement("a");
     link.href = url;
     link.download = `${type}.${fmt}`;
@@ -135,8 +128,9 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
       urlObj.searchParams.delete("_t");
       return urlObj.toString();
     } catch {
-      // If URL parsing fails, try regex fallback
-      return url.replaceAll(/[&?]_t=\d+/g, "");
+      // If URL parsing fails, try regex fallback. The timestamp may be an ISO
+      // string, which is percent-encoded inside a URL.
+      return url.replaceAll(/[&?]_t=[^&]*/g, "");
     }
   };
 
@@ -145,13 +139,13 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
    * Strips _t timestamp param for clean URLs.
    * @source
    */
-  const svgLink = stripTimestampParam(getAbsoluteUrl(cacheBustedSvgUrl));
+  const svgLink = stripTimestampParam(getAbsoluteUrl(svgUrl));
   /**
    * AniList bio format (img150) using the absolute SVG URL.
    * Strips _t timestamp param for clean URLs.
    * @source
    */
-  const anilistBioLink = `img150(${stripTimestampParam(getAbsoluteUrl(cacheBustedSvgUrl))})`;
+  const anilistBioLink = `img150(${stripTimestampParam(getAbsoluteUrl(svgUrl))})`;
 
   return (
     <motion.div
@@ -178,7 +172,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
             }}
           >
             <img
-              src={cacheBustedSvgUrl || "/placeholder.svg"}
+              src={svgUrl || "/placeholder.svg"}
               alt={type}
               width={400}
               height={600}

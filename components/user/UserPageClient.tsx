@@ -15,7 +15,7 @@ import {
   AlertCircle,
 } from "@/lib/icons";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
@@ -29,16 +29,22 @@ import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
+import { buildCardVersion } from "@/lib/server/card-version";
 
 /**
  * Basic user identity returned from the API.
  * @property userId - AniList numeric user id.
  * @property username - Optional AniList username for display.
+ * @property dataUpdatedAt - When the stats behind the cards last changed.
+ *   `get-user` includes it in the parts it returns by default. This is not
+ *   `updatedAt`: a scheduled refresh advances that on every run, whether or
+ *   not the numbers moved.
  * @source
  */
 interface UserData {
   userId: string;
   username?: string;
+  dataUpdatedAt?: string;
 }
 
 /**
@@ -82,8 +88,16 @@ interface CardData {
  */
 const USER_PAGE_PARTS = "meta";
 
-type ApiUser = { userId?: string | number; username?: string };
-type ApiCards = { userId?: number | string; cards?: CardData[] };
+type ApiUser = {
+  userId?: string | number;
+  username?: string;
+  dataUpdatedAt?: string;
+};
+type ApiCards = {
+  userId?: number | string;
+  cards?: CardData[];
+  updatedAt?: string;
+};
 
 /**
  * Fetch JSON from the given URL and perform minimal validation for 'user' or 'cards'.
@@ -132,6 +146,17 @@ async function fetchJsonWithValidation<T>(
     return null;
   }
 }
+
+/**
+ * Error sink for a fetch whose failure must not break the page.
+ *
+ * Some requests only enrich the page with extra information. A failure
+ * there leaves the page able to render, so the failure is not reported as a
+ * page error.
+ *
+ * @source
+ */
+const ignoreError = (): void => {};
 
 /**
  * Fetch a user by numeric id.
@@ -327,14 +352,43 @@ function normalizeCardEntry(raw: unknown): CardData | null {
   };
 }
 
+/**
+ * Builds the version string a card URL carries in `_t`.
+ *
+ * The card endpoint ignores the value of `_t`; only its presence matters, and
+ * it tells the endpoint not to use a stored copy of the card. The version
+ * here is what makes the URL itself change when the card's content changes,
+ * so a browser or CDN that already holds the old URL is asked for the new
+ * one.
+ *
+ * Two things change a card: the stats it draws, and the configuration it is
+ * drawn with. `dataUpdatedAt` moves only when a refresh actually changed the
+ * stats, so a scheduled refresh that finds the same numbers leaves every URL
+ * alone. `updatedAt` on the cards record is the configuration's own write
+ * time, which only moves when someone saves.
+ *
+ * @param user - Resolved user identity, whose `dataUpdatedAt` covers the stats.
+ * @param cardsUpdatedAt - `updatedAt` of the stored card configuration.
+ * @returns A stable version token, or `undefined` when no timestamp exists.
+ * @source
+ */
+function buildCardDataVersion(
+  user: UserData | null,
+  cardsUpdatedAt: string | undefined,
+): string | undefined {
+  return buildCardVersion(user?.dataUpdatedAt, cardsUpdatedAt);
+}
+
 export function UserPageClient() {
   const searchParams = useSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [cards, setCards] = useState<CardData[]>([]);
+  const [cardsUpdatedAt, setCardsUpdatedAt] = useState<string | undefined>(
+    undefined,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllCards, setShowAllCards] = useState(false);
-  const pageTimestamp = useMemo(() => Date.now(), []);
 
   function resolveCardsFromParam(cardsParam: string): CardData[] | null {
     try {
@@ -355,6 +409,7 @@ export function UserPageClient() {
     return {
       userId: String(userResult.userId),
       username: userResult.username || undefined,
+      dataUpdatedAt: userResult.dataUpdatedAt,
     };
   }
 
@@ -366,10 +421,12 @@ export function UserPageClient() {
     const cardsResult = await fetchCardsForUserId(userIdArg, setError);
     if (!cardsResult) return null;
     const resolvedCards = extractValidatedCards(cardsResult);
+    setCardsUpdatedAt(cardsResult.updatedAt);
     return {
       user: {
         userId: String(userResult.userId),
         username: userResult.username || undefined,
+        dataUpdatedAt: userResult.dataUpdatedAt,
       },
       cards: resolvedCards,
     };
@@ -415,8 +472,19 @@ export function UserPageClient() {
     const parsed = resolveCardsFromParam(cardsParamArg);
     if (!parsed) return null;
     if (userIdArg) {
+      // The card list came from the URL, but the stats behind it did not, so
+      // the user record is still read for the timestamp the card URLs carry.
+      // A record that cannot be read is not fatal here: the cards are in the
+      // URL and can still be shown.
+      const userResult = await fetchUserById(userIdArg, ignoreError);
+      const storedCards = await fetchCardsForUserId(userIdArg, ignoreError);
+      setCardsUpdatedAt(storedCards?.updatedAt);
       return {
-        user: { userId: userIdArg, username: usernameArg || undefined },
+        user: {
+          userId: userIdArg,
+          username: usernameArg || userResult?.username || undefined,
+          dataUpdatedAt: userResult?.dataUpdatedAt,
+        },
         cards: parsed,
         showAll: false,
       };
@@ -424,6 +492,11 @@ export function UserPageClient() {
     if (usernameArg) {
       const finalUser = await resolveUserFromUsername(usernameArg);
       if (!finalUser) return null;
+      const storedCards = await fetchCardsForUserId(
+        finalUser.userId,
+        ignoreError,
+      );
+      setCardsUpdatedAt(storedCards?.updatedAt);
       return { user: finalUser, cards: parsed, showAll: false };
     }
     return { user: null, cards: parsed, showAll: false };
@@ -450,6 +523,7 @@ export function UserPageClient() {
     if (finalUser.userId) {
       const cardsResult = await fetchCardsForUserId(finalUser.userId, setError);
       if (!cardsResult) return null;
+      setCardsUpdatedAt(cardsResult.updatedAt);
       finalCards = extractValidatedCards(cardsResult);
     }
     return {
@@ -532,7 +606,11 @@ export function UserPageClient() {
     );
   }
 
-  const cardTimestamp = pageTimestamp;
+  const cardDataVersion = buildCardDataVersion(userData, cardsUpdatedAt);
+  // Every card on the page shares one version. Without a stored version the
+  // page load's own time stands in, and it must be the same for every card,
+  // so it is taken once here rather than inside the loop.
+  const cardVersion = cardDataVersion ?? String(Date.now());
 
   const cardTypes = cards.map((card) => {
     const variation = card.variation || "default";
@@ -594,11 +672,18 @@ export function UserPageClient() {
     );
 
     const svgUrl = buildCardUrlWithParams(urlParams);
-    const urlWithTimestamp = `${svgUrl}&_t=${cardTimestamp}`;
+    // A URL with no `_t` at all is cached by the browser and the CDN until
+    // something else changes it, and nothing else does when the version is
+    // unknown. The record gains a version on its next write, so until then
+    // the URL carries the time of this page load. That is the behaviour the
+    // old always-changing timestamp produced, which is the safe direction:
+    // a card that may be out of date is asked for again rather than served
+    // from a copy nobody knows is current.
+    const versionedSvgUrl = `${svgUrl}&_t=${encodeURIComponent(cardVersion)}`;
     const cardBorderRadiusValue = getCardBorderRadius(card.borderRadius);
     return {
       type: displayName,
-      svgUrl: urlWithTimestamp,
+      svgUrl: versionedSvgUrl,
       rawType: card.cardName,
       borderRadius: cardBorderRadiusValue,
     };

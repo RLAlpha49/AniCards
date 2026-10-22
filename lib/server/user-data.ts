@@ -4,6 +4,10 @@ import {
   queryUserMetaKeys,
   USERS_SEARCH_INDEX,
 } from "@/lib/server/search-indexes";
+import {
+  resolveLatestTimestamp,
+  isValidTimestamp,
+} from "@/lib/server/card-version";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import {
   UserRecord,
@@ -129,7 +133,10 @@ const SEARCH_REBUILD_KEY_LIMIT = 10_000;
  * @source
  */
 async function listUserMetaKeys(onScanPage?: () => void): Promise<string[]> {
-  const indexed = await queryUserMetaKeys(redisClient, SEARCH_REBUILD_KEY_LIMIT);
+  const indexed = await queryUserMetaKeys(
+    redisClient,
+    SEARCH_REBUILD_KEY_LIMIT,
+  );
   if (indexed && !indexed.truncated) return indexed.keys;
 
   if (indexed?.truncated) {
@@ -221,9 +228,50 @@ interface UserMeta {
   username?: string;
   createdAt: string;
   updatedAt: string;
+  dataUpdatedAt?: string;
   name?: string;
   avatar?: UserAvatar;
   userCreatedAt?: number;
+}
+
+/**
+ * Meta fields that advance on a write without changing what a card renders.
+ *
+ * Every refresh writes `updatedAt` so the user rotates to the back of the
+ * refresh queue, which means the meta part cannot be compared as-is when the
+ * question is whether rendered content changed.
+ *
+ * @source
+ */
+const VOLATILE_META_FIELDS = ["updatedAt", "dataUpdatedAt"] as const;
+
+/**
+ * Serializes a meta part with the volatile timestamps removed.
+ *
+ * Stored values arrive parsed from the Upstash client and values being written
+ * are plain objects, so both sides are normalized the same way before they are
+ * compared.
+ *
+ * @param value - A meta part, parsed or as raw JSON.
+ * @returns The meta fields a card can render, as JSON.
+ * @source
+ */
+function serializeStableMeta(value: unknown): string {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return JSON.stringify(parsed);
+  }
+
+  const stable = { ...(parsed as Record<string, unknown>) };
+  for (const field of VOLATILE_META_FIELDS) delete stable[field];
+  return JSON.stringify(stable);
 }
 
 interface UserAggregates {
@@ -677,6 +725,7 @@ export function reconstructUserRecord(
     userId: _u,
     username: _un,
     updatedAt: _ua,
+    dataUpdatedAt: _da,
     ip: _legacyIp,
     createdAt: _c,
     name: _n,
@@ -691,6 +740,11 @@ export function reconstructUserRecord(
     username: meta?.username,
     createdAt: meta?.createdAt || "",
     updatedAt: meta?.updatedAt || "",
+    dataUpdatedAt:
+      typeof meta?.dataUpdatedAt === "string" &&
+      isValidTimestamp(meta.dataUpdatedAt)
+        ? meta.dataUpdatedAt
+        : undefined,
     stats: userStatsData,
     statistics: userSection.statistics,
     favourites: userSection.favourites,
@@ -704,6 +758,71 @@ export function reconstructUserRecord(
     ...rest,
     ...(aggregates ? { aggregates } : {}),
   };
+}
+
+/**
+ * Collects the parts whose serialized value differs from what is stored.
+ *
+ * The comparison is on the stored bytes, so a caller can ask whether a write
+ * would change anything a card renders before it commits to new timestamps.
+ *
+ * @param record - The record as it would be stored.
+ * @param storedParts - Parts already read for this user.
+ * @returns Each changed part with the value to write, in storage order.
+ * @source
+ */
+function collectChangedParts(
+  record: UserRecord,
+  storedParts: Partial<Record<UserDataPart, unknown>>,
+): [UserDataPart, string][] {
+  const split = splitUserRecord(record) as unknown as Record<
+    UserDataPart,
+    unknown
+  >;
+  const changed: [UserDataPart, string][] = [];
+  for (const part of Object.keys(split) as UserDataPart[]) {
+    const serialized = JSON.stringify(split[part]);
+    const stored = storedParts[part];
+    if (stored === undefined || JSON.stringify(stored) !== serialized) {
+      changed.push([part, serialized]);
+    }
+  }
+  return changed;
+}
+
+/**
+ * Reports whether a save would change anything a card renders.
+ *
+ * Timestamps are excluded, so a scheduled refresh that rewrote the same stats
+ * reports no change even though it advances `updatedAt`. Username and avatar
+ * live in meta and are compared, because a card draws them.
+ *
+ * @param record - The record as it would be stored.
+ * @param storedParts - Parts already read for this user.
+ * @returns True when some rendered part differs from what is stored.
+ * @source
+ */
+export function userRecordContentChanged(
+  record: UserRecord,
+  storedParts: Partial<Record<UserDataPart, unknown>>,
+): boolean {
+  const split = splitUserRecord(record) as unknown as Record<
+    UserDataPart,
+    unknown
+  >;
+
+  for (const part of Object.keys(split) as UserDataPart[]) {
+    const stored = storedParts[part];
+    if (stored === undefined) return true;
+
+    const same =
+      part === "meta"
+        ? serializeStableMeta(split[part]) === serializeStableMeta(stored)
+        : JSON.stringify(split[part]) === JSON.stringify(stored);
+    if (!same) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -725,26 +844,39 @@ export async function saveUserRecord(
   record: UserRecord,
   storedParts: Partial<Record<UserDataPart, unknown>>,
 ): Promise<void> {
-  const split = splitUserRecord(record) as unknown as Record<
-    UserDataPart,
-    unknown
-  >;
-  const parts = Object.keys(split) as UserDataPart[];
-  const existing = storedParts;
-
-  const changed: [UserDataPart, string][] = [];
-  for (const part of parts) {
-    const serialized = JSON.stringify(split[part]);
-    const stored = existing[part];
-    if (stored === undefined || JSON.stringify(stored) !== serialized) {
-      changed.push([part, serialized]);
-    }
-  }
+  const changed = collectChangedParts(record, storedParts);
 
   if (changed.length === 0) return;
 
+  // The stored version wins whenever it is the later of the two. Two writers
+  // can hold different versions for the same user at the same time, and the
+  // one that writes last is not necessarily the one holding the newer
+  // version. Letting the older one win would move the card URL backwards and
+  // hide a change that actually happened.
+  const storedMeta = storedParts.meta as Record<string, unknown> | undefined;
+  const storedVersion =
+    typeof storedMeta?.dataUpdatedAt === "string"
+      ? storedMeta.dataUpdatedAt
+      : undefined;
+  const latestVersion = resolveLatestTimestamp(
+    record.dataUpdatedAt,
+    storedVersion,
+  );
+
   const pipeline = redisClient.pipeline();
   for (const [part, value] of changed) {
+    if (part === "meta" && latestVersion !== record.dataUpdatedAt) {
+      // The meta part carries the version, so it has to carry the version
+      // that is actually being stored.
+      const meta = JSON.parse(value) as Record<string, unknown>;
+      if (latestVersion === undefined) {
+        delete meta.dataUpdatedAt;
+      } else {
+        meta.dataUpdatedAt = latestVersion;
+      }
+      pipeline.set(getUserDataKey(record.userId, part), JSON.stringify(meta));
+      continue;
+    }
     pipeline.set(getUserDataKey(record.userId, part), value);
   }
   // Rewriting meta always changes updatedAt, so a save that writes any part
