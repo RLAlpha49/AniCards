@@ -1,7 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { previewCardDimensions, previewCardUrl } from "@/lib/card-preview";
 import styles from "./CardPreviewImage.module.css";
 
@@ -15,6 +21,13 @@ type CardPreviewImageProps = Readonly<{
   eager?: boolean;
   width?: number;
   height?: number;
+  /**
+   * Called once when the preview resolves, whether it painted or failed.
+   *
+   * Callers that swap the artwork animate on this rather than on mount, so the
+   * incoming card is never revealed before its own SVG has decoded.
+   */
+  onSettled?: () => void;
 }>;
 
 /**
@@ -53,8 +66,26 @@ export function CardPreviewImage({
   eager = false,
   width,
   height,
+  onSettled,
 }: CardPreviewImageProps) {
   const [failed, setFailed] = useState(false);
+
+  /* The settle callback is read through a ref so the element's ref callback
+     keeps a stable identity. An unstable ref callback would detach and
+     reattach on every parent render, which would fire the callback again. */
+  const onSettledRef = useRef(onSettled);
+  const settledRef = useRef(false);
+
+  useEffect(() => {
+    onSettledRef.current = onSettled;
+  }, [onSettled]);
+
+  /** Reports the first resolution of this preview, and only the first. @source */
+  const settle = useCallback(() => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    onSettledRef.current?.();
+  }, []);
 
   const dimensions = previewCardDimensions(cardType, variation ?? "default");
   const expectedWidth = width ?? dimensions.width;
@@ -82,9 +113,10 @@ export function CardPreviewImage({
     (image: HTMLImageElement | null) => {
       if (image?.complete) {
         detectErrorGraphic(image);
+        settle();
       }
     },
-    [detectErrorGraphic],
+    [detectErrorGraphic, settle],
   );
 
   if (failed) {
@@ -106,8 +138,14 @@ export function CardPreviewImage({
       height={expectedHeight}
       loading={eager ? "eager" : "lazy"}
       decoding="async"
-      onError={() => setFailed(true)}
-      onLoad={(event) => detectErrorGraphic(event.currentTarget)}
+      onError={() => {
+        setFailed(true);
+        settle();
+      }}
+      onLoad={(event) => {
+        detectErrorGraphic(event.currentTarget);
+        settle();
+      }}
     />
   );
 }

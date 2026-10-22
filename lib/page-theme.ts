@@ -1,10 +1,13 @@
 /**
- * The home route paints its own paper ground, so the shared site chrome
- * (header, footer, GitHub button) adopts the paper palette there while every
- * other page keeps the default look.
+ * Routes rendered on the shared paper surface.
  *
+ * These pages paint the paper ground themselves, so the chrome above them has
+ * to switch to the paper palette or the seam between the two shows.
+ *
+ * @param pathname - The current `usePathname()` value.
  * @source
  */
-export function isHomePage(pathname: string | null | undefined): boolean {
-  return pathname === "/";
+export function isPaperPage(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return pathname === "/" || pathname === "/examples";
 }

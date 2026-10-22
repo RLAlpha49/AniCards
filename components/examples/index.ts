@@ -1,5 +1,17 @@
 export { ExamplesHeroSection } from "./ExamplesHeroSection";
-export { CategorySection } from "./CategorySection";
-export { ExampleCard } from "./ExampleCard";
-export { CTASection } from "./CTASection";
-export type { CardType, CardVariant } from "./CategorySection";
+export { GroupSection } from "./GroupSection";
+export { CardTypePreview } from "./CardTypePreview";
+export { ExamplesCTA } from "./ExamplesCTA";
+export {
+  GROUPS,
+  GROUP_NOTES,
+  GROUP_NUMERALS,
+  buildCardTypes,
+  groupAnchor,
+} from "./card-types";
+export type {
+  CardType,
+  CardVariation,
+  GroupName,
+  GroupSummary,
+} from "./card-types";

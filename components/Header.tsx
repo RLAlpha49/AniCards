@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { MastheadMenu, MastheadNav } from "@/components/MastheadNav";
 import { cn } from "@/lib/utils";
-import { isHomePage } from "@/lib/page-theme";
+import { isPaperPage } from "@/lib/page-theme";
 
 /**
  * Application header that anchors to the top of the viewport.
@@ -23,7 +23,7 @@ export default function Header() {
   // until the component mounts on the client.
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
-  const isHome = isHomePage(pathname);
+  const isHome = isPaperPage(pathname);
 
   useEffect(() => {
     setMounted(true);

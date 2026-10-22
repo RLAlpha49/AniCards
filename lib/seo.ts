@@ -138,9 +138,9 @@ export const seoConfigs = {
   },
 
   examples: {
-    title: "All Card Examples - AniCards",
+    title: "Card Examples - AniCards",
     description:
-      "Explore all available AniCards types and variants with real examples. View anime statistics, social metrics, genre distributions, voice actor insights, studio breakdowns, and more.",
+      "See every card type AniCards can generate, rendered from a real AniList profile. Anime and manga statistics, genres, studios, voice actors, activity, and favourites.",
     keywords: [
       "anilist card examples",
       "anime stat card examples",
@@ -148,9 +148,9 @@ export const seoConfigs = {
       "anilist statistics examples",
       "anime data visualization examples",
       "card types",
-      "stat card variants",
+      "stat card variations",
       "anilist card gallery",
-      "anime cards showcase",
+      "anime card examples",
     ],
     canonical: `${SITE_URL}/examples`,
   },

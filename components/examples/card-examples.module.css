@@ -1,0 +1,903 @@
+/* Examples page: the card gallery on the home page's paper ground. */
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+/* ── hero ────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.heroRule {
+  border-top: 2px solid var(--ink);
+}
+
+.heroInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: start;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
+  padding-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.6rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.title {
+  position: relative;
+  z-index: 0;
+  margin-top: 1.35rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.title em {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.title em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: 0.2em;
+  left: -0.06em;
+  height: 0.9em;
+  background: var(--vermillion-wash);
+}
+
+.lede {
+  margin-top: 1.4rem;
+  max-width: 33rem;
+  font-size: 0.97rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+/* ── search ──────────────────────────────────────────────────── */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: 33rem;
+  margin-top: 1.8rem;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0 0.9rem;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.search:focus-within {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--vermillion-wash);
+}
+
+.searchIcon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--ink-faint);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.85rem 0;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--ink-faint);
+}
+
+.searchClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  border-bottom: 1px solid var(--vermillion);
+  padding-bottom: 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+}
+
+.searchClearIcon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.searchStatus {
+  margin-top: 0.85rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.source {
+  margin-top: 1.6rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.sourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--vermillion);
+  color: var(--vermillion);
+}
+
+.sourceLinkIcon {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+/* ── group navigation ────────────────────────────────────────────────── */
+
+.groupNav {
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 1rem 1.1rem 1.2rem;
+  box-shadow: 0 26px 46px -38px var(--shadow);
+}
+
+.groupNavHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.groupNavRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.groupNavList {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groupNavItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.62rem 0.1rem;
+  transition:
+    background-color 200ms ease,
+    padding-inline 200ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.groupNavList li:last-child .groupNavItem {
+  border-bottom: 0;
+}
+
+.groupNavItem:hover {
+  background: var(--vermillion-wash);
+  padding-inline: 0.55rem;
+}
+
+.groupNavItemMuted {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.groupNavNum {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.groupNavName {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.groupNavNote {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.groupNavCount {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.groupNavIcon {
+  width: 0.8rem;
+  height: 0.8rem;
+  color: var(--ink-faint);
+  transition:
+    transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    color 220ms ease;
+}
+
+.groupNavItem:hover .groupNavIcon {
+  transform: translateX(3px);
+  color: var(--vermillion);
+}
+
+/* ── group sections ─────────────────────────────────────────── */
+
+.groups {
+  padding: clamp(2rem, 4vw, 3.4rem) 0 clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.group {
+  scroll-margin-top: 5.5rem;
+  padding-bottom: clamp(2.4rem, 5vw, 4rem);
+}
+
+.groupHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: clamp(1.4rem, 3vw, 2.2rem);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 0.9rem;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.groupNumeral {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.9rem, 3vw, 2.6rem);
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.groupHead h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.5rem, 2.6vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.groupNote {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.groupCount {
+  flex: none;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(1.2rem, 2.4vw, 2rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── card ─────────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: rgba(251, 245, 231, 0.42);
+  transition:
+    border-color 300ms ease,
+    box-shadow 300ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    transform 300ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+:global(.dark) .card {
+  background: rgba(34, 28, 23, 0.42);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: 0 24px 40px -34px var(--shadow);
+}
+
+/* The frame holds any card shape without stretching it: the artwork keeps its
+   own aspect ratio and is centred on a faint ground. The frame height is fixed
+   so portrait and landscape cards still line up across the grid. */
+.previewFrame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(11rem, 18vw, 14rem);
+  border-bottom: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(25, 21, 18, 0.035) 0 1px,
+      transparent 1px 9px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 1.1rem;
+  overflow: hidden;
+}
+
+:global(.dark) .previewFrame {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(236, 225, 201, 0.03) 0 1px,
+      transparent 1px 9px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+}
+
+/* ── variant dissolve ─────────────────────────────────────────── */
+
+/* Every layer fills the frame's content box, so a change never reflows the
+   preview when the two cards have different shapes. Layers stack oldest first,
+   and the stack collapses back to one once the fade ends. */
+.previewLayer {
+  position: absolute;
+  inset: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The incoming card. It fades in the moment its own SVG has decoded, so the
+   change is never shown on blank artwork. */
+.previewLayerEntering {
+  animation: cardFadeIn 460ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+/* The card leaving the preview. It keeps painting under the incoming card
+   until that card lands, then fades away. */
+.previewLayerLeaving {
+  animation: cardFadeOut 460ms ease forwards;
+  pointer-events: none;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    scale: 0.985;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes cardFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.preview {
+  display: block;
+  /* Fill the frame and let contain keep the card's own aspect ratio, so a wide
+     card scales to the available width and a portrait one to the height. */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 520ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.card:hover .preview {
+  transform: scale(1.02);
+}
+
+.previewMissing {
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.cardIndex {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.85rem;
+  color: var(--vermillion);
+}
+
+.cardTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.cardNote {
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.chip {
+  border: 1px solid var(--line-strong);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.chip:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.chipActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.chipActive:hover {
+  color: var(--paper);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.2rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.svgLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: color 200ms ease;
+}
+
+.svgLink:hover {
+  color: var(--ink);
+}
+
+.create {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    gap 200ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.create:hover {
+  border-color: var(--vermillion);
+  gap: 0.6rem;
+}
+
+.footIcon {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+/* ── empty state ─────────────────────────────────────────────── */
+
+.empty {
+  border: 1px dashed var(--line-strong);
+  padding: clamp(2.5rem, 6vw, 4rem) 1.5rem;
+  text-align: center;
+}
+
+.emptySeal {
+  display: inline-grid;
+  height: 2.4rem;
+  width: 2.4rem;
+  place-items: center;
+  margin-bottom: 1.1rem;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+}
+
+.empty h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 600;
+}
+
+.empty p {
+  margin: 0.6rem auto 0;
+  max-width: 26rem;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.emptyClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.7rem 1.5rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 var(--vermillion);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.emptyClear:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+/* ── closing ─────────────────────────────────────────────────── */
+
+.ctaSection {
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.cta {
+  position: relative;
+  border: 2px solid var(--ink);
+  padding: clamp(2.4rem, 5vw, 4.2rem) clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(166, 124, 51, 0.13),
+      transparent 70%
+    ),
+    rgba(251, 245, 231, 0.5);
+  text-align: center;
+}
+
+:global(.dark) .cta {
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(198, 154, 82, 0.12),
+      transparent 70%
+    ),
+    rgba(34, 28, 23, 0.6);
+}
+
+.cta::before,
+.cta::after {
+  content: "";
+  position: absolute;
+  right: 0.55rem;
+  left: 0.55rem;
+  height: 1px;
+  background: var(--line);
+}
+
+.cta::before {
+  top: 0.55rem;
+}
+
+.cta::after {
+  bottom: 0.55rem;
+}
+
+.ctaSeal {
+  display: inline-grid;
+  height: 2.4rem;
+  width: 2.4rem;
+  place-items: center;
+  margin-bottom: 1.3rem;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cta:hover .ctaSeal {
+  transform: rotate(-7deg) scale(1.06);
+}
+
+.cta h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.9rem, 4.2vw, 3.2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.cta h2 em {
+  font-style: italic;
+  color: var(--indigo);
+}
+
+.cta p {
+  margin: 1rem auto 0;
+  max-width: 31rem;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem 1.8rem;
+  margin-top: 1.9rem;
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 2px solid var(--vermillion);
+  background: var(--vermillion);
+  color: #fbf3e2;
+  padding: 0.95rem 2.4rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.ctaButton:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.ctaButtonIcon {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.ctaButton:hover .ctaButtonIcon {
+  transform: translateX(4px);
+}
+
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 0.3rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  transition:
+    gap 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.ctaSecondary:hover {
+  gap: 0.85rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.ctaSecondaryIcon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.ctaFine {
+  margin-top: 1.3rem !important;
+  font-size: 0.6rem !important;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+
+.searchClear:focus-visible,
+.groupNavItem:focus-visible,
+.chip:focus-visible,
+.svgLink:focus-visible,
+.create:focus-visible,
+.emptyClear:focus-visible,
+.ctaButton:focus-visible,
+.ctaSecondary:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 1080px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.2rem;
+  }
+
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .edition {
+    gap: 0.55rem;
+    letter-spacing: 0.16em;
+  }
+
+  .groupHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .groupNavNote {
+    display: none;
+  }
+
+  .foot {
+    gap: 0.6rem;
+  }
+
+  .create {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .preview,
+  .chip,
+  .create,
+  .groupNavItem,
+  .groupNavIcon,
+  .ctaSeal,
+  .ctaButton,
+  .ctaButtonIcon,
+  .ctaSecondary,
+  .emptyClear {
+    transition: none;
+  }
+
+  /* The swap still resolves, it just resolves instantly: no settle, and the
+     outgoing card leaves as soon as the incoming one lands. */
+  .previewLayerEntering,
+  .previewLayerLeaving {
+    animation: none;
+  }
+
+  .card:hover,
+  .card:hover .preview,
+  .groupNavItem:hover .groupNavIcon,
+  .cta:hover .ctaSeal,
+  .emptyClear:hover {
+    transform: none;
+  }
+}

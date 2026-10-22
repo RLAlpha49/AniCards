@@ -14,7 +14,7 @@ import {
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
 import { cn } from "@/lib/utils";
-import { isHomePage } from "@/lib/page-theme";
+import { isPaperPage } from "@/lib/page-theme";
 
 /**
  * Social link metadata for the footer icons.
@@ -66,7 +66,7 @@ const SOCIAL_LINKS = [
  */
 export default function Footer() {
   const pathname = usePathname();
-  const isHome = isHomePage(pathname);
+  const isHome = isPaperPage(pathname);
 
   return (
     <footer

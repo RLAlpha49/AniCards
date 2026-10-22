@@ -25,7 +25,7 @@ test.describe("Examples gallery", () => {
     expect(initialCount).toBeGreaterThan(0);
 
     await test.step("Filter by Voice Actors", async () => {
-      await page.getByPlaceholder(/search cards/i).fill("Voice Actors");
+      await page.getByPlaceholder(/search by card name/i).fill("Voice Actors");
     });
 
     await expect
