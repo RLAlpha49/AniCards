@@ -19,10 +19,7 @@ export function LayoutShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div
-      className={cn("flex min-h-screen flex-col")}
-      style={{ width: "100%" }}
-    >
+    <div className={cn("flex min-h-screen flex-col")} style={{ width: "100%" }}>
       {/* Fixed Header */}
       <div className="fixed top-0 z-50 w-full">
         <Header />

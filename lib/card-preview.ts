@@ -40,36 +40,38 @@ export function previewCardUrl(
  * page previews.
  * @source
  */
-const PREVIEW_DIMENSIONS: Record<string, Record<string, { w: number; h: number }>> =
-  {
-    animeStats: {
-      default: { w: 450, h: 195 },
-      vertical: { w: 260, h: 350 },
-    },
-    mangaStats: {
-      default: { w: 450, h: 195 },
-    },
-    socialStats: {
-      default: { w: 280, h: 195 },
-    },
-    animeGenres: {
-      pie: { w: 340, h: 205 },
-      donut: { w: 340, h: 205 },
-      bar: { w: 360, h: 210 },
-    },
-    animeTags: {
-      bar: { w: 360, h: 210 },
-    },
-    animeStudios: {
-      donut: { w: 340, h: 205 },
-    },
-    animeVoiceActors: {
-      default: { w: 280, h: 205 },
-    },
-    animeScoreDistribution: {
-      horizontal: { w: 320, h: 150 },
-    },
-  };
+const PREVIEW_DIMENSIONS: Record<
+  string,
+  Record<string, { w: number; h: number }>
+> = {
+  animeStats: {
+    default: { w: 450, h: 195 },
+    vertical: { w: 260, h: 350 },
+  },
+  mangaStats: {
+    default: { w: 450, h: 195 },
+  },
+  socialStats: {
+    default: { w: 280, h: 195 },
+  },
+  animeGenres: {
+    pie: { w: 340, h: 205 },
+    donut: { w: 340, h: 205 },
+    bar: { w: 360, h: 210 },
+  },
+  animeTags: {
+    bar: { w: 360, h: 210 },
+  },
+  animeStudios: {
+    donut: { w: 340, h: 205 },
+  },
+  animeVoiceActors: {
+    default: { w: 280, h: 205 },
+  },
+  animeScoreDistribution: {
+    horizontal: { w: 320, h: 150 },
+  },
+};
 
 /**
  * Size used when a card type is not in the dimension table.
@@ -95,9 +97,7 @@ export function previewCardDimensions(
 ): { width: number; height: number } {
   const byVariation = PREVIEW_DIMENSIONS[cardType];
   const size =
-    byVariation?.[variation] ??
-    byVariation?.default ??
-    FALLBACK_DIMENSIONS;
+    byVariation?.[variation] ?? byVariation?.default ?? FALLBACK_DIMENSIONS;
 
   return { width: size.w, height: size.h };
 }

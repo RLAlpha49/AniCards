@@ -49,10 +49,7 @@ export function ClosingSection({
               className={styles.ctaButton}
             >
               Open the generator
-              <ArrowRight
-                className={styles.ctaButtonIcon}
-                aria-hidden="true"
-              />
+              <ArrowRight className={styles.ctaButtonIcon} aria-hidden="true" />
             </button>
             <button
               type="button"
