@@ -48,6 +48,7 @@ export const pageview = (url: string): void => {
     try {
       gtag("config", gaId, {
         page_path: url,
+        page_title: "AniCards",
       });
     } catch {
       console.error("Google Analytics pageview failed");
