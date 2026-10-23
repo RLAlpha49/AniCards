@@ -6,6 +6,7 @@ import {
   fetchUserDataParts,
   saveUserRecord,
   syncUsernameIndex,
+  userRecordContentChanged,
   USER_DATA_PARTS,
 } from "@/lib/server/user-data";
 import {
@@ -87,6 +88,25 @@ export async function POST(request: Request): Promise<NextResponse> {
       return jsonWithCors({ error: "Invalid user statistics" }, request, 400);
     }
     const finalUserData = normalizationResult.normalized;
+
+    // `updatedAt` always advances so the user goes to the back of the refresh
+    // queue. `dataUpdatedAt` is the card URL version and moves only when the
+    // submitted stats differ from what is stored, so resubmitting the same
+    // data does not invalidate every cached card for the user.
+    //
+    // A record written before this field existed has no stored version to
+    // carry forward, so the first save after the field was added stamps one.
+    const storedMeta = partsData.meta as Record<string, unknown> | undefined;
+    const storedDataUpdatedAt =
+      typeof storedMeta?.dataUpdatedAt === "string"
+        ? storedMeta.dataUpdatedAt
+        : undefined;
+    finalUserData.dataUpdatedAt =
+      !storedDataUpdatedAt || userRecordContentChanged(finalUserData, partsData)
+        ? finalUserData.updatedAt
+        : storedDataUpdatedAt;
+    // `saveUserRecord` keeps the later of this version and the stored one, so
+    // a save that raced a refresh cannot move the card URL backwards.
 
     console.log(
       `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,

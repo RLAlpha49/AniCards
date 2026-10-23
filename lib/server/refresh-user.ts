@@ -8,6 +8,7 @@ import {
   reconstructUserRecord,
   saveUserRecord,
   syncUsernameIndex,
+  userRecordContentChanged,
   USER_DATA_PARTS,
   USER_REFRESH_INDEX_KEY,
 } from "@/lib/server/user-data";
@@ -418,11 +419,29 @@ async function applyFreshStats(
     if (indexSynced) finalUser.username = reportedUsername;
   }
 
-  finalUser.updatedAt = new Date().toISOString();
+  // Two timestamps answer two questions. `updatedAt` is the refresh queue's
+  // score and always advances, so a user that never changes still rotates to
+  // the back of the queue. `dataUpdatedAt` is the version the card URLs carry,
+  // and it moves only when a card would render differently.
+  //
+  // A record written before this field existed has no version to carry, so the
+  // first refresh stamps one. That costs each such user one cache miss and
+  // leaves every later unchanged refresh alone.
+  const now = new Date().toISOString();
+  const contentChanged = userRecordContentChanged(finalUser, partsData);
+  if (contentChanged || !finalUser.dataUpdatedAt) finalUser.dataUpdatedAt = now;
+  finalUser.updatedAt = now;
+  // `saveUserRecord` keeps the later of this version and the stored one, so
+  // a refresh that raced another writer cannot move the card URL backwards.
+
   await saveUserRecord(finalUser, partsData);
   await clearRefreshState(user.userId);
 
-  console.log(`✅ [Cron Job] User ${user.userId}: Successfully updated`);
+  console.log(
+    contentChanged
+      ? `✅ [Cron Job] User ${user.userId}: Successfully updated`
+      : `✅ [Cron Job] User ${user.userId}: Refreshed, stats unchanged`,
+  );
   return { status: "updated" };
 }
 

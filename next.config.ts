@@ -1,6 +1,125 @@
 import type { NextConfig } from "next";
 
 /**
+ * Public site origin used when `NEXT_PUBLIC_SITE_URL` is unset or unusable.
+ * @source
+ */
+const SITE_ORIGIN_FALLBACK = "https://anicards.alpha49.com";
+
+/**
+ * Production host that serves the API.
+ * @source
+ */
+const API_HOST = "api.anicards.alpha49.com";
+
+/**
+ * Development hosts that stand in for the API host.
+ * @source
+ */
+const DEV_API_HOSTS = [
+  "api.localhost",
+  "api.lvh.me",
+  "api.anicards.localhost",
+  "api.anicards.lvh.me",
+  "api.anicards.test",
+];
+
+/**
+ * Every host the API is served on.
+ *
+ * Host conditions match the `Host` header with its port removed, so a
+ * `host:3000` value would never match. One entry per host covers every port.
+ * @source
+ */
+const API_HOSTS = [API_HOST, ...DEV_API_HOSTS];
+
+/**
+ * First path segments the API host serves instead of the site.
+ *
+ * `api` and `_next` are framework surfaces. `StatCards` is the retired card
+ * endpoint whose notice SVG is still embedded in GitHub profiles. The rest are
+ * the bare aliases rewritten to `/api/...` below, which the README documents
+ * as public card URLs.
+ * @source
+ */
+const API_SURFACE_SEGMENTS = [
+  "api",
+  "_next",
+  "StatCards",
+  "anilist",
+  "card",
+  "card\\.svg",
+  "convert",
+  "cron",
+  "get-cards",
+  "get-user",
+  "store-cards",
+  "store-users",
+];
+
+/**
+ * Bare paths on the API host that rewrite to their `/api/...` route.
+ * @source
+ */
+const API_ALIAS_SEGMENTS = [
+  "anilist",
+  "card",
+  "card\\.svg",
+  "convert",
+  "cron",
+  "get-cards",
+  "get-user",
+  "store-cards",
+  "store-users",
+];
+
+/**
+ * Matches a path whose first segment is not part of the API surface.
+ *
+ * Used as a redirect source, so the API host stops serving the site: without
+ * it a request for a page falls through the rewrite below (its `/api/<page>`
+ * destination does not exist) and renders the full site on the API origin.
+ * @source
+ */
+const NON_API_PATH_SOURCE = `/:path((?!(?:${API_SURFACE_SEGMENTS.join(
+  "|",
+)})(?:/|$)).*)`;
+
+/**
+ * Matches a bare API alias path, with or without further segments.
+ * @source
+ */
+const API_ALIAS_PATH_SOURCE = `/:path((?:${API_ALIAS_SEGMENTS.join(
+  "|",
+)})(?:/.*)?)`;
+
+/**
+ * Resolves the origin page requests on the API host are sent to.
+ *
+ * Read from `NEXT_PUBLIC_SITE_URL` so the Docker dev stack redirects to the dev
+ * site host rather than to production. A value that points back at an API host
+ * is ignored, because redirecting the API host to itself would loop.
+ *
+ * @returns A parseable origin with a non-API host.
+ * @source
+ */
+function getSiteOrigin(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!configured) return SITE_ORIGIN_FALLBACK;
+
+  let origin: string;
+  try {
+    origin = new URL(configured).origin;
+  } catch {
+    return SITE_ORIGIN_FALLBACK;
+  }
+
+  return API_HOSTS.includes(new URL(origin).hostname)
+    ? SITE_ORIGIN_FALLBACK
+    : origin;
+}
+
+/**
  * Next.js Configuration
  *
  * This configuration includes:
@@ -113,55 +232,37 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  /**
+   * Sends every non-API request on the API host to the site origin.
+   *
+   * Redirects are evaluated before rewrites and before the filesystem, so this
+   * wins over the fall-through that used to render the site on the API origin.
+   * The redirect is temporary: a permanent one would be cached in browsers and
+   * survive any later change to how the two hosts are split.
+   *
+   * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/redirects
+   * @source
+   */
+  redirects() {
+    return API_HOSTS.map((host) => ({
+      source: NON_API_PATH_SOURCE,
+      has: [{ type: "host" as const, value: host }],
+      destination: `${getSiteOrigin()}/:path`,
+      permanent: false,
+    }));
+  },
+
   rewrites() {
-    const primaryRules = [
-      {
-        source: "/:path((?!api/).*)",
-        has: [
-          {
-            type: "host" as const,
-            value: "api.anicards.alpha49.com",
-          },
-        ],
-        destination: "/api/:path*",
-      },
-    ];
-
-    const devPort = process.env.PORT ?? "3000";
-    const devHosts = [
-      "api.localhost",
-      "api.lvh.me",
-      "api.anicards.localhost",
-      "api.anicards.lvh.me",
-      "api.anicards.test",
-    ];
-
-    const devRules = devHosts.flatMap((h) => [
-      {
-        source: "/:path((?!api/).*)",
-        has: [
-          {
-            type: "host" as const,
-            value: h,
-          },
-        ],
-        destination: "/api/:path*",
-      },
-      {
-        source: "/:path((?!api/).*)",
-        has: [
-          {
-            type: "host" as const,
-            value: `${h}:${devPort}`,
-          },
-        ],
-        destination: "/api/:path*",
-      },
-    ]);
+    // Only the aliases are rewritten. A blanket `/:path` would hand any future
+    // page path to an API route of the same name instead of the redirect above.
+    const aliasRules = API_HOSTS.map((host) => ({
+      source: API_ALIAS_PATH_SOURCE,
+      has: [{ type: "host" as const, value: host }],
+      destination: "/api/:path",
+    }));
 
     return [
-      ...primaryRules,
-      ...devRules,
+      ...aliasRules,
       {
         source: "/card.svg",
         destination: "/api/card",

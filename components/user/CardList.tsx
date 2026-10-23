@@ -82,8 +82,9 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
       urlObj.searchParams.delete("_t");
       return urlObj.toString();
     } catch {
-      // If URL parsing fails, try regex fallback
-      return url.replaceAll(/[&?]_t=\d+/g, "");
+      // If URL parsing fails, try regex fallback. The timestamp may be an ISO
+      // string, which is percent-encoded inside a URL.
+      return url.replaceAll(/[&?]_t=[^&]*/g, "");
     }
   };
 

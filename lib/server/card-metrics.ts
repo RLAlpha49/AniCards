@@ -49,6 +49,8 @@ export interface CardRequestMetrics {
   recordSuccess(): void;
   /** Queues the failed card counter. */
   recordFailure(): void;
+  /** Queues the counter for a request that asked not to use a stored copy. */
+  recordCacheBypass(): void;
   /**
    * Queues the URL profile counters for the cards-key removal audit.
    *
@@ -102,6 +104,14 @@ export function createCardRequestMetrics(): CardRequestMetrics {
 
   return {
     recordCache(outcome) {
+      // These counters describe this process's cache, not a shared one. A
+      // serverless deployment spreads requests across many processes, so
+      // `cache_hits` counts the renders this process already had and
+      // `cache_misses` counts the renders it had to produce. Neither says
+      // whether the edge served the request from its own copy, so the two
+      // counters together describe origin work, not the whole delivery
+      // path. The `X-Cache-Source` header on the response says which of the
+      // two happened for a single request.
       queue().incr(
         buildAnalyticsMetricKey(
           CARD_SVG_METRIC_ENDPOINT,
@@ -122,6 +132,12 @@ export function createCardRequestMetrics(): CardRequestMetrics {
     recordFailure() {
       queue().incr(
         buildAnalyticsMetricKey(CARD_SVG_METRIC_ENDPOINT, "failed_requests"),
+      );
+    },
+
+    recordCacheBypass() {
+      queue().incr(
+        buildAnalyticsMetricKey(CARD_SVG_METRIC_ENDPOINT, "cache_bypasses"),
       );
     },
 

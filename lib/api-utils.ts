@@ -69,6 +69,12 @@ function createRealRedisClient(): Redis {
 const DEFAULT_SITE_ORIGIN = "https://anicards.alpha49.com";
 
 /**
+ * Public API origin. Mirrors the default in `lib/utils.ts`.
+ * @source
+ */
+const DEFAULT_API_ORIGIN = "https://api.anicards.alpha49.com";
+
+/**
  * Resolves the configured site origin, or the hardcoded default.
  *
  * Read at call time rather than at import time so a test or a script can set
@@ -98,6 +104,39 @@ function getSiteOrigin(): string {
  */
 function getConfiguredApiOrigin(): string | null {
   return normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
+}
+
+/**
+ * Collects every origin this deployment serves to a browser.
+ *
+ * The site and the API are the same app on two hosts, so a page on either
+ * host calls `/api/...` same-origin and the browser sends that host as
+ * `Origin`. Accepting only `NEXT_PUBLIC_APP_URL` rejected every generator
+ * request made from the API host, because its `Origin` is the API host.
+ *
+ * The request's own origin is included because `Origin` matching the host
+ * that served the request is same-origin by definition: a page on another
+ * site cannot make the browser send this host as `Origin`.
+ *
+ * @param request - The request whose URL origin is also accepted.
+ * @returns Origins allowed to call the JSON APIs from a browser.
+ * @source
+ */
+function getAllowedApiOrigins(request: Request): Set<string> {
+  const origins = new Set<string>();
+  const candidates = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_ORIGIN,
+    process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_ORIGIN,
+    request.url,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeOrigin(candidate);
+    if (normalized) origins.add(normalized);
+  }
+
+  return origins;
 }
 
 /**
@@ -596,9 +635,9 @@ export async function checkRateLimit(
 }
 
 /**
- * Validates that a given request originates from the same origin as the
- * application (or an internal request with no origin header). In
- * production, cross-origin requests are rejected with a 401 response.
+ * Validates that a given request originates from a host this deployment
+ * serves (or is an internal request with no origin header). Cross-origin
+ * requests are rejected with a 401 response.
  * @param request - The incoming Request object to evaluate.
  * @param endpointName - Friendly endpoint name used for logs.
  * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
@@ -611,16 +650,14 @@ export function validateSameOrigin(
   endpointKey: string,
 ): NextResponse<ApiError> | null {
   const origin = request.headers.get("origin");
-  const requestOrigin = new URL(request.url).origin;
-  const configuredAppOrigin = getConfiguredApiOrigin();
-  const allowedOrigin = configuredAppOrigin ?? requestOrigin;
+  const allowedOrigins = getAllowedApiOrigins(request);
 
-  // Allow internal requests (no origin) or same-origin requests
-  const isSameOrigin = !origin || origin === allowedOrigin;
+  // Allow internal requests (no origin) or requests from a host we serve
+  const isSameOrigin = !origin || allowedOrigins.has(origin);
 
   if (!isSameOrigin) {
     console.warn(
-      `🔐 [${endpointName}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
+      `🔐 [${endpointName}] Rejected cross-origin request from: ${origin} (allowed: ${[...allowedOrigins].join(", ")})`,
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");

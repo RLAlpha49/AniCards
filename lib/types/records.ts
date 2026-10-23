@@ -420,7 +420,23 @@ export interface UserRecord {
   /** Legacy input field. User storage and API responses omit it. */
   ip?: string;
   createdAt: string;
+  /**
+   * When this record was last written.
+   *
+   * This is the refresh queue's score, not a content version: it advances on
+   * every scheduled refresh so a user that never changes still rotates to the
+   * back of the queue. Do not use it to decide whether a rendered card is out
+   * of date; use {@link dataUpdatedAt}.
+   */
   updatedAt: string;
+  /**
+   * When the stats that cards render from last changed.
+   *
+   * A scheduled refresh that finds identical stats leaves this alone, so a
+   * card URL stays valid and the CDN and browser copies keep serving. A
+   * refresh that changes anything a card draws moves it.
+   */
+  dataUpdatedAt?: string;
 }
 
 /**

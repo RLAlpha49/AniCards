@@ -1,19 +1,34 @@
+/**
+ * Caching for rendered cards.
+ *
+ * A rendered card reaches a client through two layers, neither of which
+ * touches the database: the CDN, which files the response for a day, and the
+ * in-memory LRU below, which covers the requests that reach this process.
+ * There is no server-side cache of record. One used to exist in Redis, and it
+ * cost a write on every render plus a scan on every configuration save for
+ * cards the CDN was already holding.
+ *
+ * The CDN only helps when a card URL is stable, so the page no longer appends
+ * a per-load timestamp to it. The `_t` parameter is a cache buster: a URL
+ * that carries it asks not to use a stored copy, and the value it holds does
+ * not matter. See `components/user/UserPageClient.tsx`.
+ *
+ * @source
+ */
+
 import { LRUCache } from "lru-cache";
-import { redisClient, scanAllKeys } from "@/lib/api-utils";
 
 /**
  * Represents a cached SVG entry with metadata.
+ *
+ * Expiry belongs to the LRU, which drops an entry past its ttl and returns a
+ * miss. An entry only needs to describe what a hit must return.
+ *
  * @source
  */
 export interface CachedSvgEntry {
   /** SVG content as a trusted SVG string */
   svg: string;
-  /** Timestamp when this entry was cached */
-  cachedAt: number;
-  /** Time-to-live in milliseconds (when to refresh from Redis) */
-  ttl: number;
-  /** Whether this entry is stale but still usable (stale-while-revalidate) */
-  isStale: boolean;
   /**
    * The card's configured border radius.
    *
@@ -35,59 +50,20 @@ export interface CacheKey {
 }
 
 /**
- * Default lifetime of a rendered card in the shared tier, in seconds.
- *
- * Shorter than the CDN's `s-maxage` on purpose: a stored card can be
- * invalidated when its configuration changes, but an entry that outlives the
- * CDN copy serves no extra request and only occupies the keyspace.
- *
- * @source
- */
-export const SVG_CACHE_TTL_SECONDS = 12 * 60 * 60;
-
-/**
  * How long one process keeps a rendered card in its own memory.
  *
- * The shared tier is the source of truth. A local entry is only a latency
- * shortcut, so it expires quickly and is re-read from Redis on the next
- * request. Five minutes bounds how long an instance can keep serving a card
- * whose stored configuration another instance just replaced.
+ * Five minutes bounds how long an instance can serve a card rendered before a
+ * configuration change reached it.
  *
  * @source
  */
 const LOCAL_SVG_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Prefix for the shared, cross-instance SVG cache keys.
- *
- * The in-memory LRU below is per process. A serverless deployment runs many
- * processes and recycles them, so a card rendered by one instance was invisible
- * to the next request whenever that request landed elsewhere. That is why a
- * card requested twenty minutes apart could miss despite the earlier write.
- *
- * @source
- */
-const SHARED_SVG_CACHE_PREFIX = "svg_cache:";
-
-/**
- * Builds the Redis key that holds one rendered card.
- *
- * The local cache key is reused verbatim so a single `generateCacheKey` result
- * identifies the same render in both tiers.
- *
- * @param cacheKey - Key produced by `generateCacheKey`.
- * @returns The namespaced Redis key.
- * @source
- */
-export function getSharedSvgCacheKey(cacheKey: string): string {
-  return `${SHARED_SVG_CACHE_PREFIX}${cacheKey}`;
-}
-
-/**
  * In-memory LRU cache for frequently accessed SVG cards.
  *
- * A short-lived hot path in front of the shared Redis tier, not a cache of
- * record. See {@link LOCAL_SVG_CACHE_TTL_MS} for why its lifetime is short.
+ * The only server-side cache tier. It exists to absorb a burst of concurrent
+ * misses for one card, not to hold a card between deploys.
  *
  * Configuration:
  * - max: 1000 most recent cards
@@ -125,10 +101,10 @@ const userRequestStats = new Map<number, UserRequestStats>();
  * Query parameters that only bust downstream caches and never change the
  * rendered SVG.
  *
- * `_t` is appended by the user page on every load and by `UserCard` when it is
- * absent, so including it in the key made every request a unique key. Each miss
- * then stored a single-use entry that evicted genuinely reusable cards. The
- * key must describe the output, not the caller's cache intent.
+ * `_t` is a cache buster. It is not part of the render, so it never belongs
+ * in the key: two requests that render the same card share one key. Its
+ * presence is handled by the card route, which skips the stored copy for a
+ * request that carries it.
  *
  * @source
  */
@@ -167,42 +143,21 @@ export function generateCacheKey(
 
 /**
  * Retrieves an SVG from the in-memory LRU cache.
- * Implements stale-while-revalidate pattern: returns stale entries while
- * marking them for background refresh.
  *
  * @param cacheKey - The cache key to look up
- * @returns Cached SVG entry if found, or null
+ * @returns The cached entry, or null when absent or expired.
  * @source
  */
 export function getSvgFromMemoryCache(cacheKey: string): CachedSvgEntry | null {
-  const entry = svgCache.get(cacheKey);
-  if (!entry) return null;
-
-  const now = Date.now();
-  const age = now - entry.cachedAt;
-
-  // If within TTL and not stale, return as-is
-  if (age < entry.ttl) {
-    return entry;
-  }
-
-  // If within stale grace period (TTL + 30min), mark as stale but return
-  if (age < entry.ttl + 30 * 60 * 1000) {
-    return { ...entry, isStale: true };
-  }
-
-  // Expired, remove and return null
-  svgCache.delete(cacheKey);
-  return null;
+  return svgCache.get(cacheKey) ?? null;
 }
 
 /**
  * Stores a rendered card in this process's memory.
  *
- * The local entry always uses {@link LOCAL_SVG_CACHE_TTL_MS}, never the
- * shared tier's longer lifetime. The shared tier is the source of truth, and a
- * long-lived local copy is what let one instance keep serving a replaced
- * configuration after another instance had already invalidated it.
+ * Every entry uses {@link LOCAL_SVG_CACHE_TTL_MS}. A longer lifetime would let
+ * an instance keep serving a replaced configuration after the write that
+ * replaced it.
  *
  * @param cacheKey - The cache key to store under.
  * @param svg - The SVG content.
@@ -218,9 +173,6 @@ export function setSvgInMemoryCache(
 ): void {
   const entry: CachedSvgEntry = {
     svg,
-    cachedAt: Date.now(),
-    ttl: LOCAL_SVG_CACHE_TTL_MS,
-    isStale: false,
     borderRadius,
   };
 
@@ -229,110 +181,6 @@ export function setSvgInMemoryCache(
   // Track user request statistics for cache warming
   if (userId) {
     updateUserRequestStats(userId);
-  }
-}
-
-/**
- * Reads a rendered card from the shared Redis tier.
- *
- * The in-memory LRU only serves the process that rendered the card. A
- * serverless deployment spreads requests across many short-lived processes, so
- * without this tier a card rendered twenty minutes ago can miss because the
- * next request reached a different instance.
- *
- * A Redis failure is treated as a miss: the render still happens, and the
- * caller is never failed by a cache outage.
- *
- * @param cacheKey - Key produced by `generateCacheKey`.
- * @returns The stored card and its border radius, or null on a miss or a read
- *   failure.
- * @source
- */
-export async function getSvgFromSharedCache(
-  cacheKey: string,
-): Promise<{ svg: string; borderRadius?: number } | null> {
-  try {
-    const stored = await redisClient.get<unknown>(
-      getSharedSvgCacheKey(cacheKey),
-    );
-    if (!stored) return null;
-
-    // The value is a JSON envelope so the border radius survives a hit.
-    const parsed: unknown =
-      typeof stored === "string" ? safeParseSharedEntry(stored) : stored;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const { svg, borderRadius } = parsed as {
-      svg?: unknown;
-      borderRadius?: unknown;
-    };
-    if (typeof svg !== "string" || svg.length === 0) return null;
-
-    return {
-      svg,
-      borderRadius: typeof borderRadius === "number" ? borderRadius : undefined,
-    };
-  } catch (error) {
-    console.warn("[SVG Cache] Shared cache read failed:", error);
-    return null;
-  }
-}
-
-/**
- * Parses a shared cache value, tolerating a bare SVG string.
- *
- * A bare string is still valid because the first version of this tier stored
- * the markup directly. Treating it as corrupt would throw away every card
- * cached before the envelope existed.
- *
- * @param raw - Raw string returned by Redis.
- * @returns The parsed envelope, or null when the value is unusable.
- * @source
- */
-function safeParseSharedEntry(raw: string): unknown {
-  if (raw.startsWith("<") || raw.startsWith("<?xml")) {
-    return { svg: raw };
-  }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { svg: raw };
-  }
-}
-
-/**
- * Writes a rendered card to the shared Redis tier and this process's memory.
- *
- * The local entry is written first so the instance that rendered the card can
- * serve its next request without a network round trip, and it expires on the
- * shorter local window. The Redis write is best-effort: losing a cache entry
- * only costs one extra render.
- *
- * @param cacheKey - Key produced by `generateCacheKey`.
- * @param svg - Rendered SVG markup.
- * @param ttl - Lifetime of the shared entry in milliseconds.
- * @param userId - User ID for local request statistics.
- * @param borderRadius - Border radius to return with this card on a hit.
- * @returns Promise that resolves once the Redis write settles.
- * @source
- */
-export async function setSvgInCache(
-  cacheKey: string,
-  svg: string,
-  ttl: number = SVG_CACHE_TTL_SECONDS * 1000,
-  userId?: number,
-  borderRadius?: number,
-): Promise<void> {
-  setSvgInMemoryCache(cacheKey, svg, userId, borderRadius);
-
-  try {
-    await redisClient.set(
-      getSharedSvgCacheKey(cacheKey),
-      JSON.stringify({ svg, borderRadius }),
-      { ex: Math.max(1, Math.round(ttl / 1000)) },
-    );
-  } catch (error) {
-    console.warn("[SVG Cache] Shared cache write failed:", error);
   }
 }
 
@@ -422,36 +270,24 @@ export function getSvgCacheStats() {
 }
 
 /**
- * Invalidates every cached SVG for one user.
+ * Drops the cached renders of one user from this process.
  *
- * Both tiers are cleared, because the stored configuration is an input to the
- * render and a `colorPreset=custom` URL carries none of it. The local tier is
- * only cleared in the process that handles the write, so the shared keys are
- * listed and deleted as well; another instance would otherwise keep serving the
- * configuration the user just replaced until its own entry expired.
+ * Only this process can be reached from here, and that is enough. The other
+ * layers expire on their own: the CDN copy is keyed by a URL that carries the
+ * data timestamp, and the stored configuration it renders from is what the
+ * timestamp moves. An instance that never sees this call still holds an entry
+ * that expires within {@link LOCAL_SVG_CACHE_TTL_MS}.
  *
  * @param userId - User ID whose cached cards should be dropped.
  * @param cardType - Specific card type to invalidate, or undefined for all.
- * @returns Promise that resolves once the shared keys are deleted.
  * @source
  */
-export async function invalidateSvgCache(
-  userId: number,
-  cardType?: string,
-): Promise<void> {
+export function invalidateSvgCache(userId: number, cardType?: string): void {
   const pattern = cardType ? `svg:${userId}:${cardType}` : `svg:${userId}:`;
 
   for (const key of svgCache.keys()) {
     if (key.startsWith(pattern)) {
       svgCache.delete(key);
     }
-  }
-
-  try {
-    const keys = await scanAllKeys(`${SHARED_SVG_CACHE_PREFIX}${pattern}*`);
-    if (keys.length === 0) return;
-    await redisClient.del(...keys);
-  } catch (error) {
-    console.warn("[SVG Cache] Shared cache invalidation failed:", error);
   }
 }
