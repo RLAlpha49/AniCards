@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SimpleGithubIcon } from "./SimpleIcons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState, type FocusEvent } from "react";
+import { useEffect, useRef, useState, type FocusEvent } from "react";
 import { ExternalLink, GitFork, Star } from "@/lib/icons";
 
 /** Repository the corner links to. @source */
@@ -11,6 +11,9 @@ const REPO_URL = "https://github.com/RLAlpha49/Anicards";
 
 /** Fork action for the repository. @source */
 const FORK_URL = `${REPO_URL}/fork`;
+
+/** Gap kept between the seal and the bottom edge of the viewport. @source */
+const CORNER_GAP = 20;
 
 /**
  * Floating repository call to action.
@@ -25,7 +28,9 @@ const FORK_URL = `${REPO_URL}/fork`;
  */
 export default function GithubCorner() {
   const [isOpen, setIsOpen] = useState(false);
+  const [bottomOffset, setBottomOffset] = useState(CORNER_GAP);
   const reduceMotion = useReducedMotion();
+  const cornerRef = useRef<HTMLDivElement>(null);
 
   const closeWhenFocusLeaves = (event: FocusEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -33,15 +38,81 @@ export default function GithubCorner() {
     }
   };
 
+  /**
+   * Keeps the seal parked above the footer instead of letting it ride over or
+   * past it. While the footer is off screen the offset stays at the normal
+   * viewport gap; once the footer top rises into view the seal gains exactly
+   * enough offset to sit above it with `CORNER_GAP` to spare, so it holds still
+   * until the footer reaches it and then stops on the footer's edge.
+   * @source
+   */
+  useEffect(() => {
+    const corner = cornerRef.current;
+    if (!corner) return;
+
+    let frame = 0;
+
+    const syncOffset = () => {
+      frame = 0;
+      const footer = document.querySelector("footer");
+      if (!footer) return;
+
+      const footerTop = footer.getBoundingClientRect().top;
+      const clearance = window.innerHeight - footerTop + CORNER_GAP;
+      // A footer taller than the viewport cannot be cleared without pushing the
+      // seal under the fixed header, so stop it below the header in that case.
+      const header = document.querySelector("header");
+      const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+      const maxOffset =
+        window.innerHeight - corner.offsetHeight - headerBottom - CORNER_GAP;
+      const next = Math.round(
+        Math.min(
+          Math.max(CORNER_GAP, clearance),
+          Math.max(CORNER_GAP, maxOffset),
+        ),
+      );
+      setBottomOffset(next);
+    };
+
+    const scheduleSync = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(syncOffset);
+    };
+
+    syncOffset();
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync);
+
+    // Content above the footer can reflow without a scroll (late images,
+    // fonts), so watch the document box as well as the footer.
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(scheduleSync);
+    observer?.observe(document.body);
+    const footer = document.querySelector("footer");
+    if (footer) observer?.observe(footer);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleSync);
+      window.removeEventListener("resize", scheduleSync);
+      observer?.disconnect();
+    };
+  }, []);
+
   return (
     <motion.div
+      ref={cornerRef}
       initial={reduceMotion ? false : { opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 0.8, 0.3, 1] }}
       /* Below the header and the modal layer, so a dialog always covers the
-         corner. The footer reserves matching room so the social row never
-         sits under the seal. */
+         corner. The bottom offset is synced above so the seal stops above the
+         footer rather than sliding over or under it. `style` overrides the
+         `bottom-5` fallback once the effect has measured the footer. */
       className="fixed right-5 bottom-5 z-40"
+      style={{ bottom: bottomOffset }}
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
       onFocusCapture={() => setIsOpen(true)}
