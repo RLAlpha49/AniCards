@@ -478,17 +478,21 @@ function createMockCardSvg(username: string): string {
 
 /**
  * Create an error SVG for testing error states.
+ *
+ * Mirrors the card the route serves, so a mocked error response has the same
+ * shape and dimensions the UI receives in production. Kept inline rather than
+ * imported because this fixture avoids the app's path aliases.
  */
 function createErrorSvg(message: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
   <style>
-    .error-text { font-family: monospace; font-size: 20px; fill: #ff5555; }
+    .error-text { font-family: monospace; font-size: 24px; fill: #ff5555; }
   </style>
   <rect width="100%" height="100%" fill="#1a1a1a"/>
-  <text x="50%" y="50%" class="error-text" text-anchor="middle" dominant-baseline="middle">
-    ${message}
+  <text class="error-text" text-anchor="middle" dominant-baseline="middle">
+    <tspan x="50%" y="100">${message}</tspan>
   </text>
 </svg>`;
 }

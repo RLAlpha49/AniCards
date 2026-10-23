@@ -5,11 +5,11 @@ import {
   checkRateLimit,
 } from "@/lib/api-utils";
 import {
-  escapeForXml,
   getCardBorderRadius,
   DEFAULT_CARD_BORDER_RADIUS,
   markTrustedSvg,
 } from "@/lib/utils";
+import { buildErrorCardSvg } from "@/lib/svg-templates/error-card";
 import generateCardSvg from "@/lib/card-generator";
 import {
   fetchUserData,
@@ -99,35 +99,18 @@ const ALLOWED_CARD_TYPES = new Set([
 ]);
 
 /**
- * Generate a minimal error SVG containing a single message.
+ * Generate the error SVG returned for a failed card request.
  *
- * This returns a TrustedSVG (wrapped) to ensure the response is safe to return
- * from the API and is used only for error responses. It escapes the message
- * to avoid SVG injection.
+ * Error responses are the only place the API returns a card that is not
+ * generated from user data, so the size and wrapping rules live with the
+ * template rather than this route. See `buildErrorCardSvg`.
  *
  * @param message - The human-readable message to display inside the SVG.
- * @returns A TrustedSVG string containing a single text node with the message.
+ * @returns A TrustedSVG containing the wrapped message.
  * @source
  */
 function svgError(message: string): TrustedSVG {
-  const escaped = escapeForXml(message);
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-  <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-  <svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
-    <style>
-      .error-text {
-        font-family: monospace;
-        font-size: 20px;
-        fill: #ff5555;
-      }
-    </style>
-    <rect width="100%" height="100%" fill="#1a1a1a"/>
-    <text x="50%" y="50%" class="error-text"
-          text-anchor="middle" dominant-baseline="middle">
-      ${escaped}
-    </text>
-  </svg>`;
-  return markTrustedSvg(svg);
+  return buildErrorCardSvg(message);
 }
 
 /**

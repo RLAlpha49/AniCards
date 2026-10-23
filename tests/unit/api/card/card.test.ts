@@ -117,12 +117,12 @@ const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
 const { colorPresets } =
   await import("@/components/stat-card-generator/constants");
 const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
-const utils = await import("@/lib/utils");
 const { distributionTemplate } =
   await import("@/lib/svg-templates/distribution/shared");
 const { socialStatsTemplate } =
   await import("@/lib/svg-templates/social-stats");
-const { escapeForXml } = utils;
+const { buildErrorCardSvg } = await import("@/lib/svg-templates/error-card");
+const { toCleanSvgResponse } = await import("@/lib/types/svg");
 
 /**
  * Reads the text body from a Response for later assertion.
@@ -288,25 +288,9 @@ async function expectErrorResponse(
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
-  // Build expected SVG error string exactly as server does and assert equality
-  const escaped = escapeForXml(expectedError);
-  const expectedSvg = `<?xml version="1.0" encoding="UTF-8"?>
-  <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-  <svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
-    <style>
-      .error-text {
-        font-family: monospace;
-        font-size: 20px;
-        fill: #ff5555;
-      }
-    </style>
-    <rect width="100%" height="100%" fill="#1a1a1a"/>
-    <text x="50%" y="50%" class="error-text"
-          text-anchor="middle" dominant-baseline="middle">
-      ${escaped}
-    </text>
-  </svg>`;
-  expect(text).toBe(expectedSvg);
+  // Build the expected SVG with the same template the route uses, then compare
+  // bodies so the assertion still covers the exact rendered markup.
+  expect(text).toBe(toCleanSvgResponse(buildErrorCardSvg(expectedError)));
 }
 
 type MockFunction<T> = T & {
