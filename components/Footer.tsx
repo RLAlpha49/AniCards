@@ -14,7 +14,6 @@ import {
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
 import { cn } from "@/lib/utils";
-import { isPaperPage } from "@/lib/page-theme";
 
 /**
  * Social link metadata for the footer icons.
@@ -66,24 +65,19 @@ const SOCIAL_LINKS = [
  */
 export default function Footer() {
   const pathname = usePathname();
-  const isHome = isPaperPage(pathname);
 
   return (
     <footer
       className={cn(
         "relative z-50 border-t backdrop-blur-xl",
-        isHome
-          ? "border-[#191512]/25 bg-[#f3e9d5]/95 dark:border-[#ece1c9]/25 dark:bg-[#16120f]/95"
-          : "border-slate-200/50 bg-white/80 dark:border-slate-700/50 dark:bg-slate-950/80",
+        "border-[#191512]/25 bg-[#f3e9d5]/95 dark:border-[#ece1c9]/25 dark:bg-[#16120f]/95",
       )}
     >
       {/* Subtle gradient line at the top */}
       <div
         className={cn(
           "absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent to-transparent",
-          isHome
-            ? "via-[#b83a24]/50 dark:via-[#d4573c]/50"
-            : "via-purple-500/50",
+          "via-[#b83a24]/50 dark:via-[#d4573c]/50",
         )}
       />
 
@@ -95,28 +89,18 @@ export default function Footer() {
             <div
               className={cn(
                 "flex flex-wrap items-center justify-center gap-2 text-sm md:justify-start",
-                isHome
-                  ? "text-[#4d443a] dark:text-[#b6a88f]"
-                  : "text-slate-500 dark:text-slate-400",
+                "text-[#4d443a] dark:text-[#b6a88f]",
               )}
             >
               <span>&copy; {new Date().getFullYear()} RLAlpha49</span>
-              <span
-                className={cn(
-                  isHome
-                    ? "text-[#191512]/30 dark:text-[#ece1c9]/30"
-                    : "text-slate-300 dark:text-slate-600",
-                )}
-              >
+              <span className={cn("text-[#191512]/30 dark:text-[#ece1c9]/30")}>
                 •
               </span>
               <Link
                 href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
                 className={cn(
                   "group inline-flex items-center gap-1.5 font-medium transition-colors",
-                  isHome
-                    ? "text-[#191512] hover:text-[#b83a24] dark:text-[#ece1c9] dark:hover:text-[#d4573c]"
-                    : "text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400",
+                  "text-[#191512] hover:text-[#b83a24] dark:text-[#ece1c9] dark:hover:text-[#d4573c]",
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -145,9 +129,7 @@ export default function Footer() {
                   }
                   className={cn(
                     "flex h-10 w-10 items-center justify-center border shadow-sm transition-all",
-                    isHome
-                      ? "rounded-none border-[#191512]/35 bg-transparent text-[#4d443a] hover:border-[#b83a24] hover:bg-transparent hover:text-[#b83a24] dark:border-[#ece1c9]/35 dark:text-[#b6a88f] dark:hover:border-[#d4573c] dark:hover:text-[#d4573c]"
-                      : `rounded-xl border-slate-200/50 bg-white/50 text-slate-500 dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-400 ${link.hoverColor} ${link.bgHover}`,
+                    "rounded-none border-[#191512]/35 bg-transparent text-[#4d443a] hover:border-[#b83a24] hover:bg-transparent hover:text-[#b83a24] dark:border-[#ece1c9]/35 dark:text-[#b6a88f] dark:hover:border-[#d4573c] dark:hover:text-[#d4573c]",
                   )}
                   onClick={() =>
                     safeTrack(() => trackExternalLinkClick(link.name, "footer"))

@@ -14,11 +14,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/Sheet";
 
-type MastheadNavProps = Readonly<{
-  /** Marks the active link in the home page paper palette. */
-  home: boolean;
-}>;
-
 /**
  * Reports a masthead navigation click to analytics.
  *
@@ -56,7 +51,7 @@ function isActiveHref(
  * @param props.home - Whether the paper palette is active.
  * @source
  */
-export function MastheadNav({ home }: MastheadNavProps) {
+export function MastheadNav() {
   const pathname = usePathname();
 
   return (
@@ -72,13 +67,9 @@ export function MastheadNav({ home }: MastheadNavProps) {
             onClick={() => trackNavClick(item.title)}
             className={cn(
               "relative px-2.5 py-2 text-sm font-medium transition-colors",
-              home
-                ? active
-                  ? "text-[#b83a24] dark:text-[#d4573c]"
-                  : "text-[#4d443a] hover:text-[#191512] dark:text-[#b6a88f] dark:hover:text-[#ece1c9]"
-                : active
-                  ? item.textColor
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
+              active
+                ? "text-[#b83a24] dark:text-[#d4573c]"
+                : "text-[#4d443a] hover:text-[#191512] dark:text-[#b6a88f] dark:hover:text-[#ece1c9]",
             )}
           >
             {item.title}
@@ -86,9 +77,7 @@ export function MastheadNav({ home }: MastheadNavProps) {
               aria-hidden="true"
               className={cn(
                 "absolute inset-x-2.5 -bottom-0.5 h-[2px] transition-opacity",
-                home
-                  ? "bg-[#b83a24] dark:bg-[#d4573c]"
-                  : "bg-gradient-to-r from-blue-500 to-purple-500",
+                "bg-[#b83a24] dark:bg-[#d4573c]",
                 active ? "opacity-100" : "opacity-0",
               )}
             />
@@ -99,11 +88,6 @@ export function MastheadNav({ home }: MastheadNavProps) {
   );
 }
 
-type MastheadMenuProps = Readonly<{
-  /** Marks the active link in the home page paper palette. */
-  home: boolean;
-}>;
-
 /**
  * Compact navigation trigger that opens the full menu in a sheet.
  *
@@ -112,7 +96,7 @@ type MastheadMenuProps = Readonly<{
  * @param props.home - Whether the paper palette is active.
  * @source
  */
-export function MastheadMenu({ home }: MastheadMenuProps) {
+export function MastheadMenu() {
   const pathname = usePathname();
 
   return (
@@ -121,9 +105,7 @@ export function MastheadMenu({ home }: MastheadMenuProps) {
         aria-label="Open navigation menu"
         className={cn(
           "inline-grid h-9 w-9 place-items-center border transition-colors lg:hidden",
-          home
-            ? "rounded-none border-[#191512]/45 text-[#191512] hover:bg-[#191512] hover:text-[#f3e9d5] dark:border-[#ece1c9]/45 dark:text-[#ece1c9] dark:hover:bg-[#ece1c9] dark:hover:text-[#16120f]"
-            : "rounded-xl border-slate-200/50 bg-white/50 text-slate-600 hover:bg-white hover:text-slate-900 dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white",
+          "rounded-none border-[#191512]/45 text-[#191512] hover:bg-[#191512] hover:text-[#f3e9d5] dark:border-[#ece1c9]/45 dark:text-[#ece1c9] dark:hover:bg-[#ece1c9] dark:hover:text-[#16120f]",
         )}
       >
         <Menu className="h-5 w-5" />
@@ -133,17 +115,13 @@ export function MastheadMenu({ home }: MastheadMenuProps) {
         side="right"
         className={cn(
           "w-[min(20rem,85vw)] border-l p-0",
-          home
-            ? "border-[#191512]/25 bg-[#f3e9d5] dark:border-[#ece1c9]/25 dark:bg-[#16120f]"
-            : "border-slate-200/50 bg-white dark:border-slate-700/50 dark:bg-slate-950",
+          "border-[#191512]/25 bg-[#f3e9d5] dark:border-[#ece1c9]/25 dark:bg-[#16120f]",
         )}
       >
         <SheetTitle
           className={cn(
             "border-b px-5 py-4 text-xs font-semibold tracking-[0.24em] uppercase",
-            home
-              ? "border-[#191512]/20 font-[family-name:var(--font-display)] text-[#4d443a] dark:border-[#ece1c9]/20 dark:text-[#b6a88f]"
-              : "border-slate-200/50 text-slate-500 dark:border-slate-700/50 dark:text-slate-400",
+            "border-[#191512]/20 font-[family-name:var(--font-display)] text-[#4d443a] dark:border-[#ece1c9]/20 dark:text-[#b6a88f]",
           )}
         >
           Navigation
@@ -161,24 +139,18 @@ export function MastheadMenu({ home }: MastheadMenuProps) {
                   onClick={() => trackNavClick(item.title)}
                   className={cn(
                     "flex items-center gap-3 px-5 py-3 text-sm font-medium transition-colors",
-                    home
-                      ? cn(
-                          "border-b border-[#191512]/10 dark:border-[#ece1c9]/10",
-                          active
-                            ? "text-[#b83a24] dark:text-[#d4573c]"
-                            : "text-[#4d443a] hover:text-[#191512] dark:text-[#b6a88f] dark:hover:text-[#ece1c9]",
-                        )
-                      : cn(
-                          active
-                            ? `${item.bgLight} ${item.textColor}`
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white",
-                        ),
+                    cn(
+                      "border-b border-[#191512]/10 dark:border-[#ece1c9]/10",
+                      active
+                        ? "text-[#b83a24] dark:text-[#d4573c]"
+                        : "text-[#4d443a] hover:text-[#191512] dark:text-[#b6a88f] dark:hover:text-[#ece1c9]",
+                    ),
                   )}
                 >
                   <item.icon
                     className={cn(
                       "h-4 w-4 shrink-0",
-                      home && "text-[#b83a24] dark:text-[#d4573c]",
+                      "text-[#b83a24] dark:text-[#d4573c]",
                     )}
                   />
                   <span className="flex-1">{item.title}</span>
@@ -186,9 +158,7 @@ export function MastheadMenu({ home }: MastheadMenuProps) {
                     aria-hidden="true"
                     className={cn(
                       "text-[0.62rem] tracking-[0.2em]",
-                      home
-                        ? "text-[#4d443a]/60 dark:text-[#b6a88f]/60"
-                        : "text-slate-400 dark:text-slate-500",
+                      "text-[#4d443a]/60 dark:text-[#b6a88f]/60",
                     )}
                   >
                     {String(index + 1).padStart(2, "0")}
