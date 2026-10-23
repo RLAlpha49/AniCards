@@ -1,5 +1,5 @@
 import { clampBorderRadius } from "@/lib/utils";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/lib/card-catalogue";
 import { StoredCardConfig, CardsRecord, UserRecord } from "@/lib/types/records";
 import { ColorValue } from "@/lib/types/card";
 import { CardDataError, getFavoritesForCardType } from "./validation";

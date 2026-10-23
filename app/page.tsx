@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { StatCardGenerator } from "@/components/StatCardGenerator";
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   trackButtonClick,
-  trackDialogOpen,
+  trackNavigation,
   safeTrack,
 } from "@/lib/utils/google-analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -16,19 +16,20 @@ import { ClosingSection } from "@/components/home/ClosingSection";
 
 /**
  * Renders the AniCards landing page: hero, card gallery, capabilities, and a
- * closing call to action on the paper surface. The stat card generator dialog
- * is mounted once here and opened by every call to action.
+ * closing call to action on the paper surface.
+ *
+ * Every call to action sends the visitor to the generator page, which owns the
+ * username, palette, card list, and print action.
  * @source
  */
 export default function HomePage() {
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const router = useRouter();
 
   const handleGetStartedClick = useCallback(() => {
-    setIsGeneratorOpen(true);
-
     safeTrack(() => trackButtonClick("get_started", "homepage"));
-    safeTrack(() => trackDialogOpen("stat_card_generator"));
-  }, []);
+    safeTrack(() => trackNavigation("generator", "homepage"));
+    router.push("/generator");
+  }, [router]);
 
   const handleSeeExamplesClick = useCallback(() => {
     document.getElementById("preview-showcase")?.scrollIntoView({
@@ -39,10 +40,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <ErrorBoundary
-      resetKeys={[isGeneratorOpen ? "generator_open" : "generator_closed"]}
-      onReset={() => setIsGeneratorOpen(false)}
-    >
+    <ErrorBoundary>
       <PaperSurface>
         <HeroSection
           onGetStarted={handleGetStartedClick}
@@ -56,14 +54,6 @@ export default function HomePage() {
         <ClosingSection
           onGetStarted={handleGetStartedClick}
           onSeeExamples={handleSeeExamplesClick}
-        />
-
-        <StatCardGenerator
-          isOpen={isGeneratorOpen}
-          onOpenChange={(open) => setIsGeneratorOpen(open)}
-          className={`transition-opacity duration-300 ${
-            isGeneratorOpen ? "opacity-100" : "opacity-0"
-          }`}
         />
       </PaperSurface>
     </ErrorBoundary>

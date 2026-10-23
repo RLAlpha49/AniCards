@@ -27,9 +27,8 @@ import type { StoredCardConfig } from "@/lib/types/records";
 /**
  * The six groups the generator sorts card types into.
  *
- * These names match the `group` values in
- * `components/stat-card-generator/constants.ts`, so the examples page and the
- * generator use one set of labels.
+ * These names match the `group` values in `lib/card-catalogue.ts`, so the
+ * examples page and the generator use one set of labels.
  * @source
  */
 export const GROUPS = [
@@ -71,6 +70,8 @@ export type CardVariation = Readonly<{
 
 /** A card type together with every variation the generator supports. @source */
 export type CardType = Readonly<{
+  /** Card identifier the card API accepts, for example `animeStats`. */
+  id: string;
   title: string;
   description: string;
   group: GroupName;
@@ -526,7 +527,7 @@ export function buildCardTypes(): CardType[] {
   return CARD_TYPE_METADATA.map((meta) => {
     const group = CARD_GROUPS.find((entry) => entry.cardTitle === meta.title);
 
-    if (!group) return { ...meta, variations: [] };
+    if (!group) return { ...meta, id: "", variations: [] };
 
     const variations = group.variations.map((entry) => {
       const variation = typeof entry === "string" ? entry : entry.variation;
@@ -565,7 +566,7 @@ export function buildCardTypes(): CardType[] {
       };
     });
 
-    return { ...meta, variations };
+    return { ...meta, id: group.cardType, variations };
   });
 }
 

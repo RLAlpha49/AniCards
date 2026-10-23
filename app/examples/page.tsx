@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { StatCardGenerator } from "@/components/StatCardGenerator";
+import { useRouter } from "next/navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaperSurface } from "@/components/PaperSurface";
 import { SeigaihaDivider } from "@/components/SeigaihaDivider";
@@ -32,14 +32,14 @@ import styles from "@/components/examples/card-examples.module.css";
 export default function ExamplesPage() {
   usePageSEO("examples");
 
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
   const cardTypes = useMemo(() => buildCardTypes(), []);
 
   const handleOpenGenerator = useCallback(() => {
-    setIsGeneratorOpen(true);
-  }, []);
+    router.push("/generator");
+  }, [router]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -90,16 +90,7 @@ export default function ExamplesPage() {
   );
 
   return (
-    <ErrorBoundary
-      resetKeys={[
-        isGeneratorOpen ? "generator_open" : "generator_closed",
-        searchQuery,
-      ]}
-      onReset={() => {
-        setIsGeneratorOpen(false);
-        setSearchQuery("");
-      }}
-    >
+    <ErrorBoundary resetKeys={[searchQuery]} onReset={() => setSearchQuery("")}>
       <PaperSurface>
         <ExamplesHeroSection
           groups={groups}
@@ -152,11 +143,6 @@ export default function ExamplesPage() {
         <ExamplesCTA
           onOpenGenerator={handleOpenGenerator}
           cardTypeCount={totals.cardTypes}
-        />
-
-        <StatCardGenerator
-          isOpen={isGeneratorOpen}
-          onOpenChange={(open) => setIsGeneratorOpen(open)}
         />
       </PaperSurface>
     </ErrorBoundary>

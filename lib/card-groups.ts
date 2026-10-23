@@ -194,12 +194,12 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "profileOverview",
     cardTitle: "Profile Overview",
-    variations: ["default"],
+    variations: ["default", "compact", "minimal"],
   },
   {
     cardType: "favoritesSummary",
     cardTitle: "Favourites Summary",
-    variations: ["default"],
+    variations: ["default", "compact", "minimal"],
   },
   {
     cardType: "favoritesGrid",

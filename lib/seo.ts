@@ -155,6 +155,23 @@ export const seoConfigs = {
     canonical: `${SITE_URL}/examples`,
   },
 
+  generator: {
+    title: "Card Generator - AniCards",
+    description:
+      "Build AniList stat cards in one page. Enter your username, pick a palette, choose from 54 card types, and download the set as SVG, PNG, or WebP.",
+    keywords: [
+      "anilist card generator",
+      "anime stat card maker",
+      "manga stat card maker",
+      "create anilist cards",
+      "anilist card builder",
+      "stat card generator",
+      "anime statistics card",
+      "manga statistics card",
+    ],
+    canonical: `${SITE_URL}/generator`,
+  },
+
   contact: {
     title: "Contact Us - AniCards",
     description:

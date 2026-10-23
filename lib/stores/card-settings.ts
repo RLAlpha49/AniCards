@@ -51,6 +51,8 @@ export interface CardSettingsState {
  * @source
  */
 export interface CardSettingsActions {
+  /** Save the generator's full settings snapshot in one store update. */
+  saveGeneratorDefaults: (defaults: CardSettingsState) => void;
   /** Save color configuration */
   setSavedColorConfig: (config: SavedColorConfig) => void;
   /** Update default card types */
@@ -202,6 +204,10 @@ export const useCardSettings = create<CardSettingsStore>()(
     persist(
       (set, get) => ({
         ...defaultState,
+
+        saveGeneratorDefaults: (defaults: CardSettingsState) => {
+          set(defaults, false, "saveGeneratorDefaults");
+        },
 
         setSavedColorConfig: (config: SavedColorConfig) => {
           set({ savedColorConfig: config }, false, "setSavedColorConfig");

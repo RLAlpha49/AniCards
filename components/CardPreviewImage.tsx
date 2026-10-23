@@ -15,6 +15,12 @@ type CardPreviewImageProps = Readonly<{
   cardType: string;
   variation?: string;
   preset?: string;
+  /**
+   * Explicit card URL. When set, it replaces the URL built from the card type,
+   * variation, and preset, which lets callers show colours the preset argument
+   * cannot express, such as four hand-picked hex values.
+   */
+  src?: string;
   alt: string;
   className?: string;
   style?: CSSProperties;
@@ -60,6 +66,7 @@ export function CardPreviewImage({
   cardType,
   variation,
   preset,
+  src,
   alt,
   className,
   style,
@@ -130,7 +137,7 @@ export function CardPreviewImage({
   return (
     <img
       ref={attachImage}
-      src={previewCardUrl(cardType, variation, preset)}
+      src={src ?? previewCardUrl(cardType, variation, preset)}
       alt={alt}
       className={className}
       style={style}

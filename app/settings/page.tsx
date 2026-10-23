@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
+import { statCardTypes } from "@/lib/card-catalogue";
 import { ThemePreferences } from "@/components/settings/ThemePreferences";
 import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
 import { ResetSettings } from "@/components/settings/ResetSettings";
@@ -100,19 +101,11 @@ export default function SettingsPage() {
    * @source
    */
   const handleToggleAllCardTypes = () => {
-    // Check if all card types are selected
-    const statCardTypesModule =
-      require("@/components/StatCardGenerator").statCardTypes;
-    const allTypes: string[] = statCardTypesModule.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (type: any) => type.id,
-    );
+    const allTypes = statCardTypes.map((type) => type.id);
 
     if (defaultCardTypes.length === allTypes.length) {
-      // Deselect all
       setDefaultCardTypes([]);
     } else {
-      // Select all
       setDefaultCardTypes(allTypes);
     }
   };

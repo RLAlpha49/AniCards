@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { statCardTypes } from "@/components/StatCardGenerator";
+import { statCardTypes } from "@/lib/card-catalogue";
 import {
   Layers,
   ChevronDown,

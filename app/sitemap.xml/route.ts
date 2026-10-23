@@ -18,8 +18,18 @@ const pages = [
     changefreq: "daily" as const,
   },
   {
-    path: "/search",
+    path: "/generator",
+    priority: 0.95,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/examples",
     priority: 0.9,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/search",
+    priority: 0.8,
     changefreq: "weekly" as const,
   },
   {

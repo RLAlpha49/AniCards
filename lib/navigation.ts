@@ -6,6 +6,7 @@ import {
   Mail,
   Search,
   Settings,
+  Sparkles,
   type HugeIcon,
 } from "@/lib/icons";
 
@@ -32,6 +33,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: "/",
     bgLight: "bg-blue-100 dark:bg-blue-900/30",
     textColor: "text-blue-600 dark:text-blue-400",
+  },
+  {
+    title: "Generator",
+    icon: Sparkles,
+    href: "/generator",
+    bgLight: "bg-amber-100 dark:bg-amber-900/30",
+    textColor: "text-amber-700 dark:text-amber-400",
   },
   {
     title: "Examples",

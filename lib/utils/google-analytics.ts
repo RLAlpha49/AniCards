@@ -132,12 +132,12 @@ export const trackBatchExport = (
   });
 };
 
-/** Track a user search by username in GA events. @source */
-export const trackUserSearch = (username: string) => {
+/** Track a username search without sending the username to GA. @source */
+export const trackUserSearch = () => {
   event({
     action: "user_searched",
     category: "engagement",
-    label: username,
+    label: "generator",
   });
 };
 
