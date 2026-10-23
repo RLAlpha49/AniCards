@@ -263,7 +263,7 @@ export function colorValueToString(
  * @source
  */
 export function isValidHexColor(color: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color);
 }
 
 function normalizeHexRgb(hex: string): string | null {
