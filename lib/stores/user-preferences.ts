@@ -18,8 +18,6 @@ export interface UserPreferencesState {
 export interface UserPreferencesActions {
   /** Update default username */
   setDefaultUsername: (value: string) => void;
-  /** Reset all user preferences to defaults */
-  resetUserPreferences: () => void;
 }
 
 /** Combined store type for user preferences */
@@ -95,10 +93,6 @@ export const useUserPreferences = create<UserPreferencesStore>()(
 
         setDefaultUsername: (value: string) => {
           set({ defaultUsername: value }, false, "setDefaultUsername");
-        },
-
-        resetUserPreferences: () => {
-          set(defaultState, false, "resetUserPreferences");
         },
       }),
       {

@@ -99,12 +99,12 @@ function resolveCardPreference(
 }
 
 /**
- * Builds the generator's working state from saved settings.
+ * Builds the generator's working state from the saved defaults.
  *
- * The draft starts from the settings page, so a visitor who set a default
- * username, palette, or card list finds the generator already filled in.
- * Nothing is written back until the visitor generates, so an abandoned visit does
- * not overwrite those defaults.
+ * The draft starts from the configuration saved by the last successful
+ * generation, so a returning visitor finds their username, palette, and card
+ * list already filled in. Nothing is written back until the visitor generates,
+ * so an abandoned visit does not overwrite those defaults.
  * @source
  */
 function buildInitialDraft(

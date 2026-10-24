@@ -195,20 +195,6 @@ export const seoConfigs = {
     canonical: `${SITE_URL}/projects`,
   },
 
-  settings: {
-    title: "Settings - AniCards",
-    description:
-      "Customize your AniCards experience. Adjust theme preferences, sidebar behavior, and default card settings to personalize your stat card generation.",
-    keywords: [
-      "settings",
-      "preferences",
-      "customization",
-      "theme",
-      "configuration",
-    ],
-    canonical: `${SITE_URL}/settings`,
-  },
-
   license: {
     title: "License - AniCards",
     description:

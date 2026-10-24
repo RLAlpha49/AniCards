@@ -20,9 +20,9 @@ import { isGradient } from "@/lib/utils";
 /**
  * Every card the generator can render.
  *
- * Reuses the examples page catalogue so the generator, the examples gallery,
- * and the settings page all describe the same set of cards. Each entry carries
- * its stable card id, so selections can be keyed without a second lookup.
+ * Reuses the examples page catalogue so the generator and the examples gallery
+ * describe the same set of cards. Each entry carries its stable card id, so
+ * selections can be keyed without a second lookup.
  * @source
  */
 export const CARD_TYPES: CardType[] = buildCardTypes();

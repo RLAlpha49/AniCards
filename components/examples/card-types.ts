@@ -27,7 +27,7 @@ import type { StoredCardConfig } from "@/lib/types/records";
 /**
  * The six groups the generator sorts card types into.
  *
- * These names match the `group` values in `lib/card-catalogue.ts`, so the
+ * These names match the `cardTitle` values in `lib/card-groups.ts`, so the
  * examples page and the generator use one set of labels.
  * @source
  */

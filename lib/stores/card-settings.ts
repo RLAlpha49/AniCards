@@ -53,34 +53,6 @@ export interface CardSettingsState {
 export interface CardSettingsActions {
   /** Save the generator's full settings snapshot in one store update. */
   saveGeneratorDefaults: (defaults: CardSettingsState) => void;
-  /** Save color configuration */
-  setSavedColorConfig: (config: SavedColorConfig) => void;
-  /** Update default card types */
-  setDefaultCardTypes: (types: string[]) => void;
-  /** Toggle single card type on/off */
-  toggleCardType: (cardId: string) => void;
-  /** Set variant for a card type */
-  setDefaultVariant: (cardId: string, variant: string) => void;
-  /** Set favorites grid columns */
-  setFavoritesGridColumns: (columns: number) => void;
-  /** Set favorites grid rows */
-  setFavoritesGridRows: (rows: number) => void;
-  /** Toggle show favorites for a card */
-  toggleShowFavorites: (cardId: string) => void;
-  /** Update border enabled state */
-  setDefaultBorderEnabled: (enabled: boolean) => void;
-  /** Update border color */
-  setDefaultBorderColor: (color: string) => void;
-  /** Update border radius */
-  setDefaultBorderRadius: (radius: number) => void;
-  /** Toggle anime status colors */
-  setUseAnimeStatusColors: (enabled: boolean) => void;
-  /** Toggle manga status colors */
-  setUseMangaStatusColors: (enabled: boolean) => void;
-  /** Toggle pie percentages */
-  setShowPiePercentages: (enabled: boolean) => void;
-  /** Reset all settings to defaults */
-  resetCardSettings: () => void;
 }
 
 /** Combined store type for card settings */
@@ -105,11 +77,6 @@ const defaultState: CardSettingsState = {
   useMangaStatusColors: false,
   showPiePercentages: false,
 };
-
-function clampGridSetting(value: number): number {
-  const n = Number.isFinite(value) ? Math.round(value) : 3;
-  return Math.max(1, Math.min(5, n));
-}
 
 const customStorage = createJSONStorage<CardSettingsStore>(() =>
   createBackwardCompatibleStorage(),
@@ -202,106 +169,11 @@ function migrateLegacyKeys(set: (state: Partial<CardSettingsState>) => void) {
 export const useCardSettings = create<CardSettingsStore>()(
   devtools(
     persist(
-      (set, get) => ({
+      (set) => ({
         ...defaultState,
 
         saveGeneratorDefaults: (defaults: CardSettingsState) => {
           set(defaults, false, "saveGeneratorDefaults");
-        },
-
-        setSavedColorConfig: (config: SavedColorConfig) => {
-          set({ savedColorConfig: config }, false, "setSavedColorConfig");
-        },
-
-        setDefaultCardTypes: (types: string[]) => {
-          set({ defaultCardTypes: types }, false, "setDefaultCardTypes");
-        },
-
-        toggleCardType: (cardId: string) => {
-          const { defaultCardTypes } = get();
-          const newTypes = defaultCardTypes.includes(cardId)
-            ? defaultCardTypes.filter((t) => t !== cardId)
-            : [...defaultCardTypes, cardId];
-          set({ defaultCardTypes: newTypes }, false, "toggleCardType");
-        },
-
-        setDefaultVariant: (cardId: string, variant: string) => {
-          const { defaultVariants } = get();
-          set(
-            { defaultVariants: { ...defaultVariants, [cardId]: variant } },
-            false,
-            "setDefaultVariant",
-          );
-        },
-
-        setFavoritesGridColumns: (columns: number) => {
-          set(
-            { favoritesGridColumns: clampGridSetting(columns) },
-            false,
-            "setFavoritesGridColumns",
-          );
-        },
-
-        setFavoritesGridRows: (rows: number) => {
-          set(
-            { favoritesGridRows: clampGridSetting(rows) },
-            false,
-            "setFavoritesGridRows",
-          );
-        },
-
-        toggleShowFavorites: (cardId: string) => {
-          const { defaultShowFavoritesByCard } = get();
-          set(
-            {
-              defaultShowFavoritesByCard: {
-                ...defaultShowFavoritesByCard,
-                [cardId]: !defaultShowFavoritesByCard[cardId],
-              },
-            },
-            false,
-            "toggleShowFavorites",
-          );
-        },
-
-        setDefaultBorderEnabled: (enabled: boolean) => {
-          set(
-            { defaultBorderEnabled: enabled },
-            false,
-            "setDefaultBorderEnabled",
-          );
-        },
-
-        setDefaultBorderColor: (color: string) => {
-          set({ defaultBorderColor: color }, false, "setDefaultBorderColor");
-        },
-
-        setDefaultBorderRadius: (radius: number) => {
-          set({ defaultBorderRadius: radius }, false, "setDefaultBorderRadius");
-        },
-
-        setUseAnimeStatusColors: (enabled: boolean) => {
-          set(
-            { useAnimeStatusColors: enabled },
-            false,
-            "setUseAnimeStatusColors",
-          );
-        },
-
-        setUseMangaStatusColors: (enabled: boolean) => {
-          set(
-            { useMangaStatusColors: enabled },
-            false,
-            "setUseMangaStatusColors",
-          );
-        },
-
-        setShowPiePercentages: (enabled: boolean) => {
-          set({ showPiePercentages: enabled }, false, "setShowPiePercentages");
-        },
-
-        resetCardSettings: () => {
-          set(defaultState, false, "resetCardSettings");
         },
       }),
       {

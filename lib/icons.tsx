@@ -69,7 +69,6 @@ import {
   ScaleIcon as ScaleData,
   SearchIcon as SearchData,
   MailSend01Icon as SendData,
-  Settings01Icon as SettingsData,
   Share01Icon as ShareData,
   ShieldIcon as ShieldData,
   ShieldCheckIcon as ShieldCheckData,
@@ -178,8 +177,6 @@ export const RotateCcw = createIcon(RotateData, "RotateCcw");
 export const Scale = createIcon(ScaleData, "Scale");
 export const Search = createIcon(SearchData, "Search");
 export const Send = createIcon(SendData, "Send");
-export const Settings = createIcon(SettingsData, "Settings");
-export const Settings2 = Settings;
 export const Share2 = createIcon(ShareData, "Share2");
 export const Shield = createIcon(ShieldData, "Shield");
 export const ShieldCheck = createIcon(ShieldCheckData, "ShieldCheck");
