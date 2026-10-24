@@ -1,5 +1,4 @@
 import {
-  File,
   Folder,
   Grid3X3,
   Home,
@@ -67,12 +66,5 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: "/projects",
     bgLight: "bg-indigo-100 dark:bg-indigo-900/30",
     textColor: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    title: "License",
-    icon: File,
-    href: "/license",
-    bgLight: "bg-slate-100 dark:bg-slate-800/50",
-    textColor: "text-slate-600 dark:text-slate-400",
   },
 ];

@@ -140,8 +140,7 @@ export class ErrorBoundary extends Component<
    */
   renderDefaultFallback(): ReactNode {
     const errorMessage =
-      this.state.error?.message ??
-      "We couldn't render this part of the experience.";
+      this.state.error?.message ?? "This part of the page failed to load.";
 
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-200 px-4 py-12 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">

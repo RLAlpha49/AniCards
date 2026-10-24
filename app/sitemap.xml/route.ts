@@ -47,11 +47,6 @@ const pages = [
     priority: 0.6,
     changefreq: "yearly" as const,
   },
-  {
-    path: "/license",
-    priority: 0.4,
-    changefreq: "yearly" as const,
-  },
 ];
 
 /**

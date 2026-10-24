@@ -123,8 +123,9 @@ const ERROR_MESSAGE_MAP: Record<string, ErrorDetails> = {
           "The server is experiencing issues. Please try again in a moment.",
       },
       {
-        title: "Contact support",
-        description: "If the problem persists, please contact our support team",
+        title: "Report it",
+        description:
+          "If it keeps happening, open an issue on GitHub. I read every one",
       },
     ],
   },
@@ -203,9 +204,9 @@ const ERROR_MESSAGE_MAP: Record<string, ErrorDetails> = {
         description: "Refresh the page and try generating the card again",
       },
       {
-        title: "Contact support",
+        title: "Report it",
         description:
-          "If the problem persists, there may be an issue with our service configuration",
+          "If it keeps happening, open an issue on GitHub so I can look at it",
       },
     ],
   },

@@ -173,9 +173,9 @@ export const seoConfigs = {
   },
 
   contact: {
-    title: "Contact Us - AniCards",
+    title: "Contact - AniCards",
     description:
-      "Get in touch with the AniCards team. Find our social media links, GitHub repository, and contact information for support or feedback.",
+      "Get in touch with the one person who builds AniCards. GitHub issues for bugs and card requests, Discord for quick questions, email for everything else.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
     canonical: `${SITE_URL}/contact`,
   },
@@ -183,7 +183,7 @@ export const seoConfigs = {
   projects: {
     title: "Other Projects - AniCards",
     description:
-      "Explore other anime and manga related projects including AniList Custom List Manager, Kenmai to AniList converter, AniSearch ML tool, and more.",
+      "The other AniList tools I built: AniList Custom List Manager for rule-based custom lists, and Kenmei to AniList for moving a manga library across.",
     keywords: [
       "anime projects",
       "anilist tools",
@@ -193,14 +193,6 @@ export const seoConfigs = {
       "anime applications",
     ],
     canonical: `${SITE_URL}/projects`,
-  },
-
-  license: {
-    title: "License - AniCards",
-    description:
-      "View the MIT license for AniCards. Learn about the terms and conditions for using and contributing to this open-source project.",
-    keywords: ["license", "MIT", "open source", "terms", "legal"],
-    canonical: `${SITE_URL}/license`,
   },
 
   user: {
