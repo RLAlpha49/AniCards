@@ -33,7 +33,10 @@ export default function HomePage() {
 
   const handleSeeExamplesClick = useCallback(() => {
     document.getElementById("preview-showcase")?.scrollIntoView({
-      behavior: "smooth",
+      behavior: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")
+        .matches
+        ? "instant"
+        : "smooth",
     });
 
     safeTrack(() => trackButtonClick("see_examples", "homepage"));

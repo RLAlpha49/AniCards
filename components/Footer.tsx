@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import {
   trackExternalLinkClick,
   safeTrack,
@@ -14,6 +14,8 @@ import {
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
 import { cn } from "@/lib/utils";
+
+const MotionLink = motion.create(Link);
 
 /**
  * Social link metadata for the footer icons.
@@ -64,7 +66,7 @@ const SOCIAL_LINKS = [
  * @source
  */
 export default function Footer() {
-  const pathname = usePathname();
+  const reduceMotion = useReducedMotionPreference();
 
   return (
     <footer
@@ -107,7 +109,7 @@ export default function Footer() {
               >
                 <Scale className="h-3.5 w-3.5" />
                 MIT Licensed
-                <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
               </Link>
             </div>
           </div>
@@ -115,30 +117,25 @@ export default function Footer() {
           {/* Social Links */}
           <div className="flex items-center gap-2">
             {SOCIAL_LINKS.map((link) => (
-              <motion.div
+              <MotionLink
                 key={link.name}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                href={link.href}
+                target={link.name === "email" ? undefined : "_blank"}
+                rel={link.name === "email" ? undefined : "noopener noreferrer"}
+                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center border shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b83a24]",
+                  "rounded-none border-[#191512]/35 bg-transparent text-[#4d443a] hover:border-[#b83a24] hover:bg-transparent hover:text-[#b83a24] dark:border-[#ece1c9]/35 dark:text-[#b6a88f] dark:hover:border-[#d4573c] dark:hover:text-[#d4573c]",
+                )}
+                onClick={() =>
+                  safeTrack(() => trackExternalLinkClick(link.name, "footer"))
+                }
+                aria-label={link.label}
               >
-                <Link
-                  href={link.href}
-                  target={link.name === "email" ? undefined : "_blank"}
-                  rel={
-                    link.name === "email" ? undefined : "noopener noreferrer"
-                  }
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center border shadow-sm transition-all",
-                    "rounded-none border-[#191512]/35 bg-transparent text-[#4d443a] hover:border-[#b83a24] hover:bg-transparent hover:text-[#b83a24] dark:border-[#ece1c9]/35 dark:text-[#b6a88f] dark:hover:border-[#d4573c] dark:hover:text-[#d4573c]",
-                  )}
-                  onClick={() =>
-                    safeTrack(() => trackExternalLinkClick(link.name, "footer"))
-                  }
-                  aria-label={link.label}
-                >
-                  <link.icon size={18} />
-                </Link>
-              </motion.div>
+                <link.icon size={18} />
+              </MotionLink>
             ))}
           </div>
         </div>

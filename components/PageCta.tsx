@@ -77,7 +77,13 @@ export function PageCta({
 
   const scrollToTop = () => {
     safeTrack(() => trackButtonClick(backToTopLabel));
-    globalThis.scrollTo({ top: 0, behavior: "smooth" });
+    globalThis.scrollTo({
+      top: 0,
+      behavior: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")
+        .matches
+        ? "instant"
+        : "smooth",
+    });
   };
 
   const renderAction = (

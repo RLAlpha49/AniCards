@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { motion } from "motion/react";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { MastheadMenu, MastheadNav } from "@/components/MastheadNav";
 import { cn } from "@/lib/utils";
@@ -33,7 +31,7 @@ export default function Header() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 transition-all",
+        "sticky top-0 z-50 transition-colors",
         "border-b-2 border-[#191512]/85 bg-[#f3e9d5]/95 backdrop-blur-md dark:border-[#ece1c9]/40 dark:bg-[#16120f]/95",
       )}
     >
@@ -47,10 +45,13 @@ export default function Header() {
 
       <div className="flex h-16 items-center gap-4 px-6 pl-1.5">
         <div className="flex items-center gap-4">
-          <Link href="/" className="group flex items-center gap-2.5">
+          <Link
+            href="/"
+            className="group flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b83a24]"
+          >
             <span
               aria-hidden="true"
-              className="grid h-8 w-8 place-items-center bg-[#b83a24] text-base leading-none text-[#f8efdc] dark:bg-[#d4573c] dark:text-[#16120f]"
+              className="grid h-8 w-8 place-items-center bg-[#b83a24] text-base leading-none text-[#f8efdc] motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-105 motion-safe:group-focus-visible:scale-105 dark:bg-[#d4573c] dark:text-[#16120f]"
               style={{ fontFamily: "var(--font-display), serif" }}
             >
               庵
@@ -69,13 +70,7 @@ export default function Header() {
         <MastheadNav />
 
         <div className="ml-auto flex items-center gap-3">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <DarkModeToggle />
-          </motion.div>
+          <DarkModeToggle />
 
           <MastheadMenu />
         </div>
