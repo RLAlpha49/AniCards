@@ -2,10 +2,7 @@
 
 import { useId, useState } from "react";
 import { ArrowRight, Mail } from "@/lib/icons";
-import {
-  SimpleDiscordIcon,
-  SimpleGithubIcon,
-} from "@/components/SimpleIcons";
+import { SimpleDiscordIcon, SimpleGithubIcon } from "@/components/SimpleIcons";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -180,10 +177,7 @@ export function ContactDesk() {
             className={styles.stubAction}
           >
             {isMail ? (
-              <Mail
-                className={styles.stubActionIcon}
-                aria-hidden="true"
-              />
+              <Mail className={styles.stubActionIcon} aria-hidden="true" />
             ) : (
               <span className={styles.stubActionIcon} aria-hidden="true">
                 <ChannelMark channelName={selected.channelName} size={15} />

@@ -1,35 +1,27 @@
 "use client";
 
-import { CardList } from "@/components/user/CardList";
-import { displayNames } from "@/lib/card-data/validation";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import CTASection from "@/components/CTASection";
-import {
-  Info,
-  Sparkles,
-  ArrowRight,
-  ExternalLink,
-  User,
-  Heart,
-  AlertCircle,
-} from "@/lib/icons";
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PaperSurface } from "@/components/PaperSurface";
+import { displayNames } from "@/lib/card-data/validation";
 import {
-  getAbsoluteUrl,
   getCardBorderRadius,
   getResponseErrorMessage,
   parseResponsePayload,
 } from "@/lib/utils";
 import {
+  VARIATION_LABEL_MAP,
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
 import { buildCardVersion } from "@/lib/server/card-version";
+import { UserMasthead } from "./UserMasthead";
+import { SavedCardSet } from "./SavedCardSet";
+import { SavedCardClosing, SavedCardGuide } from "./SavedCardGuide";
+import { UserPageState } from "./UserPageState";
+import type { SavedCard } from "./types";
+import styles from "./user.module.css";
 
 /**
  * Basic user identity returned from the API.
@@ -201,24 +193,6 @@ async function fetchCardsForUserId(
 }
 
 /**
- * Animation variants for staggered content reveal.
- * @source
- */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-
-// Validation helpers
-/**
  * Narrowing helper that checks whether the given userId is a valid AniList numeric id string.
  * @param userId - The candidate userId string or null.
  * @returns True if userId is a numeric string.
@@ -271,14 +245,6 @@ const parseAndValidateCards = (cardsParam: string): CardData[] => {
     throw error_;
   }
 };
-
-/**
- * Client-side component rendering an interactive user page with stat cards.
- * It reads query parameters to resolve a user and card configurations, fetches
- * required data if needed, then renders a grid of cards with actions.
- * @returns JSX element for the user's stat cards page.
- * @source
- */
 
 /**
  * Safely read a string property from a Record-like object.
@@ -379,240 +345,45 @@ function buildCardDataVersion(
   return buildCardVersion(user?.dataUpdatedAt, cardsUpdatedAt);
 }
 
-export function UserPageClient() {
-  const searchParams = useSearchParams();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [cards, setCards] = useState<CardData[]>([]);
-  const [cardsUpdatedAt, setCardsUpdatedAt] = useState<string | undefined>(
-    undefined,
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAllCards, setShowAllCards] = useState(false);
+/**
+ * Preferred ordering for specific card types so the opening card is the one a
+ * visitor is most likely to want on a profile.
+ * @source
+ */
+const PRIORITY_ORDER = ["animeStats", "mangaStats", "socialStats"];
 
-  function resolveCardsFromParam(cardsParam: string): CardData[] | null {
-    try {
-      return parseAndValidateCards(cardsParam);
-    } catch (e) {
-      console.error("Failed to parse cards parameter:", e);
-      setError("Invalid card configuration. Please try again.");
-      setLoading(false);
-      return null;
-    }
-  }
+/**
+ * Reads a stored preset key as a label.
+ *
+ * Stored keys are camel case, so `anilistDarkGradient` becomes
+ * `Anilist Dark Gradient`. A record without a preset is drawn from its own
+ * saved colours, which is what the generator calls a custom palette.
+ *
+ * @param key - Stored preset name.
+ * @returns A readable label.
+ * @source
+ */
+function readPresetLabel(key: string | undefined): string {
+  if (!key || key === "custom") return "Custom palette";
+  const spaced = key.replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
-  async function resolveUserFromUsername(
-    username: string,
-  ): Promise<UserData | null> {
-    const userResult = await fetchUserByUsername(username, setError);
-    if (!userResult) return null;
-    return {
-      userId: String(userResult.userId),
-      username: userResult.username || undefined,
-      dataUpdatedAt: userResult.dataUpdatedAt,
-    };
-  }
-
-  async function resolveUserWithCardsForId(
-    userIdArg: string,
-  ): Promise<{ user: UserData | null; cards: CardData[] | null } | null> {
-    const userResult = await fetchUserById(userIdArg, setError);
-    if (!userResult) return null;
-    const cardsResult = await fetchCardsForUserId(userIdArg, setError);
-    if (!cardsResult) return null;
-    const resolvedCards = extractValidatedCards(cardsResult);
-    setCardsUpdatedAt(cardsResult.updatedAt);
-    return {
-      user: {
-        userId: String(userResult.userId),
-        username: userResult.username || undefined,
-        dataUpdatedAt: userResult.dataUpdatedAt,
-      },
-      cards: resolvedCards,
-    };
-  }
-
-  function extractValidatedCards(raw: unknown): CardData[] {
-    const a = (raw as ApiCards).cards || [];
-    return a.map(normalizeCardEntry).filter(Boolean) as CardData[];
-  }
-
-  async function resolveByParams(
-    userIdArg: string | null,
-    usernameArg: string | null,
-    cardsParamArg: string | null,
-  ): Promise<{
-    user: UserData | null;
-    cards: CardData[];
-    showAll: boolean;
-  } | null> {
-    let finalUser: UserData | null = null;
-    let finalCards: CardData[] = [];
-    let showAll = false;
-
-    if (cardsParamArg)
-      return await handleCardsParamFlow(cardsParamArg, userIdArg, usernameArg);
-
-    if (userIdArg) return await handleUserIdFlow(userIdArg);
-
-    if (usernameArg) return await handleUsernameFlow(usernameArg);
-
-    return { user: null, cards: [], showAll };
-  }
-
-  async function handleCardsParamFlow(
-    cardsParamArg: string,
-    userIdArg: string | null,
-    usernameArg: string | null,
-  ): Promise<{
-    user: UserData | null;
-    cards: CardData[];
-    showAll: boolean;
-  } | null> {
-    const parsed = resolveCardsFromParam(cardsParamArg);
-    if (!parsed) return null;
-    if (userIdArg) {
-      // The card list came from the URL, but the stats behind it did not, so
-      // the user record is still read for the timestamp the card URLs carry.
-      // A record that cannot be read is not fatal here: the cards are in the
-      // URL and can still be shown.
-      const userResult = await fetchUserById(userIdArg, ignoreError);
-      const storedCards = await fetchCardsForUserId(userIdArg, ignoreError);
-      setCardsUpdatedAt(storedCards?.updatedAt);
-      return {
-        user: {
-          userId: userIdArg,
-          username: usernameArg || userResult?.username || undefined,
-          dataUpdatedAt: userResult?.dataUpdatedAt,
-        },
-        cards: parsed,
-        showAll: false,
-      };
-    }
-    if (usernameArg) {
-      const finalUser = await resolveUserFromUsername(usernameArg);
-      if (!finalUser) return null;
-      const storedCards = await fetchCardsForUserId(
-        finalUser.userId,
-        ignoreError,
-      );
-      setCardsUpdatedAt(storedCards?.updatedAt);
-      return { user: finalUser, cards: parsed, showAll: false };
-    }
-    return { user: null, cards: parsed, showAll: false };
-  }
-
-  async function handleUserIdFlow(userIdArg: string): Promise<{
-    user: UserData | null;
-    cards: CardData[];
-    showAll: boolean;
-  } | null> {
-    const resolved = await resolveUserWithCardsForId(userIdArg);
-    if (!resolved) return null;
-    return { user: resolved.user, cards: resolved.cards || [], showAll: true };
-  }
-
-  async function handleUsernameFlow(usernameArg: string): Promise<{
-    user: UserData | null;
-    cards: CardData[];
-    showAll: boolean;
-  } | null> {
-    const finalUser = await resolveUserFromUsername(usernameArg);
-    if (!finalUser) return null;
-    let finalCards: CardData[] = [];
-    if (finalUser.userId) {
-      const cardsResult = await fetchCardsForUserId(finalUser.userId, setError);
-      if (!cardsResult) return null;
-      setCardsUpdatedAt(cardsResult.updatedAt);
-      finalCards = extractValidatedCards(cardsResult);
-    }
-    return {
-      user: finalUser,
-      cards: finalCards,
-      showAll: finalCards.length > 0,
-    };
-  }
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        let userId = searchParams.get("userId");
-        let username = searchParams.get("username");
-        const cardsParam = searchParams.get("cards");
-
-        if (!isValidUserId(userId)) {
-          userId = null;
-        }
-        if (!isValidUsername(username)) {
-          username = null;
-        }
-
-        let resolvedUserData: UserData | null = null;
-        let resolvedCards: CardData[] = [];
-
-        const resolved = await resolveByParams(userId, username, cardsParam);
-        if (!resolved) return;
-        setUserData(resolved.user);
-        setCards(resolved.cards);
-        if (resolved.showAll) setShowAllCards(true);
-        return;
-      } catch (err) {
-        console.error("Data loading error:", err);
-        setError("Error loading data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Errors are handled inside loadUserData's own try/catch/finally.
-    void loadUserData();
-  }, [searchParams]);
-
-  // Loading state with consistent styling
-  if (loading) {
-    return (
-      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
-        <LoadingSpinner size="lg" text="Loading user data..." />
-      </div>
-    );
-  }
-
-  // Error state with consistent styling
-  if (error) {
-    return (
-      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md"
-        >
-          <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertCircle className="h-10 w-10 text-red-500" />
-            </div>
-            <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-              Something Went Wrong
-            </h1>
-            <p className="mb-6 text-slate-600 dark:text-slate-300">{error}</p>
-            <Button
-              asChild
-              className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
-            >
-              <Link href="/">Return Home</Link>
-            </Button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  const cardDataVersion = buildCardDataVersion(userData, cardsUpdatedAt);
-  // Every card on the page shares one version. Without a stored version the
-  // page load's own time stands in, and it must be the same for every card,
-  // so it is taken once here rather than inside the loop.
-  const cardVersion = cardDataVersion ?? String(Date.now());
-
-  const cardTypes = cards.map((card) => {
+/**
+ * Turns the stored card configuration into the entries the page renders.
+ *
+ * @param cards - Stored card configurations.
+ * @param userId - Profile the cards belong to.
+ * @param version - Cache-busting token shared by every card in the set.
+ * @returns Cards ready to render, in display order.
+ * @source
+ */
+function buildSavedCards(
+  cards: CardData[],
+  userId: string | undefined,
+  version: string,
+): SavedCard[] {
+  const built = cards.map<SavedCard>((card) => {
     const variation = card.variation || "default";
     const displayName = displayNames[card.cardName] || card.cardName;
     const isStatusDist = [
@@ -625,34 +396,17 @@ export function UserPageClient() {
       "animeStaff",
       "mangaStaff",
     ].includes(card.cardName);
-
-    // Determine the effective color preset:
-    // 1. If card has a stored colorPreset, use it
-    // 2. If no colorPreset stored (legacy data) or has gradient colors, use "custom"
-    // Always include colorPreset in URL to tell the API how to resolve colors
-    const resolveEffectivePreset = (): string => {
-      // If card has a stored preset, use it
-      if (card.colorPreset) return card.colorPreset;
-      // Legacy data or gradient colors need "custom" to force DB lookup
-      return "custom";
-    };
-    const effectivePreset = resolveEffectivePreset();
-
-    // Never include individual colors in URL - let API resolve from preset or DB
-    const includeColors = false;
-
-    // Only include piePercentages for pie-like (pie/donut) variations
     const isPieLikeVariation = variation === "pie" || variation === "donut";
+
+    /* A stored preset wins. Legacy records without one fall back to `custom`,
+       which makes the API resolve the colours from the saved record. */
+    const effectivePreset = card.colorPreset ?? "custom";
 
     const urlParams = mapStoredConfigToCardUrlParams(
       {
         cardName: card.cardName,
         variation,
         colorPreset: effectivePreset,
-        titleColor: includeColors ? card.titleColor : undefined,
-        backgroundColor: includeColors ? card.backgroundColor : undefined,
-        textColor: includeColors ? card.textColor : undefined,
-        circleColor: includeColors ? card.circleColor : undefined,
         borderColor: card.borderColor,
         borderRadius: card.borderRadius,
         showFavorites: isFavoriteCapable ? card.showFavorites : undefined,
@@ -665,39 +419,31 @@ export function UserPageClient() {
           : {}),
       },
       {
-        userId: userData?.userId,
-        includeColors: includeColors,
+        userId,
+        includeColors: false,
         defaultToCustomPreset: true,
       },
     );
 
     const svgUrl = buildCardUrlWithParams(urlParams);
-    // A URL with no `_t` at all is cached by the browser and the CDN until
-    // something else changes it, and nothing else does when the version is
-    // unknown. The record gains a version on its next write, so until then
-    // the URL carries the time of this page load. That is the behaviour the
-    // old always-changing timestamp produced, which is the safe direction:
-    // a card that may be out of date is asked for again rather than served
-    // from a copy nobody knows is current.
-    const versionedSvgUrl = `${svgUrl}&_t=${encodeURIComponent(cardVersion)}`;
-    const cardBorderRadiusValue = getCardBorderRadius(card.borderRadius);
+
     return {
       type: displayName,
-      svgUrl: versionedSvgUrl,
       rawType: card.cardName,
-      borderRadius: cardBorderRadiusValue,
+      variation: VARIATION_LABEL_MAP[variation] ?? variation,
+      preset: readPresetLabel(card.colorPreset),
+      /* A URL with no `_t` is cached until something else changes it, and
+         nothing else does when the version is unknown. The page-load time
+         stands in, which is the safe direction: a card that may be out of date
+         is fetched again rather than served from an unknown copy. */
+      svgUrl: `${svgUrl}&_t=${encodeURIComponent(version)}`,
+      borderRadius: getCardBorderRadius(card.borderRadius),
     };
   });
 
-  /**
-   * Preferred ordering for specific card types so they appear earlier in the UI.
-   * @source
-   */
-  const priorityOrder = ["animeStats", "mangaStats", "socialStats"];
-
-  const sortedCardTypes = [...cardTypes].sort((a, b) => {
-    const aPriority = priorityOrder.indexOf(a.rawType);
-    const bPriority = priorityOrder.indexOf(b.rawType);
+  return built.sort((a, b) => {
+    const aPriority = PRIORITY_ORDER.indexOf(a.rawType);
+    const bPriority = PRIORITY_ORDER.indexOf(b.rawType);
 
     if (aPriority !== -1 || bPriority !== -1) {
       if (aPriority === -1) return 1;
@@ -707,293 +453,235 @@ export function UserPageClient() {
 
     return a.type.localeCompare(b.type);
   });
+}
 
-  // Guard: Ensure userData is present before rendering URLs
-  if (!userData) {
+/**
+ * The cards saved for one AniList profile.
+ *
+ * The page answers one question: what did the generator make for this profile,
+ * and how do I take it? The masthead names the profile and states what the set
+ * holds. The set follows, opening on the first card at full size. A short guide
+ * explains the one thing a card is used for besides downloading it, and the
+ * closing action sends the visitor back to the generator.
+ *
+ * Three query shapes resolve here: `userId`, `username`, and `cards`. The
+ * `cards` parameter carries a configuration the visitor just built, so those
+ * cards are shown without reading the stored set.
+ * @source
+ */
+export function UserPageClient() {
+  const searchParams = useSearchParams();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [cards, setCards] = useState<CardData[]>([]);
+  const [cardsUpdatedAt, setCardsUpdatedAt] = useState<string | undefined>(
+    undefined,
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  /** True when the cards came from the URL rather than the stored set. */
+  const [fromUrl, setFromUrl] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    /**
+     * Reads the cards stored for a profile.
+     * @param userId - Profile to read.
+     * @source
+     */
+    const readStoredCards = async (
+      userId: string,
+    ): Promise<CardData[] | null> => {
+      const result = await fetchCardsForUserId(userId, setError);
+      if (!result) return null;
+      setCardsUpdatedAt(result.updatedAt);
+      return (result.cards ?? [])
+        .map(normalizeCardEntry)
+        .filter((card): card is CardData => card !== null);
+    };
+
+    /**
+     * Resolves a username to a profile record.
+     * @param username - Handle to read.
+     * @source
+     */
+    const readUserByUsername = async (
+      username: string,
+    ): Promise<UserData | null> => {
+      const result = await fetchUserByUsername(username, setError);
+      if (!result) return null;
+      return {
+        userId: String(result.userId),
+        username: result.username || undefined,
+        dataUpdatedAt: result.dataUpdatedAt,
+      };
+    };
+
+    const load = async () => {
+      try {
+        let userId = searchParams.get("userId");
+        let username = searchParams.get("username");
+        const cardsParam = searchParams.get("cards");
+
+        if (!isValidUserId(userId)) userId = null;
+        if (!isValidUsername(username)) username = null;
+
+        /* A configuration in the URL describes cards the visitor just built.
+           The profile record is still read for the timestamps the card URLs
+           carry, but a failure there does not hide the cards. */
+        if (cardsParam) {
+          let parsed: CardData[];
+          try {
+            parsed = parseAndValidateCards(cardsParam);
+          } catch {
+            setError("The card configuration in this link could not be read.");
+            return;
+          }
+
+          let resolvedUser: UserData | null = null;
+
+          if (userId) {
+            const record = await fetchUserById(userId, ignoreError);
+            const stored = await fetchCardsForUserId(userId, ignoreError);
+            if (stored) setCardsUpdatedAt(stored.updatedAt);
+            resolvedUser = {
+              userId,
+              username: username || record?.username || undefined,
+              dataUpdatedAt: record?.dataUpdatedAt,
+            };
+          } else if (username) {
+            resolvedUser = await readUserByUsername(username);
+            if (!resolvedUser) return;
+            const stored = await fetchCardsForUserId(
+              resolvedUser.userId,
+              ignoreError,
+            );
+            if (stored) setCardsUpdatedAt(stored.updatedAt);
+          }
+
+          if (cancelled) return;
+          setUserData(resolvedUser);
+          setCards(parsed);
+          setFromUrl(true);
+          return;
+        }
+
+        /* A numeric id is the address the generator hands over, so the stored
+           set is read in full. */
+        if (userId) {
+          const record = await fetchUserById(userId, setError);
+          if (!record) return;
+          const stored = await readStoredCards(userId);
+          if (!stored) return;
+
+          if (cancelled) return;
+          setUserData({
+            userId: String(record.userId),
+            username: record.username || undefined,
+            dataUpdatedAt: record.dataUpdatedAt,
+          });
+          setCards(stored);
+          return;
+        }
+
+        if (username) {
+          const resolved = await readUserByUsername(username);
+          if (!resolved) return;
+          const stored = await readStoredCards(resolved.userId);
+          if (!stored) return;
+
+          if (cancelled) return;
+          setUserData(resolved);
+          setCards(stored);
+          return;
+        }
+
+        /* Nothing to read. The page says so rather than guessing a profile. */
+        if (cancelled) return;
+        setUserData(null);
+        setCards([]);
+      } catch (error_) {
+        console.error("Data loading error:", error_);
+        if (!cancelled) setError("The cards could not be loaded.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
+
+  const savedCards = useMemo(() => {
+    if (cards.length === 0) return [];
+    const version =
+      buildCardDataVersion(userData, cardsUpdatedAt) ?? String(Date.now());
+    return buildSavedCards(cards, userData?.userId, version);
+  }, [cards, cardsUpdatedAt, userData]);
+
+  if (loading) {
     return (
-      <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md"
-        >
-          <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-              <User className="h-10 w-10 text-slate-400" />
-            </div>
-            <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-              User Not Found
-            </h1>
-            <p className="mb-6 text-slate-600 dark:text-slate-300">
-              Unable to load user data. Please try again.
-            </p>
-            <Button
-              asChild
-              className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
-            >
-              <Link href="/">Return Home</Link>
-            </Button>
-          </div>
-        </motion.div>
-      </div>
+      <PaperSurface>
+        <UserPageState state="loading" />
+      </PaperSurface>
     );
   }
 
-  return (
-    <div className="relative w-full overflow-hidden">
-      <div className="relative z-10">
-        {/* Hero Section */}
-        <div className="relative">
-          {cardTypes.length > 0 && <FloatingCardsLayer layout="search" />}
-          <section className="relative w-full overflow-hidden">
-            <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="mx-auto flex max-w-4xl flex-col items-center text-center"
-              >
-                {/* Badge */}
-                <motion.div variants={itemVariants}>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
-                    <Sparkles className="h-4 w-4" />
-                    User Statistics
-                  </span>
-                </motion.div>
+  if (error) {
+    return (
+      <PaperSurface>
+        <UserPageState state="error" message={error} />
+      </PaperSurface>
+    );
+  }
 
-                {/* Main heading */}
-                <motion.h1
-                  variants={itemVariants}
-                  className="mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl md:text-6xl dark:text-white"
-                >
-                  {userData?.username ? (
-                    <>
-                      {userData.username}&apos;s{" "}
-                      <span className="relative">
-                        <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                          Stat Cards
-                        </span>
-                        <motion.span
-                          className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                          animate={{ opacity: [0.5, 0.8, 0.5] }}
-                          transition={{ duration: 3, repeat: Infinity }}
-                        />
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      User{" "}
-                      <span className="relative">
-                        <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                          Stat Cards
-                        </span>
-                        <motion.span
-                          className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                          animate={{ opacity: [0.5, 0.8, 0.5] }}
-                          transition={{ duration: 3, repeat: Infinity }}
-                        />
-                      </span>
-                    </>
-                  )}
-                </motion.h1>
-              </motion.div>
+  if (!userData) {
+    return (
+      <PaperSurface>
+        <UserPageState state="missing" />
+      </PaperSurface>
+    );
+  }
+
+  const fullSetHref = `/user?userId=${encodeURIComponent(userData.userId)}${
+    userData.username
+      ? `&username=${encodeURIComponent(userData.username)}`
+      : ""
+  }`;
+
+  return (
+    <ErrorBoundary>
+      <PaperSurface>
+        <UserMasthead
+          username={userData.username}
+          userId={userData.userId}
+          cardCount={savedCards.length}
+          dataUpdatedAt={userData.dataUpdatedAt}
+        />
+
+        {savedCards.length > 0 ? (
+          <>
+            <SavedCardSet
+              cards={savedCards}
+              username={userData.username}
+              userId={userData.userId}
+              partial={fromUrl}
+              fullSetHref={fullSetHref}
+            />
+            <SavedCardGuide />
+            <SavedCardClosing />
+          </>
+        ) : (
+          <section className={styles.sectionLast}>
+            <div className={styles.sheet}>
+              <UserPageState state="empty" />
             </div>
           </section>
-
-          {/* Info Cards Section */}
-          {cardTypes.length > 0 && (
-            <section className="relative w-full overflow-hidden pb-8">
-              <div className="relative container mx-auto px-4">
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2"
-                >
-                  {/* Cache Notice */}
-                  <div className="group rounded-2xl border border-blue-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-blue-300/50 hover:shadow-lg dark:border-blue-800/30 dark:bg-slate-800/80 dark:hover:border-blue-700/50">
-                    <div className="flex items-start gap-4">
-                      <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
-                        <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                          Cache Information
-                        </h3>
-                        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-                          SVG cards are cached for 24 hours for better
-                          performance.
-                        </p>
-                        <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
-                          <p className="flex items-center gap-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                            Hard refresh:{" "}
-                            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
-                              Ctrl+F5
-                            </kbd>{" "}
-                            or{" "}
-                            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
-                              Cmd+Shift+R
-                            </kbd>
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                            <span>Clear your browser cache</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Credits Notice */}
-                  <div className="group rounded-2xl border border-green-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-green-300/50 hover:shadow-lg dark:border-green-800/30 dark:bg-slate-800/80 dark:hover:border-green-700/50">
-                    <div className="flex items-start gap-4">
-                      <div className="rounded-xl bg-green-100 p-3 dark:bg-green-900/30">
-                        <Heart className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                          Spread the Love
-                        </h3>
-                        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-                          Found AniCards useful? Help others discover it too! A
-                          credit to myself or the site would be greatly
-                          appreciated.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <a
-                            href="https://anilist.co/user/Alpha49"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            @Alpha49
-                          </a>
-                          <a
-                            href={getAbsoluteUrl("/")}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            AniCards
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Cards Section */}
-        <section className="relative mx-auto w-full max-w-[80vw] overflow-hidden py-8 lg:py-16">
-          <div className="relative container px-4">
-            {cardTypes.length > 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="flex flex-col items-center gap-8"
-              >
-                {/* View All Cards Button */}
-                {!showAllCards && cardTypes.length < 11 && (
-                  <Button
-                    asChild
-                    size="lg"
-                    className="group rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
-                  >
-                    <Link
-                      href={{
-                        pathname: "/user",
-                        query: {
-                          userId: userData?.userId,
-                          username: userData?.username,
-                        },
-                      }}
-                    >
-                      <span className="mr-2">View All Generated Cards</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </Button>
-                )}
-
-                {/* Cards Display */}
-                <div className="w-full">
-                  <CardList cardTypes={sortedCardTypes} />
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex justify-center py-16"
-              >
-                <div className="w-full max-w-md rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
-                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                    <Info className="h-10 w-10 text-slate-400" />
-                  </div>
-                  <h3 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-                    No Cards Found
-                  </h3>
-                  <p className="mb-8 text-slate-600 dark:text-slate-300">
-                    This user hasn&apos;t generated any stat cards yet.
-                  </p>
-                  <Button
-                    asChild
-                    size="lg"
-                    className="group w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
-                  >
-                    <Link href="/">
-                      Generate Your First Card
-                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="relative w-full overflow-hidden py-20">
-          <div className="relative container mx-auto px-4">
-            <motion.div className="mx-auto max-w-4xl">
-              <CTASection
-                title={
-                  <>
-                    Explore More{" "}
-                    <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      Projects
-                    </span>
-                  </>
-                }
-                subtitle={
-                  "Discover other tools and utilities built for the anime community."
-                }
-                primary={{
-                  label: (
-                    <>
-                      View Projects
-                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                    </>
-                  ),
-                  href: "/projects",
-                  asChild: true,
-                  variant: "outline",
-                  className:
-                    "border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:text-white",
-                }}
-              />
-            </motion.div>
-          </div>
-        </section>
-      </div>
-    </div>
+        )}
+      </PaperSurface>
+    </ErrorBoundary>
   );
 }

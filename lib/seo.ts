@@ -196,17 +196,17 @@ export const seoConfigs = {
   },
 
   user: {
-    title: "User Stats - AniCards",
+    title: "Saved Stat Cards - AniCards",
     description:
-      "View and download personalized anime and manga stat cards. Generate beautiful visualizations of AniList data with customizable colors and designs.",
+      "Every AniList stat card the generator made for a profile, saved in one place. Download the set, copy a card's link, or embed it on an AniList profile.",
     keywords: [
-      "user stats",
-      "anime statistics",
-      "manga statistics",
-      "stat cards",
-      "anilist data",
-      "download cards",
-      "custom colors",
+      "saved anilist cards",
+      "anilist stat cards",
+      "anime statistics cards",
+      "manga statistics cards",
+      "download anilist cards",
+      "anilist profile card",
+      "anilist about image",
     ],
     canonical: `${SITE_URL}/user`,
   },

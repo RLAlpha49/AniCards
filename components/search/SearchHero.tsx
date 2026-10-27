@@ -29,7 +29,7 @@ export function SearchHero({ onLoadingChange }: SearchHeroProps) {
         <p className={styles.edition}>
           <span>Saved cards</span>
           <span className={styles.editionRule} aria-hidden="true" />
-          <span>Open what you already made</span>
+          <span>Open the set you already made</span>
         </p>
 
         <div className={styles.heroRule} />
@@ -58,8 +58,8 @@ export function SearchHero({ onLoadingChange }: SearchHeroProps) {
             <p className={styles.lede}>
               Every card the generator makes is saved against the AniList
               profile it came from. Enter a handle, or that profile&apos;s
-              numeric ID, to open its saved cards and copy, download, or share
-              them. Nobody has to run the generator a second time.
+              numeric ID, to open the set you already made and copy, download,
+              or embed the cards. Nobody has to run the generator a second time.
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export function SearchHero({ onLoadingChange }: SearchHeroProps) {
             </div>
             <div>
               <dt>Opens</dt>
-              <dd>Saved cards</dd>
+              <dd>The saved set</dd>
             </div>
             <div>
               <dt>Generator</dt>
