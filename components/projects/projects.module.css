@@ -798,193 +798,6 @@
   color: var(--ink-soft);
 }
 
-/* ── closing ─────────────────────────────────────────────────── */
-
-.closing {
-  padding-bottom: clamp(2.5rem, 5vw, 4rem);
-}
-
-.closingBox {
-  position: relative;
-  border: 2px solid var(--ink);
-  padding: clamp(2.4rem, 5vw, 4.2rem) clamp(1.5rem, 5vw, 4rem);
-  background:
-    radial-gradient(
-      ellipse 70% 100% at 50% 0%,
-      rgba(166, 124, 51, 0.13),
-      transparent 70%
-    ),
-    rgba(251, 245, 231, 0.5);
-  text-align: center;
-}
-
-:global(.dark) .closingBox {
-  background:
-    radial-gradient(
-      ellipse 70% 100% at 50% 0%,
-      rgba(198, 154, 82, 0.12),
-      transparent 70%
-    ),
-    rgba(34, 28, 23, 0.6);
-}
-
-.closingBox::before,
-.closingBox::after {
-  content: "";
-  position: absolute;
-  right: 0.55rem;
-  left: 0.55rem;
-  height: 1px;
-  background: var(--line);
-}
-
-.closingBox::before {
-  top: 0.55rem;
-}
-
-.closingBox::after {
-  bottom: 0.55rem;
-}
-
-.closingSeal {
-  display: inline-grid;
-  height: 2.4rem;
-  width: 2.4rem;
-  place-items: center;
-  margin-bottom: 1.3rem;
-  background: var(--vermillion);
-  color: #f8efdc;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
-}
-
-.closingBox:hover .closingSeal {
-  transform: rotate(-7deg) scale(1.06);
-}
-
-.closingBox h2 {
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: clamp(1.9rem, 4.2vw, 3.2rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.closingBox h2 em {
-  font-style: italic;
-  color: var(--indigo);
-}
-
-.closingBox p {
-  margin: 1rem auto 0;
-  max-width: 32rem;
-  font-size: 0.92rem;
-  line-height: 1.8;
-  color: var(--ink-soft);
-}
-
-.closingActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 1.2rem 1.8rem;
-  margin-top: 1.9rem;
-}
-
-.closingPrimary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.7rem;
-  border: 2px solid var(--vermillion);
-  background: var(--vermillion);
-  color: #fbf3e2;
-  padding: 0.95rem 2.4rem;
-  font-size: 0.76rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    background-color 200ms ease,
-    border-color 200ms ease;
-}
-
-.closingPrimary:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-}
-
-.closingPrimaryIcon {
-  width: 1rem;
-  height: 1rem;
-  transition: transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
-}
-
-.closingPrimary:hover .closingPrimaryIcon {
-  transform: translateX(4px);
-}
-
-.closingSecondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  border-bottom: 1px solid var(--ink);
-  padding-bottom: 0.3rem;
-  font-size: 0.74rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink);
-  transition:
-    gap 180ms ease,
-    color 180ms ease,
-    border-color 180ms ease;
-}
-
-.closingSecondary:hover {
-  gap: 0.85rem;
-  border-color: var(--vermillion);
-  color: var(--vermillion);
-}
-
-.closingIcon {
-  display: inline-flex;
-  flex: none;
-}
-
-.closingTop {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-top: 1.6rem;
-  border-bottom: 1px solid transparent;
-  padding-bottom: 0.2rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition:
-    border-color 200ms ease,
-    color 200ms ease;
-}
-
-.closingTop:hover {
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.closingTopIcon {
-  width: 0.8rem;
-  height: 0.8rem;
-}
-
-.closingFine {
-  margin-top: 1.2rem !important;
-  font-size: 0.6rem !important;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
 /* ── motion ──────────────────────────────────────────────────── */
 
 @keyframes panelIn {
@@ -1017,10 +830,7 @@
 
 .startRow:focus-visible,
 .entryAction:focus-visible,
-.entrySource:focus-visible,
-.closingPrimary:focus-visible,
-.closingSecondary:focus-visible,
-.closingTop:focus-visible {
+.entrySource:focus-visible {
   outline: 2px solid var(--vermillion);
   outline-offset: 3px;
 }
@@ -1146,15 +956,6 @@
   .entrySource {
     justify-content: center;
   }
-
-  .closingActions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .closingPrimary {
-    justify-content: center;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1165,11 +966,7 @@
   .entryAction,
   .entryActionIcon,
   .entrySource,
-  .closingSeal,
-  .closingPrimary,
-  .closingPrimaryIcon,
-  .closingSecondary,
-  .closingTop {
+  .entrySourceNote {
     transition: none;
     animation: none;
   }
@@ -1179,10 +976,7 @@
   .startRowChosen,
   .startRow:hover .startIcon,
   .entryAction:hover,
-  .entryAction:hover .entryActionIcon,
-  .closingBox:hover .closingSeal,
-  .closingPrimary:hover .closingPrimaryIcon,
-  .closingSecondary:hover {
+  .entryAction:hover .entryActionIcon {
     transform: none;
   }
 }

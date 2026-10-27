@@ -810,165 +810,6 @@
   color: var(--vermillion);
 }
 
-/* ── closing ─────────────────────────────────────────────────── */
-
-.closing {
-  padding-bottom: clamp(2.5rem, 5vw, 4rem);
-}
-
-.cta {
-  position: relative;
-  border: 2px solid var(--ink);
-  padding: clamp(2.4rem, 5.5vw, 4.2rem) clamp(1.5rem, 5vw, 4rem);
-  background:
-    radial-gradient(
-      ellipse 70% 100% at 50% 0%,
-      rgba(166, 124, 51, 0.13),
-      transparent 70%
-    ),
-    rgba(251, 245, 231, 0.5);
-  text-align: center;
-}
-
-:global(.dark) .cta {
-  background:
-    radial-gradient(
-      ellipse 70% 100% at 50% 0%,
-      rgba(198, 154, 82, 0.12),
-      transparent 70%
-    ),
-    rgba(34, 28, 23, 0.6);
-}
-
-.cta::before,
-.cta::after {
-  content: "";
-  position: absolute;
-  right: 0.55rem;
-  left: 0.55rem;
-  height: 1px;
-  background: var(--line);
-}
-
-.cta::before {
-  top: 0.55rem;
-}
-
-.cta::after {
-  bottom: 0.55rem;
-}
-
-.ctaSeal {
-  display: inline-grid;
-  height: 2.4rem;
-  width: 2.4rem;
-  place-items: center;
-  margin-bottom: 1.3rem;
-  background: var(--vermillion);
-  color: #f8efdc;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
-}
-
-.cta:hover .ctaSeal {
-  transform: rotate(-7deg) scale(1.06);
-}
-
-.cta h2 {
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: clamp(1.9rem, 4.2vw, 3.2rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.cta h2 em {
-  font-style: italic;
-  color: var(--indigo);
-}
-
-.cta p {
-  margin: 1.1rem auto 0;
-  max-width: 32rem;
-  font-size: 0.93rem;
-  line-height: 1.85;
-  color: var(--ink-soft);
-}
-
-.ctaActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 1.4rem 2rem;
-  margin-top: 1.9rem;
-}
-
-.ctaButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.7rem;
-  border: 2px solid var(--vermillion);
-  background: var(--vermillion);
-  color: #fbf3e2;
-  padding: 1rem 2.4rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  transition:
-    background-color 200ms ease,
-    border-color 200ms ease;
-}
-
-.ctaButton:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-}
-
-.ctaButtonIcon {
-  width: 1rem;
-  height: 1rem;
-  transition: transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
-}
-
-.ctaButton:hover .ctaButtonIcon {
-  transform: translateX(4px);
-}
-
-.ctaSecondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  border-bottom: 1px solid var(--ink);
-  padding-bottom: 0.35rem;
-  color: var(--ink);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  transition:
-    gap 180ms ease,
-    color 180ms ease,
-    border-color 180ms ease;
-}
-
-.ctaSecondary:hover {
-  gap: 0.9rem;
-  border-color: var(--vermillion);
-  color: var(--vermillion);
-}
-
-.ctaSecondaryIcon {
-  width: 0.9rem;
-  height: 0.9rem;
-}
-
-.ctaFine {
-  margin-top: 1.4rem !important;
-  font-size: 0.62rem !important;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
 /* ── motion ──────────────────────────────────────────────────── */
 
 /* Paper settles onto the board. Opacity and blur only, so the hover and idle
@@ -1057,9 +898,7 @@
 
 .stubAction:focus-visible,
 .dirAddress:focus-visible,
-.inlineLink:focus-visible,
-.ctaButton:focus-visible,
-.ctaSecondary:focus-visible {
+.inlineLink:focus-visible {
   outline: 2px solid var(--vermillion);
   outline-offset: 3px;
 }
@@ -1189,10 +1028,7 @@
   .dirCard,
   .dirIcon,
   .dirAddress,
-  .ctaSeal,
-  .ctaButton,
-  .ctaButtonIcon,
-  .ctaSecondary {
+  .dirAddress {
     transition: none;
   }
 
@@ -1204,8 +1040,6 @@
   .stubAction:hover,
   .stubAction:hover .stubActionIcon,
   .dirCard:hover .dirIcon,
-  .cta:hover .ctaSeal,
-  .ctaButton:hover .ctaButtonIcon,
   .printFrame:hover .print,
   .printFrame:hover .printUnder,
   .printFrame:hover .seal {
