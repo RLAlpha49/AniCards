@@ -18,6 +18,21 @@ async function stubGenerateEndpoints(page: import("@playwright/test").Page) {
     });
   });
 
+  await page.route("**/card.svg**", async (route) => {
+    const url = new URL(route.request().url());
+    const borderColor = url.searchParams.get("borderColor");
+    const border = borderColor
+      ? `<rect fill="none" stroke="${borderColor}" width="450" height="195"/>`
+      : "";
+
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="450" height="195"><rect fill="#1a1a2e" width="450" height="195"/>${border}</svg>`,
+      headers: { "Access-Control-Allow-Origin": "*" },
+    });
+  });
+
   await page.route("**/api/anilist**", async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
     const query: string = body.query ?? "";
