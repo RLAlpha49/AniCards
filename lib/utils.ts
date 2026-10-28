@@ -26,7 +26,7 @@ type GlobalWithCache = typeof globalThis & {
 const _envApiBase =
   typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
 
-function resolveApiBase(url?: string): string {
+export function resolveApiBase(url?: string): string {
   if (!url) return "https://api.anicards.alpha49.com";
   try {
     const parsed = new URL(url);

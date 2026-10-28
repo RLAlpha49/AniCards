@@ -5,7 +5,7 @@ import {
   apiJsonHeaders,
   jsonWithCors,
 } from "@/lib/api-utils";
-import type { ConversionFormat } from "@/lib/utils";
+import { resolveApiBase, type ConversionFormat } from "@/lib/utils";
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -798,6 +798,7 @@ export async function POST(request: NextRequest) {
     }
 
     const allowedDomains: string[] = [
+      new URL(resolveApiBase(process.env.NEXT_PUBLIC_API_URL)).hostname,
       ...(process.env.NEXT_PUBLIC_API_URL
         ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
         : []),
