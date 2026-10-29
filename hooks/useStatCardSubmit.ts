@@ -286,19 +286,6 @@ function remainingBudgetMs(start: number, totalTimeoutMs?: number) {
     : Infinity;
 }
 
-/**
- * Hook exposing stat-card submission helpers and state.
- * Provides `loading`, `error`, `submit`, and `clearError` to callers.
- * Use `submit` to begin the multi-step write process (fetch AniList data and store results).
- * @returns An object containing submission state and control functions.
- * @source
- */
-export function useStatCardSubmit() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [retryAttempt, setRetryAttempt] = useState(0);
-  const [retryOperation, setRetryOperation] = useState<string | null>(null);
-
   /**
    * Perform a fetch with an abort timeout and normalize errors with context.
    * @param url - Resource path to request.
@@ -376,7 +363,7 @@ export function useStatCardSubmit() {
     return response;
   }
 
-  async function fetchWithRetry(
+  export async function fetchWithRetry(
     url: string,
     options: RequestInit,
     config: {
@@ -440,6 +427,15 @@ export function useStatCardSubmit() {
       }
     }
   }
+
+/**
+ * Hook exposing stat-card submission helpers and state.
+ */
+export function useStatCardSubmit() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [retryOperation, setRetryOperation] = useState<string | null>(null);
 
   /**
    * Validate the submission parameters and throw a descriptive Error if invalid.
