@@ -1,4 +1,5 @@
 import { buildApiUrl } from "@/lib/utils";
+import { colorPresets } from "@/lib/card-catalogue";
 
 /** Default card generation endpoint used for example previews. @source */
 export const DEFAULT_BASE_CARD_URL = buildApiUrl("/card.svg");
@@ -346,7 +347,7 @@ export interface CardUrlParams {
   userName?: string;
   /** Variation name (default, vertical, pie, etc.) */
   variation?: string;
-  /** Color preset name or "custom" for database-stored custom colors */
+  /** Color preset name or "custom" for stored colors */
   colorPreset?: string;
   /** Title color (hex string) */
   titleColor?: string;
@@ -463,10 +464,17 @@ export function mapStoredConfigToCardUrlParams(
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
 
-  const colorPreset = resolveColorPreset(
-    candidate.colorPreset,
-    defaultToCustom,
-  );
+  let colorPreset = resolveColorPreset(candidate.colorPreset, defaultToCustom);
+  if (
+    colorPreset === "custom" &&
+    includeColors &&
+    candidate.titleColor &&
+    candidate.backgroundColor &&
+    candidate.textColor &&
+    candidate.circleColor
+  ) {
+    colorPreset = undefined;
+  }
 
   const params: CardUrlParams = {
     cardType,
@@ -487,6 +495,49 @@ export function mapStoredConfigToCardUrlParams(
       params.backgroundColor = candidate.backgroundColor;
     if (candidate.textColor) params.textColor = candidate.textColor;
     if (candidate.circleColor) params.circleColor = candidate.circleColor;
+
+    if (
+      !colorPreset &&
+      params.titleColor &&
+      params.backgroundColor &&
+      params.textColor &&
+      params.circleColor
+    ) {
+      const keys = [
+        "titleColor",
+        "backgroundColor",
+        "textColor",
+        "circleColor",
+      ] as const;
+      const originalColors = keys.map((key) => params[key]!);
+      let shortest = new URLSearchParams(
+        keys.map((key, index) => [key, originalColors[index]]),
+      ).toString().length;
+
+      for (const [name, preset] of Object.entries(colorPresets)) {
+        if (name === "custom" || preset.colors.length < 4) continue;
+        const overrides = keys.flatMap((key, index) => {
+          const color = preset.colors[index];
+          const serialized =
+            typeof color === "string" ? color : JSON.stringify(color);
+          return serialized === originalColors[index]
+            ? []
+            : [[key, originalColors[index]]];
+        });
+        const length = new URLSearchParams([
+          ["colorPreset", name],
+          ...overrides,
+        ]).toString().length;
+        if (length < shortest) {
+          shortest = length;
+          params.colorPreset = name;
+          for (const key of keys) delete params[key];
+          for (const [key, value] of overrides) {
+            params[key as (typeof keys)[number]] = value;
+          }
+        }
+      }
+    }
   }
 
   addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);
@@ -501,13 +552,11 @@ export function mapStoredConfigToCardUrlParams(
     candidate.showPiePercentages,
   );
 
-  if (typeof candidate.gridCols === "number") {
-    const n = Math.trunc(candidate.gridCols);
-    params.gridCols = Math.max(1, Math.min(5, n));
-  }
-  if (typeof candidate.gridRows === "number") {
-    const n = Math.trunc(candidate.gridRows);
-    params.gridRows = Math.max(1, Math.min(5, n));
+  if (baseCardType === "favoritesGrid") {
+    const cols = Number.isFinite(candidate.gridCols) ? candidate.gridCols! : 3;
+    const rows = Number.isFinite(candidate.gridRows) ? candidate.gridRows! : 3;
+    params.gridCols = Math.max(1, Math.min(5, Math.trunc(cols)));
+    params.gridRows = Math.max(1, Math.min(5, Math.trunc(rows)));
   }
 
   return params;
@@ -580,17 +629,10 @@ export function buildCardUrlWithParams(
   // Variation
   setParamIfDefined(searchParams, "variation", params.variation);
 
-  // Color preset (if set, instructs the server to use the named preset; if
-  // "custom", the server will load saved DB colors and ignore any URL color
-  // params). Individual color params are always included when present; the
-  // server enforces their precedence (URL colors override presets unless the
-  // effective preset is 'custom').
+  // Custom presets use stored colors; named presets can be rendered from the URL.
   setParamIfDefined(searchParams, "colorPreset", params.colorPreset);
 
-  // Individual colors - always include any color params provided by the
-  // caller. Server-side color resolution implements the precedence: if
-  // the effective preset is "custom", the server ignores URL color
-  // params, otherwise URL individual colors override preset colors.
+  // Individual colors override named presets on self-contained URLs.
   setParamIfDefined(searchParams, "titleColor", params.titleColor);
   setParamIfDefined(searchParams, "backgroundColor", params.backgroundColor);
   setParamIfDefined(searchParams, "textColor", params.textColor);

@@ -562,7 +562,10 @@ export function useStatCardSubmit() {
     borderColor,
     borderRadius,
     favoritesGrid,
-  }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
+  }: SubmitParams): Promise<{
+    success: boolean;
+    userId?: string;
+  }> => {
     setLoading(true);
     setError(null);
     setRetryAttempt(0);

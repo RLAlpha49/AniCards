@@ -8,6 +8,7 @@ import { displayNames } from "@/lib/card-data/validation";
 import {
   getCardBorderRadius,
   getResponseErrorMessage,
+  isGradient,
   parseResponsePayload,
 } from "@/lib/utils";
 import {
@@ -16,6 +17,7 @@ import {
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
 import { buildCardVersion } from "@/lib/server/card-version";
+import type { ColorValue } from "@/lib/types/card";
 import { UserMasthead } from "./UserMasthead";
 import { SavedCardSet } from "./SavedCardSet";
 import { SavedCardClosing, SavedCardGuide } from "./SavedCardGuide";
@@ -258,6 +260,15 @@ function getStringField(
   return typeof v === "string" ? v : undefined;
 }
 
+function getColorField(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = obj[key];
+  if (typeof value === "string") return value;
+  return isGradient(value as ColorValue) ? JSON.stringify(value) : undefined;
+}
+
 /**
  * Safely read a boolean property from a Record-like object.
  * Returns the boolean value or undefined if not present or not a boolean.
@@ -307,10 +318,10 @@ function normalizeCardEntry(raw: unknown): CardData | null {
     showFavorites: getBooleanField(r, "showFavorites"),
     borderRadius: getFiniteNumberField(r, "borderRadius"),
     // Color configuration
-    titleColor: getStringField(r, "titleColor"),
-    backgroundColor: getStringField(r, "backgroundColor"),
-    textColor: getStringField(r, "textColor"),
-    circleColor: getStringField(r, "circleColor"),
+    titleColor: getColorField(r, "titleColor"),
+    backgroundColor: getColorField(r, "backgroundColor"),
+    textColor: getColorField(r, "textColor"),
+    circleColor: getColorField(r, "circleColor"),
     borderColor: getStringField(r, "borderColor"),
     colorPreset: getStringField(r, "colorPreset"),
     gridCols: getGridSizeField(r, "gridCols"),
@@ -398,8 +409,7 @@ function buildSavedCards(
     ].includes(card.cardName);
     const isPieLikeVariation = variation === "pie" || variation === "donut";
 
-    /* A stored preset wins. Legacy records without one fall back to `custom`,
-       which makes the API resolve the colours from the saved record. */
+    /* Records without a preset use their individual colors. */
     const effectivePreset = card.colorPreset ?? "custom";
 
     const urlParams = mapStoredConfigToCardUrlParams(
@@ -407,6 +417,10 @@ function buildSavedCards(
         cardName: card.cardName,
         variation,
         colorPreset: effectivePreset,
+        titleColor: card.titleColor,
+        backgroundColor: card.backgroundColor,
+        textColor: card.textColor,
+        circleColor: card.circleColor,
         borderColor: card.borderColor,
         borderRadius: card.borderRadius,
         showFavorites: isFavoriteCapable ? card.showFavorites : undefined,
@@ -420,7 +434,7 @@ function buildSavedCards(
       },
       {
         userId,
-        includeColors: false,
+        includeColors: true,
         defaultToCustomPreset: true,
       },
     );
@@ -542,8 +556,6 @@ export function UserPageClient() {
 
           if (userId) {
             const record = await fetchUserById(userId, ignoreError);
-            const stored = await fetchCardsForUserId(userId, ignoreError);
-            if (stored) setCardsUpdatedAt(stored.updatedAt);
             resolvedUser = {
               userId,
               username: username || record?.username || undefined,
@@ -552,16 +564,15 @@ export function UserPageClient() {
           } else if (username) {
             resolvedUser = await readUserByUsername(username);
             if (!resolvedUser) return;
-            const stored = await fetchCardsForUserId(
-              resolvedUser.userId,
-              ignoreError,
-            );
-            if (stored) setCardsUpdatedAt(stored.updatedAt);
           }
 
           if (cancelled) return;
           setUserData(resolvedUser);
-          setCards(parsed);
+          setCards(
+            parsed
+              .map(normalizeCardEntry)
+              .filter((card): card is CardData => card !== null),
+          );
           setFromUrl(true);
           return;
         }
