@@ -8,7 +8,9 @@ import {
   resolveLatestTimestamp,
   isValidTimestamp,
 } from "@/lib/server/card-version";
-import type { Redis as UpstashRedis } from "@upstash/redis";
+import { buildUsernameIndexKey, REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT } from "@/lib/server/username-index";
+export { buildUsernameIndexKey, syncUsernameIndex } from "@/lib/server/username-index";
+export { CARD_TYPE_TO_PARTS, getPartsForCard } from "@/lib/card-data/requirements";
 import {
   UserRecord,
   UserStatsData,
@@ -180,47 +182,6 @@ function readStoredUpdatedAt(
     // Fall through to undefined; the caller counts it as unreadable.
   }
   return undefined;
-}
-
-const REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT = `
-  if redis.call("GET", KEYS[1]) == ARGV[1] then
-    return redis.call("DEL", KEYS[1])
-  end
-  return 0
-`;
-
-export function buildUsernameIndexKey(
-  username: string | undefined,
-): string | null {
-  const normalizedUsername = username?.trim().toLowerCase();
-  return normalizedUsername ? `username:${normalizedUsername}` : null;
-}
-
-export async function syncUsernameIndex(
-  redisClient: UpstashRedis,
-  previousUsernameIndexKey: string | null,
-  currentUsernameIndexKey: string | null,
-  userId: string | number,
-): Promise<boolean> {
-  const userIdValue = String(userId);
-  if (currentUsernameIndexKey) {
-    await redisClient.set(currentUsernameIndexKey, userIdValue);
-  }
-
-  if (
-    !previousUsernameIndexKey ||
-    previousUsernameIndexKey === currentUsernameIndexKey
-  ) {
-    return false;
-  }
-
-  const removed = await redisClient.eval<[string], number>(
-    REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
-    [previousUsernameIndexKey],
-    [userIdValue],
-  );
-
-  return removed === 1;
 }
 
 interface UserMeta {
@@ -1368,87 +1329,3 @@ export async function fetchUserDataParts(
   return data;
 }
 
-/**
- * Mapping of card types to the user data parts they require.
- */
-export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
-  animeStats: ["meta", "statistics"],
-  mangaStats: ["meta", "statistics"],
-  socialStats: ["meta", "activity", "pages"],
-  socialMilestones: ["meta", "pages"],
-  animeGenres: ["meta", "statistics"],
-  animeTags: ["meta", "statistics"],
-  animeVoiceActors: ["meta", "statistics", "favourites"],
-  animeStudios: ["meta", "statistics", "favourites"],
-  animeStaff: ["meta", "statistics", "favourites"],
-  mangaGenres: ["meta", "statistics"],
-  mangaTags: ["meta", "statistics"],
-  mangaStaff: ["meta", "statistics", "favourites"],
-  animeStatusDistribution: ["meta", "statistics"],
-  mangaStatusDistribution: ["meta", "statistics"],
-  animeFormatDistribution: ["meta", "statistics"],
-  mangaFormatDistribution: ["meta", "statistics"],
-  animeScoreDistribution: ["meta", "statistics"],
-  mangaScoreDistribution: ["meta", "statistics"],
-  animeYearDistribution: ["meta", "statistics"],
-  mangaYearDistribution: ["meta", "statistics"],
-  animeCountry: ["meta", "statistics"],
-  mangaCountry: ["meta", "statistics"],
-  animeSourceMaterialDistribution: [
-    "meta",
-    "current",
-    "completed",
-    "aggregates",
-  ],
-  animeSeasonalPreference: ["meta", "current", "completed", "aggregates"],
-  animeGenreSynergy: ["meta", "aggregates"],
-  studioCollaboration: ["meta", "completed", "aggregates"],
-  profileOverview: ["meta", "statistics"],
-  favoritesSummary: ["meta", "favourites"],
-  favoritesGrid: ["meta", "favourites"],
-  activityHeatmap: ["meta", "activity"],
-  recentActivitySummary: ["meta", "activity"],
-  recentActivityFeed: ["meta", "activity"],
-  activityStreaks: ["meta", "activity"],
-  topActivityDays: ["meta", "activity"],
-  statusCompletionOverview: ["meta", "statistics"],
-  milestones: ["meta", "statistics"],
-  personalRecords: ["meta", "completed", "rewatched"],
-  planningBacklog: ["meta", "planning"],
-  mostRewatched: ["meta", "rewatched"],
-  currentlyWatchingReading: ["meta", "current"],
-  animeMangaOverview: ["meta", "statistics"],
-  scoreCompareAnimeManga: ["meta", "statistics"],
-  countryDiversity: ["meta", "statistics"],
-  genreDiversity: ["meta", "statistics"],
-  formatPreferenceOverview: ["meta", "statistics"],
-  releaseEraPreference: ["meta", "statistics"],
-  startYearMomentum: ["meta", "statistics"],
-  lengthPreference: ["meta", "statistics"],
-  animeEpisodeLengthPreferences: ["meta", "statistics"],
-  tagCategoryDistribution: ["meta", "statistics"],
-  tagDiversity: ["meta", "statistics"],
-  seasonalViewingPatterns: ["meta", "activity"],
-  droppedMedia: ["meta", "completed"],
-  reviewStats: ["meta", "pages"],
-};
-
-/**
- * Gets the required user data parts for a given card name.
- */
-export function getPartsForCard(cardName: string): UserDataPart[] {
-  const [baseCardType] = cardName.split("-");
-  return (
-    CARD_TYPE_TO_PARTS[baseCardType] || [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-    ]
-  );
-}
