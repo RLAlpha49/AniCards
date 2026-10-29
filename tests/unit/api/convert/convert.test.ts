@@ -3,9 +3,11 @@ import {
   POST,
   removeEmptyCssRules,
   sanitizeCssContent,
+} from "@/app/api/convert/route";
+import {
   removeClassTokensFromMarkup,
   sanitizeInlineStyleAttributes,
-} from "@/app/api/convert/route";
+} from "@/lib/server/svg-markup-cleanup";
 import { NextRequest } from "next/server";
 
 /**

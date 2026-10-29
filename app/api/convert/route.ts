@@ -6,6 +6,14 @@ import {
   jsonWithCors,
 } from "@/lib/api-utils";
 import { resolveApiBase, type ConversionFormat } from "@/lib/utils";
+import {
+  removeClassTokensFromMarkup,
+  sanitizeInlineStyleAttributes,
+} from "@/lib/server/svg-markup-cleanup";
+export {
+  removeClassTokensFromMarkup,
+  sanitizeInlineStyleAttributes,
+} from "@/lib/server/svg-markup-cleanup";
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -543,67 +551,6 @@ export function sanitizeCssContent(css: string): {
   // 4) Remove empty rules that become empty after our changes
   out = removeEmptyCssRules(out);
   return { css: out, classesToStrip: Array.from(classesToStrip) };
-}
-
-/**
- * Removes specific class tokens from single- or double-quoted class attributes.
- * @param svg - SVG markup containing class attributes.
- * @param classTokens - Tokens to strip from class lists.
- * @returns SVG markup without the targeted class tokens.
- * @source
- */
-export function removeClassTokensFromMarkup(
-  svg: string,
-  classTokens: string[],
-): string {
-  if (!classTokens || classTokens.length === 0) return svg;
-  // Replace both single and double-quoted class attributes
-  svg = svg.replaceAll(/class=(['"])(.*?)\1/gi, (match, quote, clsValue) => {
-    const tokens = clsValue
-      .split(/\s+/)
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    const remaining = tokens.filter((t: string) => !classTokens.includes(t));
-    if (remaining.length === 0) return ""; // remove entire attribute
-    return `class=${quote}${remaining.join(" ")}${quote}`;
-  });
-  return svg;
-}
-
-/**
- * Sanitizes inline style attributes by removing animation properties and
- * normalizing opacity/visibility declarations.
- * @param svg - SVG markup containing inline style attributes.
- * @returns SVG markup with sanitized inline styles.
- * @source
- */
-export function sanitizeInlineStyleAttributes(svg: string): string {
-  return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
-    // Split declarations by semicolon, but tolerate trailing/leading semicolons
-    const parts = styleValue
-      .split(/;+/)
-      .map((p: string) => p.trim())
-      .filter(Boolean);
-    const outParts: string[] = [];
-    for (const p of parts) {
-      const [rawName, ...rest] = p.split(":");
-      if (!rawName || rest.length === 0) continue;
-      const name = rawName.trim().toLowerCase();
-      const val = rest.join(":").trim();
-      // Skip animation properties and vendor prefixed animation
-      if (/^(?:-webkit-|-moz-|-ms-)?animation(?:-.*)?$/i.test(name)) continue;
-      let finalVal = val;
-      // Normalize opacity
-      if (name === "opacity" && /^\s*0+(?:\.\d+)?\s*$/.test(val))
-        finalVal = "1";
-      // Normalize visibility
-      if (name === "visibility" && /^\s*hidden\s*$/i.test(val))
-        finalVal = "visible";
-      outParts.push(`${name}: ${finalVal}`);
-    }
-    if (outParts.length === 0) return "";
-    return `style=${quote}${outParts.join("; ")}${quote}`;
-  });
 }
 
 /**
