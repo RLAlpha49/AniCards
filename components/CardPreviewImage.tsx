@@ -51,10 +51,6 @@ const ERROR_SVG_SIZE = { width: 800, height: 400 } as const;
 /**
  * Plain image element for live SVG card previews.
  *
- * The shared `ImageWithSkeleton` forces a fixed radius and centres a skeleton,
- * which fights the art-directed frames on the home page. The home page owns
- * its frames, so the card renders directly.
- *
  * The card's intrinsic size is set on the element, so the frame reserves its
  * space before the SVG loads and the image is never stretched to fit a box of
  * the wrong shape. When the loaded image turns out to be the API's error

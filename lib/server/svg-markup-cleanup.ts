@@ -3,7 +3,7 @@ export function removeClassTokensFromMarkup(
   classTokens: string[],
 ): string {
   if (!classTokens || classTokens.length === 0) return svg;
-  return svg.replaceAll(/class=(['"])(.*?)\1/gi, (match, quote, clsValue) => {
+  return svg.replaceAll(/class=(['"])(.*?)\1/gi, (_match, quote, clsValue) => {
     const tokens = clsValue
       .split(/\s+/)
       .map((s: string) => s.trim())
@@ -15,7 +15,7 @@ export function removeClassTokensFromMarkup(
 }
 
 export function sanitizeInlineStyleAttributes(svg: string): string {
-  return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
+  return svg.replaceAll(/style=(['"])(.*?)\1/gi, (_match, quote, styleValue) => {
     const parts = styleValue
       .split(/;+/)
       .map((p: string) => p.trim())

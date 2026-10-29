@@ -10,7 +10,7 @@ import {
   GROUP_NUMERALS,
   buildCardTypes,
 } from "@/components/examples/card-types";
-import type { CardType, GroupName } from "@/components/examples/card-types";
+import type { CardType } from "@/components/examples/card-types";
 import { colorPresets } from "@/lib/card-catalogue";
 import type { ColorValue } from "@/lib/types/card";
 import type { StoredCardConfig } from "@/lib/types/records";

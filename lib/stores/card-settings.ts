@@ -180,7 +180,7 @@ export const useCardSettings = create<CardSettingsStore>()(
         name: `${APP_PREFIX}card-settings`,
         version: 1,
         storage: customStorage,
-        onRehydrateStorage: () => (state, error) => {
+        onRehydrateStorage: () => (_state, error) => {
           if (error) {
             console.error("Error rehydrating card settings:", error);
             return;

@@ -3,7 +3,6 @@ import { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { UserPageClient } from "@/components/user/UserPageClient";
 import { UserPageState } from "@/components/user/UserPageState";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaperSurface } from "@/components/PaperSurface";
 
 /**

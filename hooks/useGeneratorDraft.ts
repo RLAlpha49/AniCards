@@ -173,22 +173,8 @@ function buildInitialDraft(
  * @source
  */
 export function useGeneratorDraft() {
-  const { defaultUsername, setDefaultUsername } = useUserPreferences();
-  const {
-    savedColorConfig,
-    defaultCardTypes,
-    defaultVariants,
-    defaultShowFavoritesByCard,
-    favoritesGridColumns,
-    favoritesGridRows,
-    defaultBorderEnabled,
-    defaultBorderColor,
-    defaultBorderRadius,
-    useAnimeStatusColors,
-    useMangaStatusColors,
-    showPiePercentages,
-    saveGeneratorDefaults,
-  } = useCardSettings();
+  const { setDefaultUsername } = useUserPreferences();
+  const { saveGeneratorDefaults } = useCardSettings();
 
   const [draft, setDraft] = useState<GeneratorDraft>(buildEmptyDraft);
   const [hydrated, setHydrated] = useState(false);

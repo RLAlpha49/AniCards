@@ -644,7 +644,6 @@ function isUrlAuthorized(
  */
 async function fetchSvgContent(
   parsedUrl: URL,
-  ip: string,
   request: NextRequest,
 ): Promise<{ errorResponse?: NextResponse; svg?: string }> {
   try {
@@ -782,7 +781,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const fetched = await fetchSvgContent(parsedUrl, ip, request);
+    const fetched = await fetchSvgContent(parsedUrl, request);
     if (fetched.errorResponse) return fetched.errorResponse;
     let svgContent = fetched.svg || "";
     console.log(

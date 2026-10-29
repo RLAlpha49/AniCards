@@ -99,7 +99,7 @@ export const useUserPreferences = create<UserPreferencesStore>()(
         name: `${APP_PREFIX}user-preferences`,
         version: 1,
         storage: customStorage,
-        onRehydrateStorage: () => (state, error) => {
+        onRehydrateStorage: () => (_state, error) => {
           if (error) {
             console.error("Error rehydrating user preferences:", error);
             return;
