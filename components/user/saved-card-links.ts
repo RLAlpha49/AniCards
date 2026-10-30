@@ -2,7 +2,7 @@ import { getAbsoluteUrl } from "@/lib/utils";
 import type { SavedCard } from "./types";
 
 /** Stands in for the origin when a relative URL has to be parsed. @source */
-const PLACEHOLDER_ORIGIN = "http://placeholder.invalid";
+const PLACEHOLDER_ORIGIN = "https://placeholder.invalid";
 
 /**
  * Removes the `_t` cache-buster from a card URL.

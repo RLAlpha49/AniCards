@@ -8,9 +8,18 @@ import {
   resolveLatestTimestamp,
   isValidTimestamp,
 } from "@/lib/server/card-version";
-import { buildUsernameIndexKey, REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT } from "@/lib/server/username-index";
-export { buildUsernameIndexKey, syncUsernameIndex } from "@/lib/server/username-index";
-export { CARD_TYPE_TO_PARTS, getPartsForCard } from "@/lib/card-data/requirements";
+import {
+  buildUsernameIndexKey,
+  REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
+} from "@/lib/server/username-index";
+export {
+  buildUsernameIndexKey,
+  syncUsernameIndex,
+} from "@/lib/server/username-index";
+export {
+  CARD_TYPE_TO_PARTS,
+  getPartsForCard,
+} from "@/lib/card-data/requirements";
 import {
   UserRecord,
   UserStatsData,
@@ -1328,4 +1337,3 @@ export async function fetchUserDataParts(
 
   return data;
 }
-

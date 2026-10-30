@@ -1,4 +1,8 @@
-export function logRequest(endpoint: string, ip: string, details?: string): void {
+export function logRequest(
+  endpoint: string,
+  ip: string,
+  details?: string,
+): void {
   const message = details
     ? `🚀 [${endpoint}] Incoming request from IP: ${ip} - ${details}`
     : `🚀 [${endpoint}] Incoming request from IP: ${ip}`;

@@ -24,7 +24,12 @@ export const CARD_TYPE_TO_PARTS: Record<CardType, UserDataPart[]> = {
   mangaYearDistribution: ["meta", "statistics"],
   animeCountry: ["meta", "statistics"],
   mangaCountry: ["meta", "statistics"],
-  animeSourceMaterialDistribution: ["meta", "current", "completed", "aggregates"],
+  animeSourceMaterialDistribution: [
+    "meta",
+    "current",
+    "completed",
+    "aggregates",
+  ],
   animeSeasonalPreference: ["meta", "current", "completed", "aggregates"],
   animeGenreSynergy: ["meta", "aggregates"],
   studioCollaboration: ["meta", "completed", "aggregates"],
@@ -62,8 +67,15 @@ export function getPartsForCard(cardName: string): UserDataPart[] {
   const [baseCardType] = cardName.split("-");
   return (
     CARD_TYPE_TO_PARTS[baseCardType as CardType] || [
-      "meta", "activity", "favourites", "statistics", "pages", "planning",
-      "current", "rewatched", "completed",
+      "meta",
+      "activity",
+      "favourites",
+      "statistics",
+      "pages",
+      "planning",
+      "current",
+      "rewatched",
+      "completed",
     ]
   );
 }

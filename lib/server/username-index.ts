@@ -7,7 +7,9 @@ export const REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT = `
   return 0
 `;
 
-export function buildUsernameIndexKey(username: string | undefined): string | null {
+export function buildUsernameIndexKey(
+  username: string | undefined,
+): string | null {
   const normalizedUsername = username?.trim().toLowerCase();
   return normalizedUsername ? `username:${normalizedUsername}` : null;
 }
@@ -22,7 +24,10 @@ export async function syncUsernameIndex(
   if (currentUsernameIndexKey) {
     await redisClient.set(currentUsernameIndexKey, userIdValue);
   }
-  if (!previousUsernameIndexKey || previousUsernameIndexKey === currentUsernameIndexKey) {
+  if (
+    !previousUsernameIndexKey ||
+    previousUsernameIndexKey === currentUsernameIndexKey
+  ) {
     return false;
   }
   const removed = await redisClient.eval<[string], number>(
