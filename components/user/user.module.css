@@ -1,0 +1,1401 @@
+/* User page: the cards saved for one AniList profile, on the home paper ground.
+
+   The page reads as a record of one run: who the cards belong to, what was
+   saved, how to take it, and where to put it. Paper tokens come from the
+   shared `.page` surface in home.module.css. */
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+/* ── masthead ────────────────────────────────────────────────── */
+
+.masthead {
+  position: relative;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.mastheadRule {
+  border-top: 2px solid var(--ink);
+}
+
+.mastheadInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  align-items: center;
+  gap: clamp(2rem, 4.5vw, 4.5rem);
+  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
+  padding-bottom: clamp(2.2rem, 4vw, 3.2rem);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.6rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.title {
+  position: relative;
+  z-index: 0;
+  margin-top: 1.4rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.title em {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.title em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: 0.2em;
+  left: -0.06em;
+  height: 0.9em;
+  background: var(--vermillion-wash);
+}
+
+.lede {
+  margin-top: 1.4rem;
+  max-width: 33rem;
+  font-size: 0.97rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.ledeNote {
+  margin-top: 0.9rem;
+  max-width: 33rem;
+  font-size: 0.74rem;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+
+/* ── receipt ─────────────────────────────────────────────────── */
+
+/* The facts panel: who the set belongs to, when the data moved, and the link
+   back to this page. It is the "what you have" half of the masthead. */
+.receipt {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(165deg, var(--paper-raise), var(--paper-deep));
+  padding: 1.1rem 1.2rem 1.25rem;
+  box-shadow: 0 28px 48px -40px var(--shadow);
+  animation: receiptIn 760ms cubic-bezier(0.22, 0.8, 0.3, 1) 180ms backwards;
+}
+
+/* Inner hairlines, the way a printed slip keeps its type off the trim. */
+.receipt::before,
+.receipt::after {
+  content: "";
+  position: absolute;
+  right: 0.5rem;
+  left: 0.5rem;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+.receipt::before {
+  top: 0.5rem;
+}
+
+.receipt::after {
+  bottom: 0.5rem;
+}
+
+.receiptHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.receiptSeal {
+  display: grid;
+  flex: none;
+  height: 1.7rem;
+  width: 1.7rem;
+  place-items: center;
+  rotate: -3deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.9rem;
+  animation: sealStamp 640ms cubic-bezier(0.22, 0.8, 0.3, 1) 620ms backwards;
+}
+
+.receiptTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.receiptRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.receiptMode {
+  flex: none;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.receiptFacts {
+  margin: 0.35rem 0 0;
+}
+
+.receiptFact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px dashed var(--line);
+  padding: 0.55rem 0;
+}
+
+.receiptFact:last-child {
+  border-bottom: 0;
+}
+
+.receiptFact dt {
+  flex: none;
+  font-size: 0.56rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.receiptFact dd {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.receiptFact dd small {
+  display: block;
+  margin-top: 0.1rem;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.receiptActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.95rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.95rem;
+}
+
+.receiptAction {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    transform 200ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.receiptAction svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.receiptAction:hover {
+  border-color: var(--vermillion);
+  background: var(--vermillion-wash);
+  color: var(--vermillion);
+  transform: translateY(-1px);
+}
+
+.receiptActionDone,
+.receiptActionDone:hover {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+/* ── sections ────────────────────────────────────────────────── */
+
+.section {
+  padding-top: clamp(2.4rem, 5vw, 3.8rem);
+}
+
+.sectionLast {
+  padding-top: clamp(2rem, 4vw, 3rem);
+  padding-bottom: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+/* ── export desk ─────────────────────────────────────────────── */
+
+.desk {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: clamp(1.6rem, 3vw, 2.2rem);
+  border: 1px solid var(--line-strong);
+  background: rgba(251, 245, 231, 0.42);
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+:global(.dark) .desk {
+  background: rgba(34, 28, 23, 0.42);
+}
+
+.deskRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.deskHead h3 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.deskHead p {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.deskControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.formats {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.formatsLabel {
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.formatGroup {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+}
+
+.format {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+.format + .format {
+  border-left: 1px solid var(--line-strong);
+}
+
+.format:hover {
+  background: var(--vermillion-wash);
+  color: var(--ink);
+}
+
+.formatActive,
+.formatActive:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.deskActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.7rem 1.3rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 var(--vermillion);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.primaryAction svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.primaryAction:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.secondaryAction svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.secondaryAction:hover {
+  border-color: var(--ink);
+  background: var(--vermillion-wash);
+  color: var(--vermillion);
+}
+
+.deskNote {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+/* Conversion progress while the set is being packed. */
+.deskProgress {
+  height: 3px;
+  margin-top: 0.9rem;
+  background: var(--line);
+}
+
+.deskProgressBar {
+  height: 100%;
+  background: var(--vermillion);
+  transition: width 240ms ease;
+}
+
+.deskNote kbd {
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0.05rem 0.3rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.64rem;
+  color: var(--ink);
+}
+
+.inlineLink {
+  border-bottom: 1px solid var(--vermillion);
+  color: var(--vermillion);
+  cursor: pointer;
+}
+
+/* ── card grid ───────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(1.2rem, 2.6vw, 2.2rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plateItem {
+  min-width: 0;
+}
+
+.coverItem {
+  grid-column: 1 / -1;
+}
+
+.plate {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  transition:
+    transform 320ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    border-color 320ms ease;
+}
+
+.plate:hover,
+.plate:focus-within {
+  border-color: var(--ink-faint);
+  transform: translateY(-4px);
+  box-shadow: 0 22px 38px -30px var(--shadow);
+}
+
+/* The frame holds any card shape without stretching it: the artwork keeps its
+   own ratio and is centred on a faint hatch. The height is fixed so portrait
+   and landscape cards line up across the grid. */
+.plateFrame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(9.5rem, 14vw, 12rem);
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(25, 21, 18, 0.035) 0 1px,
+      transparent 1px 9px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.9rem;
+}
+
+:global(.dark) .plateFrame {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(236, 225, 201, 0.03) 0 1px,
+      transparent 1px 9px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+}
+
+.plateImage {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  transition: transform 520ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.plate:hover .plateImage,
+.plate:focus-within .plateImage {
+  transform: scale(1.03);
+}
+
+.cartouche {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  column-gap: 0.65rem;
+  padding: 0.85rem 0.95rem 1rem;
+}
+
+.plateIndex {
+  grid-row: span 2;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--vermillion);
+}
+
+.plateTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.plateNote {
+  margin-top: 0.15rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── cover card ──────────────────────────────────────────────── */
+
+/* The first card is mounted as a title page: artwork on the left, its number,
+   name, and actions in a column on the right. It opens the page on one card at
+   a readable size instead of starting with a uniform grid of thumbnails. */
+.cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  box-shadow: 0 30px 55px -46px var(--shadow);
+  transition:
+    border-color 320ms ease,
+    box-shadow 320ms ease;
+}
+
+.cover:hover,
+.cover:focus-within {
+  border-color: var(--ink-faint);
+  box-shadow: 0 34px 62px -46px var(--shadow);
+}
+
+.coverFrame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(9.5rem, 16vw, 13rem);
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(25, 21, 18, 0.03) 0 1px,
+      transparent 1px 11px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: clamp(0.9rem, 2vw, 1.6rem);
+}
+
+:global(.dark) .coverFrame {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(236, 225, 201, 0.03) 0 1px,
+      transparent 1px 11px
+    ),
+    linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+}
+
+.coverImage {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  transition: transform 620ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cover:hover .coverImage,
+.cover:focus-within .coverImage {
+  transform: scale(1.02);
+}
+
+.coverCartouche {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  padding: clamp(1.1rem, 2.2vw, 1.8rem);
+}
+
+.coverIndex {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.coverTitleWrap {
+  min-width: 0;
+  margin-top: 0.4rem;
+}
+
+.coverTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.coverNote {
+  margin-top: 0.25rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* The two settings that most change how the card looks. They are read off the
+   stored configuration, so they describe the artwork on the left rather than
+   restating what the generator can do. */
+.coverFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.8rem;
+  margin: 1.1rem 0 1.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+
+.coverFacts dt {
+  font-size: 0.54rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.coverFacts dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* ── card actions ────────────────────────────────────────────── */
+
+.plateActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.coverCartouche .plateActions {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+  justify-content: flex-start;
+}
+
+.cartouche .plateActions {
+  grid-column: 1 / -1;
+}
+
+.plateAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  padding: 0.25rem 0;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    gap 200ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.plateAction svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.plateAction:hover {
+  gap: 0.5rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.plateAction:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.plateActionDone,
+.plateActionDone:hover {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.plateActionError {
+  flex-basis: 100%;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  color: var(--vermillion);
+}
+
+/* ── AniList guide ───────────────────────────────────────────── */
+
+/* The section heading already draws a rule under itself, so the guide does not
+   add a second one directly below it. */
+.guide {
+  padding-top: clamp(0.4rem, 1vw, 0.8rem);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--line);
+}
+
+.step {
+  border-right: 1px solid var(--line);
+  padding: 0 1.5rem 0 1.2rem;
+}
+
+.stepNum {
+  display: block;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  color: var(--vermillion);
+}
+
+.step h3 {
+  margin-top: 0.8rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.step p {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.codeLine {
+  margin-top: 0.8rem;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0.55rem 0.6rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.64rem;
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.guideFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.4rem;
+  margin-top: 1.6rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.guideFoot p {
+  font-size: 0.74rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+/* ── empty set ───────────────────────────────────────────────── */
+
+.empty {
+  display: grid;
+  justify-items: center;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(165deg, var(--paper-raise), var(--paper-deep));
+  padding: clamp(1.8rem, 4vw, 3rem) clamp(1.2rem, 3vw, 2rem);
+  text-align: center;
+}
+
+.emptySeal {
+  display: grid;
+  height: 2.6rem;
+  width: 2.6rem;
+  place-items: center;
+  rotate: -4deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.15rem;
+  animation: sealStamp 640ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+.empty h2 {
+  margin-top: 1.1rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.4rem, 2.6vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.empty p {
+  margin-top: 0.6rem;
+  max-width: 32rem;
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem 1rem;
+  margin-top: 1.5rem;
+}
+
+/* The empty set sits inside a section, so it takes the section's width rather
+   than filling the viewport like the loading and error panels. */
+.emptyPanel {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+/* ── loading, error, not found ───────────────────────────────── */
+
+.stateWrap {
+  display: flex;
+  min-height: calc(100dvh - 61px);
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem) 1.25rem;
+}
+
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.loaderSeal {
+  display: grid;
+  height: 3.2rem;
+  width: 3.2rem;
+  place-items: center;
+  rotate: -4deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.35rem;
+  box-shadow: 0 10px 22px -14px rgba(184, 58, 36, 0.9);
+  animation:
+    sealStamp 640ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards,
+    loaderBreathe 2.6s ease-in-out 700ms infinite;
+}
+
+.loaderBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.28rem;
+  height: 1rem;
+}
+
+.loaderBars span {
+  display: block;
+  width: 0.22rem;
+  height: 100%;
+  background: var(--ink);
+  opacity: 0.55;
+  transform-origin: bottom;
+  animation: loaderBar 1.15s ease-in-out infinite;
+}
+
+.loaderBars span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.loaderBars span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.loaderText {
+  max-width: 24rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.panel {
+  width: 100%;
+  max-width: 32rem;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(165deg, var(--paper-raise), var(--paper-deep));
+  padding: clamp(1.6rem, 4vw, 2.4rem);
+  text-align: center;
+  box-shadow: 0 30px 55px -46px var(--shadow);
+  animation: receiptIn 620ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.panelSeal {
+  display: grid;
+  height: 2.6rem;
+  width: 2.6rem;
+  place-items: center;
+  margin-inline: auto;
+  rotate: -4deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.15rem;
+}
+
+.panel h1 {
+  margin-top: 1.1rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.panel p {
+  margin-top: 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem 1rem;
+  margin-top: 1.5rem;
+}
+
+.panelNote {
+  margin-top: 1.2rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  line-height: 1.7;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── popover slips ───────────────────────────────────────────── */
+
+/* Popovers are portalled to the body, outside the paper surface, so the slip
+   carries its own copy of the palette instead of inheriting it. */
+.slip {
+  --slip-paper: #fbf4e5;
+  --slip-paper-deep: #e8dcc3;
+  --slip-ink: #191512;
+  --slip-ink-soft: #4d443a;
+  --slip-ink-faint: rgba(25, 21, 18, 0.62);
+  --slip-line: rgba(25, 21, 18, 0.2);
+  --slip-line-strong: rgba(25, 21, 18, 0.4);
+  --slip-vermillion: #b83a24;
+
+  width: min(24rem, calc(100vw - 2rem));
+  border: 1px solid var(--slip-line-strong);
+  background: linear-gradient(
+    165deg,
+    var(--slip-paper),
+    var(--slip-paper-deep)
+  );
+  padding: 1rem 1.05rem 1.1rem;
+  color: var(--slip-ink);
+  box-shadow: 0 26px 46px -30px rgba(25, 21, 18, 0.6);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+:global(.dark) .slip {
+  --slip-paper: #221c17;
+  --slip-paper-deep: #1e1915;
+  --slip-ink: #ece1c9;
+  --slip-ink-soft: #b6a88f;
+  --slip-ink-faint: rgba(236, 225, 201, 0.66);
+  --slip-line: rgba(236, 225, 201, 0.2);
+  --slip-line-strong: rgba(236, 225, 201, 0.4);
+  --slip-vermillion: #d4573c;
+
+  box-shadow: 0 26px 46px -30px rgba(0, 0, 0, 0.85);
+}
+
+.slipHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--slip-line);
+  padding-bottom: 0.6rem;
+}
+
+.slipSeal {
+  display: grid;
+  flex: none;
+  height: 1.5rem;
+  width: 1.5rem;
+  place-items: center;
+  rotate: -3deg;
+  background: var(--slip-vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.78rem;
+}
+
+.slipTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.slipRule {
+  flex: 1;
+  height: 1px;
+  background: var(--slip-line);
+}
+
+.slipMode {
+  flex: none;
+  font-size: 0.54rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--slip-ink-faint);
+  white-space: nowrap;
+}
+
+.slipField {
+  margin-top: 0.85rem;
+}
+
+.slipFieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.slipLabel {
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--slip-ink-faint);
+}
+
+.slipValue {
+  max-height: 6.5rem;
+  margin: 0.4rem 0 0;
+  overflow: auto;
+  border: 1px solid var(--slip-line);
+  background: var(--slip-paper);
+  padding: 0.5rem 0.6rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  line-height: 1.6;
+  color: var(--slip-ink-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.slipActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.slipButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid var(--slip-ink);
+  background: var(--slip-ink);
+  color: var(--slip-paper);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.slipButton svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.slipButton:hover {
+  border-color: var(--slip-vermillion);
+  background: var(--slip-vermillion);
+  color: #f8efdc;
+}
+
+.slipButtonAlt {
+  background: transparent;
+  color: var(--slip-ink);
+}
+
+.slipButtonAlt:hover {
+  border-color: var(--slip-vermillion);
+  background: transparent;
+  color: var(--slip-vermillion);
+}
+
+.slipButton:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.slipNote {
+  margin-top: 0.7rem;
+  font-size: 0.7rem;
+  line-height: 1.65;
+  color: var(--slip-ink-soft);
+}
+
+.slipMessage {
+  margin-top: 0.6rem;
+  border-left: 2px solid var(--slip-vermillion);
+  background: rgba(184, 58, 36, 0.1);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--slip-ink);
+}
+
+/* ── motion ──────────────────────────────────────────────────── */
+
+@keyframes receiptIn {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+@keyframes sealStamp {
+  0% {
+    opacity: 0;
+    rotate: -16deg;
+  }
+  55% {
+    opacity: 1;
+    rotate: 9deg;
+  }
+  100% {
+    opacity: 1;
+    rotate: 6deg;
+  }
+}
+
+@keyframes loaderBreathe {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.06;
+  }
+}
+
+@keyframes loaderBar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 0.8;
+  }
+}
+
+/* ── breakpoints ─────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .mastheadInner {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 2rem;
+  }
+
+  .receipt {
+    max-width: 34rem;
+  }
+
+  .cover {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coverFrame {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+    border-left: 0;
+  }
+
+  .step {
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    padding: 1.1rem 0 0;
+  }
+
+  .step:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .step + .step {
+    margin-top: 1.1rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .receiptTitle,
+  .receiptMode {
+    white-space: normal;
+  }
+
+  .receiptMode {
+    text-align: right;
+  }
+
+  .deskRow {
+    align-items: stretch;
+  }
+
+  .deskControls {
+    justify-content: flex-start;
+  }
+
+  .deskActions {
+    width: 100%;
+  }
+
+  .deskActions > * {
+    flex: 1 1 auto;
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    justify-content: center;
+  }
+
+  .coverFrame {
+    height: auto;
+    min-height: clamp(9rem, 46vw, 13rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .receipt,
+  .receiptSeal,
+  .loaderSeal,
+  .loaderBars span,
+  .emptySeal,
+  .panel {
+    animation: none !important;
+  }
+
+  .plate,
+  .plateImage,
+  .cover,
+  .coverImage,
+  .receiptAction,
+  .primaryAction {
+    transition: none !important;
+  }
+}

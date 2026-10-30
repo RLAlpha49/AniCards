@@ -9,6 +9,8 @@ import {
   getColorInvalidReason,
 } from "@/lib/utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import { logRequest } from "@/lib/server/api-logging";
+export { logRequest, logSuccess } from "@/lib/server/api-logging";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
@@ -710,24 +712,6 @@ export function buildAnalyticsMetricKey(
 }
 
 /**
- * Logs an incoming API request with optional details for debugging.
- * @param endpoint - Logical endpoint name for logging context.
- * @param ip - IP address of the caller.
- * @param details - Optional additional info about the request.
- * @source
- */
-export function logRequest(
-  endpoint: string,
-  ip: string,
-  details?: string,
-): void {
-  const message = details
-    ? `🚀 [${endpoint}] Incoming request from IP: ${ip} - ${details}`
-    : `🚀 [${endpoint}] Incoming request from IP: ${ip}`;
-  console.log(message);
-}
-
-/**
  * Centralized error handling for API routes that logs details,
  * increments an analytics metric, and returns a 500 error response.
  * @param error - Error object thrown by the route handler.
@@ -756,26 +740,6 @@ export function handleError(
   incrementAnalytics(analyticsMetric).catch(() => {});
 
   return jsonWithCors({ error: errorMessage }, request, 500);
-}
-
-/**
- * Logs a successful operation for an endpoint with timing and optional details.
- * @param endpoint - Logical endpoint name for logging context.
- * @param userId - ID of the user associated with the successful operation.
- * @param duration - Duration in milliseconds for the operation.
- * @param details - Optional details string for the log.
- * @source
- */
-export function logSuccess(
-  endpoint: string,
-  userId: number,
-  duration: number,
-  details?: string,
-): void {
-  const message = details
-    ? `✅ [${endpoint}] ${details} for user ${userId} in ${duration}ms`
-    : `✅ [${endpoint}] Successfully processed user ${userId} [${duration}ms]`;
-  console.log(message);
 }
 
 /**

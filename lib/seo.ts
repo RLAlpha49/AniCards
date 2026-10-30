@@ -138,9 +138,9 @@ export const seoConfigs = {
   },
 
   examples: {
-    title: "All Card Examples - AniCards",
+    title: "Card Examples - AniCards",
     description:
-      "Explore all available AniCards types and variants with real examples. View anime statistics, social metrics, genre distributions, voice actor insights, studio breakdowns, and more.",
+      "See every card type AniCards can generate, rendered from a real AniList profile. Anime and manga statistics, genres, studios, voice actors, activity, and favourites.",
     keywords: [
       "anilist card examples",
       "anime stat card examples",
@@ -148,17 +148,34 @@ export const seoConfigs = {
       "anilist statistics examples",
       "anime data visualization examples",
       "card types",
-      "stat card variants",
+      "stat card variations",
       "anilist card gallery",
-      "anime cards showcase",
+      "anime card examples",
     ],
     canonical: `${SITE_URL}/examples`,
   },
 
-  contact: {
-    title: "Contact Us - AniCards",
+  generator: {
+    title: "Card Generator - AniCards",
     description:
-      "Get in touch with the AniCards team. Find our social media links, GitHub repository, and contact information for support or feedback.",
+      "Build AniList stat cards in one page. Enter your username, pick a palette, choose from 54 card types, and download the set as SVG, PNG, or WebP.",
+    keywords: [
+      "anilist card generator",
+      "anime stat card maker",
+      "manga stat card maker",
+      "create anilist cards",
+      "anilist card builder",
+      "stat card generator",
+      "anime statistics card",
+      "manga statistics card",
+    ],
+    canonical: `${SITE_URL}/generator`,
+  },
+
+  contact: {
+    title: "Contact - AniCards",
+    description:
+      "Get in touch with the one person who builds AniCards. GitHub issues for bugs and card requests, Discord for quick questions, email for everything else.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
     canonical: `${SITE_URL}/contact`,
   },
@@ -166,7 +183,7 @@ export const seoConfigs = {
   projects: {
     title: "Other Projects - AniCards",
     description:
-      "Explore other anime and manga related projects including AniList Custom List Manager, Kenmai to AniList converter, AniSearch ML tool, and more.",
+      "The other AniList tools I built: AniList Custom List Manager for rule-based custom lists, and Kenmei to AniList for moving a manga library across.",
     keywords: [
       "anime projects",
       "anilist tools",
@@ -178,40 +195,18 @@ export const seoConfigs = {
     canonical: `${SITE_URL}/projects`,
   },
 
-  settings: {
-    title: "Settings - AniCards",
-    description:
-      "Customize your AniCards experience. Adjust theme preferences, sidebar behavior, and default card settings to personalize your stat card generation.",
-    keywords: [
-      "settings",
-      "preferences",
-      "customization",
-      "theme",
-      "configuration",
-    ],
-    canonical: `${SITE_URL}/settings`,
-  },
-
-  license: {
-    title: "License - AniCards",
-    description:
-      "View the MIT license for AniCards. Learn about the terms and conditions for using and contributing to this open-source project.",
-    keywords: ["license", "MIT", "open source", "terms", "legal"],
-    canonical: `${SITE_URL}/license`,
-  },
-
   user: {
-    title: "User Stats - AniCards",
+    title: "Saved Stat Cards - AniCards",
     description:
-      "View and download personalized anime and manga stat cards. Generate beautiful visualizations of AniList data with customizable colors and designs.",
+      "Every AniList stat card the generator made for a profile, saved in one place. Download the set, copy a card's link, or embed it on an AniList profile.",
     keywords: [
-      "user stats",
-      "anime statistics",
-      "manga statistics",
-      "stat cards",
-      "anilist data",
-      "download cards",
-      "custom colors",
+      "saved anilist cards",
+      "anilist stat cards",
+      "anime statistics cards",
+      "manga statistics cards",
+      "download anilist cards",
+      "anilist profile card",
+      "anilist about image",
     ],
     canonical: `${SITE_URL}/user`,
   },

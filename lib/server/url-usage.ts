@@ -12,7 +12,7 @@
  */
 
 import { redisClient } from "@/lib/api-utils";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/lib/card-catalogue";
 import { clampBorderRadius } from "@/lib/utils";
 import type { CardConfigClassification } from "@/lib/card-data/config";
 

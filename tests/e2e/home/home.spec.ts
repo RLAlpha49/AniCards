@@ -2,21 +2,26 @@ import { test, expect } from "@playwright/test";
 import { GeneratorPage } from "../fixtures/test-utils";
 
 test.describe("Home page", () => {
-  test("opens generator from hero CTA", async ({ page }) => {
+  test("navigates to the generator from the hero CTA", async ({ page }) => {
     const generator = new GeneratorPage(page);
 
     await test.step("Open homepage", async () => {
       await page.goto("/");
     });
 
-    await test.step("Open generator via hero CTA", async () => {
+    await test.step("Follow the hero CTA", async () => {
       await page.getByRole("button", { name: /create your card/i }).click();
+      /* The CTA routes on the client, so there is no load event to wait for.
+         Polling the URL is the deterministic check. */
+      await expect.poll(() => page.url()).toContain("/generator");
       await generator.waitForGeneratorOpen();
     });
 
-    await test.step("Close generator with Escape", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+    await test.step("Generator has an address to return to", async () => {
+      expect(page.url()).toContain("/generator");
+      await expect(
+        page.getByRole("heading", { name: /whose stats/i, level: 2 }),
+      ).toBeVisible();
     });
   });
 

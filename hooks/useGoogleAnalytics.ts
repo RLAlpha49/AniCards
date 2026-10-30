@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { pageview, safeTrack } from "@/lib/utils/google-analytics";
 
 /**
@@ -12,14 +12,11 @@ import { pageview, safeTrack } from "@/lib/utils/google-analytics";
  */
 export function useGoogleAnalytics() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  // Record pageview when the pathname or query changes
+  // Omit query parameters so usernames and other identifiers stay out of GA.
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
-      const queryString = searchParams.toString();
-      const url = pathname + (queryString ? "?" + queryString : "");
-      safeTrack(() => pageview(url));
+      safeTrack(() => pageview(pathname));
     }
-  }, [pathname, searchParams]);
+  }, [pathname]);
 }

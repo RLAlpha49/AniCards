@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
 import DarkModeToggle from "@/components/DarkModeToggle";
-import { SidebarTrigger } from "@/components/ui/Sidebar";
+import { MastheadMenu, MastheadNav } from "@/components/MastheadNav";
+import { cn } from "@/lib/utils";
 
 /**
  * Application header that anchors to the top of the viewport.
- * - Includes the main navigation link and a dark mode toggle.
+ * - Holds the brand, the masthead navigation, and the dark mode toggle.
  * - Uses a mount check to avoid server/client rendering mismatch.
- * - Features a modern glassmorphism design with gradient accents.
+ * - Adopts the paper palette on the home page and keeps the default glass
+ *   treatment everywhere else.
  * @returns A fixed header element.
  * @source
  */
@@ -28,39 +29,50 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/50 bg-white/80 backdrop-blur-xl transition-all dark:border-slate-700/50 dark:bg-slate-950/80">
+    <header
+      className={cn(
+        "sticky top-0 z-50 transition-colors",
+        "border-b-2 border-[#191512]/85 bg-[#f3e9d5]/95 backdrop-blur-md dark:border-[#ece1c9]/40 dark:bg-[#16120f]/95",
+      )}
+    >
       {/* Subtle gradient line at the top */}
-      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+      <div
+        className={cn(
+          "absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent to-transparent",
+          "via-[#b83a24]/60 dark:via-[#d4573c]/60",
+        )}
+      />
 
       <div className="flex h-16 items-center gap-4 px-6 pl-1.5">
         <div className="flex items-center gap-4">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          <Link
+            href="/"
+            className="group flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b83a24]"
           >
-            <SidebarTrigger className="h-9 w-9 rounded-xl border border-slate-200/50 bg-white/50 text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-900 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-white" />
-          </motion.div>
-
-          <Link href="/" className="group flex items-center gap-2.5">
-            <motion.span
-              className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-xl font-extrabold tracking-tight text-transparent"
-              whileHover={{ scale: 1.02 }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+            <span
+              aria-hidden="true"
+              className="grid h-8 w-8 place-items-center bg-[#b83a24] text-base leading-none text-[#f8efdc] motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-105 motion-safe:group-focus-visible:scale-105 dark:bg-[#d4573c] dark:text-[#16120f]"
+              style={{ fontFamily: "var(--font-display), serif" }}
+            >
+              庵
+            </span>
+            <span
+              className="text-xl font-extrabold tracking-tight text-[#191512] dark:text-[#ece1c9]"
+              style={{ fontFamily: "var(--font-display), serif" }}
             >
               AniCards
-            </motion.span>
+            </span>
           </Link>
         </div>
 
+        <div className="mx-4 hidden h-6 w-px bg-current opacity-15 lg:block" />
+
+        <MastheadNav />
+
         <div className="ml-auto flex items-center gap-3">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <DarkModeToggle />
-          </motion.div>
+          <DarkModeToggle />
+
+          <MastheadMenu />
         </div>
       </div>
     </header>

@@ -1,5 +1,5 @@
 import { clampBorderRadius } from "@/lib/utils";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/lib/card-catalogue";
 import { StoredCardConfig, CardsRecord, UserRecord } from "@/lib/types/records";
 import { ColorValue } from "@/lib/types/card";
 import { CardDataError, getFavoritesForCardType } from "./validation";
@@ -62,12 +62,13 @@ export function classifyCardConfigSource(
     return { source: "db", reason: "custom_preset" };
   }
 
-  const hasNamedPreset = !!params.colorPresetParam;
   const hasIndividualColors =
     !!params.titleColorParam &&
     !!params.backgroundColorParam &&
     !!params.textColorParam &&
     !!params.circleColorParam;
+
+  const hasNamedPreset = !!params.colorPresetParam;
 
   if (!hasNamedPreset && !hasIndividualColors) {
     return { source: "db", reason: "missing_colors" };
@@ -118,7 +119,7 @@ export function classifyCardConfigSource(
 
 /**
  * Determines if we need to fetch card config from DB or can build from URL params.
- * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
+ * Custom presets and missing settings require the stored config.
  * @source
  */
 export function needsCardConfigFromDb(params: CardConfigSourceParams): boolean {

@@ -1,0 +1,1049 @@
+/* Contact page: a routing desk on the home page's paper ground. */
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+/* ── hero ────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.heroRule {
+  border-top: 2px solid var(--ink);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+/* Two columns on a wide screen: the copy, and the three stages a message goes
+   through. The stages answer "what happens next" before the visitor commits to
+   a channel. */
+.heroInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  align-items: start;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  padding-top: clamp(2rem, 4vw, 3rem);
+  padding-bottom: clamp(1.8rem, 3.5vw, 2.6rem);
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.6rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.title {
+  position: relative;
+  z-index: 0;
+  margin-top: 1.35rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.title em {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.title em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: 0.2em;
+  left: -0.06em;
+  height: 0.9em;
+  background: var(--vermillion-wash);
+}
+
+.lede {
+  margin-top: 1.4rem;
+  max-width: 34rem;
+  font-size: 0.97rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.4rem, 3.5vw, 3rem);
+  margin-top: clamp(1.7rem, 3vw, 2.4rem);
+  border-top: 1px solid var(--line);
+  padding-top: 1.1rem;
+}
+
+.meta dt {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.meta dd {
+  margin-top: 0.2rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ── hero print ──────────────────────────────────────────────── */
+
+/* One card print, mounted on paper with a keyline and a strip of tape, with a
+   score strip tucked behind it. The caption below says what the print is,
+   because the artwork itself carries no alt text: the card is an example, not
+   information. */
+.printFrame {
+  position: relative;
+  width: min(100%, 25rem);
+  margin: clamp(2rem, 3.5vw, 2.8rem) auto 0;
+  padding: 0 1.4rem 0 0;
+}
+
+/* The stack holds the artwork only, so the caption below it is never covered
+   by the layer slipping out underneath. */
+.printStack {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 1.6rem;
+}
+
+/* Behind: a score strip slipping out under the bottom-left corner. */
+.printUnder {
+  position: absolute;
+  bottom: -0.9rem;
+  left: -2.6rem;
+  z-index: -1;
+  width: 13.5rem;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(155deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.35rem;
+  rotate: -5deg;
+  box-shadow: 0 18px 32px -24px var(--shadow);
+  animation:
+    enterIn 880ms cubic-bezier(0.22, 0.8, 0.3, 1) 240ms backwards,
+    drift 15s ease-in-out 1.2s infinite reverse;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.printFrame:hover .printUnder {
+  transform: translate(-7px, 4px);
+}
+
+.print {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 0.65rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 30px 55px -34px var(--shadow);
+  animation:
+    enterIn 900ms cubic-bezier(0.22, 0.8, 0.3, 1) 80ms backwards,
+    drift 9.5s ease-in-out 1s infinite reverse;
+  transition:
+    transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+:global(.dark) .print {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 32px 64px -34px rgba(0, 0, 0, 0.92);
+}
+
+.printFrame:hover .print {
+  transform: translateY(-5px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 40px 70px -34px var(--shadow);
+}
+
+.printImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.tape {
+  position: absolute;
+  top: -0.55rem;
+  left: -0.6rem;
+  z-index: 2;
+  width: 5.2rem;
+  height: 1.3rem;
+  rotate: -11deg;
+  border-right: 1px dashed rgba(25, 21, 18, 0.14);
+  border-left: 1px dashed rgba(25, 21, 18, 0.14);
+  background: rgba(214, 196, 158, 0.78);
+  backdrop-filter: blur(1px);
+  animation: fadeIn 600ms ease 840ms both;
+}
+
+:global(.dark) .tape {
+  border-color: rgba(236, 225, 201, 0.14);
+  background: rgba(198, 154, 82, 0.24);
+}
+
+/* Caption sits under the stack like a gallery label, not inside the frame. */
+.printCaption {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+  font-size: 0.74rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.printCaptionLabel {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Seal is stamped on the paper beside the print, clear of the artwork. */
+.seal {
+  position: absolute;
+  top: 1.4rem;
+  left: -1.35rem;
+  z-index: 5;
+  display: grid;
+  height: 2.7rem;
+  width: 2.7rem;
+  place-items: center;
+  rotate: 6deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.2rem;
+  box-shadow: 0 8px 18px -10px rgba(184, 58, 36, 0.9);
+  animation: stampIn 640ms cubic-bezier(0.22, 0.8, 0.3, 1) 900ms both;
+  transition: scale 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.printFrame:hover .seal {
+  scale: 1.07;
+}
+
+/* ── desk section ─────────────────────────────────────────────── */
+
+.deskSection {
+  padding: clamp(2rem, 4.5vw, 3.4rem) 0 clamp(2.4rem, 5vw, 3.8rem);
+  scroll-margin-top: 5rem;
+}
+
+/* ── desk ────────────────────────────────────────────────────── */
+
+/* The desk is the page's one instrument. The left pane is the question, four
+   reasons to write in; the right pane is the answer, and it changes in place.
+   Both panes share one border so the pair reads as a single printed form. */
+.desk {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  border: 2px solid var(--ink);
+  background: rgba(251, 245, 231, 0.5);
+  box-shadow: 8px 8px 0 var(--vermillion-wash);
+  animation: panelIn 760ms cubic-bezier(0.22, 0.8, 0.3, 1) 180ms backwards;
+}
+
+:global(.dark) .desk {
+  background: rgba(34, 28, 23, 0.55);
+}
+
+/* ── desk: question ──────────────────────────────────────────── */
+
+.deskAsk {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px dashed var(--line-strong);
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.deskHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.deskSeal {
+  display: grid;
+  flex: none;
+  height: 1.7rem;
+  width: 1.7rem;
+  place-items: center;
+  rotate: -3deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.9rem;
+}
+
+.deskTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.deskHeadRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.deskCount {
+  flex: none;
+  font-size: 0.56rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.deskList {
+  min-width: 0;
+  margin: 0.45rem 0 0;
+  border: 0;
+  padding: 0;
+}
+
+.deskLegend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.intentRow {
+  position: relative;
+  display: block;
+}
+
+/* The radio carries the state and the keyboard, the label carries the look.
+   Keeping the input in the flow means arrow keys still walk the group. */
+.intentInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intent {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.7rem 0.35rem;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    padding-inline 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    color 200ms ease;
+}
+
+.intentRow:last-child .intent {
+  border-bottom: 0;
+}
+
+.intent:hover {
+  background: var(--vermillion-wash);
+  padding-inline: 0.7rem;
+}
+
+.intentInput:focus-visible + .intent {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+.intentNum {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.intentBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.intentLabel {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.intentHint {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  transition: color 200ms ease;
+}
+
+.intentIcon {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--ink-faint);
+  transition:
+    transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    color 200ms ease;
+}
+
+.intent:hover .intentIcon {
+  transform: translateX(3px);
+  color: var(--vermillion);
+}
+
+/* The chosen row inverts to ink, the same way the generator's step rail marks
+   the step being edited. */
+.intentInput:checked + .intent,
+.intentInput:checked + .intent:hover {
+  background: var(--ink);
+  padding-inline: 0.7rem;
+  color: var(--paper);
+}
+
+.intentInput:checked + .intent .intentNum,
+.intentInput:checked + .intent .intentIcon {
+  color: var(--paper);
+}
+
+.intentInput:checked + .intent .intentIcon {
+  transform: translateX(3px);
+}
+
+.intentInput:checked + .intent .intentHint {
+  color: var(--paper);
+  opacity: 0.74;
+}
+
+/* Pinned to the bottom of the pane, so the note closes the question column at
+   the same edge the answer column ends on. */
+.deskFoot {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.deskFoot strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── desk: answer ────────────────────────────────────────────── */
+
+.slip {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.slipBody {
+  flex: 1;
+  min-width: 0;
+  padding: clamp(1.1rem, 2.4vw, 1.8rem);
+}
+
+/* Re-keyed on intent change, so the answer reassembles in place rather than
+   cutting to new text. */
+.slipContent {
+  animation: slipIn 420ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+.slipHead {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.9rem;
+}
+
+.slipSeal {
+  display: grid;
+  flex: none;
+  height: 2.1rem;
+  width: 2.1rem;
+  place-items: center;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  animation: stampIn 620ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+.slipHeadText {
+  min-width: 0;
+}
+
+.slipEyebrow {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.slipChannel {
+  margin-top: 0.15rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.2rem, 2.2vw, 1.55rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.slipWhere {
+  flex: none;
+  max-width: 45%;
+  margin-left: auto;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: right;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.slipWhy {
+  margin-top: 1.1rem;
+  max-width: 40rem;
+  font-size: 0.9rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.slipIncludeHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1.4rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.slipIncludeRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.slipInclude {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: slip-item;
+}
+
+.slipInclude li {
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  padding: 0.45rem 0 0.45rem 1.9rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  counter-increment: slip-item;
+}
+
+.slipInclude li:last-child {
+  border-bottom: 0;
+}
+
+.slipInclude li::before {
+  content: counter(slip-item, decimal-leading-zero);
+  position: absolute;
+  top: 0.58rem;
+  left: 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.78rem;
+  color: var(--vermillion);
+}
+
+/* The stub is the tear-off end of the form: the one action, and the honest
+   note about when it gets read. */
+.slipStub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1.4rem;
+  border-top: 1px dashed var(--line-strong);
+  padding: 1rem clamp(1.1rem, 2.4vw, 1.8rem) 1.1rem;
+}
+
+.stubAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.85rem 1.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--vermillion);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.stubAction:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+.stubActionIcon {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  transition: transform 180ms ease;
+}
+
+.stubAction:hover .stubActionIcon {
+  transform: translateX(3px);
+}
+
+.stubNote {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.7rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.stubNote strong {
+  display: block;
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── directory ───────────────────────────────────────────────── */
+
+/* The fallback for anyone who already knows where they are going. It lists the
+   same channels the desk routes to, with their addresses in the open. */
+.directory {
+  border-top: 2px solid var(--ink);
+  padding: clamp(2.2rem, 5vw, 3.6rem) 0;
+}
+
+.dirHead {
+  margin-bottom: clamp(1.4rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 1rem;
+}
+
+.dirHeadTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.dirHeadNote {
+  margin-top: 0.35rem;
+  max-width: 40rem;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.dirGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-left: 1px solid var(--line);
+}
+
+.dirCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  padding: 0 1.3rem 0 1.1rem;
+  transition: background-color 320ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.dirCard:hover {
+  background-color: var(--vermillion-wash);
+}
+
+.dirTop {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dirIcon {
+  display: grid;
+  flex: none;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  transition:
+    border-color 300ms ease,
+    color 300ms ease,
+    transform 320ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.dirCard:hover .dirIcon {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+  transform: translateY(-2px);
+}
+
+.dirName {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.dirNote {
+  font-size: 0.8rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.dirAddress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: auto;
+  border-bottom: 1px solid transparent;
+  padding-top: 0.5rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  color: var(--vermillion);
+  overflow-wrap: anywhere;
+  transition: border-color 220ms ease;
+}
+
+.dirCard:hover .dirAddress,
+.dirAddress:hover {
+  border-color: var(--vermillion);
+}
+
+.dirAddressIcon {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.dirFoot {
+  margin-top: 1.7rem;
+  font-size: 0.78rem;
+  line-height: 1.9;
+  color: var(--ink-soft);
+}
+
+.inlineLink {
+  border-bottom: 1px solid var(--vermillion);
+  color: var(--vermillion);
+}
+
+/* ── motion ──────────────────────────────────────────────────── */
+
+/* Paper settles onto the board. Opacity and blur only, so the hover and idle
+   animations can own translate, transform, and scale. */
+@keyframes enterIn {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* Idle drift for the hero print, matching the home page collage. */
+@keyframes drift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  33% {
+    translate: -2px -5px;
+  }
+  66% {
+    translate: 2px -2px;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    translate: 0 20px;
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+/* The answer reassembles when the intent changes: the frame holds still and
+   only the contents move. */
+@keyframes slipIn {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+@keyframes stampIn {
+  0% {
+    opacity: 0;
+    rotate: -16deg;
+    scale: 0.86;
+  }
+  55% {
+    opacity: 1;
+    rotate: 7deg;
+    scale: 1.04;
+  }
+  100% {
+    opacity: 1;
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+
+.stubAction:focus-visible,
+.dirAddress:focus-visible,
+.inlineLink:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 1120px) {
+  .desk {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, the answer follows the question instead of sitting beside it,
+     so the choice still lands directly above its result. */
+  .deskAsk {
+    border-right: 0;
+    border-bottom: 1px dashed var(--line-strong);
+  }
+
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 2rem;
+  }
+
+  /* The print moves under the copy and shrinks, so it still reads as the
+     subject of the page without pushing the desk below the fold. */
+  .printFrame {
+    width: min(100%, 20rem);
+    margin: 0 auto;
+    padding: 0 1rem 0 0;
+  }
+
+  .printUnder {
+    left: -1.8rem;
+    width: 11rem;
+  }
+
+  .seal {
+    top: 1rem;
+    left: -1.1rem;
+    height: 2.4rem;
+    width: 2.4rem;
+    font-size: 1.05rem;
+  }
+
+  .afterList {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 1rem;
+  }
+
+  .dirGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 1.8rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .edition {
+    gap: 0.55rem;
+    letter-spacing: 0.16em;
+  }
+
+  /* The right-hand note is decoration. On a phone it clips rather than
+     wrapping, so it stands down and leaves the label on its own. */
+  .edition > span:last-child {
+    display: none;
+  }
+
+  .deskAsk {
+    padding: 0.9rem 0.85rem 1rem;
+  }
+
+  .intent {
+    padding: 0.65rem 0.2rem;
+  }
+
+  .slipHead {
+    flex-wrap: wrap;
+  }
+
+  .slipWhere {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .stubAction {
+    width: 100%;
+  }
+
+  .dirGrid {
+    grid-template-columns: minmax(0, 1fr);
+    border-left: none;
+  }
+
+  .dirCard {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 1.1rem;
+  }
+
+  .dirCard:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .meta {
+    gap: 1.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk,
+  .print,
+  .tape,
+  .seal,
+  .slipSeal,
+  .slipContent {
+    animation: none;
+  }
+
+  .intent,
+  .intentHint,
+  .intentIcon,
+  .stubAction,
+  .stubActionIcon,
+  .dirCard,
+  .dirIcon,
+  .dirAddress,
+  .dirAddress {
+    transition: none;
+  }
+
+  .intent:hover,
+  .intentInput:checked + .intent,
+  .intentInput:checked + .intent:hover,
+  .intent:hover .intentIcon,
+  .intentInput:checked + .intent .intentIcon,
+  .stubAction:hover,
+  .stubAction:hover .stubActionIcon,
+  .dirCard:hover .dirIcon,
+  .printFrame:hover .print,
+  .printFrame:hover .printUnder,
+  .printFrame:hover .seal {
+    transform: none;
+    scale: none;
+  }
+}

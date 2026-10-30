@@ -52,6 +52,7 @@ import {
   MailIcon as MailData,
   MessageSquareIcon as MessageSquareData,
   Mic01Icon as MicData,
+  Menu01Icon as MenuData,
   MinusIcon as MinusData,
   MonitorIcon as MonitorData,
   MoonIcon as MoonData,
@@ -68,7 +69,6 @@ import {
   ScaleIcon as ScaleData,
   SearchIcon as SearchData,
   MailSend01Icon as SendData,
-  Settings01Icon as SettingsData,
   Share01Icon as ShareData,
   ShieldIcon as ShieldData,
   ShieldCheckIcon as ShieldCheckData,
@@ -158,6 +158,7 @@ export const Link = createIcon(LinkData, "Link");
 export const List = createIcon(ListData, "List");
 export const Loader2 = createIcon(LoaderData, "Loader2");
 export const Mail = createIcon(MailData, "Mail");
+export const Menu = createIcon(MenuData, "Menu");
 export const MessageSquare = createIcon(MessageSquareData, "MessageSquare");
 export const Mic = createIcon(MicData, "Mic");
 export const Minus = createIcon(MinusData, "Minus");
@@ -176,8 +177,6 @@ export const RotateCcw = createIcon(RotateData, "RotateCcw");
 export const Scale = createIcon(ScaleData, "Scale");
 export const Search = createIcon(SearchData, "Search");
 export const Send = createIcon(SendData, "Send");
-export const Settings = createIcon(SettingsData, "Settings");
-export const Settings2 = Settings;
 export const Share2 = createIcon(ShareData, "Share2");
 export const Shield = createIcon(ShieldData, "Shield");
 export const ShieldCheck = createIcon(ShieldCheckData, "ShieldCheck");

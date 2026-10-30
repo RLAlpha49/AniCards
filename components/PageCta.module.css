@@ -1,0 +1,298 @@
+/* Closing call to action shared by the paper pages. */
+
+.section {
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+.cta {
+  position: relative;
+  border: 2px solid var(--ink);
+  padding: clamp(2.4rem, 5vw, 4.2rem) clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(166, 124, 51, 0.13),
+      transparent 70%
+    ),
+    rgba(251, 245, 231, 0.5);
+  text-align: center;
+}
+
+:global(.dark) .cta {
+  background:
+    radial-gradient(
+      ellipse 70% 100% at 50% 0%,
+      rgba(198, 154, 82, 0.12),
+      transparent 70%
+    ),
+    rgba(34, 28, 23, 0.6);
+}
+
+.cta::before,
+.cta::after {
+  content: "";
+  position: absolute;
+  right: 0.55rem;
+  left: 0.55rem;
+  height: 1px;
+  background: var(--line);
+  transform: scaleX(0.96);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cta::before {
+  top: 0.55rem;
+}
+
+.cta::after {
+  bottom: 0.55rem;
+}
+
+.cta:hover::before,
+.cta:hover::after,
+.cta:focus-within::before,
+.cta:focus-within::after {
+  transform: scaleX(1);
+}
+
+.seal {
+  display: inline-grid;
+  height: 2.4rem;
+  width: 2.4rem;
+  place-items: center;
+  margin-bottom: 1.3rem;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cta:hover .seal,
+.cta:focus-within .seal {
+  transform: rotate(-7deg) scale(1.06);
+}
+
+.cta h2 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.9rem, 4.2vw, 3.2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.cta h2 em {
+  font-style: italic;
+  color: var(--indigo);
+}
+
+.cta p {
+  margin: 1rem auto 0;
+  max-width: 32rem;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem 1.8rem;
+  margin-top: 1.9rem;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 2px solid var(--vermillion);
+  background: var(--vermillion);
+  color: #fbf3e2;
+  padding: 0.95rem 2.4rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  box-shadow: 0 0 0 var(--ink);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+/* The fill darkens as the hard shadow appears, so the button lifts off the
+   paper instead of flipping to a different colour. */
+.primary:hover {
+  background-color: color-mix(in srgb, var(--vermillion) 86%, var(--ink));
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.primary:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.primaryIcon {
+  display: inline-flex;
+  flex: none;
+  transition: transform 260ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.primaryIcon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.primary:hover .primaryIcon {
+  transform: translateX(4px);
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 0.3rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    gap 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.secondary:hover {
+  gap: 0.85rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.secondaryIcon {
+  display: inline-flex;
+  flex: none;
+}
+
+.secondaryIcon svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.top {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1.6rem;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 0.2rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.top:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.topIcon {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.cta .fine {
+  margin-top: 1.2rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* The block enters as one piece instead of cascading its text. */
+.cta[data-reveal="hidden"] {
+  opacity: 0;
+  translate: 0 16px;
+}
+
+.cta[data-reveal="shown"] {
+  animation: ctaReveal 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes ctaReveal {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.top:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .primary {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .secondary {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta::before,
+  .cta::after,
+  .seal,
+  .primary,
+  .primaryIcon,
+  .secondary,
+  .top {
+    transition: none;
+  }
+
+  .cta:hover::before,
+  .cta:hover::after,
+  .cta:focus-within::before,
+  .cta:focus-within::after,
+  .cta:hover .seal,
+  .cta:focus-within .seal,
+  .primary:hover,
+  .primary:active,
+  .primary:hover .primaryIcon {
+    transform: none;
+  }
+
+  .cta[data-reveal="hidden"],
+  .cta[data-reveal="shown"] {
+    animation: none;
+    opacity: 1;
+    translate: none;
+  }
+}

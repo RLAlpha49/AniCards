@@ -48,6 +48,7 @@ export const pageview = (url: string): void => {
     try {
       gtag("config", gaId, {
         page_path: url,
+        page_title: "AniCards",
       });
     } catch {
       console.error("Google Analytics pageview failed");
@@ -132,12 +133,12 @@ export const trackBatchExport = (
   });
 };
 
-/** Track a user search by username in GA events. @source */
-export const trackUserSearch = (username: string) => {
+/** Track a username search without sending the username to GA. @source */
+export const trackUserSearch = () => {
   event({
     action: "user_searched",
     category: "engagement",
-    label: username,
+    label: "generator",
   });
 };
 
@@ -188,15 +189,6 @@ export const trackNavigation = (
     label: sourceContext
       ? `${sourceContext}_to_${destinationPage}`
       : destinationPage,
-  });
-};
-
-/** Track sidebar expand/collapse actions in GA. @source */
-export const trackSidebarToggle = (action: "expand" | "collapse") => {
-  event({
-    action: "sidebar_toggled",
-    category: "ui_interaction",
-    label: action,
   });
 };
 

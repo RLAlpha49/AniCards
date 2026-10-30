@@ -77,7 +77,7 @@ export type StaffItem = { staff: { name: { full: string } }; count: number };
  * Used when rendering card labels or titles in the UI and templates.
  * @source
  */
-export const displayNames: { [key: string]: string } = {
+const cardDisplayNames = {
   animeStats: "Anime Stats",
   socialStats: "Social Stats",
   socialMilestones: "Social Milestones",
@@ -133,6 +133,9 @@ export const displayNames: { [key: string]: string } = {
   reviewStats: "Review Statistics",
   studioCollaboration: "Studio Collaboration",
 };
+
+export type CardType = keyof typeof cardDisplayNames;
+export const displayNames: Record<string, string> = cardDisplayNames;
 
 /**
  * Returns whether the provided card type string corresponds to a supported

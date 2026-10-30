@@ -1,208 +1,181 @@
 "use client";
 
-import { motion } from "motion/react";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import {
-  ArrowLeft,
-  BarChart2,
-  BookOpen,
-  PieChart,
-  Search,
-  Sparkles,
-  TrendingUp,
-} from "@/lib/icons";
+import { useId } from "react";
+import { ArrowRight, ExternalLink, Search, X } from "@/lib/icons";
+import { useRevealInView } from "@/hooks/useRevealInView";
+import { cn } from "@/lib/utils";
+import homeStyles from "@/components/home/home.module.css";
+import styles from "./card-examples.module.css";
+import type { GroupSummary } from "./card-types";
 
-interface HeroSectionProps {
+type ExamplesHeroSectionProps = Readonly<{
+  groups: GroupSummary[];
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  stats: {
-    coreStats: number;
-    animeDeepDive: number;
-    mangaDeepDive: number;
-    activityEngagement: number;
-    libraryProgress: number;
-    advancedAnalytics: number;
-    totalVariants: number;
-  };
-}
+  totals: { cardTypes: number; variations: number; matching: number };
+}>;
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-
-const STAT_CATEGORIES = [
-  {
-    key: "coreStats",
-    label: "Core Stats",
-    icon: BarChart2,
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    key: "animeDeepDive",
-    label: "Anime Deep Dive",
-    icon: PieChart,
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    text: "text-purple-600 dark:text-purple-400",
-  },
-  {
-    key: "mangaDeepDive",
-    label: "Manga Deep Dive",
-    icon: BookOpen,
-    bg: "bg-pink-100 dark:bg-pink-900/30",
-    text: "text-pink-600 dark:text-pink-400",
-  },
-  {
-    key: "activityEngagement",
-    label: "Activity & Engagement",
-    icon: Sparkles,
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-600 dark:text-amber-400",
-  },
-  {
-    key: "libraryProgress",
-    label: "Library & Progress",
-    icon: Sparkles,
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    key: "advancedAnalytics",
-    label: "Advanced Analytics",
-    icon: TrendingUp,
-    bg: "bg-indigo-100 dark:bg-indigo-900/30",
-    text: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    key: "totalVariants",
-    label: "Total Variants",
-    icon: TrendingUp,
-    bg: "bg-green-100 dark:bg-green-900/30",
-    text: "text-green-600 dark:text-green-400",
-  },
-] as const;
-
+/**
+ * Hero for the examples page.
+ *
+ * Pairs the headline and search field with the page's group navigation. Each
+ * group row shows how many card types it holds, and those counts follow the
+ * active search.
+ *
+ * @param props.groups - Groups with their current match counts.
+ * @param props.searchQuery - The current search term.
+ * @param props.onSearchChange - Updates the search term.
+ * @param props.totals - Card type and variation counts.
+ * @source
+ */
 export function ExamplesHeroSection({
+  groups,
   searchQuery,
   onSearchChange,
-  stats,
-}: Readonly<HeroSectionProps>) {
+  totals,
+}: ExamplesHeroSectionProps) {
+  const { ref, phase } = useRevealInView<HTMLDivElement>();
+  const searchId = useId();
+  const isSearching = searchQuery.trim().length > 0;
+
   return (
-    <section className="relative w-full overflow-hidden">
-      <div className="relative z-10 container mx-auto px-4 py-16 lg:py-24">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="mx-auto max-w-6xl"
-        >
-          <motion.div
-            variants={itemVariants}
-            className="mb-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"
-          >
-            <Link href="/">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="group text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                Back to Home
-              </Button>
-            </Link>
-            <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search cards..."
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="h-11 rounded-full border-slate-200 bg-white/80 pl-10 dark:border-slate-700 dark:bg-slate-800/80"
-              />
-            </div>
-          </motion.div>
+    <section className={styles.hero}>
+      <div className={styles.sheet}>
+        <p className={styles.edition}>
+          <span>Card examples</span>
+          <span className={styles.editionRule} aria-hidden="true" />
+          <span>
+            {totals.cardTypes} card types · {totals.variations} variations
+          </span>
+        </p>
 
-          <motion.div variants={itemVariants} className="mb-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-purple-200/50 bg-purple-50/80 px-4 py-2 text-sm font-medium text-purple-700 shadow-sm backdrop-blur-sm dark:border-purple-700/50 dark:bg-purple-950/50 dark:text-purple-300">
-              <Sparkles className="h-4 w-4" />
-              Card Gallery
-            </span>
-          </motion.div>
+        <div className={styles.heroRule} />
 
-          <motion.h1
-            variants={itemVariants}
-            className="mb-6 text-4xl leading-[1.1] font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white"
+        <div className={styles.heroInner}>
+          <div
+            ref={ref}
+            data-reveal={phase}
+            className={cn(
+              styles.heroCopy,
+              homeStyles.reveal,
+              homeStyles.revealFlat,
+            )}
           >
-            Explore All{" "}
-            <span className="relative">
-              <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Card Types
-              </span>
-              <motion.span
-                className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                animate={{ opacity: [0.5, 0.8, 0.5] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-            </span>
-          </motion.h1>
+            <p className={styles.kicker}>
+              <span className={styles.kickerRule} aria-hidden="true" />
+              Every card the generator makes
+            </p>
 
-          <motion.p
-            variants={itemVariants}
-            className="mx-auto mb-12 max-w-2xl text-lg text-slate-600 sm:text-xl dark:text-slate-300"
-          >
-            Browse the complete collection of statistical visualizations. All
-            examples are generated in real-time using data from{" "}
-            <a
-              href="https://anilist.co/user/Alpha49"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+            <h1 className={styles.title}>
+              All {totals.cardTypes} card types,
+              <br />
+              <em>with real data.</em>
+            </h1>
+
+            <p className={styles.lede}>
+              Every card below is rendered by the card API from a public AniList
+              profile. Switch a card's variations to see how each layout looks
+              before you pick one.
+            </p>
+
+            <form
+              role="search"
+              className={styles.search}
+              onSubmit={(event) => event.preventDefault()}
             >
-              @Alpha49
-            </a>
-            {""}.
-          </motion.p>
-
-          <motion.div
-            variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
-          >
-            {STAT_CATEGORIES.map((stat) => {
-              const Icon = stat.icon;
-              const value = stats[stat.key];
-              return (
-                <motion.div
-                  key={stat.key}
-                  whileHover={{ scale: 1.02 }}
-                  className="group rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm transition-all hover:border-slate-300/50 hover:shadow-lg dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600/50"
+              <label htmlFor={searchId} className="sr-only">
+                Search card types
+              </label>
+              <Search className={styles.searchIcon} aria-hidden="true" />
+              <input
+                id={searchId}
+                type="text"
+                placeholder="Search by card name, stat, or variation"
+                value={searchQuery}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className={styles.searchInput}
+                autoComplete="off"
+              />
+              {isSearching && (
+                <button
+                  type="button"
+                  onClick={() => onSearchChange("")}
+                  className={styles.searchClear}
                 >
-                  <div
-                    className={`mb-3 inline-flex rounded-xl p-2.5 ${stat.bg}`}
-                  >
-                    <Icon className={`h-5 w-5 ${stat.text}`} />
-                  </div>
-                  <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                    {value}
-                  </div>
-                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {stat.label}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </motion.div>
+                  Clear
+                  <X className={styles.searchClearIcon} aria-hidden="true" />
+                </button>
+              )}
+            </form>
+
+            <p className={styles.searchStatus} role="status">
+              {isSearching
+                ? `${totals.matching} of ${totals.cardTypes} card types match "${searchQuery.trim()}"`
+                : `${totals.cardTypes} card types · ${totals.variations} variations`}
+            </p>
+
+            <p className={styles.source}>
+              Preview data comes from{" "}
+              <a
+                href="https://anilist.co/user/Alpha49"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.sourceLink}
+              >
+                @Alpha49 on AniList
+                <ExternalLink
+                  className={styles.sourceLinkIcon}
+                  aria-hidden="true"
+                />
+              </a>
+            </p>
+          </div>
+
+          <nav aria-label="Card groups" className={styles.groupNav}>
+            <p className={styles.groupNavHead}>
+              <span>Jump to a group</span>
+              <span className={styles.groupNavRule} aria-hidden="true" />
+              <span>6 groups</span>
+            </p>
+
+            <ol className={styles.groupNavList}>
+              {groups.map((group) => {
+                const empty = group.matchCount === 0;
+
+                return (
+                  <li key={group.name}>
+                    <a
+                      href={`#${group.anchor}`}
+                      className={cn(
+                        styles.groupNavItem,
+                        empty && styles.groupNavItemMuted,
+                      )}
+                      aria-disabled={empty || undefined}
+                      tabIndex={empty ? -1 : undefined}
+                    >
+                      <span className={styles.groupNavNum} aria-hidden="true">
+                        {group.numeral}
+                      </span>
+                      <span className={styles.groupNavName}>
+                        {group.name}
+                        <span className={styles.groupNavNote}>
+                          {group.note}
+                        </span>
+                      </span>
+                      <span className={styles.groupNavCount}>
+                        {group.matchCount}
+                      </span>
+                      <ArrowRight
+                        className={styles.groupNavIcon}
+                        aria-hidden="true"
+                      />
+                    </a>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </div>
       </div>
     </section>
   );

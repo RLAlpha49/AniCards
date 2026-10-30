@@ -71,14 +71,14 @@ test.describe("User page", () => {
 
     await test.step("Inspect export controls", async () => {
       await expect(
-        page.getByRole("heading", { name: /export your cards/i }),
+        page.getByRole("heading", { name: /take the whole set/i }),
       ).toBeVisible();
 
       const copyButton = page.getByRole("button", {
-        name: /copy all card links/i,
+        name: /copy all links/i,
       });
       const downloadButton = page.getByRole("button", {
-        name: /download all cards/i,
+        name: /download all/i,
       });
 
       await expect(copyButton).toBeVisible();
@@ -86,7 +86,7 @@ test.describe("User page", () => {
 
       await copyButton.click();
       await expect(
-        page.getByRole("button", { name: /copy svg links/i }),
+        page.getByRole("button", { name: /copy svg addresses/i }),
       ).toBeVisible();
     });
   });
@@ -113,5 +113,94 @@ test.describe("User page", () => {
         page.getByRole("link", { name: /return home/i }),
       ).toBeVisible();
     });
+  });
+
+  test("offers the AniList About line for a single card", async ({ page }) => {
+    await test.step("Mock user, cards, and artwork", async () => {
+      await page.route("**/api/get-user**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockUserRecord),
+        });
+      });
+
+      await page.route("**/api/get-cards**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockCardsRecord),
+        });
+      });
+
+      await page.route("**/api/card**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/svg+xml",
+          body: mockSvgCard,
+        });
+      });
+    });
+
+    await page.goto("/user?username=TestUser");
+
+    await test.step("Open the copy menu on the opening card", async () => {
+      await page
+        .getByRole("button", { name: /copy a link to the anime stats card/i })
+        .first()
+        .click();
+
+      await expect(page.getByText(/anilist about line/i).first()).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /copy about line/i }).first(),
+      ).toBeVisible();
+    });
+
+    await test.step("The line wraps the card address for AniList", async () => {
+      const line = await page
+        .locator("p")
+        .filter({ hasText: /^img150\(/ })
+        .first()
+        .innerText();
+
+      expect(line).toMatch(/^img150\(https?:\/\/.+\/card\.svg\?/);
+      // The cache-buster is stripped so a copied link stays stable.
+      expect(line).not.toContain("_t=");
+    });
+  });
+
+  test("explains that generating replaces the saved set", async ({ page }) => {
+    await page.route("**/api/get-user**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockUserRecord),
+      });
+    });
+
+    await page.route("**/api/get-cards**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockCardsRecord),
+      });
+    });
+
+    await page.route("**/api/card**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/svg+xml",
+        body: mockSvgCard,
+      });
+    });
+
+    await page.goto("/user?username=TestUser");
+
+    await expect(
+      page.getByText(/generating again replaces this set/i),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /put a card on your profile/i }),
+    ).toBeVisible();
   });
 });

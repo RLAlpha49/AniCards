@@ -28,6 +28,21 @@ export const CSP_KEYWORDS = {
 } as const;
 
 /**
+ * Local development origins.
+ *
+ * The card API runs on a separate origin in development
+ * (`http://api.localhost:3000`), which the `https:` keyword does not cover.
+ * Without these the card previews and API calls are blocked by the policy
+ * during local development. Both are loopback addresses, so they cannot be
+ * reached by a remote attacker.
+ * @source
+ */
+const DEV_ORIGINS = [
+  "http://localhost:3000",
+  "http://api.localhost:3000",
+] as const;
+
+/**
  * CSP Directives Configuration
  *
  * Whitelisted source URLs grouped by directive — used to assemble CSP headers.
@@ -49,6 +64,9 @@ export const CSP_DIRECTIVES = {
     "https://va.vercel-scripts.com",
     "https://*.vercel-insights.com",
     CSP_KEYWORDS.STRICT_DYNAMIC,
+    // React uses eval to reconstruct server-side error stacks in development.
+    // Without this the dev overlay swallows errors and error handling breaks.
+    ...(process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : []),
   ],
 
   /**
@@ -70,6 +88,7 @@ export const CSP_DIRECTIVES = {
     CSP_KEYWORDS.DATA,
     CSP_KEYWORDS.BLOB,
     CSP_KEYWORDS.HTTPS,
+    ...DEV_ORIGINS,
   ],
 
   /**
@@ -90,6 +109,7 @@ export const CSP_DIRECTIVES = {
     "https://*.vercel-insights.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
+    ...DEV_ORIGINS,
   ],
 
   /**
