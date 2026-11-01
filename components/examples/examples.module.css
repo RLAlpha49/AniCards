@@ -811,9 +811,9 @@
   height: 0.85rem;
 }
 
-.ctaFine {
-  margin-top: 1.3rem !important;
-  font-size: 0.6rem !important;
+.cta .ctaFine {
+  margin-top: 1.3rem;
+  font-size: 0.6rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-soft);

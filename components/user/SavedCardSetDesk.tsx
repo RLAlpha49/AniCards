@@ -71,7 +71,8 @@ export function SavedCardSetDesk({
   const anilistBlock = useMemo(() => {
     const query = new URLSearchParams({ userId });
     if (username) query.set("username", username);
-    const statsLink = `[<h1>Stats</h1>](${getAbsoluteUrl(`/user?${query.toString()}`)})`;
+    const statsUrl = getAbsoluteUrl(`/user?${query.toString()}`);
+    const statsLink = `[<h1>Stats</h1>](${statsUrl})`;
     return [statsLink, ...anilistLines].join("\n");
   }, [anilistLines, userId, username]);
 

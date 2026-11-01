@@ -1,4 +1,5 @@
 import {
+  DEFAULT_BASE_CARD_URL,
   DEFAULT_EXAMPLE_USER_ID,
   VARIATION_LABEL_MAP,
   buildCardUrlWithParams,
@@ -14,7 +15,6 @@ import type { CardType } from "@/components/examples/card-types";
 import { colorPresets } from "@/lib/card-catalogue";
 import type { ColorValue } from "@/lib/types/card";
 import type { StoredCardConfig } from "@/lib/types/records";
-import { DEFAULT_BASE_CARD_URL } from "@/lib/card-groups";
 import { isGradient } from "@/lib/utils";
 
 /**

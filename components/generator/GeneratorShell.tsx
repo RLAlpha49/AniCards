@@ -54,6 +54,25 @@ function resolveErrorDetails(error: Error | null): ErrorDetails | null {
   return getErrorDetails(error.message);
 }
 
+function missingStep(username: string, selectedCount: number): StepId {
+  if (!username.trim()) return "username";
+  if (selectedCount === 0) return "cards";
+  return "palette";
+}
+
+function missingNote(username: string, selectedCount: number): string {
+  if (!username.trim()) return "Needs a username";
+  if (selectedCount === 0) return "Needs a card";
+  return "Check colour values";
+}
+
+function generateErrorNote(username: string, selectedCount: number): string {
+  if (!username.trim()) return "Add an AniList username, then generate again.";
+  if (selectedCount === 0)
+    return "Choose at least one card, then generate again.";
+  return "Enter valid colours in step two before generating.";
+}
+
 /**
  * The card generator.
  *
@@ -162,6 +181,10 @@ export function GeneratorShell() {
     const favourites = selectedIds.filter(
       (id) => draft.selections[id]?.showFavourites,
     ).length;
+    const paletteNote =
+      draft.presetName === "custom"
+        ? "Custom colours"
+        : "Named palette or your own";
 
     return STEP_IDS.map<Step>((id) => {
       const base = STEP_META[id];
@@ -180,11 +203,7 @@ export function GeneratorShell() {
         return {
           ...base,
           id,
-          note: paletteValid
-            ? draft.presetName === "custom"
-              ? "Custom colours"
-              : "Named palette or your own"
-            : "Check colour values",
+          note: paletteValid ? paletteNote : "Check colour values",
           count: draft.frameEnabled ? "framed" : null,
           done: paletteValid,
         };
@@ -208,11 +227,7 @@ export function GeneratorShell() {
         id,
         note: readyToGenerate
           ? "Ready to generate"
-          : !draft.username.trim()
-            ? "Needs a username"
-            : selectedCount === 0
-              ? "Needs a card"
-              : "Check colour values",
+          : missingNote(draft.username, selectedCount),
         count: `${selectedCount}`,
         done: readyToGenerate,
       };
@@ -243,13 +258,7 @@ export function GeneratorShell() {
     setAttemptedGenerate(true);
 
     if (!readyToGenerate) {
-      setActiveStep(
-        !draft.username.trim()
-          ? "username"
-          : selectedIds.length === 0
-            ? "cards"
-            : "palette",
-      );
+      setActiveStep(missingStep(draft.username, selectedIds.length));
       return;
     }
 
@@ -371,11 +380,13 @@ export function GeneratorShell() {
     ],
   );
 
-  const generateLabel = loading
-    ? retryAttempt > 0
-      ? `Retrying (${Math.min(retryAttempt, retryLimit)}/${retryLimit})`
-      : "Generating"
-    : "Generate the cards";
+  let generateLabel = "Generate the cards";
+  if (loading) {
+    generateLabel =
+      retryAttempt > 0
+        ? `Retrying (${Math.min(retryAttempt, retryLimit)}/${retryLimit})`
+        : "Generating";
+  }
 
   return (
     <ErrorBoundary>
@@ -564,11 +575,7 @@ export function GeneratorShell() {
 
                   <p className={styles.actionNote}>
                     {attemptedGenerate && !readyToGenerate
-                      ? !draft.username.trim()
-                        ? "Add an AniList username, then generate again."
-                        : selectedCount === 0
-                          ? "Choose at least one card, then generate again."
-                          : "Enter valid colours in step two before generating."
+                      ? generateErrorNote(draft.username, selectedCount)
                       : describeReadiness(
                           draft.username,
                           selectedCount,

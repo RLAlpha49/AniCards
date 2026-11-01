@@ -108,32 +108,22 @@ function resolveCardPreference(
  * @source
  */
 function buildInitialDraft(
-  savedPresetName: string | undefined,
-  savedColors: ColorValue[] | undefined,
-  savedCardTypes: string[],
-  savedVariants: Record<string, string>,
-  savedFavourites: Record<string, boolean>,
-  savedFrameEnabled: boolean,
-  savedFrameColor: string,
-  savedRadius: number,
-  savedColumns: number,
-  savedRows: number,
-  savedStatusColors: boolean,
-  savedMangaStatusColors: boolean,
-  savedPiePercentages: boolean,
+  settings: ReturnType<typeof useCardSettings.getState>,
   username: string,
 ): GeneratorDraft {
-  const presetName = resolvePresetName(savedPresetName);
+  const presetName = resolvePresetName(settings.savedColorConfig?.presetName);
+  const savedColors = settings.savedColorConfig?.colors as
+    ColorValue[] | undefined;
+  const fallbackPreset = presetName in colorPresets ? presetName : "default";
   const colors =
-    savedColors && savedColors.length === 4
+    savedColors?.length === 4
       ? savedColors
-      : colorPresets[presetName in colorPresets ? presetName : "default"]
-          .colors;
+      : colorPresets[fallbackPreset].colors;
 
   const cardPreferences: Record<string, CardSelection> = {};
   for (const card of CARD_TYPES) {
-    const savedVariation = savedVariants[card.id];
-    const savedFavourite = savedFavourites[card.id];
+    const savedVariation = settings.defaultVariants[card.id];
+    const savedFavourite = settings.defaultShowFavoritesByCard[card.id];
     const preference = resolveCardPreference(card.id, {
       variation: savedVariation ?? card.variations[0]?.variation ?? "default",
       showFavourites: Boolean(savedFavourite),
@@ -142,7 +132,7 @@ function buildInitialDraft(
   }
 
   const selections: Record<string, CardSelection> = {};
-  for (const id of savedCardTypes) {
+  for (const id of settings.defaultCardTypes) {
     const preference = cardPreferences[id];
     if (preference) selections[id] = preference;
   }
@@ -153,14 +143,14 @@ function buildInitialDraft(
     colors,
     selections,
     cardPreferences,
-    animeStatusColors: savedStatusColors,
-    mangaStatusColors: savedMangaStatusColors,
-    piePercentages: savedPiePercentages,
-    frameEnabled: savedFrameEnabled,
-    frameColor: savedFrameColor || DEFAULT_FRAME_COLOR,
-    cornerRadius: savedRadius,
-    gridColumns: savedColumns,
-    gridRows: savedRows,
+    animeStatusColors: settings.useAnimeStatusColors,
+    mangaStatusColors: settings.useMangaStatusColors,
+    piePercentages: settings.showPiePercentages,
+    frameEnabled: settings.defaultBorderEnabled,
+    frameColor: settings.defaultBorderColor || DEFAULT_FRAME_COLOR,
+    cornerRadius: settings.defaultBorderRadius,
+    gridColumns: settings.favoritesGridColumns,
+    gridRows: settings.favoritesGridRows,
   };
 }
 
@@ -192,20 +182,7 @@ export function useGeneratorDraft() {
       const savedUserPreferences = useUserPreferences.getState();
       setDraft(
         buildInitialDraft(
-          savedCardSettings.savedColorConfig?.presetName,
-          savedCardSettings.savedColorConfig?.colors as
-            ColorValue[] | undefined,
-          savedCardSettings.defaultCardTypes,
-          savedCardSettings.defaultVariants,
-          savedCardSettings.defaultShowFavoritesByCard,
-          savedCardSettings.defaultBorderEnabled,
-          savedCardSettings.defaultBorderColor,
-          savedCardSettings.defaultBorderRadius,
-          savedCardSettings.favoritesGridColumns,
-          savedCardSettings.favoritesGridRows,
-          savedCardSettings.useAnimeStatusColors,
-          savedCardSettings.useMangaStatusColors,
-          savedCardSettings.showPiePercentages,
+          savedCardSettings,
           savedUserPreferences.defaultUsername,
         ),
       );

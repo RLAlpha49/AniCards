@@ -73,6 +73,7 @@ export function CardsStep({
   const selectedCount = Object.keys(selections).length;
   const allSelected = selectedCount === CARD_TYPES.length;
   const matchingIds = matching.map((card) => card.id);
+  const selectLabel = query ? "Add matches" : "Select all";
 
   return (
     <div>
@@ -111,7 +112,7 @@ export function CardsStep({
             allSelected && styles.toolbarButtonActive,
           )}
         >
-          {allSelected ? "Unselect all" : query ? "Add matches" : "Select all"}
+          {allSelected ? "Unselect all" : selectLabel}
         </button>
 
         {selectedCount > 0 && !allSelected && (

@@ -444,6 +444,52 @@ function addPiePercentagesParamIfRelevant(
   }
 }
 
+/** Use the shortest equivalent representation for a complete custom palette. */
+function shortenColorParams(params: CardUrlParams): void {
+  if (
+    params.colorPreset ||
+    !params.titleColor ||
+    !params.backgroundColor ||
+    !params.textColor ||
+    !params.circleColor
+  )
+    return;
+
+  const keys = [
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ] as const;
+  const originalColors = keys.map((key) => params[key]!);
+  let shortest = new URLSearchParams(
+    keys.map((key, index) => [key, originalColors[index]]),
+  ).toString().length;
+
+  for (const [name, preset] of Object.entries(colorPresets)) {
+    if (name === "custom" || preset.colors.length < 4) continue;
+    const overrides = keys.flatMap((key, index) => {
+      const color = preset.colors[index];
+      const serialized =
+        typeof color === "string" ? color : JSON.stringify(color);
+      return serialized === originalColors[index]
+        ? []
+        : [[key, originalColors[index]]];
+    });
+    const length = new URLSearchParams([
+      ["colorPreset", name],
+      ...overrides,
+    ]).toString().length;
+    if (length >= shortest) continue;
+    shortest = length;
+    params.colorPreset = name;
+    for (const key of keys) delete params[key];
+    for (const [key, value] of overrides) {
+      params[key as (typeof keys)[number]] = value;
+    }
+  }
+}
+
 export function mapStoredConfigToCardUrlParams(
   candidate: Partial<
     import("@/lib/types/records").StoredCardConfig & {
@@ -496,48 +542,7 @@ export function mapStoredConfigToCardUrlParams(
     if (candidate.textColor) params.textColor = candidate.textColor;
     if (candidate.circleColor) params.circleColor = candidate.circleColor;
 
-    if (
-      !colorPreset &&
-      params.titleColor &&
-      params.backgroundColor &&
-      params.textColor &&
-      params.circleColor
-    ) {
-      const keys = [
-        "titleColor",
-        "backgroundColor",
-        "textColor",
-        "circleColor",
-      ] as const;
-      const originalColors = keys.map((key) => params[key]!);
-      let shortest = new URLSearchParams(
-        keys.map((key, index) => [key, originalColors[index]]),
-      ).toString().length;
-
-      for (const [name, preset] of Object.entries(colorPresets)) {
-        if (name === "custom" || preset.colors.length < 4) continue;
-        const overrides = keys.flatMap((key, index) => {
-          const color = preset.colors[index];
-          const serialized =
-            typeof color === "string" ? color : JSON.stringify(color);
-          return serialized === originalColors[index]
-            ? []
-            : [[key, originalColors[index]]];
-        });
-        const length = new URLSearchParams([
-          ["colorPreset", name],
-          ...overrides,
-        ]).toString().length;
-        if (length < shortest) {
-          shortest = length;
-          params.colorPreset = name;
-          for (const key of keys) delete params[key];
-          for (const [key, value] of overrides) {
-            params[key as (typeof keys)[number]] = value;
-          }
-        }
-      }
-    }
+    shortenColorParams(params);
   }
 
   addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);

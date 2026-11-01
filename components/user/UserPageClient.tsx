@@ -531,6 +531,49 @@ export function UserPageClient() {
       };
     };
 
+    const loadUrlCards = async (
+      cardsParam: string,
+      userId: string | null,
+      username: string | null,
+    ) => {
+      let parsed: CardData[];
+      try {
+        parsed = parseAndValidateCards(cardsParam);
+      } catch {
+        setError("The card configuration in this link could not be read.");
+        return;
+      }
+
+      let resolvedUser: UserData | null = null;
+      if (userId) {
+        const record = await fetchUserById(userId, ignoreError);
+        resolvedUser = {
+          userId,
+          username: username || record?.username || undefined,
+          dataUpdatedAt: record?.dataUpdatedAt,
+        };
+      } else if (username) {
+        resolvedUser = await readUserByUsername(username);
+        if (!resolvedUser) return;
+      }
+
+      if (cancelled) return;
+      setUserData(resolvedUser);
+      setCards(
+        parsed
+          .map(normalizeCardEntry)
+          .filter((card): card is CardData => card !== null),
+      );
+      setFromUrl(true);
+    };
+
+    const loadStoredCards = async (user: UserData, lookupId = user.userId) => {
+      const stored = await readStoredCards(lookupId);
+      if (!stored || cancelled) return;
+      setUserData(user);
+      setCards(stored);
+    };
+
     const load = async () => {
       try {
         let userId = searchParams.get("userId");
@@ -544,36 +587,7 @@ export function UserPageClient() {
            The profile record is still read for the timestamps the card URLs
            carry, but a failure there does not hide the cards. */
         if (cardsParam) {
-          let parsed: CardData[];
-          try {
-            parsed = parseAndValidateCards(cardsParam);
-          } catch {
-            setError("The card configuration in this link could not be read.");
-            return;
-          }
-
-          let resolvedUser: UserData | null = null;
-
-          if (userId) {
-            const record = await fetchUserById(userId, ignoreError);
-            resolvedUser = {
-              userId,
-              username: username || record?.username || undefined,
-              dataUpdatedAt: record?.dataUpdatedAt,
-            };
-          } else if (username) {
-            resolvedUser = await readUserByUsername(username);
-            if (!resolvedUser) return;
-          }
-
-          if (cancelled) return;
-          setUserData(resolvedUser);
-          setCards(
-            parsed
-              .map(normalizeCardEntry)
-              .filter((card): card is CardData => card !== null),
-          );
-          setFromUrl(true);
+          await loadUrlCards(cardsParam, userId, username);
           return;
         }
 
@@ -582,28 +596,21 @@ export function UserPageClient() {
         if (userId) {
           const record = await fetchUserById(userId, setError);
           if (!record) return;
-          const stored = await readStoredCards(userId);
-          if (!stored) return;
-
-          if (cancelled) return;
-          setUserData({
-            userId: String(record.userId),
-            username: record.username || undefined,
-            dataUpdatedAt: record.dataUpdatedAt,
-          });
-          setCards(stored);
+          await loadStoredCards(
+            {
+              userId: String(record.userId),
+              username: record.username || undefined,
+              dataUpdatedAt: record.dataUpdatedAt,
+            },
+            userId,
+          );
           return;
         }
 
         if (username) {
           const resolved = await readUserByUsername(username);
           if (!resolved) return;
-          const stored = await readStoredCards(resolved.userId);
-          if (!stored) return;
-
-          if (cancelled) return;
-          setUserData(resolved);
-          setCards(stored);
+          await loadStoredCards(resolved);
           return;
         }
 

@@ -62,6 +62,12 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
   const trimmed = value.trim();
   const looksNumeric = mode === "username" && NUMERIC_ONLY.test(trimmed);
   const targetParam = mode === "username" ? "username" : "userId";
+  let fieldHint = "Required";
+  if (trimmed) {
+    fieldHint =
+      mode === "userid" ? `Reading #${trimmed}` : `Reading @${trimmed}`;
+    if (looksNumeric) fieldHint = "Looks like an ID";
+  }
 
   /**
    * Runs the lookup: validates, reports it, and routes to the profile page.
@@ -181,15 +187,7 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
             <label htmlFor={inputId}>
               {mode === "username" ? "AniList Username" : "AniList User ID"}
             </label>
-            <span className={styles.fieldHint}>
-              {trimmed
-                ? mode === "username"
-                  ? looksNumeric
-                    ? "Looks like an ID"
-                    : `Reading @${trimmed}`
-                  : `Reading #${trimmed}`
-                : "Required"}
-            </span>
+            <span className={styles.fieldHint}>{fieldHint}</span>
           </div>
 
           <div className={styles.input}>

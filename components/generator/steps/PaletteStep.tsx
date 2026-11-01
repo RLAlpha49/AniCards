@@ -369,6 +369,7 @@ function ColorField({ label, color, onChange }: ColorFieldProps) {
   };
 
   const stops = gradient ? value.stops : [];
+  const stopLabel = `${stops.length} stop${stops.length === 1 ? "" : "s"}`;
 
   return (
     <div
@@ -396,9 +397,7 @@ function ColorField({ label, color, onChange }: ColorFieldProps) {
               aria-expanded={open}
               aria-controls={editorId}
             >
-              {open
-                ? "Hide stops"
-                : `${stops.length} stop${stops.length === 1 ? "" : "s"}`}
+              {open ? "Hide stops" : stopLabel}
             </button>
           </div>
 

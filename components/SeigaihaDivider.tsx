@@ -71,8 +71,8 @@ export function SeigaihaDivider({ className }: SeigaihaDividerProps) {
               strokeWidth="1.1"
               strokeLinecap="round"
             >
-              {SEIGAIHA.paths.map((d, index) => (
-                <path key={index} d={d} />
+              {SEIGAIHA.paths.map((d) => (
+                <path key={d} d={d} />
               ))}
             </g>
           </pattern>
