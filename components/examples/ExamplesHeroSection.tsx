@@ -108,11 +108,11 @@ export function ExamplesHeroSection({
               )}
             </form>
 
-            <p className={styles.searchStatus} role="status">
+            <output className={styles.searchStatus}>
               {isSearching
                 ? `${totals.matching} of ${totals.cardTypes} card types match "${searchQuery.trim()}"`
                 : `${totals.cardTypes} card types · ${totals.variations} variations`}
-            </p>
+            </output>
 
             <p className={styles.source}>
               Preview data comes from{" "}

@@ -136,9 +136,9 @@ export function ContactDesk() {
 
       {/* Announces the channel when the answer pane changes, so a keyboard
           visitor hears the result of their choice. */}
-      <p className="sr-only" role="status">
+      <output className="sr-only">
         {selected.label}: goes to {selected.channelName}.
-      </p>
+      </output>
 
       <div className={styles.slip}>
         <div className={styles.slipBody}>

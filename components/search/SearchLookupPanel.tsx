@@ -147,29 +147,34 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className={styles.modes} role="group" aria-label="Search by">
-          <button
-            type="button"
-            onClick={() => switchMode("username")}
-            aria-pressed={mode === "username"}
-            className={cn(
-              styles.mode,
-              mode === "username" && styles.modeActive,
-            )}
-          >
-            <User aria-hidden="true" />
-            Username
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode("userid")}
-            aria-pressed={mode === "userid"}
-            className={cn(styles.mode, mode === "userid" && styles.modeActive)}
-          >
-            <Hash aria-hidden="true" />
-            User ID
-          </button>
-        </div>
+        <fieldset className="min-w-0" aria-label="Search by">
+          <div className={styles.modes}>
+            <button
+              type="button"
+              onClick={() => switchMode("username")}
+              aria-pressed={mode === "username"}
+              className={cn(
+                styles.mode,
+                mode === "username" && styles.modeActive,
+              )}
+            >
+              <User aria-hidden="true" />
+              Username
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode("userid")}
+              aria-pressed={mode === "userid"}
+              className={cn(
+                styles.mode,
+                mode === "userid" && styles.modeActive,
+              )}
+            >
+              <Hash aria-hidden="true" />
+              User ID
+            </button>
+          </div>
+        </fieldset>
 
         <div className={styles.field}>
           <div className={styles.fieldLabel}>
@@ -231,7 +236,7 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
           {/* A pasted number is an ID. Offer the switch before it fails. */}
           {looksNumeric && (
             <p className={styles.detect}>
-              That looks like a numeric ID.
+              That looks like a numeric ID.{" "}
               <button
                 type="button"
                 onClick={acceptAsId}
@@ -294,7 +299,7 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
       </p>
 
       <p className={styles.sample}>
-        Nothing saved yet?
+        Nothing saved yet?{" "}
         <button
           type="button"
           onClick={openSample}

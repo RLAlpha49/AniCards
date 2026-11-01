@@ -120,31 +120,29 @@ export function PreviewPanel({
             <span>{variationLabel(selection.variation)}</span>
           </div>
 
-          <div
-            className={styles.previewVariations}
-            role="group"
-            aria-label={`${card.title} variations`}
-          >
-            {card.variations.map((variation) => {
-              const active = variation.variation === selection.variation;
-              return (
-                <button
-                  key={variation.variation}
-                  type="button"
-                  onClick={() =>
-                    onVariationChange(card.id, variation.variation)
-                  }
-                  aria-pressed={active}
-                  className={cn(
-                    styles.variationChip,
-                    active && styles.variationChipActive,
-                  )}
-                >
-                  {variation.name}
-                </button>
-              );
-            })}
-          </div>
+          <fieldset className="min-w-0" aria-label={`${card.title} variations`}>
+            <div className={styles.previewVariations}>
+              {card.variations.map((variation) => {
+                const active = variation.variation === selection.variation;
+                return (
+                  <button
+                    key={variation.variation}
+                    type="button"
+                    onClick={() =>
+                      onVariationChange(card.id, variation.variation)
+                    }
+                    aria-pressed={active}
+                    className={cn(
+                      styles.variationChip,
+                      active && styles.variationChipActive,
+                    )}
+                  >
+                    {variation.name}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
 
           <p className={styles.previewHint}>
             Rendered from a public AniList profile with the colours you picked.

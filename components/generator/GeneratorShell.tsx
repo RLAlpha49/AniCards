@@ -426,9 +426,8 @@ export function GeneratorShell() {
           </div>
         </div>
 
-        <div
+        <fieldset
           className={styles.sheet}
-          role="group"
           aria-label="Card generator controls"
           aria-busy={loading}
           inert={loading}
@@ -595,7 +594,7 @@ export function GeneratorShell() {
             <span>No account needed</span>
             <a href="/examples">See every card</a>
           </p>
-        </div>
+        </fieldset>
 
         {loading && (
           <GeneratingOverlay

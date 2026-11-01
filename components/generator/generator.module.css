@@ -2583,7 +2583,8 @@
 @media (prefers-reduced-motion: reduce) {
   .overlay,
   .overlayPlate,
-  .overlaySeal {
+  .overlaySeal,
+  .overlayMeterFill {
     animation: none;
   }
 

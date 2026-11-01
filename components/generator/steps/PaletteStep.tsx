@@ -125,27 +125,28 @@ export function PaletteStep({
           </p>
         </div>
 
-        <div
+        <fieldset
           id={filterGroupId}
-          className={styles.presetFilter}
-          role="group"
+          className="min-w-0"
           aria-label="Filter palettes"
         >
-          {FILTERS.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => setFilter(entry.id)}
-              aria-pressed={filter === entry.id}
-              className={cn(
-                styles.presetFilterButton,
-                filter === entry.id && styles.presetFilterActive,
-              )}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
+          <div className={styles.presetFilter}>
+            {FILTERS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setFilter(entry.id)}
+                aria-pressed={filter === entry.id}
+                className={cn(
+                  styles.presetFilterButton,
+                  filter === entry.id && styles.presetFilterActive,
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
         <ul className={styles.presetGrid}>
           {visible.map((preset) => (

@@ -164,6 +164,7 @@
 }
 
 .searchStatus {
+  display: block;
   margin-top: 0.85rem;
   font-size: 0.7rem;
   letter-spacing: 0.1em;

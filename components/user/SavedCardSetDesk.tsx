@@ -151,26 +151,24 @@ export function SavedCardSetDesk({
         <div className={styles.deskControls}>
           <div className={styles.formats}>
             <span className={styles.formatsLabel}>Download as</span>
-            <div
-              className={styles.formatGroup}
-              role="group"
-              aria-label="Download format"
-            >
-              {FORMATS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setFormat(option.value)}
-                  aria-pressed={format === option.value}
-                  className={cn(
-                    styles.format,
-                    format === option.value && styles.formatActive,
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <fieldset className="min-w-0" aria-label="Download format">
+              <div className={styles.formatGroup}>
+                {FORMATS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setFormat(option.value)}
+                    aria-pressed={format === option.value}
+                    className={cn(
+                      styles.format,
+                      format === option.value && styles.formatActive,
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
 
           <div className={styles.deskActions}>
@@ -273,17 +271,15 @@ export function SavedCardSetDesk({
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <p className={styles.deskNote} role="status">
+          <output className={styles.deskNote}>
             Converting {progress.current} of {progress.total}.{" "}
             {progress.success} done, {progress.failure} failed.
-          </p>
+          </output>
         </div>
       )}
 
       {message && !exporting && (
-        <p className={styles.deskNote} role="status">
-          {message}
-        </p>
+        <output className={styles.deskNote}>{message}</output>
       )}
 
       <p className={styles.deskNote}>

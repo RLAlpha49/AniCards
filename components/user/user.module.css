@@ -453,6 +453,7 @@
 }
 
 .deskNote {
+  display: block;
   border-top: 1px solid var(--line);
   padding-top: 0.8rem;
   font-size: 0.72rem;
@@ -1387,7 +1388,7 @@
   .loaderBars span,
   .emptySeal,
   .panel {
-    animation: none !important;
+    animation: none;
   }
 
   .plate,
@@ -1396,6 +1397,6 @@
   .coverImage,
   .receiptAction,
   .primaryAction {
-    transition: none !important;
+    transition: none;
   }
 }

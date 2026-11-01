@@ -125,36 +125,38 @@ export function CardsStep({
         )}
       </div>
 
-      <div className={styles.groupStrip} role="group" aria-label="Card groups">
-        <button
-          type="button"
-          onClick={() => setGroup("all")}
-          aria-pressed={group === "all"}
-          className={cn(
-            styles.groupChip,
-            group === "all" && styles.groupChipActive,
-          )}
-        >
-          All
-          <span className={styles.groupChipCount}>{CARD_TYPES.length}</span>
-        </button>
-
-        {GROUP_SUMMARIES.map((entry) => (
+      <fieldset className="min-w-0" aria-label="Card groups">
+        <div className={styles.groupStrip}>
           <button
-            key={entry.name}
             type="button"
-            onClick={() => setGroup(entry.name)}
-            aria-pressed={group === entry.name}
+            onClick={() => setGroup("all")}
+            aria-pressed={group === "all"}
             className={cn(
               styles.groupChip,
-              group === entry.name && styles.groupChipActive,
+              group === "all" && styles.groupChipActive,
             )}
           >
-            {entry.name}
-            <span className={styles.groupChipCount}>{entry.count}</span>
+            All{" "}
+            <span className={styles.groupChipCount}>{CARD_TYPES.length}</span>
           </button>
-        ))}
-      </div>
+
+          {GROUP_SUMMARIES.map((entry) => (
+            <button
+              key={entry.name}
+              type="button"
+              onClick={() => setGroup(entry.name)}
+              aria-pressed={group === entry.name}
+              className={cn(
+                styles.groupChip,
+                group === entry.name && styles.groupChipActive,
+              )}
+            >
+              {entry.name}
+              <span className={styles.groupChipCount}>{entry.count}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       {matching.length === 0 ? (
         <div className={styles.cardEmpty}>
@@ -285,32 +287,30 @@ function CardRow({
 
       <div className={styles.cardControls}>
         {selected && hasChoice && (
-          <div
-            className={styles.variationPicker}
-            role="group"
-            aria-label={`${card.title} variations`}
-          >
-            {card.variations.map((variation) => {
-              const active = variation.variation === selection?.variation;
-              return (
-                <button
-                  key={variation.variation}
-                  type="button"
-                  onClick={() => {
-                    onVariationChange(variation.variation);
-                    onFocus();
-                  }}
-                  aria-pressed={active}
-                  className={cn(
-                    styles.variationChip,
-                    active && styles.variationChipActive,
-                  )}
-                >
-                  {variation.name}
-                </button>
-              );
-            })}
-          </div>
+          <fieldset className="min-w-0" aria-label={`${card.title} variations`}>
+            <div className={styles.variationPicker}>
+              {card.variations.map((variation) => {
+                const active = variation.variation === selection?.variation;
+                return (
+                  <button
+                    key={variation.variation}
+                    type="button"
+                    onClick={() => {
+                      onVariationChange(variation.variation);
+                      onFocus();
+                    }}
+                    aria-pressed={active}
+                    className={cn(
+                      styles.variationChip,
+                      active && styles.variationChipActive,
+                    )}
+                  >
+                    {variation.name}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
         )}
 
         {selected && supportsFavourites && (

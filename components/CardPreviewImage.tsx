@@ -123,11 +123,7 @@ export function CardPreviewImage({
   );
 
   if (failed) {
-    return (
-      <span className={styles.failed} role="status">
-        Preview unavailable
-      </span>
-    );
+    return <output className={styles.failed}>Preview unavailable</output>;
   }
 
   return (

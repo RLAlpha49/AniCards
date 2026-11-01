@@ -176,27 +176,28 @@ export function CardTypePreview({
         <p className={styles.cardNote}>{cardType.description}</p>
 
         {cardType.variations.length > 0 && (
-          <div
-            className={styles.chips}
-            role="group"
+          <fieldset
+            className="min-w-0"
             aria-label={`${cardType.title} variations`}
           >
-            {cardType.variations.map((variation, variationIndex) => (
-              <button
-                key={variation.name}
-                type="button"
-                onClick={() => selectVariation(variationIndex)}
-                aria-pressed={variation.variation === current?.variation}
-                className={cn(
-                  styles.chip,
-                  variation.variation === current?.variation &&
-                    styles.chipActive,
-                )}
-              >
-                {variation.name}
-              </button>
-            ))}
-          </div>
+            <div className={styles.chips}>
+              {cardType.variations.map((variation, variationIndex) => (
+                <button
+                  key={variation.name}
+                  type="button"
+                  onClick={() => selectVariation(variationIndex)}
+                  aria-pressed={variation.variation === current?.variation}
+                  className={cn(
+                    styles.chip,
+                    variation.variation === current?.variation &&
+                      styles.chipActive,
+                  )}
+                >
+                  {variation.name}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         )}
 
         <div className={styles.foot}>

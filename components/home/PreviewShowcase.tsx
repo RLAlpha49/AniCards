@@ -69,22 +69,24 @@ export function PreviewShowcase({ onGetStarted }: PreviewShowcaseProps) {
           note="Each preview is generated live from the same public AniList profile."
         />
 
-        <div className={styles.filters} role="group" aria-label="Filter cards">
-          {SHOWCASE_FILTERS.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              onClick={() => selectCategory(filter.id)}
-              aria-pressed={activeCategory === filter.id}
-              className={cn(
-                styles.filter,
-                activeCategory === filter.id && styles.filterActive,
-              )}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+        <fieldset className="min-w-0" aria-label="Filter cards">
+          <div className={styles.filters}>
+            {SHOWCASE_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => selectCategory(filter.id)}
+                aria-pressed={activeCategory === filter.id}
+                className={cn(
+                  styles.filter,
+                  activeCategory === filter.id && styles.filterActive,
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
         <ul
           ref={revealRef}

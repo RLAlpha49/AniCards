@@ -195,6 +195,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Intentional: the universal override must beat component and inline styles. */
   *,
   *::before,
   *::after {
