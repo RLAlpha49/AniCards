@@ -114,7 +114,7 @@ export function UserMasthead({
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              Made from public AniList data
+              {"Made from public AniList data"}
             </p>
 
             <h1 className={styles.title}>

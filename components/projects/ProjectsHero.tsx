@@ -89,7 +89,7 @@ export function ProjectsHero() {
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              From the person who built AniCards
+              {"From the person who built AniCards"}
             </p>
 
             <h1 className={styles.title}>

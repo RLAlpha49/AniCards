@@ -46,7 +46,7 @@ export function SearchHero({ onLoadingChange }: SearchHeroProps) {
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              For cards you already generated
+              {"For cards you already generated"}
             </p>
 
             <h1 className={styles.title}>

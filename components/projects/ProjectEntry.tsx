@@ -151,7 +151,7 @@ export function ProjectEntry({ project, position, total }: ProjectEntryProps) {
               <span aria-hidden="true" className={styles.entrySourceIcon}>
                 <SimpleGithubIcon size={15} />
               </span>
-              View on GitHub
+              {"View on GitHub"}
               <span className="sr-only"> for {project.name}</span>
             </a>
           </div>

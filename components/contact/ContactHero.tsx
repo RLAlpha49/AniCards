@@ -47,7 +47,7 @@ export function ContactHero() {
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              Where to reach me
+              {"Where to reach me"}
             </p>
 
             <h1 className={styles.title}>
@@ -107,9 +107,9 @@ export function ContactHero() {
 
             <figcaption className={styles.printCaption}>
               <span className={styles.printCaptionLabel}>The subject</span>
-              Every message on this page is about one of these: a card the
-              generator drew from public AniList data, and whether it drew it
-              right.
+              {
+                "Every message on this page is about one of these: a card the generator drew from public AniList data, and whether it drew it right."
+              }
             </figcaption>
           </figure>
         </div>

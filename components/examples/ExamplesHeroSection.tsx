@@ -63,7 +63,7 @@ export function ExamplesHeroSection({
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              Every card the generator makes
+              {"Every card the generator makes"}
             </p>
 
             <h1 className={styles.title}>

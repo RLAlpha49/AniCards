@@ -407,7 +407,7 @@ export function GeneratorShell() {
               <div className={styles.mastheadTitle}>
                 <p className={styles.kicker}>
                   <span className={styles.kickerRule} aria-hidden="true" />
-                  Reads any public AniList profile
+                  {"Reads any public AniList profile"}
                 </p>
                 <h1>
                   Your <em>cards</em>,

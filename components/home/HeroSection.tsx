@@ -52,7 +52,7 @@ export function HeroSection({ onGetStarted, onSeeExamples }: HeroSectionProps) {
           >
             <p className={styles.kicker}>
               <span className={styles.kickerRule} aria-hidden="true" />
-              Built from public AniList data
+              {"Built from public AniList data"}
             </p>
 
             <h1 className={styles.title}>
