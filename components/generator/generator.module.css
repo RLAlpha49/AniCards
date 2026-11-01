@@ -286,6 +286,7 @@
 }
 
 .railItem {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
@@ -302,6 +303,17 @@
     padding-inline 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
+.railItem::before {
+  content: "";
+  position: absolute;
+  inset: 0.6rem auto 0.6rem 0;
+  width: 3px;
+  background: var(--vermillion);
+  scale: 1 0;
+  transform-origin: top;
+  transition: scale 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .railList li:last-child .railItem {
   border-bottom: 0;
 }
@@ -313,6 +325,10 @@
 
 .railItemActive {
   background: var(--vermillion-wash);
+}
+
+.railItemActive::before {
+  scale: 1 1;
 }
 
 .railNumeral {
@@ -2817,6 +2833,7 @@
 @media (prefers-reduced-motion: reduce) {
   .rail,
   .railItem,
+  .railItem::before,
   .presetTile,
   .cardRow,
   .cardRow::before,

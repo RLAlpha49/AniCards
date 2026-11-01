@@ -1,6 +1,9 @@
 "use client";
 
 import { useId } from "react";
+import { useRevealInView } from "@/hooks/useRevealInView";
+import { cn } from "@/lib/utils";
+import styles from "./SeigaihaDivider.module.css";
 
 /**
  * Seigaiha (青海波) scallop geometry for the section dividers.
@@ -54,9 +57,15 @@ type SeigaihaDividerProps = Readonly<{
  */
 export function SeigaihaDivider({ className }: SeigaihaDividerProps) {
   const dividerId = useId();
+  const { ref, phase } = useRevealInView<HTMLDivElement>();
 
   return (
-    <div className={className} aria-hidden="true">
+    <div
+      ref={ref}
+      className={cn(styles.divider, className)}
+      data-reveal={phase}
+      aria-hidden="true"
+    >
       <svg focusable="false">
         <defs>
           <pattern

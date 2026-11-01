@@ -348,7 +348,13 @@ export function GeneratorShell() {
      the bottom of the card list does not land mid-form. */
   const goToStep = useCallback((id: string) => {
     setActiveStep(id as StepId);
-    stepRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    stepRef.current?.scrollIntoView({
+      behavior: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")
+        .matches
+        ? "instant"
+        : "smooth",
+      block: "start",
+    });
   }, []);
 
   const activeBase = STEP_META[activeStep];

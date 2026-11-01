@@ -66,7 +66,7 @@ export function MastheadNav() {
             aria-current={active ? "page" : undefined}
             onClick={() => trackNavClick(item.title)}
             className={cn(
-              "relative px-2.5 py-2 text-sm font-medium transition-colors",
+              "group relative px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b83a24]",
               active
                 ? "text-[#b83a24] dark:text-[#d4573c]"
                 : "text-[#4d443a] hover:text-[#191512] dark:text-[#b6a88f] dark:hover:text-[#ece1c9]",
@@ -76,9 +76,11 @@ export function MastheadNav() {
             <span
               aria-hidden="true"
               className={cn(
-                "absolute inset-x-2.5 -bottom-0.5 h-[2px] transition-opacity",
+                "absolute inset-x-2.5 -bottom-0.5 h-[2px] origin-left motion-safe:transition-[transform,opacity] motion-safe:duration-300 motion-safe:ease-out",
                 "bg-[#b83a24] dark:bg-[#d4573c]",
-                active ? "opacity-100" : "opacity-0",
+                active
+                  ? "scale-x-100 opacity-100"
+                  : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-70 group-focus-visible:scale-x-100 group-focus-visible:opacity-70",
               )}
             />
           </Link>

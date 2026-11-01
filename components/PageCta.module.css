@@ -232,6 +232,10 @@
   animation: ctaReveal 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+.cta[data-reveal="shown"] .seal {
+  animation: sealPress 560ms cubic-bezier(0.22, 1, 0.36, 1) 200ms backwards;
+}
+
 @keyframes ctaReveal {
   from {
     opacity: 0;
@@ -240,6 +244,19 @@
   to {
     opacity: 1;
     translate: 0 0;
+  }
+}
+
+@keyframes sealPress {
+  from {
+    opacity: 0;
+    scale: 1.35;
+    rotate: -12deg;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+    rotate: 0deg;
   }
 }
 
@@ -294,5 +311,9 @@
     animation: none;
     opacity: 1;
     translate: none;
+  }
+
+  .cta[data-reveal="shown"] .seal {
+    animation: none;
   }
 }

@@ -621,6 +621,14 @@
   align-self: start;
 }
 
+.gallery.reveal[data-reveal="shown"] > .plate {
+  animation-name: revealFadeIn;
+}
+
+.gallery.reveal[data-reveal="shown"] .plateFrame {
+  animation: printSettle 700ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 .plateFrame {
   --plate-gap: 0.7rem;
   --plate-image-height: calc((100cqw - var(--plate-gap) * 2) * 195 / 450);
@@ -950,6 +958,18 @@
   }
 }
 
+/* Artwork settles independently of the card's controls. */
+@keyframes printSettle {
+  from {
+    rotate: -2deg;
+    scale: 0.97;
+  }
+  to {
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+
 /* A reveal container cascades its direct children in reading order. The
    hidden state only exists after hydration, so server-rendered content stays
    readable when JavaScript never runs. */
@@ -1172,6 +1192,7 @@
   .printInner,
   .tape,
   .seal,
+  .gallery.reveal[data-reveal="shown"] .plateFrame,
   .reveal[data-reveal="hidden"] > *,
   .reveal[data-reveal="shown"] > * {
     animation: none;
