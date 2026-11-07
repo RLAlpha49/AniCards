@@ -501,10 +501,6 @@
   list-style: none;
 }
 
-.plateItem {
-  min-width: 0;
-}
-
 .coverItem {
   grid-column: 1 / -1;
 }
@@ -785,19 +781,6 @@
 .plateAction:disabled {
   cursor: progress;
   opacity: 0.6;
-}
-
-.plateActionDone,
-.plateActionDone:hover {
-  border-color: var(--vermillion);
-  color: var(--vermillion);
-}
-
-.plateActionError {
-  flex-basis: 100%;
-  font-size: 0.68rem;
-  line-height: 1.6;
-  color: var(--vermillion);
 }
 
 /* ── AniList guide ───────────────────────────────────────────── */

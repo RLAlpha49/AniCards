@@ -965,8 +965,7 @@
   .startIcon,
   .entryAction,
   .entryActionIcon,
-  .entrySource,
-  .entrySourceNote {
+  .entrySource {
     transition: none;
     animation: none;
   }

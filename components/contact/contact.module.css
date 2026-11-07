@@ -474,22 +474,6 @@
   opacity: 0.74;
 }
 
-/* Pinned to the bottom of the pane, so the note closes the question column at
-   the same edge the answer column ends on. */
-.deskFoot {
-  margin-top: auto;
-  border-top: 1px solid var(--line);
-  padding-top: 0.75rem;
-  font-size: 0.7rem;
-  line-height: 1.7;
-  color: var(--ink-soft);
-}
-
-.deskFoot strong {
-  font-weight: 600;
-  color: var(--ink);
-}
-
 /* ── desk: answer ────────────────────────────────────────────── */
 
 .slip {
@@ -704,14 +688,6 @@
   letter-spacing: -0.01em;
 }
 
-.dirHeadNote {
-  margin-top: 0.35rem;
-  max-width: 40rem;
-  font-size: 0.85rem;
-  line-height: 1.75;
-  color: var(--ink-soft);
-}
-
 .dirGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -763,12 +739,6 @@
   font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.2;
-}
-
-.dirNote {
-  font-size: 0.8rem;
-  line-height: 1.75;
-  color: var(--ink-soft);
 }
 
 .dirAddress {
@@ -941,11 +911,6 @@
     height: 2.4rem;
     width: 2.4rem;
     font-size: 1.05rem;
-  }
-
-  .afterList {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 1rem;
   }
 
   .dirGrid {
