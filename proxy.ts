@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { buildCSPHeader } from "@/lib/csp-config";
+import { buildCSPHeader, buildReportOnlyCSPHeader } from "@/lib/csp-config";
 
 /**
  * Generates a cryptographically secure random nonce for CSP
@@ -59,10 +59,17 @@ export function proxy(request: NextRequest) {
     },
   });
 
-  // Set CSP header for enforcement
-  // Note: Using Content-Security-Policy-Report-Only initially for testing
-  // Switch to Content-Security-Policy after validation
-  response.headers.set("Content-Security-Policy-Report-Only", cspHeader);
+  // Enforce the policy. Next.js reads the nonce from the forwarded request
+  // header and stamps it onto the scripts it injects, so a strict `script-src`
+  // does not block the framework's own bootstrap code.
+  response.headers.set("Content-Security-Policy", cspHeader);
+
+  // Report violations too, so a regression in the policy still produces
+  // browser reports without weakening enforcement.
+  response.headers.set(
+    "Content-Security-Policy-Report-Only",
+    buildReportOnlyCSPHeader(nonce),
+  );
 
   // Store nonce in custom header for access by Server Components
   // This allows layout.tsx and other components to retrieve the nonce

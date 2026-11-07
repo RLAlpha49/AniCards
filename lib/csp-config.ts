@@ -134,13 +134,14 @@ export const CSP_DIRECTIVES = {
 export type CSPDirective = keyof typeof CSP_DIRECTIVES;
 
 /**
- * Build a complete CSP header string and inject the provided nonce into script-src.
+ * Assembles the policy string, injecting the nonce into `script-src`.
  *
  * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
- * @returns The complete Content-Security-Policy header string
+ * @param includeUpgrade - Whether to emit `upgrade-insecure-requests`
+ * @returns The assembled policy, for either CSP header name
  * @source
  */
-export function buildCSPHeader(nonce: string): string {
+function buildDirectives(nonce: string, includeUpgrade: boolean): string {
   // script-src with nonce injection
   const scriptSrcValues = [
     CSP_KEYWORDS.SELF,
@@ -161,7 +162,7 @@ export function buildCSPHeader(nonce: string): string {
     `frame-ancestors ${CSP_DIRECTIVES.frameAncestors.join(" ")}`,
     `base-uri ${CSP_DIRECTIVES.baseUri.join(" ")}`,
     `form-action ${CSP_DIRECTIVES.formAction.join(" ")}`,
-    ...(CSP_DIRECTIVES.upgradeInsecureRequests
+    ...(includeUpgrade && CSP_DIRECTIVES.upgradeInsecureRequests
       ? ["upgrade-insecure-requests"]
       : []),
   ];
@@ -170,15 +171,29 @@ export function buildCSPHeader(nonce: string): string {
 }
 
 /**
- * Build a CSP header suitable for Report-Only mode to test policies safely.
+ * Build a complete, enforcing CSP header string.
+ *
+ * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
+ * @returns The complete Content-Security-Policy header string
+ * @source
+ */
+export function buildCSPHeader(nonce: string): string {
+  return buildDirectives(nonce, true);
+}
+
+/**
+ * Build a CSP header for Report-Only mode.
+ *
+ * `upgrade-insecure-requests` is omitted because browsers ignore it in a
+ * report-only policy and log a console warning for every page that carries it.
+ * The directive only takes effect in the enforcing header.
  *
  * @param nonce - A base64-encoded cryptographic nonce
  * @returns A CSP header string appropriate for the report-only header
  * @source
  */
 export function buildReportOnlyCSPHeader(nonce: string): string {
-  // Same header content, but will be used with Report-Only header name
-  return buildCSPHeader(nonce);
+  return buildDirectives(nonce, false);
 }
 
 /**
@@ -202,7 +217,7 @@ export function isValidNonce(nonce: string): boolean {
 /**
  * Generate a base64-encoded 16-byte random nonce for testing.
  *
- * Note: production nonces are generated per request in middleware using Web Crypto.
+ * Note: production nonces are generated per request in the proxy using Web Crypto.
  * @returns Base64-encoded 16-byte nonce
  * @source
  */
