@@ -8,7 +8,10 @@ import styles from "../generator.module.css";
 const FACTS = [
   { icon: Shield, text: "Public data only" },
   { icon: Zap, text: "No account" },
-  { icon: ExternalLink, text: "Nothing stored about you" },
+  {
+    icon: ExternalLink,
+    text: "Public profile data and card settings are saved",
+  },
 ];
 
 type UsernameStepProps = Readonly<{
