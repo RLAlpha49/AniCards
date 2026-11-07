@@ -293,7 +293,7 @@ function remainingBudgetMs(start: number, totalTimeoutMs?: number) {
  * @param timeoutMs - Timeout in milliseconds before aborting the request.
  * @param contextName - Context string used in thrown errors.
  * @returns The original Response when successful.
- * @throws Error with contextual message on failure.Personal Records
+ * @throws Error with a contextual message when the request fails.
  * @source
  */
 async function fetchWithTimeout(

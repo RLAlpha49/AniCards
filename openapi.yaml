@@ -667,46 +667,6 @@ paths:
           $ref: "#/components/responses/UnauthorizedPlain"
         "500":
           $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/data-validation:
-    post:
-      summary: "Validate stored Redis keys and create a data validation report"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Data validation report describing inconsistencies found"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DataValidationReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/uptime-monitor:
-    post:
-      summary: "Trigger a site uptime sweep for key routes and return the summary"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Summary of uptime checks for configured routes"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UptimeMonitorReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
   /api/store-cards:
     post:
       summary: "Store or update a user's card configuration in Redis"
@@ -1268,55 +1228,3 @@ components:
               "record-save-failed",
             ]
       required: ["userId", "outcome"]
-    DataValidationReport:
-      type: object
-      properties:
-        summary:
-          type: string
-        details:
-          type: object
-          description: "Per-pattern details for keys examined"
-          additionalProperties:
-            type: object
-            properties:
-              checked:
-                type: integer
-              inconsistencies:
-                type: integer
-        issues:
-          type: array
-          items:
-            type: object
-            properties:
-              key:
-                type: string
-              issues:
-                type: array
-                items:
-                  type: string
-
-        generatedAt:
-          type: string
-          format: date-time
-      required: ["summary", "details", "issues", "generatedAt"]
-    UptimeMonitorReport:
-      type: object
-      properties:
-        summary:
-          type: string
-        details:
-          type: array
-          items:
-            type: object
-            properties:
-              url:
-                type: string
-              ok:
-                type: boolean
-              status:
-                type: integer
-                nullable: true
-              error:
-                type: string
-            required: ["url", "ok", "status"]
-      required: ["summary", "details"]
