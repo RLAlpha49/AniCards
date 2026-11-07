@@ -170,7 +170,7 @@ export function CardTypePreview({
           <span className={styles.cardIndex} aria-hidden="true">
             {String(index + 1).padStart(2, "0")}
           </span>
-          <h4 className={styles.cardTitle}>{cardType.title}</h4>
+          <h3 className={styles.cardTitle}>{cardType.title}</h3>
         </div>
 
         <p className={styles.cardNote}>{cardType.description}</p>

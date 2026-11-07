@@ -18,7 +18,7 @@ test.describe("Examples gallery", () => {
   });
 
   test("filters card variants via search", async ({ page }) => {
-    const variants = page.getByRole("heading", { level: 4 });
+    const variants = page.getByRole("heading", { level: 3 });
     await expect(variants.first()).toBeVisible({ timeout: 15000 });
 
     const initialCount = await variants.count();
