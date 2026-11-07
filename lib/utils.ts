@@ -280,6 +280,12 @@ function normalizeHexRgb(hex: string): string | null {
     return `#${r}${r}${g}${g}${b}${b}`;
   }
 
+  // Drop the alpha channel from #rrggbbaa. HSL has no alpha, and reading the
+  // first six digits keeps the derived colours correct instead of falling
+  // through to black.
+  const withAlpha = /^(#[0-9a-f]{6})[0-9a-f]{2}$/.exec(withHash);
+  if (withAlpha) return withAlpha[1];
+
   if (/^#[0-9a-f]{6}$/.test(withHash)) return withHash;
   return null;
 }
