@@ -33,14 +33,16 @@ export const CSP_KEYWORDS = {
  * The card API runs on a separate origin in development
  * (`http://api.localhost:3000`), which the `https:` keyword does not cover.
  * Without these the card previews and API calls are blocked by the policy
- * during local development. Both are loopback addresses, so they cannot be
- * reached by a remote attacker.
+ * during local development.
+ *
+ * Empty outside development. A production policy must not name loopback
+ * origins, even though a remote page cannot reach them.
  * @source
  */
-const DEV_ORIGINS = [
-  "http://localhost:3000",
-  "http://api.localhost:3000",
-] as const;
+const DEV_ORIGINS: readonly string[] =
+  process.env.NODE_ENV === "development"
+    ? ["http://localhost:3000", "http://api.localhost:3000"]
+    : [];
 
 /**
  * CSP Directives Configuration
