@@ -108,13 +108,20 @@ test.describe("Card generator", () => {
     await generator.goToStep("Cards");
 
     const rail = page.getByRole("navigation", { name: /generator steps/i });
+    const trigger = page.getByRole("button", { name: /^steps/i });
+    const hasDrawer = await trigger.isVisible();
+    if (hasDrawer) await trigger.click();
     await expect(rail.getByRole("button", { name: /^Cards/ })).toContainText(
       "0",
     );
+    if (hasDrawer) {
+      await rail.getByRole("button", { name: /close the step list/i }).click();
+    }
 
     await generator.selectCardType("Anime Statistics");
     await generator.selectCardType("Manga Genres");
 
+    if (hasDrawer) await trigger.click();
     await expect(rail.getByRole("button", { name: /^Cards/ })).toContainText(
       "2",
     );
@@ -317,10 +324,12 @@ test.describe("Card generator", () => {
     await page
       .getByRole("textbox", { name: /card border colour as hex/i })
       .fill("#12345");
-    await page.getByRole("checkbox", { name: /frame on/i }).uncheck();
     await generator.clickGenerate();
 
     await expect(generator.getStepHeading("Palette")).toBeVisible();
+    await expect(
+      page.getByText(/enter valid colours in step two before generating/i),
+    ).toBeVisible();
     expect(storeRequests).toBe(0);
     await expect
       .poll(() =>
@@ -575,6 +584,22 @@ test.describe("Card generator", () => {
     page,
   }) => {
     let cardStoreAttempts = 0;
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "anicards-user-preferences",
+        JSON.stringify({
+          state: { defaultUsername: "EarlierUser" },
+          version: 1,
+        }),
+      );
+      localStorage.setItem(
+        "anicards-card-settings",
+        JSON.stringify({
+          state: { defaultCardTypes: ["mangaStats"] },
+          version: 1,
+        }),
+      );
+    });
     await page.route("**/api/anilist", async (route) => {
       await route.fulfill({
         status: 200,
@@ -590,6 +615,12 @@ test.describe("Card generator", () => {
 
     const generator = new GeneratorPage(page);
     await generator.goto();
+    await expect(generator.getUsernameInput()).toHaveValue("EarlierUser");
+    await expect.poll(() => generator.getSelectedCardsCount()).toBe(1);
+    const initialSettings = await page.evaluate(() => ({
+      cards: localStorage.getItem("anicards-card-settings"),
+      user: localStorage.getItem("anicards-user-preferences"),
+    }));
     await generator.enterUsername("UnknownUser");
     await generator.goToStep("Cards");
     await generator.selectCardType("Anime Statistics");
@@ -599,6 +630,12 @@ test.describe("Card generator", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(/not found/i);
     expect(cardStoreAttempts).toBe(0);
+    expect(
+      await page.evaluate(() => ({
+        cards: localStorage.getItem("anicards-card-settings"),
+        user: localStorage.getItem("anicards-user-preferences"),
+      })),
+    ).toEqual(initialSettings);
   });
 
   test("reports an exhausted AniList network retry", async ({ page }) => {
