@@ -2,13 +2,15 @@ import type { NextResponse } from "next/server";
 import { UserRecord } from "@/lib/types/records";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
 import {
-  buildUsernameIndexKey,
   fetchUserDataParts,
   saveUserRecord,
-  syncUsernameIndex,
   userRecordContentChanged,
   USER_DATA_PARTS,
 } from "@/lib/server/user-data";
+import {
+  buildUsernameIndexKey,
+  syncUsernameIndex,
+} from "@/lib/server/username-index";
 import {
   incrementAnalytics,
   handleError,

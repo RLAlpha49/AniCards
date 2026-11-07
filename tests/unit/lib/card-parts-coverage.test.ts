@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { displayNames } from "@/lib/card-data/validation";
-import { CARD_TYPE_TO_PARTS, getPartsForCard } from "@/lib/server/user-data";
+import {
+  CARD_TYPE_TO_PARTS,
+  getPartsForCard,
+} from "@/lib/card-data/requirements";
 
 describe("card data requirements", () => {
   it("maps every supported card type to its data parts", () => {

@@ -2,16 +2,18 @@ import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { isValidUsername, redisClient } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
-  buildUsernameIndexKey,
   deleteUserStorage,
   fetchUserDataParts,
   reconstructUserRecord,
   saveUserRecord,
-  syncUsernameIndex,
   userRecordContentChanged,
   USER_DATA_PARTS,
   USER_REFRESH_INDEX_KEY,
 } from "@/lib/server/user-data";
+import {
+  buildUsernameIndexKey,
+  syncUsernameIndex,
+} from "@/lib/server/username-index";
 import {
   buildFailureClaimKey,
   buildRefreshCooldownKey,
