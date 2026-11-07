@@ -167,7 +167,6 @@ export function useGeneratorDraft() {
   const { saveGeneratorDefaults } = useCardSettings();
 
   const [draft, setDraft] = useState<GeneratorDraft>(buildEmptyDraft);
-  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const hydrateDraft = () => {
@@ -186,7 +185,6 @@ export function useGeneratorDraft() {
           savedUserPreferences.defaultUsername,
         ),
       );
-      setHydrated(true);
     };
 
     const unsubscribeCardSettings =
@@ -492,8 +490,6 @@ export function useGeneratorDraft() {
 
   return {
     draft,
-    /** False until saved settings have been adopted. */
-    hydrated,
     selectedIds,
     selectedCount: selectedIds.length,
     totalCardTypes,
