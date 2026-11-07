@@ -242,6 +242,68 @@ test.describe("Card generator", () => {
       .not.toBe(before);
   });
 
+  test("trims whitespace around the username before generating", async ({
+    page,
+  }) => {
+    const storedRecords: string[] = [];
+    page.on("request", async (request) => {
+      if (new URL(request.url()).pathname.endsWith("/api/store-users")) {
+        storedRecords.push(request.postData() ?? "");
+      }
+    });
+
+    const generator = new GeneratorPage(page);
+    await generator.goto();
+    await generator.enterUsername("  TestUser  ");
+    await generator.goToStep("Cards");
+    await generator.selectCardType("Anime Statistics");
+    await generator.clickGenerate();
+
+    await expect.poll(() => page.url(), { timeout: 30000 }).toContain("/user");
+    expect(storedRecords).toHaveLength(1);
+    expect(JSON.parse(storedRecords[0]).username).toBe("TestUser");
+  });
+
+  test("reports rate limiting as retryable", async ({ page }) => {
+    await page.route("**/api/anilist", async (route) => {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Too many requests" }),
+      });
+    });
+
+    const generator = new GeneratorPage(page);
+    await generator.goto();
+    await generator.enterUsername("TestUser");
+    await generator.goToStep("Cards");
+    await generator.selectCardType("Anime Statistics");
+    await generator.clickGenerate();
+
+    const dialog = page.getByRole("dialog").first();
+    await expect(dialog).toBeVisible({ timeout: 30000 });
+    await expect(dialog).toContainText(/too many requests/i);
+    await expect(
+      dialog.getByRole("button", { name: /try again/i }),
+    ).toBeVisible();
+  });
+
+  test("closes the step rail on Escape", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    const generator = new GeneratorPage(page);
+    await generator.goto();
+
+    const trigger = page.getByRole("button", { name: /^steps/i });
+    const rail = page.getByRole("navigation", { name: /generator steps/i });
+
+    await trigger.click();
+    await expect(rail).toBeVisible();
+
+    await generator.pressKey("Escape");
+    await expect(rail).toBeHidden();
+  });
+
   test("debounces rapid palette edits before requesting a preview", async ({
     page,
   }) => {
