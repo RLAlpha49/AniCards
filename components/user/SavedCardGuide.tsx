@@ -106,8 +106,8 @@ export function SavedCardClosing() {
           </span>
           <h2>Change the cards, keep the profile</h2>
           <p>
-            The generator saves over this set, so you can swap the palette, pick
-            different cards, or both. Anything you want to keep, download first.
+            Generate a card again to update its saved settings, or add another
+            card type. Other saved cards stay in the set.
           </p>
           <div className={styles.emptyActions}>
             <Link href="/generator" className={styles.primaryAction}>
