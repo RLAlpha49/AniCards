@@ -169,7 +169,7 @@ test.describe("User page", () => {
     });
   });
 
-  test("explains that generating replaces the saved set", async ({ page }) => {
+  test("explains how generating updates the saved set", async ({ page }) => {
     await page.route("**/api/get-user**", async (route) => {
       await route.fulfill({
         status: 200,
@@ -197,7 +197,13 @@ test.describe("User page", () => {
     await page.goto("/user?username=TestUser");
 
     await expect(
-      page.getByText(/generating again replaces this set/i),
+      page.getByText(/generating again updates the selected card types/i),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/other saved cards stay in this set/i),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/other saved cards stay in the set/i),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: /put a card on your profile/i }),
