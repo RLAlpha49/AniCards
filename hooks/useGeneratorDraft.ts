@@ -486,7 +486,7 @@ export function useGeneratorDraft() {
   const paletteValid =
     draft.colors.length === 4 &&
     draft.colors.every((color) => validateColorValue(color)) &&
-    isValidHexColor(draft.frameColor);
+    (!draft.frameEnabled || isValidHexColor(draft.frameColor));
   const readyToGenerate =
     draft.username.trim().length > 0 && selectedIds.length > 0 && paletteValid;
 
