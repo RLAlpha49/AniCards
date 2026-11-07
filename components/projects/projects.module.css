@@ -1,0 +1,982 @@
+/* Projects page: a catalogue of the other AniList tools, on the paper ground.
+
+   The page reads like a printed register. The hero ends in a routing list: the
+   situations a visitor arrives with, each pointing at the tool that handles it.
+   Each entry below is set as a catalogue record, with a margin holding the
+   numeral and facts, and a body that answers what, when, how, and what changes. */
+
+.sheet {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+}
+
+/* ── hero ────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 0 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.heroRule {
+  border-top: 2px solid var(--ink);
+}
+
+.heroInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  align-items: start;
+  gap: clamp(2rem, 4.5vw, 4rem);
+  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
+  padding-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.6rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.title {
+  position: relative;
+  z-index: 0;
+  margin-top: 1.35rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(2.2rem, 4vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+.title em {
+  position: relative;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.title em::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -0.06em;
+  bottom: 0.2em;
+  left: -0.06em;
+  height: 0.9em;
+  background: var(--vermillion-wash);
+}
+
+.lede {
+  margin-top: 1.5rem;
+  max-width: 33rem;
+  font-size: 0.97rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.4rem, 3.5vw, 3rem);
+  margin-top: 2.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.1rem;
+}
+
+.meta dt {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.meta dd {
+  margin-top: 0.2rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ── hero: start routes ──────────────────────────────────────── */
+
+/* The routing list is the page's entry point, so it sits in the hero rather
+   than below it: a visitor who knows what they need never scrolls to find it. */
+.start {
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--paper-raise), var(--paper-deep));
+  padding: 1rem 1.1rem 1.15rem;
+  box-shadow: 0 26px 46px -38px var(--shadow);
+  animation: panelIn 760ms cubic-bezier(0.22, 0.8, 0.3, 1) 180ms backwards;
+}
+
+.startHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+}
+
+.startSeal {
+  display: grid;
+  flex: none;
+  height: 1.7rem;
+  width: 1.7rem;
+  place-items: center;
+  rotate: -3deg;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.9rem;
+}
+
+.startTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.startRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.startCount {
+  flex: none;
+  font-size: 0.56rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+/* The routes arrive one after another, the way the home page's hero layers do,
+   so the list reads as three options rather than one block. */
+.startList {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.startList li {
+  animation: rowIn 620ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.startList li:nth-child(1) {
+  animation-delay: 340ms;
+}
+
+.startList li:nth-child(2) {
+  animation-delay: 430ms;
+}
+
+.startList li:nth-child(3) {
+  animation-delay: 520ms;
+}
+
+.startRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.7rem 0.3rem;
+  cursor: pointer;
+  transition:
+    background-color 220ms ease,
+    padding-inline 240ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    color 220ms ease;
+}
+
+.startList li:last-child .startRow {
+  border-bottom: 0;
+}
+
+.startRow:hover,
+.startRow:focus-visible {
+  background: var(--vermillion-wash);
+  padding-inline: 0.7rem;
+}
+
+/* The row a visitor just followed keeps a mark, so the jump has a visible
+   origin after the scroll finishes. */
+.startRowChosen {
+  background: var(--vermillion-wash);
+  padding-inline: 0.7rem;
+}
+
+.startNum {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.startBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.startNeed {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.startTool {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* A route that jumps down the page points down; a route that leaves the page
+   points forward. The arrow tells the visitor what the click does before they
+   commit to it. */
+.startIcon {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--ink-faint);
+  transition:
+    transform 240ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    color 220ms ease;
+}
+
+.startIconForward {
+  rotate: -45deg;
+}
+
+.startRow:hover .startIcon,
+.startRow:focus-visible .startIcon {
+  color: var(--vermillion);
+}
+
+.startRow:hover .startIconDown {
+  transform: translateY(3px);
+}
+
+.startRow:hover .startIconForward {
+  transform: translate(2px, -2px);
+}
+
+.startFoot {
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+/* ── ledger ──────────────────────────────────────────────────── */
+
+/* The ledger is set as a ruled table rather than a card grid: three records,
+   two data columns each, read left to right without any decoration competing
+   with the values. */
+.ledgerSection {
+  padding-top: clamp(1.4rem, 3vw, 2.4rem);
+  padding-bottom: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.ledgerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.2rem;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 0.8rem;
+}
+
+.ledgerTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.2rem, 2.2vw, 1.6rem);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ledgerNote {
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.ledger {
+  margin-top: 0.4rem;
+}
+
+.ledgerColumns,
+.ledgerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.28fr) minmax(0, 0.36fr) minmax(0, 0.36fr);
+  gap: 0 1.4rem;
+}
+
+/* The column row is decoration on a wide screen: every cell already names its
+   own column through the label below, so this row is hidden from assistive
+   technology rather than read twice. */
+.ledgerColumns {
+  padding: 0.6rem 0.5rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* The third label is the one that decides, so it carries the ink. */
+.ledgerColumns span:last-child {
+  color: var(--vermillion);
+}
+
+.ledgerList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledgerRow {
+  border-top: 1px solid var(--line);
+  padding: 0.9rem 0.5rem;
+  transition: background-color 260ms ease;
+}
+
+.ledgerRow:hover {
+  background: var(--vermillion-wash);
+}
+
+.ledgerTool {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ledgerNum {
+  flex: none;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--vermillion);
+}
+
+.ledgerCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+/* Every cell names its own column. On a wide screen the header row already
+   shows the labels, so these are clipped rather than removed: `display: none`
+   would drop them from the accessibility tree and leave the value unlabelled. */
+.ledgerCellLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.54rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.ledgerCellValue {
+  display: block;
+  color: var(--ink);
+}
+
+.ledgerCellNote {
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+
+/* ── entries ─────────────────────────────────────────────────── */
+
+.entries {
+  padding-top: clamp(1.6rem, 3vw, 2.6rem);
+  padding-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+/* Each entry is a record: a narrow margin and a wide body, separated by a
+   hairline. The margin repeats on every entry so the records line up down the
+   page like ruled rows. */
+/* Entries are focus targets for the hero's route links, so the outline is
+   suppressed on the container itself and drawn on the record's top rule. */
+.entry {
+  scroll-margin-top: 5.5rem;
+  padding-bottom: clamp(1.8rem, 3.5vw, 2.8rem);
+}
+
+.entry:focus {
+  outline: none;
+}
+
+.entry:focus-visible .entryGrid {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 6px;
+}
+
+.entryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.26fr) minmax(0, 0.74fr);
+  border-top: 2px solid var(--ink);
+  padding-top: clamp(1.2rem, 2.4vw, 1.8rem);
+}
+
+/* The margin holds its place while the body scrolls past, so the numeral and
+   the facts stay with the reader through a long record. */
+.entryMargin {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  padding-right: clamp(1rem, 2vw, 1.8rem);
+}
+
+.entryMarginInner {
+  position: sticky;
+  top: 5.5rem;
+}
+
+.entryRunning {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.entryNumeral {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  line-height: 1;
+  color: var(--vermillion);
+}
+
+.entryPosition {
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.entryPlatform {
+  display: inline-block;
+  margin-top: 0.9rem;
+  border: 1px solid var(--line-strong);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.entryMeta {
+  margin: 1.1rem 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.entryMeta div {
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+
+.entryMeta div:last-child {
+  border-bottom: 0;
+}
+
+.entryMeta dt {
+  font-size: 0.54rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.entryMeta dd {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.entryBody {
+  min-width: 0;
+  padding-left: clamp(1.1rem, 2.4vw, 2.4rem);
+}
+
+.entryHead {
+  max-width: 44rem;
+}
+
+.entryName {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.5rem, 2.8vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.entryStandfirst {
+  margin-top: 0.65rem;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.entryLabel {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* "Open it when" is the one block a visitor reads to decide, so it gets the
+   indigo rule and the larger type. */
+.entryWhen {
+  margin-top: clamp(1.3rem, 2.4vw, 1.8rem);
+  border-left: 2px solid var(--indigo);
+  padding-left: 1rem;
+}
+
+.entryWhenBody {
+  margin-top: 0.4rem;
+  max-width: 42rem;
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+.entrySteps {
+  margin-top: clamp(1.3rem, 2.4vw, 1.8rem);
+}
+
+.entryStepList {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: entry-step;
+}
+
+.entryStepList li {
+  position: relative;
+  border-top: 1px solid var(--line);
+  padding: 0.65rem 0 0.65rem 2.2rem;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  counter-increment: entry-step;
+}
+
+.entryStepList li::before {
+  content: counter(entry-step, decimal-leading-zero);
+  position: absolute;
+  top: 0.7rem;
+  left: 0;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.8rem;
+  color: var(--vermillion);
+}
+
+/* The scope note closes the body: it is the last thing read before the
+   actions, and it is set apart so it is not skipped. */
+.entryScope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  margin-top: clamp(1.2rem, 2.2vw, 1.6rem);
+  border: 1px dashed var(--line-strong);
+  padding: 0.8rem 0.95rem;
+  font-size: 0.83rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.entryScope strong {
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  align-self: center;
+}
+
+.entryActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1.4rem;
+  margin-top: clamp(1.1rem, 2vw, 1.5rem);
+}
+
+.entryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.85rem 1.8rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--vermillion);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.entryAction:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+.entryActionIcon {
+  width: 0.95rem;
+  height: 0.95rem;
+  transition: transform 200ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.entryAction:hover .entryActionIcon {
+  transform: translateX(3px);
+}
+
+.entrySource {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 0.2rem;
+  font-size: 0.63rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition:
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.entrySource:hover {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.entrySourceIcon {
+  display: inline-flex;
+  flex: none;
+}
+
+/* ── notes ───────────────────────────────────────────────────── */
+
+.notes {
+  padding-bottom: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.notesInner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.34fr) minmax(0, 0.66fr);
+  gap: clamp(1.4rem, 3vw, 3rem);
+  border-top: 2px solid var(--ink);
+  padding-top: clamp(1.4rem, 2.6vw, 2rem);
+}
+
+.notesHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.notesSeal {
+  display: grid;
+  flex: none;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  rotate: -3deg;
+  background: var(--indigo);
+  color: #f8efdc;
+}
+
+.notesTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.notesNote {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.notesList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.9rem 0;
+}
+
+.note:first-child {
+  padding-top: 0;
+}
+
+.note:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.noteNum {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--vermillion);
+}
+
+.noteTitle {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.noteBody {
+  margin-top: 0.3rem;
+  max-width: 38rem;
+  font-size: 0.84rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+/* ── motion ──────────────────────────────────────────────────── */
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+/* Route rows ink in from the left. Opacity and translate only, so the hover
+   padding animation keeps the row's own geometry. */
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    translate: -10px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+
+.startRow:focus-visible,
+.entryAction:focus-visible,
+.entrySource:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 1080px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.2rem;
+  }
+
+  .notesInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.4rem;
+  }
+}
+
+@media (max-width: 900px) {
+  /* The ledger drops its header row and every cell names its own column, so
+     the three records still read as records rather than as loose paragraphs. */
+  .ledgerColumns {
+    display: none;
+  }
+
+  .ledgerRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
+    border-top: 2px solid var(--line-strong);
+    padding: 0.9rem 0.4rem;
+  }
+
+  .ledgerTool {
+    font-size: 1rem;
+  }
+
+  .ledgerCell {
+    padding-left: 1.55rem;
+  }
+
+  /* Stacked, the header row is gone, so each cell shows its own label. */
+  .ledgerCellLabel {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  /* The margin stops being a column and becomes a strip above the body, so the
+     record keeps its rhythm without squeezing the prose. */
+  .entryGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entryMargin {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 0.9rem;
+  }
+
+  .entryMarginInner {
+    position: static;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem 1rem;
+  }
+
+  .entryPlatform {
+    justify-self: start;
+    margin-top: 0;
+  }
+
+  .entryMeta {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.5rem;
+    border-top: 0;
+  }
+
+  .entryMeta div {
+    border-bottom: 0;
+    padding: 0.35rem 0;
+  }
+
+  .entryBody {
+    padding: 1.1rem 0 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .edition {
+    gap: 0.55rem;
+    letter-spacing: 0.16em;
+  }
+
+  .entryMeta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entryScope {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .entryScope strong {
+    align-self: flex-start;
+  }
+
+  .entryActions {
+    align-items: stretch;
+  }
+
+  .entryAction {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .entrySource {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start,
+  .startList li,
+  .startRow,
+  .startIcon,
+  .entryAction,
+  .entryActionIcon,
+  .entrySource,
+  .entrySourceNote {
+    transition: none;
+    animation: none;
+  }
+
+  .startRow:hover,
+  .startRow:focus-visible,
+  .startRowChosen,
+  .startRow:hover .startIcon,
+  .entryAction:hover,
+  .entryAction:hover .entryActionIcon {
+    transform: none;
+  }
+}

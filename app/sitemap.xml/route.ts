@@ -18,18 +18,23 @@ const pages = [
     changefreq: "daily" as const,
   },
   {
-    path: "/search",
+    path: "/generator",
+    priority: 0.95,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/examples",
     priority: 0.9,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/search",
+    priority: 0.8,
     changefreq: "weekly" as const,
   },
   {
     path: "/user",
     priority: 0.8,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/settings",
-    priority: 0.7,
     changefreq: "weekly" as const,
   },
   {
@@ -40,11 +45,6 @@ const pages = [
   {
     path: "/contact",
     priority: 0.6,
-    changefreq: "yearly" as const,
-  },
-  {
-    path: "/license",
-    priority: 0.4,
     changefreq: "yearly" as const,
   },
 ];

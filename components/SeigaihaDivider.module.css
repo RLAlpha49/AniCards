@@ -1,0 +1,23 @@
+.divider[data-reveal="hidden"] svg {
+  clip-path: inset(0 100% 0 0);
+}
+
+.divider[data-reveal="shown"] svg {
+  animation: unfurl 950ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes unfurl {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .divider[data-reveal] svg {
+    animation: none;
+    clip-path: none;
+  }
+}

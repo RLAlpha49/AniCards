@@ -25,7 +25,7 @@ test.describe("Examples gallery", () => {
     expect(initialCount).toBeGreaterThan(0);
 
     await test.step("Filter by Voice Actors", async () => {
-      await page.getByPlaceholder(/search cards/i).fill("Voice Actors");
+      await page.getByPlaceholder(/search by card name/i).fill("Voice Actors");
     });
 
     await expect
@@ -36,17 +36,21 @@ test.describe("Examples gallery", () => {
     expect(filteredCount).toBeGreaterThan(0);
   });
 
-  test("opens generator from examples CTA", async ({ page }) => {
+  test("navigates to the generator from the examples CTA", async ({ page }) => {
     const generator = new GeneratorPage(page);
 
-    await test.step("Open generator from CTA", async () => {
+    await test.step("Follow the CTA", async () => {
       await page.getByRole("button", { name: /create your cards/i }).click();
+      /* Client-side route change: poll the URL rather than waiting for a
+         navigation event that never fires. */
+      await expect.poll(() => page.url()).toContain("/generator");
       await generator.waitForGeneratorOpen();
     });
 
-    await test.step("Dismiss generator", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+    await test.step("The generator renders its first step", async () => {
+      await expect(
+        page.getByRole("heading", { name: /whose stats/i, level: 2 }),
+      ).toBeVisible();
     });
   });
 });

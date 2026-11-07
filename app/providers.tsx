@@ -1,5 +1,6 @@
 "use client";
 
+import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "next-themes";
 import type React from "react";
 
@@ -16,7 +17,7 @@ export function Providers({
       attribute="class" // Use CSS class-based theming (dark/light classes)
       defaultTheme="system" // Default to OS preference
     >
-      {children}
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
     </ThemeProvider>
   );
 }

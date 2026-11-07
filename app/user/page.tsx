@@ -2,9 +2,8 @@ import { Suspense } from "react";
 import { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { UserPageClient } from "@/components/user/UserPageClient";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import PageShell from "@/components/PageShell";
+import { UserPageState } from "@/components/user/UserPageState";
+import { PaperSurface } from "@/components/PaperSurface";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
@@ -34,10 +33,11 @@ export async function generateMetadata({
 
   if (username) {
     return createMetadata({
-      title: `${username}'s AniList Stats - AniCards`,
-      description: `View ${username}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
+      title: `${username}'s AniList Stat Cards - AniCards`,
+      description: `The AniList stat cards saved for ${username}: download the set, copy a card's link, or embed it on a profile.`,
       keywords: [
         `${username} anilist`,
+        `${username} stat cards`,
         `${username} anime stats`,
         `${username} manga stats`,
         "anilist profile",
@@ -53,25 +53,22 @@ export async function generateMetadata({
 }
 
 /**
- * Wraps the client-side user page in a suspense boundary with a spinner fallback.
+ * Wraps the client-side user page in a suspense boundary with a reading state.
+ *
+ * The fallback paints the same paper surface as the page itself, so the
+ * background never flashes to a different colour while the record loads.
  * @source
  */
 export default function UserPage() {
   return (
     <Suspense
       fallback={
-        <PageShell>
-          <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
-            <LoadingSpinner size="lg" text="Loading user data..." />
-          </div>
-        </PageShell>
+        <PaperSurface>
+          <UserPageState state="loading" />
+        </PaperSurface>
       }
     >
-      <ErrorBoundary>
-        <PageShell>
-          <UserPageClient />
-        </PageShell>
-      </ErrorBoundary>
+      <UserPageClient />
     </Suspense>
   );
 }

@@ -250,33 +250,6 @@ function computeMixedCounts(
 }
 
 /**
- * Create a default mixed-variant result when there are no available items to embed.
- */
-function createEmptyMixedResult(
-  favourites: UserFavourites,
-  animeNodes: unknown[],
-  mangaNodes: unknown[],
-  characterNodes: unknown[],
-  staffNodes: unknown[],
-) {
-  return {
-    ...favourites,
-    anime: favourites.anime
-      ? { ...favourites.anime, nodes: animeNodes }
-      : undefined,
-    manga: favourites.manga
-      ? { ...favourites.manga, nodes: mangaNodes }
-      : undefined,
-    characters: favourites.characters
-      ? { ...favourites.characters, nodes: characterNodes }
-      : undefined,
-    staff: favourites.staff
-      ? { ...favourites.staff, nodes: staffNodes }
-      : { nodes: [] },
-  };
-}
-
-/**
  * Helper that applies non-mixed embedding (single-variant) up to the given limit.
  */
 async function embedNonMixed(

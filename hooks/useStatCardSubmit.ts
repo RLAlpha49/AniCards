@@ -287,81 +287,114 @@ function remainingBudgetMs(start: number, totalTimeoutMs?: number) {
 }
 
 /**
- * Hook exposing stat-card submission helpers and state.
- * Provides `loading`, `error`, `submit`, and `clearError` to callers.
- * Use `submit` to begin the multi-step write process (fetch AniList data and store results).
- * @returns An object containing submission state and control functions.
+ * Perform a fetch with an abort timeout and normalize errors with context.
+ * @param url - Resource path to request.
+ * @param options - RequestInit options for fetch.
+ * @param timeoutMs - Timeout in milliseconds before aborting the request.
+ * @param contextName - Context string used in thrown errors.
+ * @returns The original Response when successful.
+ * @throws Error with contextual message on failure.Personal Records
  * @source
  */
-export function useStatCardSubmit() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [retryAttempt, setRetryAttempt] = useState(0);
-  const [retryOperation, setRetryOperation] = useState<string | null>(null);
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs = 15000,
+  contextName = "Request",
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
 
-  /**
-   * Perform a fetch with an abort timeout and normalize errors with context.
-   * @param url - Resource path to request.
-   * @param options - RequestInit options for fetch.
-   * @param timeoutMs - Timeout in milliseconds before aborting the request.
-   * @param contextName - Context string used in thrown errors.
-   * @returns The original Response when successful.
-   * @throws Error with contextual message on failure.Personal Records
-   * @source
-   */
-  async function fetchWithTimeout(
-    url: string,
-    options: RequestInit,
-    timeoutMs = 15000,
-    contextName = "Request",
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (err) {
+    // Normalize AbortError across environments
+    const errName =
+      typeof err === "object" && err !== null
+        ? (err as { name?: string }).name
+        : undefined;
+    if (
+      (typeof DOMException !== "undefined" &&
+        err instanceof DOMException &&
+        errName === "AbortError") ||
+      errName === "AbortError"
+    ) {
+      throw new Error(`${contextName} request timed out after ${timeoutMs}ms`);
+    }
+    // Bubble other errors up with context
+    throw new Error(
+      `${contextName} failed: ${(err as Error)?.message ?? String(err)}`,
+    );
+  } finally {
+    clearTimeout(id);
+  }
+}
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } catch (err) {
-      // Normalize AbortError across environments
-      const errName =
-        typeof err === "object" && err !== null
-          ? (err as { name?: string }).name
-          : undefined;
-      if (
-        (typeof DOMException !== "undefined" &&
-          err instanceof DOMException &&
-          errName === "AbortError") ||
-        errName === "AbortError"
-      ) {
-        throw new Error(
-          `${contextName} request timed out after ${timeoutMs}ms`,
-        );
-      }
-      // Bubble other errors up with context
-      throw new Error(
-        `${contextName} failed: ${(err as Error)?.message ?? String(err)}`,
-      );
-    } finally {
-      clearTimeout(id);
+async function attemptFetchOnce(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  contextName: string,
+) {
+  const response = await fetchWithTimeout(url, options, timeoutMs, contextName);
+  if (!response.ok) {
+    if (
+      isRetryableError(
+        new Error(`HTTP status ${response.status}`),
+        response.status,
+      )
+    ) {
+      const statusError = new Error(`HTTP status ${response.status}`);
+      (statusError as { statusCode?: number }).statusCode = response.status;
+      throw statusError;
     }
   }
+  return response;
+}
 
-  async function attemptFetchOnce(
-    url: string,
-    options: RequestInit,
-    timeoutMs: number,
-    contextName: string,
-  ) {
-    const response = await fetchWithTimeout(
-      url,
-      options,
-      timeoutMs,
-      contextName,
-    );
-    if (!response.ok) {
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  config: {
+    maxRetries?: number;
+    timeoutMs?: number;
+    contextName?: string;
+    operationName?: string;
+    totalTimeoutMs?: number;
+    onRetry?: (attempt: number, operation: string) => void;
+  } = {},
+): Promise<Response> {
+  const {
+    maxRetries = DEFAULT_RETRY_ATTEMPTS,
+    timeoutMs = 15000,
+    contextName = "Request",
+    operationName = "request",
+    totalTimeoutMs,
+    onRetry,
+  } = config;
+
+  const start = Date.now();
+  let retries = 0;
+
+  while (true) {
+    try {
+      const attemptTimeout = computeAttemptTimeout(
+        start,
+        totalTimeoutMs,
+        timeoutMs,
+        operationName,
+      );
+      const response = await attemptFetchOnce(
+        url,
+        options,
+        attemptTimeout,
+        contextName,
+      );
+      if (response.ok) return response;
       if (
         isRetryableError(
           new Error(`HTTP status ${response.status}`),
@@ -372,74 +405,30 @@ export function useStatCardSubmit() {
         (statusError as { statusCode?: number }).statusCode = response.status;
         throw statusError;
       }
-    }
-    return response;
-  }
-
-  async function fetchWithRetry(
-    url: string,
-    options: RequestInit,
-    config: {
-      maxRetries?: number;
-      timeoutMs?: number;
-      contextName?: string;
-      operationName?: string;
-      totalTimeoutMs?: number;
-      onRetry?: (attempt: number, operation: string) => void;
-    } = {},
-  ): Promise<Response> {
-    const {
-      maxRetries = DEFAULT_RETRY_ATTEMPTS,
-      timeoutMs = 15000,
-      contextName = "Request",
-      operationName = "request",
-      totalTimeoutMs,
-      onRetry,
-    } = config;
-
-    const start = Date.now();
-    let retries = 0;
-
-    while (true) {
-      try {
-        const attemptTimeout = computeAttemptTimeout(
-          start,
-          totalTimeoutMs,
-          timeoutMs,
-          operationName,
-        );
-        const response = await attemptFetchOnce(
-          url,
-          options,
-          attemptTimeout,
-          contextName,
-        );
-        if (response.ok) return response;
-        if (
-          isRetryableError(
-            new Error(`HTTP status ${response.status}`),
-            response.status,
-          )
-        ) {
-          const statusError = new Error(`HTTP status ${response.status}`);
-          (statusError as { statusCode?: number }).statusCode = response.status;
-          throw statusError;
-        }
-        return response;
-      } catch (err) {
-        // Delegate retry decision, budget checks and delay / backoff handling
-        retries = await handleAttemptFailure(
-          err,
-          start,
-          totalTimeoutMs,
-          operationName,
-          retries,
-          maxRetries,
-          onRetry,
-        );
-      }
+      return response;
+    } catch (err) {
+      // Delegate retry decision, budget checks and delay / backoff handling
+      retries = await handleAttemptFailure(
+        err,
+        start,
+        totalTimeoutMs,
+        operationName,
+        retries,
+        maxRetries,
+        onRetry,
+      );
     }
   }
+}
+
+/**
+ * Hook exposing stat-card submission helpers and state.
+ */
+export function useStatCardSubmit() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [retryOperation, setRetryOperation] = useState<string | null>(null);
 
   /**
    * Validate the submission parameters and throw a descriptive Error if invalid.
@@ -562,7 +551,10 @@ export function useStatCardSubmit() {
     borderColor,
     borderRadius,
     favoritesGrid,
-  }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
+  }: SubmitParams): Promise<{
+    success: boolean;
+    userId?: string;
+  }> => {
     setLoading(true);
     setError(null);
     setRetryAttempt(0);

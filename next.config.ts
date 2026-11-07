@@ -123,14 +123,18 @@ function getSiteOrigin(): string {
  * Next.js Configuration
  *
  * This configuration includes:
- * - Environment variables for API authentication and analytics
+ * - Environment variables for analytics and the public API origin
  * - Image optimization settings for local and production domains
  * - Security headers for defense-in-depth protection
  *
- * Note: The main CSP header with nonces is injected via middleware (app/middleware.ts)
+ * Note: The main CSP header with nonces is injected via proxy (proxy.ts)
  * to enable per-request nonce generation. Static security headers are configured here.
  *
- * @see app/middleware.ts for CSP header generation
+ * Server-only secrets must not be listed in `env`: Next.js inlines those
+ * values into the client bundle. Read them with `process.env` in the server
+ * code that needs them instead.
+ *
+ * @see proxy.ts for CSP header generation
  * @see lib/csp-config.ts for CSP directive configuration
  * @see docs/SECURITY.md for comprehensive security documentation
  * @source
@@ -138,7 +142,6 @@ function getSiteOrigin(): string {
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["anicards.test", "api.anicards.test"],
   env: {
-    API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
     NEXT_PUBLIC_API_URL:
@@ -178,7 +181,7 @@ const nextConfig: NextConfig = {
    *
    * These headers provide defense-in-depth security measures.
    * The CSP directives themselves are defined in `lib/csp-config.ts` and injected per request
-   * in `app/middleware.ts` so that nonces can be generated via `crypto.getRandomValues`.
+   * in `proxy.ts` so that nonces can be generated via `crypto.getRandomValues`.
    * `next.config.ts` only hosts the static headers below and purposely avoids duplicating
    * CSP logic.
    *

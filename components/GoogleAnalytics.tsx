@@ -46,8 +46,9 @@ export default function GoogleAnalytics({
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '${GA_TRACKING_ID}', {
-            page_title: document.title,
-            page_location: window.location.href,
+            page_title: 'AniCards',
+            page_location: window.location.origin + window.location.pathname,
+            page_path: window.location.pathname,
           });
         `}
       </Script>

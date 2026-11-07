@@ -39,12 +39,12 @@ export function getFavouriteCounts(favourites: UserFavourites) {
 /**
  * Generate the main body SVG for favourites summary.
  * @param counts - Favourite counts.
- * @param resolvedColors - Resolved colors.
+ * @param _resolvedColors - Resolved colors, retained for compatibility.
  * @returns SVG string for the body.
  */
 export function generateFavouritesSummaryBody(
   counts: ReturnType<typeof getFavouriteCounts>,
-  resolvedColors: Record<string, string>,
+  _resolvedColors: Record<string, string>,
 ): string {
   const total =
     counts.anime +

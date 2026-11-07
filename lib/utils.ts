@@ -26,7 +26,7 @@ type GlobalWithCache = typeof globalThis & {
 const _envApiBase =
   typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
 
-function resolveApiBase(url?: string): string {
+export function resolveApiBase(url?: string): string {
   if (!url) return "https://api.anicards.alpha49.com";
   try {
     const parsed = new URL(url);
@@ -263,7 +263,7 @@ export function colorValueToString(
  * @source
  */
 export function isValidHexColor(color: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color);
 }
 
 function normalizeHexRgb(hex: string): string | null {
