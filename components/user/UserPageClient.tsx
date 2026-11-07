@@ -484,7 +484,11 @@ function buildSavedCards(
  * @source
  */
 export function UserPageClient() {
-  const searchParams = useSearchParams();
+  const query = useSearchParams().toString();
+  return <UserPageContent key={query} query={query} />;
+}
+
+function UserPageContent({ query }: Readonly<{ query: string }>) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [cards, setCards] = useState<CardData[]>([]);
   const [cardsUpdatedAt, setCardsUpdatedAt] = useState<string | undefined>(
@@ -497,6 +501,10 @@ export function UserPageClient() {
 
   useEffect(() => {
     let cancelled = false;
+    const searchParams = new URLSearchParams(query);
+    const reportError = (message: string | null) => {
+      if (!cancelled) setError(message);
+    };
 
     /**
      * Reads the cards stored for a profile.
@@ -506,8 +514,8 @@ export function UserPageClient() {
     const readStoredCards = async (
       userId: string,
     ): Promise<CardData[] | null> => {
-      const result = await fetchCardsForUserId(userId, setError);
-      if (!result) return null;
+      const result = await fetchCardsForUserId(userId, reportError);
+      if (!result || cancelled) return null;
       setCardsUpdatedAt(result.updatedAt);
       return (result.cards ?? [])
         .map(normalizeCardEntry)
@@ -522,8 +530,8 @@ export function UserPageClient() {
     const readUserByUsername = async (
       username: string,
     ): Promise<UserData | null> => {
-      const result = await fetchUserByUsername(username, setError);
-      if (!result) return null;
+      const result = await fetchUserByUsername(username, reportError);
+      if (!result || cancelled) return null;
       return {
         userId: String(result.userId),
         username: result.username || undefined,
@@ -594,8 +602,8 @@ export function UserPageClient() {
         /* A numeric id is the address the generator hands over, so the stored
            set is read in full. */
         if (userId) {
-          const record = await fetchUserById(userId, setError);
-          if (!record) return;
+          const record = await fetchUserById(userId, reportError);
+          if (!record || cancelled) return;
           await loadStoredCards(
             {
               userId: String(record.userId),
@@ -631,7 +639,7 @@ export function UserPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [query]);
 
   const savedCards = useMemo(() => {
     if (cards.length === 0) return [];
