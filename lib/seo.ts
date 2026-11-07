@@ -22,8 +22,14 @@ interface SEOConfig {
   canonical?: string;
 }
 
-/** Base site URL used when canonical links or OpenGraph urls are not provided. @source */
-const SITE_URL =
+/**
+ * Base site URL used when canonical links or OpenGraph urls are not provided.
+ *
+ * Exported so routes that build a canonical for a dynamic path use the same
+ * origin as every static page instead of hardcoding a host.
+ * @source
+ */
+export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
 /** Canonical site name used across generated metadata. @source */
 const SITE_NAME = "AniCards";

@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
-import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
+import {
+  generateMetadata as createMetadata,
+  seoConfigs,
+  SITE_URL,
+} from "@/lib/seo";
 import { UserPageClient } from "@/components/user/UserPageClient";
 import { UserPageState } from "@/components/user/UserPageState";
 import { PaperSurface } from "@/components/PaperSurface";
@@ -45,7 +49,7 @@ export async function generateMetadata({
         "manga statistics",
         "stat cards",
       ],
-      canonical: `https://anicards.vercel.app/user?username=${username}`,
+      canonical: `${SITE_URL}/user?username=${encodeURIComponent(username)}`,
     });
   }
 
