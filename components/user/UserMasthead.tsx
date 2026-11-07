@@ -215,14 +215,14 @@ export function UserMasthead({
 
               <Link href="/generator" className={styles.receiptAction}>
                 <RefreshCw aria-hidden="true" />
-                Generate a new set
+                Change saved cards
                 <ArrowRight aria-hidden="true" />
               </Link>
             </div>
 
             <p className={styles.ledeNote}>
-              Generating again replaces this set, so download anything you want
-              to keep first.
+              Generating again updates the selected card types. Other saved
+              cards stay in this set.
             </p>
           </div>
         </div>
