@@ -266,7 +266,6 @@ export function GeneratorShell() {
 
     safeTrack(() => trackButtonClick("generate_cards", "generator"));
     safeTrack(() => trackUserSearch());
-    rememberDraft();
 
     const cardIds = selectedIds.map((id) => {
       const variation = draft.selections[id]?.variation ?? "default";
@@ -308,6 +307,7 @@ export function GeneratorShell() {
       result.userId &&
       routeGenerationRef.current === routeGeneration
     ) {
+      rememberDraft();
       const params = new URLSearchParams({
         userId: result.userId,
         username: draft.username.trim(),
