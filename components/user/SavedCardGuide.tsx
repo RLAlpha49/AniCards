@@ -38,6 +38,7 @@ export function SavedCardGuide() {
     <section className={styles.section} aria-labelledby="anilist-guide-heading">
       <div className={styles.sheet}>
         <SectionHeading
+          id="anilist-guide-heading"
           numeral="弐"
           title="Put a card on your profile"
           note="AniList reads one line and draws the card as an image."
