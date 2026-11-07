@@ -2741,11 +2741,13 @@
     overflow-y: auto;
     border-left: 0;
     border-top: 0;
+    visibility: hidden;
     transform: translateX(-102%);
     transition: transform 280ms cubic-bezier(0.22, 0.8, 0.3, 1);
   }
 
   .railOpen {
+    visibility: visible;
     transform: none;
   }
 
