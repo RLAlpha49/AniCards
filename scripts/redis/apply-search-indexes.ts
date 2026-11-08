@@ -102,6 +102,37 @@ function assertTargetDatabase(url: string, allowLocal: boolean): void {
 }
 
 /**
+ * Verifies that one created index can answer a count.
+ *
+ * Indexing existing keys is asynchronous. Waiting here means the count covers
+ * every key, which is the point of running it right after creation. A count
+ * that fails is reported rather than thrown: the index exists either way, and
+ * one unreadable count should not hide the others.
+ *
+ * @param client - Redis client for the target database.
+ * @param name - Index that was just applied.
+ * @param prefix - Log prefix describing the outcome and schema.
+ * @returns Nothing.
+ * @source
+ */
+async function reportIndexDocumentCount(
+  client: Redis,
+  name: string,
+  prefix: string,
+): Promise<void> {
+  try {
+    const index = client.search.index({ name });
+    await index.waitIndexing();
+    const { count } = await index.count({ filter: COUNT_ALL_DOCUMENTS });
+    console.log(`${prefix}: ${count} documents are searchable`);
+  } catch (error) {
+    console.warn(
+      `${prefix}: created, but the verification count failed (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+}
+
+/**
  * Creates the indexes and reports each one.
  *
  * The token and URL are not logged. The output names the index, its type, its
@@ -111,6 +142,10 @@ function assertTargetDatabase(url: string, allowLocal: boolean): void {
  * A refused index is reported and does not stop the rest. On a one-index plan
  * that is the expected result for every definition after the first.
  *
+ * The definitions are applied in order, because a one-index plan accepts only
+ * the first one. The verification counts then run together: each one only
+ * reads, and waiting for all of them shortens the run.
+ *
  * @param client - Redis client for the target database.
  * @returns Nothing.
  * @source
@@ -118,6 +153,7 @@ function assertTargetDatabase(url: string, allowLocal: boolean): void {
 async function main(client: Redis): Promise<void> {
   const results = await applySearchIndexes(client);
   let failed = false;
+  const verifications: Promise<void>[] = [];
 
   for (const { name, outcome, reason } of results) {
     const definition = SEARCH_INDEX_DEFINITIONS.find(
@@ -138,22 +174,10 @@ async function main(client: Redis): Promise<void> {
 
     const fields = definition ? Object.keys(definition.schema).join(", ") : "";
     const prefix = `${outcome} ${name} (${described}, fields ${fields})`;
-
-    // Indexing existing keys is asynchronous. Waiting here means the count
-    // below covers every key, which is the point of running it right after
-    // creation. A count that fails is reported rather than thrown: the index
-    // exists either way, and one unreadable count should not hide the others.
-    try {
-      const index = client.search.index({ name });
-      await index.waitIndexing();
-      const { count } = await index.count({ filter: COUNT_ALL_DOCUMENTS });
-      console.log(`${prefix}: ${count} documents are searchable`);
-    } catch (error) {
-      console.warn(
-        `${prefix}: created, but the verification count failed (${error instanceof Error ? error.message : String(error)})`,
-      );
-    }
+    verifications.push(reportIndexDocumentCount(client, name, prefix));
   }
+
+  await Promise.all(verifications);
 
   if (failed) process.exitCode = 1;
 }

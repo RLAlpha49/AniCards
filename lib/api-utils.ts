@@ -325,7 +325,8 @@ export async function scanAllKeys(
  *
  * A single `MGET` over thousands of keys is one oversized command, and the
  * reply size grows with every key. Chunking keeps each round trip to a size
- * Redis and the HTTP client both handle.
+ * Redis and the HTTP client both handle. The batches are independent reads, so
+ * they are issued together and the replies are flattened in key order.
  *
  * @param keys - Keys to read, in order.
  * @param batchSize - Keys per `MGET`.
@@ -335,13 +336,15 @@ export async function mgetInBatches<T>(
   keys: string[],
   batchSize: number = 500,
 ): Promise<(T | null)[]> {
-  const values: (T | null)[] = [];
+  const batches: string[][] = [];
   for (let offset = 0; offset < keys.length; offset += batchSize) {
-    const batch = keys.slice(offset, offset + batchSize);
-    const batchValues = await redisClient.mget<(T | null)[]>(...batch);
-    values.push(...batchValues);
+    batches.push(keys.slice(offset, offset + batchSize));
   }
-  return values;
+
+  const replies = await Promise.all(
+    batches.map((batch) => redisClient.mget<(T | null)[]>(...batch)),
+  );
+  return replies.flat();
 }
 
 /**

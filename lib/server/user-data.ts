@@ -934,17 +934,19 @@ export async function deleteUserStorage(
     ? [buildUsernameIndexKey(username)].filter((key): key is string => !!key)
     : await findUsernameIndexKeysOwnedBy(userIdValue);
 
-  let usernameKeyRemoved = false;
-  for (const key of usernameKeys) {
-    const removed = await redisClient.eval<[string], number>(
-      REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
-      [key],
-      [userIdValue],
-    );
-    if (removed === 1) usernameKeyRemoved = true;
-  }
+  // Each key is a separate compare-and-delete, so they are issued together.
+  // A name that has since been taken by another user is kept by the script.
+  const removals = await Promise.all(
+    usernameKeys.map((key) =>
+      redisClient.eval<[string], number>(
+        REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
+        [key],
+        [userIdValue],
+      ),
+    ),
+  );
 
-  return { usernameKeyRemoved };
+  return { usernameKeyRemoved: removals.some((removed) => removed === 1) };
 }
 
 /**
