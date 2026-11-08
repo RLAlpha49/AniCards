@@ -174,16 +174,19 @@ async function retireSupersededSchedules(client: Client): Promise<string[]> {
   const existing = new Set(
     (await client.schedules.list()).map((schedule) => schedule.scheduleId),
   );
-  const removed: string[] = [];
+  const present = SUPERSEDED_SCHEDULE_IDS.filter((scheduleId) =>
+    existing.has(scheduleId),
+  );
 
-  for (const scheduleId of SUPERSEDED_SCHEDULE_IDS) {
-    if (!existing.has(scheduleId)) continue;
-    await client.schedules.delete(scheduleId);
-    removed.push(scheduleId);
-    console.log(`retired ${scheduleId}`);
-  }
+  // The deletes are independent, so they are issued together. A rejected
+  // delete still rejects the run, which is what keeps the old and new
+  // schedules from both delivering.
+  await Promise.all(
+    present.map((scheduleId) => client.schedules.delete(scheduleId)),
+  );
 
-  return removed;
+  for (const scheduleId of present) console.log(`retired ${scheduleId}`);
+  return present;
 }
 
 /**
@@ -200,19 +203,27 @@ export async function applySchedules(
   origin: string,
 ): Promise<{ applied: string[]; retired: string[] }> {
   const retired = await retireSupersededSchedules(client);
-  const applied: string[] = [];
+  const schedules = buildSchedules(origin);
 
-  for (const schedule of buildSchedules(origin)) {
-    const { scheduleId } = await client.schedules.create({
-      ...schedule,
-      headers: { "x-cron-secret": cronSecret },
-    });
-    applied.push(scheduleId);
-    // The secret is deliberately not logged.
+  // Every create carries its own id, so the calls do not depend on each
+  // other. `Promise.all` keeps the reply order, which is the definition
+  // order, and a rejection still fails the run.
+  const created = await Promise.all(
+    schedules.map((schedule) =>
+      client.schedules.create({
+        ...schedule,
+        headers: { "x-cron-secret": cronSecret },
+      }),
+    ),
+  );
+
+  const applied = created.map(({ scheduleId }) => scheduleId);
+  // The secret is deliberately not logged.
+  schedules.forEach((schedule, index) => {
     console.log(
-      `applied ${scheduleId} -> ${schedule.destination} (${schedule.cron})`,
+      `applied ${applied[index]} -> ${schedule.destination} (${schedule.cron})`,
     );
-  }
+  });
 
   if (retired.length === 0) {
     console.log("no superseded schedules were present");
