@@ -3,14 +3,7 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  ArrowRight,
-  AtSign,
-  Hash,
-  Search,
-  User,
-} from "@/lib/icons";
+import { AlertCircle, ArrowRight, Hash, Search, User } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
   safeTrack,
@@ -18,6 +11,7 @@ import {
   trackNavigation,
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
+import { LookupField } from "./LookupField";
 import styles from "./search.module.css";
 
 /** The two identifiers AniList accepts for a profile. @source */
@@ -38,12 +32,53 @@ type SearchLookupPanelProps = Readonly<{
 }>;
 
 /**
+ * Names the problem with an entered handle or ID.
+ *
+ * @param raw - The entered value, untrimmed.
+ * @param target - Which identifier the field currently holds.
+ * @returns The message to show, or an empty string when the value is usable.
+ * @source
+ */
+function describeLookupProblem(raw: string, target: LookupMode): string {
+  const clean = raw.trim();
+  if (!clean) {
+    return `Please enter a ${target === "username" ? "username" : "user ID"}.`;
+  }
+  if (target === "userid" && !NUMERIC_ONLY.test(clean)) {
+    return "An AniList user ID is numbers only, such as 542244.";
+  }
+  if (target === "username" && NUMERIC_ONLY.test(clean)) {
+    return "That is a number, so it reads as a user ID. Switch to User ID, or type a handle.";
+  }
+  return "";
+}
+
+/**
+ * Describes what the field currently holds.
+ *
+ * @param mode - Which identifier the field is in.
+ * @param trimmed - The entered value, trimmed.
+ * @param looksNumeric - Whether the value is all digits in handle mode.
+ * @returns The short hint shown beside the label.
+ * @source
+ */
+function describeFieldHint(
+  mode: LookupMode,
+  trimmed: string,
+  looksNumeric: boolean,
+): string {
+  if (!trimmed) return "Required";
+  if (looksNumeric) return "Looks like an ID";
+  return mode === "userid" ? `Reading #${trimmed}` : `Reading @${trimmed}`;
+}
+
+/**
  * The lookup panel on the search page.
  *
  * Replaces the old mode toggle plus field with one field that understands
- * either identifier. Typing digits into the username field offers the switch to
- * ID mode instead of failing the lookup, and the panel names the profile it is
- * about to read before the visitor commits.
+ * either identifier. Typing digits into the username field offers the switch
+ * to ID mode instead of failing the lookup, and the panel names the profile it
+ * is about to read before the visitor commits.
  *
  * @param props.onLoadingChange - Reports the pending navigation so the page can
  *   show the lookup overlay.
@@ -62,12 +97,15 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
   const trimmed = value.trim();
   const looksNumeric = mode === "username" && NUMERIC_ONLY.test(trimmed);
   const targetParam = mode === "username" ? "username" : "userId";
-  let fieldHint = "Required";
-  if (trimmed) {
-    fieldHint =
-      mode === "userid" ? `Reading #${trimmed}` : `Reading @${trimmed}`;
-    if (looksNumeric) fieldHint = "Looks like an ID";
-  }
+  const fieldHint = describeFieldHint(mode, trimmed, looksNumeric);
+
+  // Values the markup reads, computed here so the JSX stays free of branches.
+  const isUsernameMode = mode === "username";
+  const modeLabel = isUsernameMode ? "By handle" : "By ID";
+  const fieldLabel = isUsernameMode ? "AniList Username" : "AniList User ID";
+  const placeholder = isUsernameMode
+    ? "Enter username (e.g., Alpha49)"
+    : "Enter user ID (e.g., 542244)";
 
   /**
    * Runs the lookup: validates, reports it, and routes to the profile page.
@@ -77,26 +115,9 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
    * @source
    */
   const runLookup = (raw: string, target: LookupMode) => {
-    const clean = raw.trim();
-
-    if (!clean) {
-      setError(
-        `Please enter a ${target === "username" ? "username" : "user ID"}.`,
-      );
-      safeTrack(() => trackFormSubmission("user_search", false));
-      return;
-    }
-
-    if (target === "userid" && !NUMERIC_ONLY.test(clean)) {
-      setError("An AniList user ID is numbers only, such as 542244.");
-      safeTrack(() => trackFormSubmission("user_search", false));
-      return;
-    }
-
-    if (target === "username" && NUMERIC_ONLY.test(clean)) {
-      setError(
-        "That is a number, so it reads as a user ID. Switch to User ID, or type a handle.",
-      );
+    const problem = describeLookupProblem(raw, target);
+    if (problem) {
+      setError(problem);
       safeTrack(() => trackFormSubmission("user_search", false));
       return;
     }
@@ -108,7 +129,7 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
     safeTrack(() => trackUserSearch());
 
     const params = new URLSearchParams();
-    params.set(target === "username" ? "username" : "userId", clean);
+    params.set(target === "username" ? "username" : "userId", raw.trim());
 
     safeTrack(() => trackNavigation("user_page", "search_lookup"));
     router.push(`/user?${params.toString()}`);
@@ -147,9 +168,7 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
         </span>
         <p className={styles.panelTitle}>Find your cards</p>
         <span className={styles.panelHeadRule} aria-hidden="true" />
-        <span className={styles.panelMode}>
-          {mode === "username" ? "By handle" : "By ID"}
-        </span>
+        <span className={styles.panelMode}>{modeLabel}</span>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -158,11 +177,8 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
             <button
               type="button"
               onClick={() => switchMode("username")}
-              aria-pressed={mode === "username"}
-              className={cn(
-                styles.mode,
-                mode === "username" && styles.modeActive,
-              )}
+              aria-pressed={isUsernameMode}
+              className={cn(styles.mode, isUsernameMode && styles.modeActive)}
             >
               <User aria-hidden="true" />
               Username
@@ -170,11 +186,8 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
             <button
               type="button"
               onClick={() => switchMode("userid")}
-              aria-pressed={mode === "userid"}
-              className={cn(
-                styles.mode,
-                mode === "userid" && styles.modeActive,
-              )}
+              aria-pressed={!isUsernameMode}
+              className={cn(styles.mode, !isUsernameMode && styles.modeActive)}
             >
               <Hash aria-hidden="true" />
               User ID
@@ -182,87 +195,29 @@ export function SearchLookupPanel({ onLoadingChange }: SearchLookupPanelProps) {
           </div>
         </fieldset>
 
-        <div className={styles.field}>
-          <div className={styles.fieldLabel}>
-            <label htmlFor={inputId}>
-              {mode === "username" ? "AniList Username" : "AniList User ID"}
-            </label>
-            <span className={styles.fieldHint}>{fieldHint}</span>
-          </div>
-
-          <div className={styles.input}>
-            {mode === "username" ? (
-              <AtSign className={styles.inputIcon} aria-hidden="true" />
-            ) : (
-              <Hash className={styles.inputIcon} aria-hidden="true" />
-            )}
-            <input
-              id={inputId}
-              type="text"
-              value={value}
-              onChange={(event) => {
-                setValue(event.target.value);
-                setError("");
-              }}
-              placeholder={
-                mode === "username"
-                  ? "Enter username (e.g., Alpha49)"
-                  : "Enter user ID (e.g., 542244)"
-              }
-              aria-describedby={error ? errorId : undefined}
-              aria-invalid={error ? true : undefined}
-              className={styles.inputField}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              disabled={loading}
-            />
-            {trimmed && (
-              <button
-                type="button"
-                onClick={() => {
-                  setValue("");
-                  setError("");
-                }}
-                className={styles.inputClear}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          {/* A pasted number is an ID. Offer the switch before it fails. */}
-          {looksNumeric && (
-            <p className={styles.detect}>
-              That looks like a numeric ID.{" "}
-              <button
-                type="button"
-                onClick={acceptAsId}
-                className={styles.detectButton}
-              >
-                Look it up as a user ID
-              </button>
-            </p>
-          )}
-
-          {/* The address the form will open, so the destination is never a
-              surprise when the profile page loads. Hidden while the value
-              reads as an ID in handle mode, because the form refuses that
-              until the mode is switched. */}
-          {!looksNumeric && (
-            <p className={styles.target}>
-              <span className={styles.targetLabel}>Opens</span>
-              <code className={styles.targetUrl}>
-                /user?{targetParam}=
-                {trimmed ? (
-                  <mark>{trimmed}</mark>
-                ) : (
-                  <span className={styles.targetEmpty}>…</span>
-                )}
-              </code>
-            </p>
-          )}
-        </div>
+        <LookupField
+          inputId={inputId}
+          label={fieldLabel}
+          hint={fieldHint}
+          placeholder={placeholder}
+          value={value}
+          trimmed={trimmed}
+          isIdMode={!isUsernameMode}
+          looksNumeric={looksNumeric}
+          targetParam={targetParam}
+          errorId={errorId}
+          hasError={!!error}
+          disabled={loading}
+          onChange={(next) => {
+            setValue(next);
+            setError("");
+          }}
+          onClear={() => {
+            setValue("");
+            setError("");
+          }}
+          onAcceptAsId={acceptAsId}
+        />
 
         {error && (
           <p id={errorId} role="alert" className={styles.error}>
