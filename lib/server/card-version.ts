@@ -108,7 +108,7 @@ export function buildCardVersion(
 
   if (parts.length === 0) return undefined;
 
-  parts.sort();
+  parts.sort((a, b) => a.localeCompare(b));
   return parts.join("-");
 }
 
