@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowRight } from "@/lib/icons";
-import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import { ArrowRight, GithubBrand } from "@/lib/icons";
 import { PageCta } from "@/components/PageCta";
 import {
   safeTrack,
@@ -35,7 +34,7 @@ export function ProjectsClosing() {
       secondary={{
         label: "Visit my GitHub",
         hrefExternal: "https://github.com/RLAlpha49",
-        icon: <SimpleGithubIcon size={16} />,
+        icon: <GithubBrand size={16} />,
         onClick: () =>
           safeTrack(() =>
             trackExternalLinkClick("github_profile", "projects_closing"),

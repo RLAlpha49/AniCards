@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowRight, ExternalLink, Mail } from "@/lib/icons";
 import {
-  SimpleAniListIcon,
-  SimpleDiscordIcon,
-  SimpleGithubIcon,
-} from "@/components/SimpleIcons";
+  AniListBrand,
+  ArrowRight,
+  DiscordBrand,
+  ExternalLink,
+  GithubBrand,
+  Mail,
+} from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/utils";
 import {
@@ -18,9 +20,9 @@ import styles from "./contact.module.css";
 
 /** Brand marks, keyed by the channel's brand field. @source */
 const BRAND_ICONS = {
-  github: SimpleGithubIcon,
-  discord: SimpleDiscordIcon,
-  anilist: SimpleAniListIcon,
+  github: GithubBrand,
+  discord: DiscordBrand,
+  anilist: AniListBrand,
   email: Mail,
 } as const;
 
@@ -31,9 +33,9 @@ type BrandMarkProps = Readonly<{
 /**
  * Draws a channel's brand mark at directory size.
  *
- * The library icons carry their own accessible labels, so the mark is wrapped
- * in a hidden span. Without it a screen reader would read "GitHub, GitHub" for
- * each row, because the name is already visible beside the mark.
+ * The mark is wrapped in a hidden span because the channel name is already
+ * visible beside it, so a screen reader would otherwise announce the brand
+ * twice.
  *
  * @param props.brand - Which brand mark to draw.
  * @source

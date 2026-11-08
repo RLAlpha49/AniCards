@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { SimpleGithubIcon } from "./SimpleIcons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type FocusEvent } from "react";
-import { ExternalLink, GitFork, Star } from "@/lib/icons";
+import { ExternalLink, GitFork, GithubBrand, Star } from "@/lib/icons";
 
 /** Repository the corner links to. @source */
 const REPO_URL = "https://github.com/RLAlpha49/Anicards";
@@ -127,7 +126,7 @@ export default function GithubCorner() {
           aria-label="View the AniCards repository on GitHub"
           className="flex h-14 w-14 items-center justify-center border-2 border-[#191512] bg-[#b83a24] text-[#f8efdc] shadow-[4px_4px_0_#191512] transition-[transform,box-shadow,background-color] duration-200 ease-out hover:translate-x-[2px] hover:translate-y-[2px] hover:bg-[#a83320] hover:shadow-[2px_2px_0_#191512] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b83a24] dark:border-[#ece1c9]/60 dark:bg-[#d4573c] dark:text-[#16120f] dark:shadow-[4px_4px_0_rgba(0,0,0,0.85)] dark:hover:bg-[#c24c33] dark:hover:shadow-[2px_2px_0_rgba(0,0,0,0.85)] dark:focus-visible:outline-[#d4573c]"
         >
-          <SimpleGithubIcon size={26} />
+          <GithubBrand size={26} />
         </Link>
 
         <AnimatePresence>

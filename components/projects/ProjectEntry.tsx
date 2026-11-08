@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "@/lib/icons";
-import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import { ArrowRight, GithubBrand } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/utils";
 import {
@@ -149,7 +148,7 @@ export function ProjectEntry({ project, position, total }: ProjectEntryProps) {
               }
             >
               <span aria-hidden="true" className={styles.entrySourceIcon}>
-                <SimpleGithubIcon size={15} />
+                <GithubBrand size={15} />
               </span>
               {"View on GitHub"}
               <span className="sr-only"> for {project.name}</span>

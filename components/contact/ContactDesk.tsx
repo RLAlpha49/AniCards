@@ -1,8 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowRight, Mail } from "@/lib/icons";
-import { SimpleDiscordIcon, SimpleGithubIcon } from "@/components/SimpleIcons";
+import { ArrowRight, DiscordBrand, GithubBrand, Mail } from "@/lib/icons";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -24,22 +23,17 @@ type ChannelMarkProps = Readonly<{
 /**
  * Draws the mark for a channel.
  *
- * Two intents can share a channel, so the mark follows the channel and the text
- * beside it names the specific reason. Brand marks sit inside a hidden wrapper
- * because the library icons carry their own accessible labels, which would
- * otherwise repeat the visible text.
- *
  * @param props.channelName - Channel the selected intent routes to.
  * @param props.size - Mark size in pixels.
  * @source
  */
 function ChannelMark({ channelName, size }: ChannelMarkProps) {
   if (channelName === "GitHub issue") {
-    return <SimpleGithubIcon size={size} />;
+    return <GithubBrand size={size} />;
   }
 
   if (channelName === "Discord") {
-    return <SimpleDiscordIcon size={size} />;
+    return <DiscordBrand size={size} />;
   }
 
   return <Mail width={size} height={size} />;

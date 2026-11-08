@@ -7,12 +7,14 @@ import {
   trackExternalLinkClick,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { Mail, ExternalLink, Scale } from "@/lib/icons";
 import {
-  SimpleAniListIcon,
-  SimpleDiscordIcon,
-  SimpleGithubIcon,
-} from "@/components/SimpleIcons";
+  AniListBrand,
+  DiscordBrand,
+  ExternalLink,
+  GithubBrand,
+  Mail,
+  Scale,
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 const MotionLink = motion.create(Link);
@@ -24,7 +26,7 @@ const MotionLink = motion.create(Link);
 const SOCIAL_LINKS = [
   {
     href: "https://anilist.co/user/Alpha49",
-    icon: SimpleAniListIcon,
+    icon: AniListBrand,
     name: "anilist",
     label: "AniList Profile",
     hoverColor: "hover:text-blue-500 hover:border-blue-500/50",
@@ -32,7 +34,7 @@ const SOCIAL_LINKS = [
   },
   {
     href: "https://discordid.netlify.app/?id=251479989378220044",
-    icon: SimpleDiscordIcon,
+    icon: DiscordBrand,
     name: "discord",
     label: "Discord",
     hoverColor: "hover:text-purple-500 hover:border-purple-500/50",
@@ -48,7 +50,7 @@ const SOCIAL_LINKS = [
   },
   {
     href: "https://github.com/RLAlpha49",
-    icon: SimpleGithubIcon,
+    icon: GithubBrand,
     name: "github",
     label: "GitHub",
     hoverColor:

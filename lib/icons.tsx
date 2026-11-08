@@ -25,6 +25,7 @@ import {
   CornerDownRightIcon as CornerDownRightData,
   CreditCardIcon as CreditCardData,
   DatabaseIcon as DatabaseData,
+  DiscordIcon as DiscordBrandData,
   DownloadIcon as DownloadData,
   DropletsIcon as DropletsData,
   ExternalLinkIcon as ExternalLinkData,
@@ -36,6 +37,7 @@ import {
   FilterIcon as FilterData,
   FolderIcon as FolderData,
   GitForkIcon as GitForkData,
+  Github01Icon as GithubBrandData,
   Grid3X3Icon as GridData,
   HashIcon as HashData,
   HeartIcon as HeartData,
@@ -101,6 +103,38 @@ function createIcon(icon: IconData, displayName: string): HugeIcon {
   return Icon;
 }
 
+type BrandIconProps = Readonly<{
+  size?: number;
+  className?: string;
+}>;
+
+/**
+ * AniList brand mark.
+ *
+ * Hugeicons ships no AniList logo, so this component carries the official mark
+ * path itself (path data from Simple Icons, CC0 1.0). It stays solid-filled:
+ * at the 15-18px sizes the site uses, an outlined version of this glyph turns
+ * into thin overlapping strokes instead of a readable mark.
+ *
+ * @param props.size - Width/height in pixels; defaults to 32.
+ * @param props.className - Optional CSS class names to style the SVG.
+ * @source
+ */
+export const AniListBrand = ({ size = 32, className }: BrandIconProps) => (
+  <svg
+    className={className}
+    role="img"
+    aria-label="AniList"
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M24 17.53v2.421c0 .71-.391 1.101-1.1 1.101h-5l-.057-.165L11.84 3.736c.106-.502.46-.788 1.053-.788h2.422c.71 0 1.1.391 1.1 1.1v12.38H22.9c.71 0 1.1.392 1.1 1.101zM11.034 2.947l6.337 18.104h-4.918l-1.052-3.131H6.019l-1.077 3.131H0L6.361 2.948h4.673zm-.66 10.96-1.69-5.014-1.541 5.015h3.23z" />
+  </svg>
+);
+
 export const Activity = createIcon(ActivityData, "Activity");
 export const AlertCircle = createIcon(AlertCircleData, "AlertCircle");
 export const AlertTriangle = createIcon(AlertTriangleData, "AlertTriangle");
@@ -130,6 +164,7 @@ export const CornerDownRight = createIcon(
 );
 export const CreditCard = createIcon(CreditCardData, "CreditCard");
 export const Database = createIcon(DatabaseData, "Database");
+export const DiscordBrand = createIcon(DiscordBrandData, "DiscordBrand");
 export const Download = createIcon(DownloadData, "Download");
 export const Droplets = createIcon(DropletsData, "Droplets");
 export const ExternalLink = createIcon(ExternalLinkData, "ExternalLink");
@@ -141,6 +176,7 @@ export const Film = createIcon(FilmData, "Film");
 export const Filter = createIcon(FilterData, "Filter");
 export const Folder = createIcon(FolderData, "Folder");
 export const GitFork = createIcon(GitForkData, "GitFork");
+export const GithubBrand = createIcon(GithubBrandData, "GithubBrand");
 export const Grid3X3 = createIcon(GridData, "Grid3X3");
 export const Hash = createIcon(HashData, "Hash");
 export const Heart = createIcon(HeartData, "Heart");
