@@ -45,6 +45,54 @@ const DEV_ORIGINS: readonly string[] =
     : [];
 
 /**
+ * Plain-HTTP origins the app is configured to load cards and API data from.
+ *
+ * The policy has to name the origin the app actually talks to. The `https:`
+ * keyword covers a production API, but a deployment that points
+ * `NEXT_PUBLIC_API_URL` at a plain-HTTP origin — the local Docker stack, or a
+ * production build served on a loopback origin — matches no keyword. The card
+ * previews and API calls are then blocked, and every card renders as
+ * "Preview unavailable".
+ *
+ * Mirrors the host normalisation in `resolveApiBase` (`lib/utils.ts`), which the
+ * card URL builders use to put the `api.` host in front of the configured host.
+ * The few lines are duplicated rather than imported because `lib/utils.ts`
+ * pulls in client dependencies the proxy must not bundle.
+ *
+ * HTTPS origins are omitted, because the directives already allow `https:`.
+ * @source
+ */
+function getConfiguredHttpApiOrigins(): string[] {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (!configured) return [];
+
+  let origin: string;
+  try {
+    const parsed = new URL(configured);
+    if (!parsed.hostname.startsWith("api.")) {
+      parsed.hostname = `api.${parsed.hostname}`;
+    }
+    origin = parsed.origin;
+  } catch {
+    return [];
+  }
+
+  return origin.startsWith("http:") ? [origin] : [];
+}
+
+/**
+ * Every plain-HTTP origin the page may load cards and API data from.
+ *
+ * Deduplicated because a development config points the API at one of the
+ * origins already listed above, and a repeated source expression is noise in
+ * the header.
+ * @source
+ */
+const HTTP_ORIGINS: readonly string[] = [
+  ...new Set([...DEV_ORIGINS, ...getConfiguredHttpApiOrigins()]),
+];
+
+/**
  * CSP Directives Configuration
  *
  * Whitelisted source URLs grouped by directive — used to assemble CSP headers.
@@ -83,14 +131,15 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Image sources - controls which images can be loaded
-   * Allows data URIs for inline images, blob for generated content, and any HTTPS source
+   * Allows data URIs for inline images, blob for generated content, any HTTPS source,
+   * and the plain-HTTP origin the app is configured to fetch cards from
    */
   imgSrc: [
     CSP_KEYWORDS.SELF,
     CSP_KEYWORDS.DATA,
     CSP_KEYWORDS.BLOB,
     CSP_KEYWORDS.HTTPS,
-    ...DEV_ORIGINS,
+    ...HTTP_ORIGINS,
   ],
 
   /**
@@ -101,7 +150,8 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Connect sources - controls which URLs can be used for fetch, XHR, WebSocket
-   * Whitelists all external APIs and analytics services
+   * Whitelists all external APIs and analytics services, plus the plain-HTTP
+   * origin the app is configured to call
    */
   connectSrc: [
     CSP_KEYWORDS.SELF,
@@ -111,7 +161,7 @@ export const CSP_DIRECTIVES = {
     "https://*.vercel-insights.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
-    ...DEV_ORIGINS,
+    ...HTTP_ORIGINS,
   ],
 
   /**
