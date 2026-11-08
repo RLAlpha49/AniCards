@@ -490,6 +490,86 @@ function shortenColorParams(params: CardUrlParams): void {
   }
 }
 
+/**
+ * Resolves the preset to send for a stored config.
+ *
+ * A stored `custom` preset names no colors, so a caller that also sends the
+ * colors drops the preset and lets the URL carry them instead.
+ *
+ * @param candidate - Stored config being mapped.
+ * @param includeColors - Whether the colors are being sent too.
+ * @param defaultToCustom - Whether an absent preset becomes `custom`.
+ * @returns The preset name, or undefined when none is needed.
+ * @source
+ */
+function resolveMappedColorPreset(
+  candidate: {
+    colorPreset?: string;
+    titleColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    circleColor?: string;
+  },
+  includeColors: boolean,
+  defaultToCustom: boolean,
+): string | undefined {
+  const colorPreset = resolveColorPreset(
+    candidate.colorPreset,
+    defaultToCustom,
+  );
+  const hasAllColors =
+    candidate.titleColor &&
+    candidate.backgroundColor &&
+    candidate.textColor &&
+    candidate.circleColor;
+  if (colorPreset === "custom" && includeColors && hasAllColors) {
+    return undefined;
+  }
+  return colorPreset;
+}
+
+/**
+ * Copies the stored colors onto the params and shortens them.
+ *
+ * @param params - Params to write into.
+ * @param candidate - Stored config holding the colors.
+ * @source
+ */
+function applyStoredColors(
+  params: CardUrlParams,
+  candidate: {
+    titleColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    circleColor?: string;
+  },
+): void {
+  if (candidate.titleColor) params.titleColor = candidate.titleColor;
+  if (candidate.backgroundColor)
+    params.backgroundColor = candidate.backgroundColor;
+  if (candidate.textColor) params.textColor = candidate.textColor;
+  if (candidate.circleColor) params.circleColor = candidate.circleColor;
+
+  shortenColorParams(params);
+}
+
+/**
+ * Writes the favorites grid size, clamped to the range the renderer accepts.
+ *
+ * @param params - Params to write into.
+ * @param candidate - Stored config holding the requested size.
+ * @source
+ */
+function applyGridSize(
+  params: CardUrlParams,
+  candidate: { gridCols?: number; gridRows?: number },
+): void {
+  const clamp = (value: number | undefined): number =>
+    Math.max(1, Math.min(5, Math.trunc(Number.isFinite(value) ? value! : 3)));
+  params.gridCols = clamp(candidate.gridCols);
+  params.gridRows = clamp(candidate.gridRows);
+}
+
 export function mapStoredConfigToCardUrlParams(
   candidate: Partial<
     import("@/lib/types/records").StoredCardConfig & {
@@ -510,24 +590,16 @@ export function mapStoredConfigToCardUrlParams(
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
 
-  let colorPreset = resolveColorPreset(candidate.colorPreset, defaultToCustom);
-  if (
-    colorPreset === "custom" &&
-    includeColors &&
-    candidate.titleColor &&
-    candidate.backgroundColor &&
-    candidate.textColor &&
-    candidate.circleColor
-  ) {
-    colorPreset = undefined;
-  }
-
   const params: CardUrlParams = {
     cardType,
     userId: opts?.userId,
     userName: opts?.userName,
     variation,
-    colorPreset,
+    colorPreset: resolveMappedColorPreset(
+      candidate,
+      includeColors,
+      defaultToCustom,
+    ),
     borderColor: candidate.borderColor,
     borderRadius:
       typeof candidate.borderRadius === "number"
@@ -535,15 +607,7 @@ export function mapStoredConfigToCardUrlParams(
         : undefined,
   };
 
-  if (includeColors) {
-    if (candidate.titleColor) params.titleColor = candidate.titleColor;
-    if (candidate.backgroundColor)
-      params.backgroundColor = candidate.backgroundColor;
-    if (candidate.textColor) params.textColor = candidate.textColor;
-    if (candidate.circleColor) params.circleColor = candidate.circleColor;
-
-    shortenColorParams(params);
-  }
+  if (includeColors) applyStoredColors(params, candidate);
 
   addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);
   addStatusColorsParamIfRelevant(
@@ -557,12 +621,7 @@ export function mapStoredConfigToCardUrlParams(
     candidate.showPiePercentages,
   );
 
-  if (baseCardType === "favoritesGrid") {
-    const cols = Number.isFinite(candidate.gridCols) ? candidate.gridCols! : 3;
-    const rows = Number.isFinite(candidate.gridRows) ? candidate.gridRows! : 3;
-    params.gridCols = Math.max(1, Math.min(5, Math.trunc(cols)));
-    params.gridRows = Math.max(1, Math.min(5, Math.trunc(rows)));
-  }
+  if (baseCardType === "favoritesGrid") applyGridSize(params, candidate);
 
   return params;
 }
