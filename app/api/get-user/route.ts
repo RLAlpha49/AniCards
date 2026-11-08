@@ -151,6 +151,127 @@ function projectRequestedParts(
 }
 
 /**
+ * Resolves a normalized username to a numeric user ID via the Redis username
+ * index.
+ *
+ * @param username - The username to normalize and resolve.
+ * @returns The resolved user ID or null when the lookup fails.
+ * @source
+ */
+async function resolveUserIdFromUsername(
+  username: string,
+): Promise<number | null> {
+  const normalizedUsername = username.trim().toLowerCase();
+  const usernameIndexKey = `username:${normalizedUsername}`;
+  console.log(
+    `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
+  );
+  const userIdFromIndex = await redisClient.get(usernameIndexKey);
+  if (!userIdFromIndex) return null;
+  const candidate = Number.parseInt(userIdFromIndex as string, 10);
+  if (Number.isNaN(candidate)) return null;
+  console.log(
+    `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
+  );
+  return candidate;
+}
+
+/** The identity a request asked for, or the response that refuses it. */
+type ResolvedRequestTarget =
+  | { userId: number; selectedParts: UserDataPart[] }
+  | { errorResponse: NextResponse };
+
+/**
+ * Reads the identity parameters and turns them into a numeric user ID.
+ *
+ * Every rejection is reported here, so the caller receives either a usable ID
+ * with the requested parts or the response to send back.
+ *
+ * @param searchParams - Query parameters of the request.
+ * @param request - Incoming request, used to build CORS headers.
+ * @returns The resolved target or the error response for this request.
+ * @source
+ */
+async function resolveRequestTarget(
+  searchParams: URLSearchParams,
+  request: Request,
+): Promise<ResolvedRequestTarget> {
+  const userIdParam = searchParams.get("userId");
+  const usernameParam = searchParams.get("username");
+
+  if (!userIdParam && !usernameParam) {
+    console.warn("⚠️ [User API] Missing userId or username parameter");
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    return {
+      errorResponse: jsonWithCors(
+        { error: "Missing userId or username parameter" },
+        request,
+        400,
+      ),
+    };
+  }
+
+  const selectedParts = parseRequestedParts(searchParams.get("parts"));
+  if (!selectedParts) {
+    console.warn("⚠️ [User API] Invalid parts parameter provided");
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    return {
+      errorResponse: jsonWithCors(
+        {
+          error: `Invalid parts parameter. Allowed: ${USER_DATA_PARTS.join(", ")}`,
+        },
+        request,
+        400,
+      ),
+    };
+  }
+
+  if (userIdParam) {
+    const numericUserId = Number.parseInt(userIdParam, 10);
+    if (Number.isNaN(numericUserId)) {
+      console.warn(
+        `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
+      );
+      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+      return {
+        errorResponse: jsonWithCors(
+          { error: "Invalid userId parameter" },
+          request,
+          400,
+        ),
+      };
+    }
+    console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
+    return { userId: numericUserId, selectedParts };
+  }
+
+  if (!isValidUsername(usernameParam)) {
+    console.warn(
+      `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
+    );
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    return {
+      errorResponse: jsonWithCors(
+        { error: "Invalid username parameter" },
+        request,
+        400,
+      ),
+    };
+  }
+
+  const userId = await resolveUserIdFromUsername(usernameParam!);
+  if (!userId) {
+    console.warn(`⚠️ [User API] User not found for username: ${usernameParam}`);
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    return {
+      errorResponse: jsonWithCors({ error: "User not found" }, request, 404),
+    };
+  }
+
+  return { userId, selectedParts };
+}
+
+/**
  * Retrieves user data by userId or username and records analytics around the lookup.
  * @param request - Incoming request with query parameters and headers.
  * @returns NextResponse carrying the user data or the relevant error payload.
@@ -162,92 +283,10 @@ export async function GET(request: Request) {
   console.log(`🚀 [User API] Received request from IP: ${ip}`);
 
   const { searchParams } = new URL(request.url);
-  const userIdParam = searchParams.get("userId");
-  const usernameParam = searchParams.get("username");
+  const target = await resolveRequestTarget(searchParams, request);
+  if ("errorResponse" in target) return target.errorResponse;
 
-  if (!userIdParam && !usernameParam) {
-    console.warn("⚠️ [User API] Missing userId or username parameter");
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return jsonWithCors(
-      { error: "Missing userId or username parameter" },
-      request,
-      400,
-    );
-  }
-
-  const selectedParts = parseRequestedParts(searchParams.get("parts"));
-  if (!selectedParts) {
-    console.warn("⚠️ [User API] Invalid parts parameter provided");
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return jsonWithCors(
-      {
-        error: `Invalid parts parameter. Allowed: ${USER_DATA_PARTS.join(", ")}`,
-      },
-      request,
-      400,
-    );
-  }
-
-  let numericUserId: number | null = null;
-
-  if (userIdParam) {
-    numericUserId = Number.parseInt(userIdParam, 10);
-    if (Number.isNaN(numericUserId)) {
-      console.warn(
-        `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
-      );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors({ error: "Invalid userId parameter" }, request, 400);
-    }
-    console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
-  } else {
-    if (!isValidUsername(usernameParam)) {
-      console.warn(
-        `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
-      );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors(
-        { error: "Invalid username parameter" },
-        request,
-        400,
-      );
-    }
-
-    /**
-     * Resolves a normalized username to a numeric user ID via the Redis username index.
-     * @param u - The username to normalize and resolve.
-     * @returns The resolved user ID or null when the lookup fails.
-     * @source
-     */
-    async function resolveUserIdFromUsername(
-      u: string,
-    ): Promise<number | null> {
-      const normalizedUsername = u.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
-      console.log(
-        `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
-      );
-      const userIdFromIndex = await redisClient.get(usernameIndexKey);
-      if (!userIdFromIndex) return null;
-      const candidate = Number.parseInt(userIdFromIndex as string, 10);
-      if (Number.isNaN(candidate)) return null;
-      console.log(
-        `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
-      );
-      return candidate;
-    }
-
-    const userId = await resolveUserIdFromUsername(usernameParam!);
-    if (!userId) {
-      console.warn(
-        `⚠️ [User API] User not found for username: ${usernameParam}`,
-      );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors({ error: "User not found" }, request, 404);
-    }
-
-    numericUserId = userId;
-  }
+  const { userId: numericUserId, selectedParts } = target;
 
   try {
     const userDataParts = await fetchUserDataParts(

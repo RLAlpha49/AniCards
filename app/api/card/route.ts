@@ -407,12 +407,12 @@ function handleValidationError(
  * Creates a CardDataError response.
  * @source
  */
-async function handleCardDataError(
+function handleCardDataError(
   err: CardDataError,
   request: Request,
   baseCardType: string,
   metrics: CardRequestMetrics,
-): Promise<Response> {
+): Response {
   metrics.recordFailure();
 
   // Track error with context

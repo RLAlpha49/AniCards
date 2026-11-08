@@ -244,6 +244,87 @@ function buildCardConfig(
 }
 
 /**
+ * Merges the incoming cards into one stored record and saves it.
+ *
+ * The write is a compare-and-set over the raw stored value, retried a few
+ * times. A retry re-reads the record, because another writer may have changed
+ * it since the failed attempt.
+ *
+ * @param cardsKey - Redis key holding the user's card record.
+ * @param userId - Numeric user ID the record belongs to.
+ * @param incomingCards - Cards from the request.
+ * @param endpoint - Friendly endpoint name used in log lines.
+ * @param endpointKey - Stable endpoint key used in analytics metric keys.
+ * @returns True when the record was written, false when every attempt lost.
+ * @source
+ */
+async function saveCardsRecord(
+  cardsKey: string,
+  userId: number,
+  incomingCards: StoredCardConfig[],
+  endpoint: string,
+  endpointKey: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < MAX_CARDS_SAVE_ATTEMPTS; attempt += 1) {
+    const storedValue = await redisClient.eval<[], string>(
+      READ_CARDS_SCRIPT,
+      [cardsKey],
+      [],
+    );
+    const recordExists = storedValue !== MISSING_CARDS_VALUE;
+    const existingData = recordExists
+      ? storedValue.slice(CARDS_VALUE_PREFIX.length)
+      : undefined;
+    const existingCards = parseStoredCardsRecord(
+      existingData,
+      endpoint,
+      endpointKey,
+      cardsKey,
+    );
+
+    // The stored timestamp is read alongside the cards so a save that
+    // changes nothing can keep it.
+    const existingUpdatedAt = readStoredCardsUpdatedAt(existingData);
+
+    const existingCardsMap = new Map<string, StoredCardConfig>(
+      existingCards.map((card) => [card.cardName, card]),
+    );
+
+    for (const card of incomingCards) {
+      const previous = existingCardsMap.get(card.cardName);
+      existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
+    }
+
+    const mergedCards = Array.from(existingCardsMap.values());
+
+    // The timestamp moves only when the configuration actually changed. It
+    // is the card URL's version, so a save that changes nothing must not
+    // move it: that would ask every cached card for a fresh copy without
+    // any card having changed.
+    const configurationChanged =
+      !recordExists ||
+      JSON.stringify(existingCards) !== JSON.stringify(mergedCards);
+
+    const cardData: CardsRecord = {
+      userId,
+      cards: mergedCards,
+      updatedAt: configurationChanged
+        ? new Date().toISOString()
+        : (existingUpdatedAt ?? new Date().toISOString()),
+    };
+    const saveResult = await redisClient.eval<[string, string, string], number>(
+      COMPARE_AND_SET_CARDS_SCRIPT,
+      [cardsKey],
+      [recordExists ? "1" : "0", existingData ?? "", JSON.stringify(cardData)],
+    );
+
+    if (saveResult === 1) return true;
+  }
+
+  return false;
+}
+
+/**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
  * @returns A NextResponse that signals success or propagates a validation/error response.
@@ -300,72 +381,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
     );
 
-    let cardsSaved = false;
-    for (let attempt = 0; attempt < MAX_CARDS_SAVE_ATTEMPTS; attempt += 1) {
-      const storedValue = await redisClient.eval<[], string>(
-        READ_CARDS_SCRIPT,
-        [cardsKey],
-        [],
-      );
-      const recordExists = storedValue !== MISSING_CARDS_VALUE;
-      const existingData = recordExists
-        ? storedValue.slice(CARDS_VALUE_PREFIX.length)
-        : undefined;
-      const existingCards = parseStoredCardsRecord(
-        existingData,
-        endpoint,
-        endpointKey,
-        cardsKey,
-      );
-
-      // The stored timestamp is read alongside the cards so a save that
-      // changes nothing can keep it.
-      const existingUpdatedAt = readStoredCardsUpdatedAt(existingData);
-
-      const existingCardsMap = new Map<string, StoredCardConfig>(
-        existingCards.map((card) => [card.cardName, card]),
-      );
-
-      for (const card of incomingCards as StoredCardConfig[]) {
-        const previous = existingCardsMap.get(card.cardName);
-        existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
-      }
-
-      const mergedCards = Array.from(existingCardsMap.values());
-
-      // The timestamp moves only when the configuration actually changed. It
-      // is the card URL's version, so a save that changes nothing must not
-      // move it: that would ask every cached card for a fresh copy without
-      // any card having changed.
-      const configurationChanged =
-        !recordExists ||
-        JSON.stringify(existingCards) !== JSON.stringify(mergedCards);
-
-      const cardData: CardsRecord = {
-        userId,
-        cards: mergedCards,
-        updatedAt: configurationChanged
-          ? new Date().toISOString()
-          : (existingUpdatedAt ?? new Date().toISOString()),
-      };
-      const saveResult = await redisClient.eval<
-        [string, string, string],
-        number
-      >(
-        COMPARE_AND_SET_CARDS_SCRIPT,
-        [cardsKey],
-        [
-          recordExists ? "1" : "0",
-          existingData ?? "",
-          JSON.stringify(cardData),
-        ],
-      );
-
-      if (saveResult === 1) {
-        cardsSaved = true;
-        break;
-      }
-    }
+    const cardsSaved = await saveCardsRecord(
+      cardsKey,
+      userId,
+      incomingCards as StoredCardConfig[],
+      endpoint,
+      endpointKey,
+    );
 
     if (!cardsSaved) {
       console.warn(
