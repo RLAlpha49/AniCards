@@ -1,12 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { Ratelimit } from "@upstash/ratelimit";
 import {
   sharedRatelimitMockLimit,
   sharedRedisMockIncr,
   sharedRedisMockMget,
-  sharedRedisMockPipelineExpire,
-  sharedRedisMockPipelineExec,
-  sharedRedisMockPipelineZincrby,
   sharedRedisMockScan,
 } from "@/tests/unit/__setup__";
 import {
@@ -15,37 +12,6 @@ import {
   mgetInBatches,
   scanAllKeys,
 } from "@/lib/api-utils";
-
-/**
- * Retention the wrapper applies to rate limit analytics buckets (7 days).
- * @source
- */
-const EXPECTED_TTL_SECONDS = 7 * 24 * 60 * 60;
-
-const ANALYTICS_KEY = "@upstash/ratelimit:events:1234567890";
-
-/**
- * Reads the Redis client handed to the most recent Ratelimit constructor call.
- * `createRateLimiter` wraps that client, so calling through it exercises the
- * real wrapper rather than a stub.
- * @returns The wrapped client, or undefined when no limiter was constructed.
- * @source
- */
-function getWrappedRedisClient():
-  | {
-      zincrby: (key: string, increment: number, member: unknown) => unknown;
-    }
-  | undefined {
-  const calls = (
-    Ratelimit as unknown as { mock: { calls: [unknown, ...unknown[]][] } }
-  ).mock.calls;
-  const lastCall = calls[calls.length - 1];
-  if (!lastCall) return undefined;
-  const options = lastCall[0] as { redis?: unknown };
-  return options.redis as {
-    zincrby: (key: string, increment: number, member: unknown) => unknown;
-  };
-}
 
 /**
  * Reads the options handed to the most recent Ratelimit constructor call.
@@ -84,9 +50,12 @@ describe("Rate limit ephemeral cache", () => {
     expect(second?.ephemeralCache).not.toBe(first?.ephemeralCache);
   });
 
-  it("should keep analytics enabled alongside the cache", () => {
+  it("should leave analytics off so no event stream is written", () => {
+    // `analytics: true` made every limit() issue a ZINCRBY into
+    // `@upstash/ratelimit:events:<hour>` that nothing in this app reads. It is
+    // the single largest avoidable cost in the rate-limit path.
     createRateLimiter();
-    expect(getLastRatelimitOptions()?.analytics).toBe(true);
+    expect(getLastRatelimitOptions()?.analytics).toBeUndefined();
   });
 
   it("should cap the cache so a rotating identifier cannot grow it forever", () => {
@@ -187,108 +156,6 @@ describe("Bounded key reads", () => {
   });
 });
 
-describe("Rate limit analytics expiry", () => {
-  afterEach(() => {
-    // Only the mocks this file drives are reset. A blanket clearAllMocks would
-    // wipe implementations other test files arm in their own setup, because
-    // Bun shares one module registry across the suite.
-    sharedRedisMockPipelineZincrby.mockClear();
-    sharedRedisMockPipelineExpire.mockClear();
-    sharedRedisMockPipelineExec.mockClear();
-    sharedRedisMockPipelineExec.mockResolvedValue([]);
-  });
-
-  it("should pipeline an EXPIRE alongside an analytics zincrby", async () => {
-    sharedRedisMockPipelineExec.mockResolvedValueOnce([1, 1] as never);
-
-    createRateLimiter();
-    const client = getWrappedRedisClient();
-    expect(client).toBeDefined();
-
-    const result = await client!.zincrby(ANALYTICS_KEY, 1, "member");
-
-    expect(sharedRedisMockPipelineZincrby).toHaveBeenCalledWith(
-      ANALYTICS_KEY,
-      1,
-      "member",
-    );
-    expect(sharedRedisMockPipelineExpire).toHaveBeenCalledWith(
-      ANALYTICS_KEY,
-      EXPECTED_TTL_SECONDS,
-      "NX",
-    );
-    // The wrapper resolves with the write result, not the expiry result.
-    expect(result).toBe(1);
-  });
-
-  it("should leave non-analytics writes unwrapped", async () => {
-    // No exec result is queued on purpose: this path must not reach the
-    // pipeline at all, and a leftover queued value would leak into later tests.
-    createRateLimiter();
-    const client = getWrappedRedisClient();
-    expect(client).toBeDefined();
-
-    await client!.zincrby("some:other:sorted:set", 3, "member");
-
-    expect(sharedRedisMockPipelineExpire).not.toHaveBeenCalled();
-    expect(sharedRedisMockPipelineZincrby).not.toHaveBeenCalled();
-  });
-
-  it("should stay quiet when EXPIRE NX reports an existing TTL", async () => {
-    // 0 is the steady state: the bucket already carries the TTL set by the
-    // first write in the hour, so warning here would fire on nearly every
-    // request and report a bucket that does expire as unprotected.
-    sharedRedisMockPipelineExec.mockResolvedValueOnce([1, 0] as never);
-    const warnSpy = mock();
-    const originalWarn = console.warn;
-    console.warn = warnSpy as unknown as typeof console.warn;
-
-    try {
-      createRateLimiter();
-      const client = getWrappedRedisClient();
-      const result = await client!.zincrby(ANALYTICS_KEY, 1, "member");
-
-      expect(warnSpy).not.toHaveBeenCalled();
-      expect(result).toBe(1);
-    } finally {
-      console.warn = originalWarn;
-    }
-  });
-
-  it("should warn when the expiry reply is not 0 or 1", async () => {
-    // -2 means the key did not exist for the EXPIRE, so nothing applied the
-    // retention and the bucket could outlive it. That is worth surfacing.
-    sharedRedisMockPipelineExec.mockResolvedValueOnce([1, -2] as never);
-    const warnSpy = mock();
-    const originalWarn = console.warn;
-    console.warn = warnSpy as unknown as typeof console.warn;
-
-    try {
-      createRateLimiter();
-      const client = getWrappedRedisClient();
-      await client!.zincrby(ANALYTICS_KEY, 1, "member");
-
-      expect(warnSpy).toHaveBeenCalled();
-    } finally {
-      console.warn = originalWarn;
-    }
-  });
-
-  it("should keep wrapping zincrby, the command core-analytics ingests with", async () => {
-    // The wrapper keys off the command name. If an upgrade switched ingest to
-    // zadd or a Lua eval, analytics keys would silently stop expiring, so the
-    // command name is pinned here rather than left to the dependency.
-    sharedRedisMockPipelineExec.mockResolvedValueOnce([1, 1] as never);
-
-    createRateLimiter();
-    const client = getWrappedRedisClient();
-    await client!.zincrby(ANALYTICS_KEY, 1, "member");
-
-    expect(sharedRedisMockPipelineZincrby).toHaveBeenCalledTimes(1);
-    expect(sharedRedisMockPipelineExpire).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe("getAllowedApiOrigin", () => {
   const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
   const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -381,7 +248,7 @@ describe("checkRateLimit analytics scheduling", () => {
     ).resolves.toBeNull();
   });
 
-  it("should not throw when the limiter reports pending analytics work", async () => {
+  it("should not throw when the limiter reports pending work", async () => {
     sharedRatelimitMockLimit.mockResolvedValue({
       success: true,
       pending: Promise.resolve(),

@@ -142,123 +142,6 @@ function getAllowedApiOrigins(request: Request): Set<string> {
 }
 
 /**
- * Key prefix `@upstash/ratelimit` uses for its analytics event buckets.
- * Only keys with this prefix receive the analytics TTL below.
- * @source
- */
-const RATE_LIMIT_ANALYTICS_KEY_PREFIX = "@upstash/ratelimit:events:";
-
-/**
- * Retention applied to rate limit analytics buckets, in seconds (7 days).
- *
- * Deliberately shorter than the `retention: "90d"` value `@upstash/ratelimit`
- * asks `@upstash/core-analytics` for: the Upstash dashboard only shows the last
- * week of rate limit traffic, so older hourly buckets carry no readable data
- * and only cost keyspace. A week of hourly buckets is ~168 keys per limiter.
- * @source
- */
-const RATE_LIMIT_ANALYTICS_TTL_SECONDS = 7 * 24 * 60 * 60;
-
-/**
- * Wraps a Redis client so that rate limit analytics buckets expire.
- *
- * `@upstash/ratelimit` configures `@upstash/core-analytics` with a 90 day
- * retention, but core-analytics 0.0.10 ignores it: the shipped package contains
- * no `retention`, `expire`, or delete path, and reading a bucket does not evict
- * it either. Without this wrapper every `@upstash/ratelimit:events:<hour>` key
- * would live forever. The wrapper applies the 7 day retention below instead of
- * the SDK's 90 days, because the dashboard only reports the last week.
- *
- * The wrapper sends the analytics write and its `EXPIRE ... NX` as one
- * pipeline, so Redis runs them in order within a single request and the key
- * always exists before the expiry is applied. `NX` means only the first write
- * of an hour bucket sets the TTL, so later events in the same hour do not push
- * the expiry forward. Sending both commands in one request also makes the
- * ordering a property of the command batch rather than of a shared write
- * buffer, so the wrapper needs nothing from the client's auto-pipelining
- * configuration.
- *
- * `EXPIRE ... NX` returns 1 when it set the TTL and 0 when the key already had
- * one, so 0 is the healthy reply for every write after the first in a bucket.
- * Anything else means the bucket was missing or the reply could not be read,
- * and that is what the wrapper reports. Warning on 0 would fire on essentially
- * every request and misreport a bucket that does have a TTL.
- *
- * Only `zincrby` is wrapped, because it is the only write
- * `@upstash/core-analytics` issues against an events bucket; the aggregation
- * path reads through `eval` instead. `@upstash/ratelimit` is `~2.0.8` and it
- * depends on `@upstash/core-analytics` at `^0.0.10`, which for a 0.0.x version
- * resolves to 0.0.10 alone. An upgrade that switched ingest to another command
- * would create un-expiring keys again, so
- * `tests/unit/lib/api-utils.test.ts` pins the wrapped command name.
- *
- * @param client - The Redis client to wrap.
- * @returns A client whose rate limit analytics writes carry a TTL.
- * @source
- */
-function withExpiringRateLimitAnalytics(client: Redis): Redis {
-  return new Proxy(client as unknown as Record<string, unknown>, {
-    get(target, prop: string | symbol) {
-      const value: unknown = (target as Record<string | symbol, unknown>)[prop];
-      if (prop === "zincrby" && typeof value === "function") {
-        return (key: string, ...rest: unknown[]) => {
-          if (!key.startsWith(RATE_LIMIT_ANALYTICS_KEY_PREFIX)) {
-            return (value as (...args: unknown[]) => Promise<unknown>).apply(
-              target,
-              [key, ...rest],
-            );
-          }
-          const pipeline = (
-            target.pipeline as () => {
-              zincrby: (
-                key: string,
-                increment: number,
-                member: unknown,
-              ) => unknown;
-              expire: (key: string, seconds: number, mode: string) => unknown;
-              exec: () => Promise<unknown[]>;
-            }
-          ).call(target);
-          pipeline.zincrby(key, ...(rest as [number, unknown]));
-          pipeline.expire(key, RATE_LIMIT_ANALYTICS_TTL_SECONDS, "NX");
-          return pipeline.exec().then((results) => {
-            const expiryReply = Number(results[1]);
-            // 1 set the TTL, 0 found one already present. Any other reply means
-            // the bucket did not exist for the EXPIRE or the reply was
-            // unreadable, so the key could outlive its week of retention.
-            if (expiryReply !== 1 && expiryReply !== 0) {
-              console.warn(
-                `[Rate Limit] Analytics expiry for ${key} returned ${String(results[1])}; the bucket may not expire.`,
-              );
-            }
-            return results[0];
-          });
-        };
-      }
-      if (typeof value === "function")
-        return (...args: unknown[]) =>
-          (value as (...args: unknown[]) => unknown).apply(target, args);
-      return value;
-    },
-  }) as unknown as Redis;
-}
-
-/**
- * Lazily-initialized Redis client reserved for rate limiter instances.
- *
- * Kept separate from {@link redisClient} so the analytics expiry wrapper sits
- * only on the limiter path and application reads and writes stay untouched.
- * @source
- */
-let _rateLimitRedisClient: Redis | undefined;
-function createRateLimitRedisClient(): Redis {
-  _rateLimitRedisClient ??= withExpiringRateLimitAnalytics(
-    createRealRedisClient(),
-  );
-  return _rateLimitRedisClient;
-}
-
-/**
  * A lazily-initialized proxy for the Upstash Redis client that forwards
  * operations to a real client when they are invoked. This keeps module
  * initialization side-effect free and supports edge runtimes.
@@ -380,18 +263,32 @@ function createBoundedRateLimitCache(): Map<string, number> {
   return cache;
 }
 
+/**
+ * Backing instance for the {@link ratelimit} proxy, created on first use.
+ * @source
+ */
 let _realRatelimit: Ratelimit | undefined;
+
 /**
  * A lazily-initialized Upstash rate limiter proxy which creates the
  * RateLimit instance on first use with a default sliding window limiter.
+ *
+ * Every limiter this module builds leaves the SDK's analytics stream off.
+ * `analytics: true` made `@upstash/ratelimit` issue one `ZINCRBY` into
+ * `@upstash/ratelimit:events:<hour>` on each `limit()` call, and nothing here
+ * reads that stream: the SDK's `getUsage` and `series` APIs are unused, so the
+ * Upstash console was its only consumer. Each event also cost an `EXPIRE` from
+ * a client wrapper that kept the bucket from living forever, so the stream was
+ * two commands per request, or 22 to 29% of what a card request costs. The
+ * per-endpoint `failed_requests` counters below are unaffected and still
+ * record rejections. Turn the stream back on only when something reads it.
  * @source
  */
 export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   get(_: unknown, prop: string | symbol) {
     _realRatelimit ??= new Ratelimit({
-      redis: createRateLimitRedisClient(),
+      redis: createRealRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
-      analytics: true,
       ephemeralCache: createBoundedRateLimitCache(),
     });
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
@@ -404,9 +301,8 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   },
   set(_: unknown, prop: string | symbol, value: unknown) {
     _realRatelimit ??= new Ratelimit({
-      redis: createRateLimitRedisClient(),
+      redis: createRealRedisClient(),
       limiter: Ratelimit.slidingWindow(10, "5 s"),
-      analytics: true,
       ephemeralCache: createBoundedRateLimitCache(),
     });
     (_realRatelimit as unknown as Record<string, unknown>)[
@@ -441,16 +337,11 @@ export function createRateLimiter(options?: {
   const limit = options?.limit ?? 10;
   const window =
     options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
-  // A supplied client is wrapped too, so analytics writes expire whichever
-  // client the limiter was handed.
-  const redis = withExpiringRateLimitAnalytics(
-    options?.redis ?? createRealRedisClient(),
-  );
+  const redis = options?.redis ?? createRealRedisClient();
 
   return new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit, window),
-    analytics: true,
     ephemeralCache: createBoundedRateLimitCache(),
   });
 }
@@ -597,7 +488,11 @@ export function jsonWithCors<T = unknown>(
 
 /**
  * Enforces a rate limit for an IP address using the configured Upstash
- * rate limiter. Records analytics and returns a 429 response on limit.
+ * rate limiter. Records a `failed_requests` counter on rejection and returns a
+ * 429 response on limit.
+ *
+ * The limiter itself runs without the SDK's analytics stream, so a check costs
+ * one command instead of three. See {@link ratelimit} for why.
  * @param ip - IP address to check.
  * @param endpointName - Friendly endpoint name used for logging.
  * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
@@ -614,12 +509,13 @@ export async function checkRateLimit(
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
   const { success, pending, reason } = await effectiveLimiter.limit(ip);
-  // The analytics write is a separate request the limiter reports through
-  // `pending`. Upstash documents that a serverless runtime can freeze before it
-  // lands, which under-reports the dashboard, so hand it to `after` to keep the
-  // invocation alive without delaying this response. Outside a request scope
-  // (unit tests, scripts) the scheduling is skipped and the promise is left to
-  // settle on its own.
+  // `pending` is the limiter's own handle on work it started but did not wait
+  // for, such as the deny-list refresh it runs when protection is enabled. It
+  // resolves immediately while nothing of the kind is in flight, and a
+  // serverless runtime can freeze before any real work lands, so hand it to
+  // `after` to keep the invocation alive without delaying this response.
+  // Outside a request scope (unit tests, scripts) the scheduling is skipped and
+  // the promise is left to settle on its own.
   try {
     after(pending);
   } catch {
