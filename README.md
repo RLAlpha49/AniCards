@@ -14,6 +14,10 @@ AniCards turns a public [AniList](https://anilist.co) profile into image cards o
   <source media="(prefers-color-scheme: dark)" srcset="https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userId=542244&variation=default&colorPreset=anilistDark">
   <img alt="Anime statistics card for the Alpha49 AniList profile" src="https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userId=542244&variation=default&colorPreset=anilistLight">
 </picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.anicards.alpha49.com/card.svg?cardType=mangaStats&userId=542244&variation=default&colorPreset=anilistDark">
+  <img alt="Manga statistics card for the Alpha49 AniList profile" src="https://api.anicards.alpha49.com/card.svg?cardType=mangaStats&userId=542244&variation=default&colorPreset=anilistLight">
+</picture>
 </a>
 
 <details>
@@ -62,8 +66,6 @@ Each card downloads on its own as PNG or WebP. The set page also has a bulk down
 ### Put a card on your AniList profile
 
 AniList draws an image from a single line of text in your profile's About field. Copy a card's About line from its copy menu and paste it into the editor. AniList draws the card 150 pixels wide, which is why the card layouts keep their numbers large.
-
-<img width="150" alt="The anime statistics card at the 150 pixel width AniList draws" src="https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userId=542244&variation=default&colorPreset=anilistDark">
 
 The copy menu also gives you the plain SVG link, which works anywhere that accepts an image URL: a GitHub README, a forum signature, a personal site.
 
@@ -217,15 +219,15 @@ Four card types accept `showFavorites`: `animeVoiceActors`, `animeStudios`, `ani
 
 ## Common questions
 
-**Do I need an AniList account?** You need a public AniList profile, because the cards are drawn from it. You do not need to sign in to AniCards, and you never give it a password.
+**Do I need to sign in to AniCards?** No, you do not need to sign in. AniCards only requires a public AniList profile to generate cards.
+
+**Do I need to pay for AniCards?** AniCards is free to use. There are no subscription fees or paid tiers.
 
 **Which data does AniCards read?** Public profile data only: list totals, scores, genres, tags, activity, favourites, and social counts. AniCards reads whatever AniList makes public for that profile, so a profile that hides its lists has little to draw.
 
 **Why do the numbers look old?** Cards are drawn from a stored copy of the profile, not from AniList on every request. A background job refreshes stored profiles on a schedule. The set page shows the date the numbers last changed. To skip the stored render and draw again from the stored data, add `_t` to the card URL.
 
 **How large are the cards?** Sizes vary by card type. Anime statistics in its default layout is 450 by 195 pixels, the vertical layout is 260 by 350, and a favourites grid grows with its column and row count.
-
-**Can I use a card in a GitHub README?** Yes. Paste the card URL into Markdown as an image. The endpoint sends the card as `image/svg+xml`, so it stays sharp at any width.
 
 **What happens when AniList is down?** Card requests are served from a stored copy, so they keep working. Only a refresh waits for AniList to come back.
 
