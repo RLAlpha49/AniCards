@@ -131,6 +131,14 @@ export function GeneratorShell() {
   const [attemptedGenerate, setAttemptedGenerate] = useState(false);
 
   const stepRef = useRef<HTMLDivElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousStepRef = useRef(activeStep);
+
+  useEffect(() => {
+    if (previousStepRef.current === activeStep) return;
+    previousStepRef.current = activeStep;
+    stepHeadingRef.current?.focus({ preventScroll: true });
+  }, [activeStep]);
 
   const {
     loading,
@@ -462,7 +470,11 @@ export function GeneratorShell() {
               <div ref={stepRef} className={styles.step}>
                 <header className={styles.stepHead}>
                   <div>
-                    <h2>
+                    <h2
+                      ref={stepHeadingRef}
+                      tabIndex={-1}
+                      className="focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b83a24] dark:focus-visible:outline-[#d4573c]"
+                    >
                       <span className={styles.stepNumeral} aria-hidden="true">
                         {activeBase.numeral}
                       </span>
