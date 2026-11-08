@@ -446,6 +446,67 @@ export interface SearchIndexApplyResult {
 }
 
 /**
+ * Creates one index and reports the outcome.
+ *
+ * A refusal is an outcome, not an exception, so one rejected definition does
+ * not stop the rest.
+ *
+ * @param search - The SEARCH surface of the client.
+ * @param definition - Index to create.
+ * @returns The outcome for this definition.
+ * @source
+ */
+async function applyOneSearchIndex(
+  search: NonNullable<SearchCapableClient["search"]>,
+  definition: SearchIndexDefinition,
+): Promise<SearchIndexApplyResult> {
+  try {
+    const created = await search.createIndex({
+      ...definition,
+      existsOk: true,
+    });
+    return {
+      name: definition.name,
+      outcome: Number(created) === 1 ? "created" : "present",
+    };
+  } catch (error) {
+    return {
+      name: definition.name,
+      outcome: "rejected",
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    resetSearchAvailability(definition.name);
+  }
+}
+
+/**
+ * Creates the remaining definitions, one after another.
+ *
+ * The order matters: a one-index plan accepts only the first definition and
+ * rejects the rest with a max-index error. Creating them together would turn
+ * that expected refusal into a race for the single slot, so each call waits
+ * for the previous one.
+ *
+ * @param search - The SEARCH surface of the client.
+ * @param definitions - Definitions still to apply.
+ * @param results - Outcomes collected so far.
+ * @returns One outcome per definition, in definition order.
+ * @source
+ */
+async function applySearchIndexesInOrder(
+  search: NonNullable<SearchCapableClient["search"]>,
+  definitions: SearchIndexDefinition[],
+  results: SearchIndexApplyResult[] = [],
+): Promise<SearchIndexApplyResult[]> {
+  const [definition, ...rest] = definitions;
+  if (!definition) return results;
+
+  results.push(await applyOneSearchIndex(search, definition));
+  return applySearchIndexesInOrder(search, rest, results);
+}
+
+/**
  * Creates every index in {@link SEARCH_INDEX_DEFINITIONS}.
  *
  * Each index is applied on its own, so a refusal does not stop the rest. On a
@@ -474,26 +535,5 @@ export async function applySearchIndexes(
     );
   }
 
-  const results: SearchIndexApplyResult[] = [];
-  for (const definition of SEARCH_INDEX_DEFINITIONS) {
-    try {
-      const created = await search.createIndex({
-        ...definition,
-        existsOk: true,
-      });
-      results.push({
-        name: definition.name,
-        outcome: Number(created) === 1 ? "created" : "present",
-      });
-    } catch (error) {
-      results.push({
-        name: definition.name,
-        outcome: "rejected",
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
-    resetSearchAvailability(definition.name);
-  }
-
-  return results;
+  return applySearchIndexesInOrder(search, SEARCH_INDEX_DEFINITIONS);
 }
