@@ -339,7 +339,7 @@ jobs:
             echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
           else
             if [ "$CHANGES_TO_COMMIT" = "true" ] || [ "$UNPUSHED_COUNT" -gt 0 ]; then
-              echo "[ERROR] Failed to push branch $PR_BRANCH to remote"
+              echo "[ERROR] Failed to push branch $PR_BRANCH to remote" >&2
             exit 1
             else
               echo "[WARNING] Branch doesn't exist remotely but there were no changes to push"
@@ -390,23 +390,21 @@ jobs:
             FIRST_ENTRY=true
             
             echo "$ACTUAL_CHANGES" | while IFS= read -r line; do
-                    if [ -n "$line" ]; then
-                # Extract package name and version
-                if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
-                  PACKAGE="${BASH_REMATCH[1]}"
-                  VERSION="${BASH_REMATCH[2]}"
-                  
-                  # Add comma before all but the first entry
-                  if [ "$FIRST_ENTRY" = "true" ]; then
-                    FIRST_ENTRY=false
-                  else
-                    echo "," >> "$COMMENT_FILE"
-                  fi
-                  
-                  # Write as JSON key-value pair
-                  echo "  \"$PACKAGE\": \"$VERSION\"" >> "$COMMENT_FILE"
-                  PACKAGE_INFO_ADDED=true
+              # Extract package name and version
+              if [ -n "$line" ] && [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
+                PACKAGE="${BASH_REMATCH[1]}"
+                VERSION="${BASH_REMATCH[2]}"
+
+                # Add comma before all but the first entry
+                if [ "$FIRST_ENTRY" = "true" ]; then
+                  FIRST_ENTRY=false
+                else
+                  echo "," >> "$COMMENT_FILE"
                 fi
+
+                # Write as JSON key-value pair
+                echo "  \"$PACKAGE\": \"$VERSION\"" >> "$COMMENT_FILE"
+                PACKAGE_INFO_ADDED=true
               fi
             done
             
@@ -482,23 +480,21 @@ jobs:
             
             FIRST_ENTRY=true
             while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                # Extract package name and version
-                if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
-                  PACKAGE="${BASH_REMATCH[1]}"
-                  VERSION="${BASH_REMATCH[2]}"
-                  
-                  # Add comma before all but the first entry
-                  if [ "$FIRST_ENTRY" = "true" ]; then
-                    FIRST_ENTRY=false
-                  else
-                    echo "," >> "$TEMP_JSON"
-                  fi
-                  
-                  # Write as JSON key-value pair
-                  echo "  \"$PACKAGE\": \"$VERSION\"" >> "$TEMP_JSON"
-                  PACKAGE_INFO_ADDED=true
+              # Extract package name and version
+              if [ -n "$line" ] && [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
+                PACKAGE="${BASH_REMATCH[1]}"
+                VERSION="${BASH_REMATCH[2]}"
+
+                # Add comma before all but the first entry
+                if [ "$FIRST_ENTRY" = "true" ]; then
+                  FIRST_ENTRY=false
+                else
+                  echo "," >> "$TEMP_JSON"
                 fi
+
+                # Write as JSON key-value pair
+                echo "  \"$PACKAGE\": \"$VERSION\"" >> "$TEMP_JSON"
+                PACKAGE_INFO_ADDED=true
               fi
             done <<< "$ACTUAL_CHANGES"
             
@@ -555,7 +551,7 @@ jobs:
             PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
             echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           else
-            echo "[ERROR] Failed to create pull request"
+            echo "[ERROR] Failed to create pull request" >&2
             exit 1
           fi
 
