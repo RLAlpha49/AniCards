@@ -48,7 +48,7 @@ const API_SURFACE_SEGMENTS = [
   "StatCards",
   "anilist",
   "card",
-  "card\\.svg",
+  String.raw`card\.svg`,
   "convert",
   "cron",
   "get-cards",
@@ -64,7 +64,7 @@ const API_SURFACE_SEGMENTS = [
 const API_ALIAS_SEGMENTS = [
   "anilist",
   "card",
-  "card\\.svg",
+  String.raw`card\.svg`,
   "convert",
   "cron",
   "get-cards",
