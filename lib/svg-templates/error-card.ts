@@ -44,6 +44,75 @@ export const ERROR_TEXT_MAX_CHARS = Math.max(
 export const ERROR_TEXT_MAX_LINES = 6;
 
 /**
+ * Splits a word that cannot fit a line into line-sized pieces.
+ *
+ * @param word - The word to break.
+ * @returns The pieces, in order.
+ * @source
+ */
+function breakLongWord(word: string): string[] {
+  const pieces: string[] = [];
+  for (let i = 0; i < word.length; i += ERROR_TEXT_MAX_CHARS) {
+    pieces.push(word.slice(i, i + ERROR_TEXT_MAX_CHARS));
+  }
+  return pieces;
+}
+
+/**
+ * Lays out one paragraph, appending its lines to `lines`.
+ *
+ * @param paragraph - Paragraph text, already split on newlines.
+ * @param lines - Lines collected so far, appended to in place.
+ * @source
+ */
+function wrapParagraph(paragraph: string, lines: string[]): void {
+  const words = paragraph.trim().split(/\s+/).filter(Boolean);
+  let line = "";
+
+  for (const word of words) {
+    if (word.length > ERROR_TEXT_MAX_CHARS) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      lines.push(...breakLongWord(word));
+      continue;
+    }
+
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= ERROR_TEXT_MAX_CHARS) {
+      line = candidate;
+      continue;
+    }
+    lines.push(line);
+    line = word;
+  }
+
+  if (line) lines.push(line);
+}
+
+/**
+ * Shortens the kept lines to the count the card shows.
+ *
+ * The last kept line ends in an ellipsis, so a truncated message looks
+ * truncated instead of stopping mid-sentence.
+ *
+ * @param lines - Every wrapped line.
+ * @returns At most {@link ERROR_TEXT_MAX_LINES} lines.
+ * @source
+ */
+function limitLines(lines: string[]): string[] {
+  if (lines.length === 0) return [""];
+  if (lines.length <= ERROR_TEXT_MAX_LINES) return lines;
+
+  const kept = lines.slice(0, ERROR_TEXT_MAX_LINES);
+  const lastIndex = kept.length - 1;
+  kept[lastIndex] =
+    `${kept[lastIndex].slice(0, ERROR_TEXT_MAX_CHARS - 3).trimEnd()}...`;
+  return kept;
+}
+
+/**
  * Splits a message into lines that fit the error card.
  *
  * Words stay whole where they fit. A word longer than a line is broken,
@@ -60,41 +129,10 @@ export function wrapErrorText(message: string): string[] {
   const lines: string[] = [];
 
   for (const paragraph of String(message ?? "").split(/\r?\n/)) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    let line = "";
-
-    for (const word of words) {
-      if (word.length > ERROR_TEXT_MAX_CHARS) {
-        if (line) {
-          lines.push(line);
-          line = "";
-        }
-        for (let i = 0; i < word.length; i += ERROR_TEXT_MAX_CHARS) {
-          lines.push(word.slice(i, i + ERROR_TEXT_MAX_CHARS));
-        }
-        continue;
-      }
-
-      const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length <= ERROR_TEXT_MAX_CHARS) {
-        line = candidate;
-        continue;
-      }
-      lines.push(line);
-      line = word;
-    }
-
-    if (line) lines.push(line);
+    wrapParagraph(paragraph, lines);
   }
 
-  if (lines.length === 0) return [""];
-  if (lines.length <= ERROR_TEXT_MAX_LINES) return lines;
-
-  const kept = lines.slice(0, ERROR_TEXT_MAX_LINES);
-  const lastIndex = kept.length - 1;
-  kept[lastIndex] =
-    `${kept[lastIndex].slice(0, ERROR_TEXT_MAX_CHARS - 3).trimEnd()}...`;
-  return kept;
+  return limitLines(lines);
 }
 
 /**
