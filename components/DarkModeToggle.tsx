@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { motion } from "motion/react";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { Sun, Moon } from "@/lib/icons";
 import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 
@@ -18,6 +19,7 @@ export default function DarkModeToggle() {
   // Prevent hydration mismatch by checking whether this is running client-side.
   const [mounted, setMounted] = useState(false);
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const reduceMotion = useReducedMotionPreference();
   // Use resolvedTheme when the theme is 'system' so the UI reflects the OS setting.
   const currentTheme = theme === "system" ? resolvedTheme : theme;
 
@@ -31,30 +33,25 @@ export default function DarkModeToggle() {
     safeTrack(() => trackSettingsChanged(`theme_${newTheme}`));
   }, [currentTheme, setTheme]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleThemeToggle();
-    }
-  };
-
   if (!mounted) return null; // Don't render until mounted
 
-  const sunAnimate: Record<string, number> | {} =
+  const sunAnimate =
     currentTheme === "dark"
       ? { opacity: 0.6, scale: 0.9 }
       : { opacity: 1, scale: 1 };
-  const moonAnimate: Record<string, number> | {} =
+  const moonAnimate =
     currentTheme === "dark"
       ? { opacity: 1, scale: 1 }
       : { opacity: 0.6, scale: 0.9 };
   const thumbX = currentTheme === "dark" ? 26 : -2;
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={handleThemeToggle}
-      onKeyDown={onKeyDown}
+      whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
       aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
       role="switch"
       aria-checked={currentTheme === "dark"}
@@ -69,7 +66,11 @@ export default function DarkModeToggle() {
         aria-hidden
         initial={false}
         animate={sunAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { type: "spring", stiffness: 300, damping: 30 }
+        }
         style={{ color: "#917b0a" }}
       >
         <Sun className="h-5 w-5" strokeWidth={2.5} />
@@ -81,7 +82,11 @@ export default function DarkModeToggle() {
         aria-hidden
         initial={false}
         animate={moonAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { type: "spring", stiffness: 300, damping: 30 }
+        }
       >
         <Moon className="h-5 w-5" />
       </motion.span>
@@ -91,11 +96,15 @@ export default function DarkModeToggle() {
         className="absolute h-6 w-6 rounded-full bg-white shadow-md"
         initial={false}
         animate={{ x: thumbX }}
-        transition={{ type: "spring", stiffness: 700, damping: 30 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { type: "spring", stiffness: 700, damping: 30 }
+        }
         style={{
           backgroundColor: currentTheme === "dark" ? "#040a1b" : "#fff",
         }}
       />
-    </button>
+    </motion.button>
   );
 }

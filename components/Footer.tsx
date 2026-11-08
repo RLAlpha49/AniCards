@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import {
   trackExternalLinkClick,
   safeTrack,
@@ -12,6 +13,9 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
+import { cn } from "@/lib/utils";
+
+const MotionLink = motion.create(Link);
 
 /**
  * Social link metadata for the footer icons.
@@ -62,30 +66,50 @@ const SOCIAL_LINKS = [
  * @source
  */
 export default function Footer() {
+  const reduceMotion = useReducedMotionPreference();
+
   return (
     <footer
-      className={`relative z-50 border-t border-slate-200/50 bg-white/80 backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-950/80`}
+      className={cn(
+        "relative z-50 border-t backdrop-blur-xl",
+        "border-[#191512]/25 bg-[#f3e9d5]/95 dark:border-[#ece1c9]/25 dark:bg-[#16120f]/95",
+      )}
     >
       {/* Subtle gradient line at the top */}
-      <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
+      <div
+        className={cn(
+          "absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent to-transparent",
+          "via-[#b83a24]/50 dark:via-[#d4573c]/50",
+        )}
+      />
 
       <div className="container p-5">
         <div className="flex flex-col items-center gap-8 md:flex-row md:justify-between">
           {/* Brand & Copyright */}
           <div className="flex flex-col items-center gap-4 md:items-start">
             {/* Copyright & License */}
-            <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 md:justify-start dark:text-slate-400">
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-center gap-2 text-sm md:justify-start",
+                "text-[#4d443a] dark:text-[#b6a88f]",
+              )}
+            >
               <span>&copy; {new Date().getFullYear()} RLAlpha49</span>
-              <span className="text-slate-300 dark:text-slate-600">•</span>
+              <span className={cn("text-[#191512]/30 dark:text-[#ece1c9]/30")}>
+                •
+              </span>
               <Link
                 href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
-                className="group inline-flex items-center gap-1.5 font-medium text-slate-600 transition-colors hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+                className={cn(
+                  "group inline-flex items-center gap-1.5 font-medium transition-colors",
+                  "text-[#191512] hover:text-[#b83a24] dark:text-[#ece1c9] dark:hover:text-[#d4573c]",
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 <Scale className="h-3.5 w-3.5" />
                 MIT Licensed
-                <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
               </Link>
             </div>
           </div>
@@ -93,27 +117,25 @@ export default function Footer() {
           {/* Social Links */}
           <div className="flex items-center gap-2">
             {SOCIAL_LINKS.map((link) => (
-              <motion.div
+              <MotionLink
                 key={link.name}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                href={link.href}
+                target={link.name === "email" ? undefined : "_blank"}
+                rel={link.name === "email" ? undefined : "noopener noreferrer"}
+                whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center border shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b83a24]",
+                  "rounded-none border-[#191512]/35 bg-transparent text-[#4d443a] hover:border-[#b83a24] hover:bg-transparent hover:text-[#b83a24] dark:border-[#ece1c9]/35 dark:text-[#b6a88f] dark:hover:border-[#d4573c] dark:hover:text-[#d4573c]",
+                )}
+                onClick={() =>
+                  safeTrack(() => trackExternalLinkClick(link.name, "footer"))
+                }
+                aria-label={link.label}
               >
-                <Link
-                  href={link.href}
-                  target={link.name === "email" ? undefined : "_blank"}
-                  rel={
-                    link.name === "email" ? undefined : "noopener noreferrer"
-                  }
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/50 bg-white/50 text-slate-500 shadow-sm transition-all dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-400 ${link.hoverColor} ${link.bgHover}`}
-                  onClick={() =>
-                    safeTrack(() => trackExternalLinkClick(link.name, "footer"))
-                  }
-                  aria-label={link.label}
-                >
-                  <link.icon size={18} />
-                </Link>
-              </motion.div>
+                <link.icon size={18} />
+              </MotionLink>
             ))}
           </div>
         </div>

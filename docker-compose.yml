@@ -77,7 +77,6 @@ services:
     environment:
       NODE_ENV: development
       ANILIST_TOKEN: ""
-      API_SECRET_TOKEN: ""
       CRON_SECRET: ""
       VERCEL_AUTOMATION_BYPASS_SECRET: ""
       VERCEL: ""

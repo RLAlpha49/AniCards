@@ -4,9 +4,9 @@ import Script from "next/script";
  * Props used to render the Google Analytics script snippets.
  * @property GA_TRACKING_ID - Tracking ID for Google Analytics (e.g., 'G-XXXXXX').
  * @property nonce - Optional CSP nonce for inline script security. Generated per-request
- *                   in middleware and passed from layout.tsx. Required for Content Security
+ *                   in the proxy and passed from layout.tsx. Required for Content Security
  *                   Policy compliance when using inline scripts.
- * @see app/middleware.ts for nonce generation
+ * @see proxy.ts for nonce generation
  * @see lib/csp-config.ts for CSP directive configuration
  * @source
  */
@@ -22,7 +22,7 @@ interface GoogleAnalyticsProps {
  * - Initializes a basic page view configuration.
  * - Supports Content Security Policy via nonce attribute.
  *
- * The nonce is generated per-request in middleware and passed down from the root layout.
+ * The nonce is generated per-request in the proxy and passed down from the root layout.
  * This ensures inline scripts are authorized by the CSP without using 'unsafe-inline'.
  *
  * @param props - Component props.
@@ -46,8 +46,9 @@ export default function GoogleAnalytics({
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '${GA_TRACKING_ID}', {
-            page_title: document.title,
-            page_location: window.location.href,
+            page_title: 'AniCards',
+            page_location: window.location.origin + window.location.pathname,
+            page_path: window.location.pathname,
           });
         `}
       </Script>

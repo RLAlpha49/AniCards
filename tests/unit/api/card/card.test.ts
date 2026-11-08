@@ -114,8 +114,7 @@ const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
     (data: { gridCols?: number; gridRows?: number; variant?: string }) => string
   >
 >;
-const { colorPresets } =
-  await import("@/components/stat-card-generator/constants");
+const { colorPresets } = await import("@/lib/card-catalogue");
 const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
 const { distributionTemplate } =
   await import("@/lib/svg-templates/distribution/shared");

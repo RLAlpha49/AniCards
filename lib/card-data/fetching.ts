@@ -11,8 +11,8 @@ import {
   reconstructUserRecord,
   USER_DATA_PARTS,
   UserDataPart,
-  getPartsForCard,
 } from "@/lib/server/user-data";
+import { getPartsForCard } from "./requirements";
 
 /**
  * Resolves a username to a numeric user ID via the Redis username index.

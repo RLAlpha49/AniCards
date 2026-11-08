@@ -24,7 +24,7 @@ test.describe("Search page", () => {
   });
 
   test("shows validation errors for empty submissions", async ({ page }) => {
-    const submit = page.getByRole("button", { name: /search user/i });
+    const submit = page.getByRole("button", { name: /open the cards/i });
 
     await submit.click();
     const usernameAlert = page
@@ -59,11 +59,11 @@ test.describe("Search page", () => {
       timeout: 15000,
     });
 
-    await page.getByRole("button", { name: /search user/i }).click();
+    await page.getByRole("button", { name: /open the cards/i }).click();
 
     const loadingText = page
       .getByRole("paragraph")
-      .filter({ hasText: "Searching for user..." });
+      .filter({ hasText: "Finding your cards..." });
     await expect(loadingText).toBeVisible({ timeout: 5000 });
     await navigation;
   });
@@ -78,11 +78,11 @@ test.describe("Search page", () => {
       timeout: 15000,
     });
 
-    await page.getByRole("button", { name: /search user/i }).click();
+    await page.getByRole("button", { name: /open the cards/i }).click();
 
     const loadingText = page
       .getByRole("paragraph")
-      .filter({ hasText: "Searching for user..." });
+      .filter({ hasText: "Finding your cards..." });
     await expect(loadingText).toBeVisible({ timeout: 10000 });
     await navigation;
   });

@@ -28,6 +28,71 @@ export const CSP_KEYWORDS = {
 } as const;
 
 /**
+ * Local development origins.
+ *
+ * The card API runs on a separate origin in development
+ * (`http://api.localhost:3000`), which the `https:` keyword does not cover.
+ * Without these the card previews and API calls are blocked by the policy
+ * during local development.
+ *
+ * Empty outside development. A production policy must not name loopback
+ * origins, even though a remote page cannot reach them.
+ * @source
+ */
+const DEV_ORIGINS: readonly string[] =
+  process.env.NODE_ENV === "development"
+    ? ["http://localhost:3000", "http://api.localhost:3000"]
+    : [];
+
+/**
+ * Plain-HTTP origins the app is configured to load cards and API data from.
+ *
+ * The policy has to name the origin the app actually talks to. The `https:`
+ * keyword covers a production API, but a deployment that points
+ * `NEXT_PUBLIC_API_URL` at a plain-HTTP origin — the local Docker stack, or a
+ * production build served on a loopback origin — matches no keyword. The card
+ * previews and API calls are then blocked, and every card renders as
+ * "Preview unavailable".
+ *
+ * Mirrors the host normalisation in `resolveApiBase` (`lib/utils.ts`), which the
+ * card URL builders use to put the `api.` host in front of the configured host.
+ * The few lines are duplicated rather than imported because `lib/utils.ts`
+ * pulls in client dependencies the proxy must not bundle.
+ *
+ * HTTPS origins are omitted, because the directives already allow `https:`.
+ * @source
+ */
+function getConfiguredHttpApiOrigins(): string[] {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (!configured) return [];
+
+  let origin: string;
+  try {
+    const parsed = new URL(configured);
+    if (!parsed.hostname.startsWith("api.")) {
+      parsed.hostname = `api.${parsed.hostname}`;
+    }
+    origin = parsed.origin;
+  } catch {
+    return [];
+  }
+
+  return origin.startsWith("http:") ? [origin] : [];
+}
+
+/**
+ * Every plain-HTTP origin the page may load cards and API data from.
+ *
+ * Deduplicated because a development config points the API at one of the
+ * origins already listed above, and a repeated source expression is noise in
+ * the header.
+ * @source
+ */
+const HTTP_ORIGINS: readonly string[] = [
+  ...new Set([...DEV_ORIGINS, ...getConfiguredHttpApiOrigins()]),
+];
+
+/**
  * CSP Directives Configuration
  *
  * Whitelisted source URLs grouped by directive — used to assemble CSP headers.
@@ -49,6 +114,9 @@ export const CSP_DIRECTIVES = {
     "https://va.vercel-scripts.com",
     "https://*.vercel-insights.com",
     CSP_KEYWORDS.STRICT_DYNAMIC,
+    // React uses eval to reconstruct server-side error stacks in development.
+    // Without this the dev overlay swallows errors and error handling breaks.
+    ...(process.env.NODE_ENV === "development" ? ["'unsafe-eval'"] : []),
   ],
 
   /**
@@ -63,13 +131,15 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Image sources - controls which images can be loaded
-   * Allows data URIs for inline images, blob for generated content, and any HTTPS source
+   * Allows data URIs for inline images, blob for generated content, any HTTPS source,
+   * and the plain-HTTP origin the app is configured to fetch cards from
    */
   imgSrc: [
     CSP_KEYWORDS.SELF,
     CSP_KEYWORDS.DATA,
     CSP_KEYWORDS.BLOB,
     CSP_KEYWORDS.HTTPS,
+    ...HTTP_ORIGINS,
   ],
 
   /**
@@ -80,7 +150,8 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Connect sources - controls which URLs can be used for fetch, XHR, WebSocket
-   * Whitelists all external APIs and analytics services
+   * Whitelists all external APIs and analytics services, plus the plain-HTTP
+   * origin the app is configured to call
    */
   connectSrc: [
     CSP_KEYWORDS.SELF,
@@ -90,6 +161,7 @@ export const CSP_DIRECTIVES = {
     "https://*.vercel-insights.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
+    ...HTTP_ORIGINS,
   ],
 
   /**
@@ -112,13 +184,14 @@ export const CSP_DIRECTIVES = {
 export type CSPDirective = keyof typeof CSP_DIRECTIVES;
 
 /**
- * Build a complete CSP header string and inject the provided nonce into script-src.
+ * Assembles the policy string, injecting the nonce into `script-src`.
  *
  * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
- * @returns The complete Content-Security-Policy header string
+ * @param includeUpgrade - Whether to emit `upgrade-insecure-requests`
+ * @returns The assembled policy, for either CSP header name
  * @source
  */
-export function buildCSPHeader(nonce: string): string {
+function buildDirectives(nonce: string, includeUpgrade: boolean): string {
   // script-src with nonce injection
   const scriptSrcValues = [
     CSP_KEYWORDS.SELF,
@@ -139,7 +212,7 @@ export function buildCSPHeader(nonce: string): string {
     `frame-ancestors ${CSP_DIRECTIVES.frameAncestors.join(" ")}`,
     `base-uri ${CSP_DIRECTIVES.baseUri.join(" ")}`,
     `form-action ${CSP_DIRECTIVES.formAction.join(" ")}`,
-    ...(CSP_DIRECTIVES.upgradeInsecureRequests
+    ...(includeUpgrade && CSP_DIRECTIVES.upgradeInsecureRequests
       ? ["upgrade-insecure-requests"]
       : []),
   ];
@@ -148,15 +221,29 @@ export function buildCSPHeader(nonce: string): string {
 }
 
 /**
- * Build a CSP header suitable for Report-Only mode to test policies safely.
+ * Build a complete, enforcing CSP header string.
+ *
+ * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
+ * @returns The complete Content-Security-Policy header string
+ * @source
+ */
+export function buildCSPHeader(nonce: string): string {
+  return buildDirectives(nonce, true);
+}
+
+/**
+ * Build a CSP header for Report-Only mode.
+ *
+ * `upgrade-insecure-requests` is omitted because browsers ignore it in a
+ * report-only policy and log a console warning for every page that carries it.
+ * The directive only takes effect in the enforcing header.
  *
  * @param nonce - A base64-encoded cryptographic nonce
  * @returns A CSP header string appropriate for the report-only header
  * @source
  */
 export function buildReportOnlyCSPHeader(nonce: string): string {
-  // Same header content, but will be used with Report-Only header name
-  return buildCSPHeader(nonce);
+  return buildDirectives(nonce, false);
 }
 
 /**
@@ -180,7 +267,7 @@ export function isValidNonce(nonce: string): boolean {
 /**
  * Generate a base64-encoded 16-byte random nonce for testing.
  *
- * Note: production nonces are generated per request in middleware using Web Crypto.
+ * Note: production nonces are generated per request in the proxy using Web Crypto.
  * @returns Base64-encoded 16-byte nonce
  * @source
  */

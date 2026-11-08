@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { useId, type ReactNode } from "react";
+import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 /**
  * Props for the inline loading spinner.
@@ -35,6 +36,7 @@ export function LoadingSpinner({
   showProgressLabel = false,
 }: Readonly<LoadingSpinnerProps>) {
   const id = useId();
+  const reduceMotion = useReducedMotionPreference();
   // Convert React id to a safe HTML id for SVG titles.
   const safeId = id.replaceAll(".", "-").replaceAll(":", "-");
 
@@ -54,14 +56,12 @@ export function LoadingSpinner({
     <output
       aria-live="polite"
       aria-busy="true"
+      aria-label={text ?? "Loading"}
       className="inline-flex flex-col items-center gap-2"
     >
-      <motion.div
-        initial={{ rotate: 0, scale: 1 }}
-        animate={{ rotate: 360, scale: [1, 1.06, 1] }}
-        transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
+      <div
         className={cn(sizes[size], className, "relative drop-shadow-lg")}
-        aria-hidden={text ? undefined : true}
+        aria-hidden="true"
       >
         <svg
           className="h-full w-full"
@@ -98,8 +98,13 @@ export function LoadingSpinner({
             fill="none"
             strokeLinecap="round"
             strokeDasharray="40 120"
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+            initial={{ rotate: 0 }}
+            animate={{ rotate: reduceMotion ? 0 : 360 }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : { duration: 1.4, repeat: Infinity, ease: "linear" }
+            }
           />
         </svg>
 
@@ -134,7 +139,7 @@ export function LoadingSpinner({
             />
 
             {/* Progress arc */}
-            <motion.circle
+            <circle
               cx="12"
               cy="12"
               r="9"
@@ -143,23 +148,16 @@ export function LoadingSpinner({
               fill="none"
               strokeLinecap="round"
               strokeDasharray={`${(progress * 56.5) / 100} 56.5`}
-              animate={{
-                strokeDasharray: [
-                  `${(progress * 56.5) / 100} 56.5`,
-                  `${(progress * 56.5) / 100} 56.5`,
-                ],
-              }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
             />
           </svg>
         )}
-      </motion.div>
+      </div>
 
       {/* Progress label if both progress and text are provided */}
       {hasProgress && showProgressLabel && (
         <motion.span
           className="text-xs font-semibold text-blue-600 dark:text-blue-400"
-          initial={{ opacity: 0 }}
+          initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
         >
@@ -170,9 +168,11 @@ export function LoadingSpinner({
       {text && (
         <motion.p
           className="text-sm text-gray-600 dark:text-gray-400"
-          initial={{ opacity: 0.6 }}
-          animate={{ opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+          initial={false}
+          animate={{ opacity: reduceMotion ? 1 : [0.75, 1, 0.75] }}
+          transition={
+            reduceMotion ? { duration: 0 } : { duration: 2, repeat: Infinity }
+          }
         >
           {text}
         </motion.p>
