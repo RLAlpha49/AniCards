@@ -514,13 +514,7 @@ export async function checkRateLimit(
   // resolves immediately while nothing of the kind is in flight, and a
   // serverless runtime can freeze before any real work lands, so hand it to
   // `after` to keep the invocation alive without delaying this response.
-  // Outside a request scope (unit tests, scripts) the scheduling is skipped and
-  // the promise is left to settle on its own.
-  try {
-    after(pending);
-  } catch {
-    /* no request scope; let `pending` settle on its own */
-  }
+  runAfterResponse(pending);
   if (!success) {
     console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
     // A `cacheBlock` was answered from instance memory without touching Redis.
@@ -563,11 +557,7 @@ export function validateSameOrigin(
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
 
-    incrementAnalytics(metric).catch((err) => {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn(`Analytics increment failed for ${metric}:`, err);
-      }
-    });
+    incrementAnalyticsInBackground(metric);
 
     if (process.env.NODE_ENV === "production") {
       return jsonWithCors({ error: "Unauthorized" }, request, 401);
@@ -592,6 +582,45 @@ export async function incrementAnalytics(metric: string): Promise<void> {
     // Silently fail analytics to avoid affecting main functionality
     console.warn(`Failed to increment analytics for ${metric}:`, error);
   }
+}
+
+/**
+ * Hands a best-effort write to Next's `after`, so the response is sent now
+ * while the write is still guaranteed to land.
+ *
+ * A serverless runtime can freeze an invocation the moment its response is
+ * returned, which drops any Redis command still in flight. `after` keeps the
+ * invocation alive until the promise settles without delaying the response.
+ * Outside a request scope (unit tests, scripts) `after` throws, and the write
+ * is left to settle on its own, which is enough for a process that will not be
+ * frozen.
+ *
+ * @param task - Promise for a write that must not block the response, or
+ *   undefined when there is nothing to keep alive.
+ * @source
+ */
+export function runAfterResponse(task: Promise<unknown> | undefined): void {
+  if (!task) return;
+  try {
+    after(task);
+  } catch {
+    /* no request scope; let the write settle on its own */
+    void task.catch(() => {});
+  }
+}
+
+/**
+ * Increments an analytics counter without delaying the response.
+ *
+ * The counter is part of the request's evidence trail, not part of its
+ * answer, so it must neither block the caller nor be dropped when the runtime
+ * freezes the invocation. See {@link runAfterResponse}.
+ *
+ * @param metric - Redis key for the analytics counter to increment.
+ * @source
+ */
+export function incrementAnalyticsInBackground(metric: string): void {
+  runAfterResponse(incrementAnalytics(metric));
 }
 
 /**
@@ -636,7 +665,7 @@ export function handleError(
     console.error(`💥 [${endpoint}] Stack Trace: ${error.stack}`);
   }
 
-  incrementAnalytics(analyticsMetric).catch(() => {});
+  incrementAnalyticsInBackground(analyticsMetric);
 
   return jsonWithCors({ error: errorMessage }, request, 500);
 }

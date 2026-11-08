@@ -23,8 +23,11 @@
  * @source
  */
 
-import { after } from "next/server";
-import { buildAnalyticsMetricKey, redisClient } from "@/lib/api-utils";
+import {
+  buildAnalyticsMetricKey,
+  redisClient,
+  runAfterResponse,
+} from "@/lib/api-utils";
 import {
   queueCardUrlProfileWrites,
   type CardUrlOutcome,
@@ -75,9 +78,10 @@ export interface CardRequestMetrics {
   /**
    * Sends the queued commands without delaying the response.
    *
-   * The pipeline runs inside Next's `after`, so a serverless runtime does not
-   * freeze before it lands. Outside a request scope (unit tests, scripts) it
-   * runs detached instead.
+   * The pipeline runs inside Next's `after` through
+   * {@link runAfterResponse}, so a serverless runtime does not freeze before it
+   * lands. Outside a request scope (unit tests, scripts) it runs detached
+   * instead.
    */
   flushInBackground(): void;
 }
@@ -157,16 +161,11 @@ export function createCardRequestMetrics(): CardRequestMetrics {
       const pending = takePipeline();
       if (!pending) return;
 
-      const run = () =>
+      runAfterResponse(
         pending.exec().catch((error: unknown) => {
           console.warn("[Card Metrics] Failed to record card metrics:", error);
-        });
-
-      try {
-        after(run());
-      } catch {
-        void run();
-      }
+        }),
+      );
     },
   };
 }

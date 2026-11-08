@@ -2,6 +2,7 @@ import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
 import type { NextResponse } from "next/server";
 import {
   incrementAnalytics,
+  incrementAnalyticsInBackground,
   handleError,
   apiJsonHeaders,
   logSuccess,
@@ -118,9 +119,9 @@ function parseStoredCardsRecord(
         error instanceof Error ? error.message : String(error)
       }`,
     );
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey(endpointKey, "corrupted_records"),
-    ).catch(() => {});
+    );
   }
 
   return [];

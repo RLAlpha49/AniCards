@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   redisClient,
-  incrementAnalytics,
+  incrementAnalyticsInBackground,
   isValidUsername,
   jsonWithCors,
   apiJsonHeaders,
@@ -201,7 +201,7 @@ async function resolveRequestTarget(
 
   if (!userIdParam && !usernameParam) {
     console.warn("⚠️ [User API] Missing userId or username parameter");
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
         { error: "Missing userId or username parameter" },
@@ -214,7 +214,7 @@ async function resolveRequestTarget(
   const selectedParts = parseRequestedParts(searchParams.get("parts"));
   if (!selectedParts) {
     console.warn("⚠️ [User API] Invalid parts parameter provided");
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
         {
@@ -232,7 +232,7 @@ async function resolveRequestTarget(
       console.warn(
         `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
       );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+      incrementAnalyticsInBackground("analytics:user_api:failed_requests");
       return {
         errorResponse: jsonWithCors(
           { error: "Invalid userId parameter" },
@@ -249,7 +249,7 @@ async function resolveRequestTarget(
     console.warn(
       `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
     );
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
         { error: "Invalid username parameter" },
@@ -262,7 +262,7 @@ async function resolveRequestTarget(
   const userId = await resolveUserIdFromUsername(usernameParam!);
   if (!userId) {
     console.warn(`⚠️ [User API] User not found for username: ${usernameParam}`);
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors({ error: "User not found" }, request, 404),
     };
@@ -318,9 +318,7 @@ export async function GET(request: Request) {
     console.log(
       `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );
-    incrementAnalytics("analytics:user_api:successful_requests").catch(
-      () => {},
-    );
+    incrementAnalyticsInBackground("analytics:user_api:successful_requests");
 
     if (etag && etagMatches(request.headers.get("if-none-match"), etag)) {
       return new Response(null, { status: 304, headers: responseHeaders });
@@ -345,7 +343,7 @@ export async function GET(request: Request) {
     if (error.stack) {
       console.error(`💥 [User API] Stack Trace: ${error.stack}`);
     }
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return jsonWithCors({ error: "Failed to fetch user data" }, request, 500);
   }
 }

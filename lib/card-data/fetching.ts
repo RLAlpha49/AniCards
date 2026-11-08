@@ -1,6 +1,6 @@
 import {
   redisClient,
-  incrementAnalytics,
+  incrementAnalyticsInBackground,
   buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
 import { safeParse } from "@/lib/utils";
@@ -64,9 +64,9 @@ export async function fetchUserDataForCard(
   } catch (error) {
     if (error instanceof CardDataError) throw error;
 
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
+    );
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 }
@@ -96,9 +96,9 @@ export async function fetchUserDataOnly(
   } catch (error) {
     if (error instanceof CardDataError) throw error;
 
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
+    );
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 }
@@ -128,9 +128,9 @@ export async function fetchUserData(
   } catch (error) {
     if (error instanceof CardDataError) throw error;
 
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
+    );
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 
@@ -146,18 +146,18 @@ export async function fetchUserData(
       `Card SVG: cards:${numericUserId}`,
     );
   } catch {
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
-    ).catch(() => {});
+    );
     throw new CardDataError("Server Error: Corrupted card configuration", 500);
   }
 
   try {
     userDoc = reconstructUserRecord(userDataParts);
   } catch {
-    incrementAnalytics(
+    incrementAnalyticsInBackground(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
+    );
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 

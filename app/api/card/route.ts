@@ -3,6 +3,7 @@ import {
   doesCardSvgOriginVary,
   createRateLimiter,
   checkRateLimit,
+  runAfterResponse,
 } from "@/lib/api-utils";
 import {
   getCardBorderRadius,
@@ -464,7 +465,7 @@ function createSuccessResponse(
   userId: number,
   cacheSource: CardCacheSource,
 ): Response {
-  void recordUserCardRequest(userId);
+  runAfterResponse(recordUserCardRequest(userId));
   const cleaned = toCleanSvgResponse(svgContent);
   const headerRadius = getCardBorderRadius(borderRadius);
   const responseHeaders = {

@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { NextRequest, NextResponse } from "next/server";
 import {
-  incrementAnalytics,
+  incrementAnalyticsInBackground,
   apiJsonHeaders,
   jsonWithCors,
 } from "@/lib/api-utils";
@@ -649,9 +649,7 @@ async function fetchSvgContent(
   try {
     const response = await fetch(parsedUrl.href);
     if (!response.ok) {
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
+      incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
       return {
         errorResponse: jsonWithCors(
           { error: "Failed to fetch SVG" },
@@ -664,7 +662,7 @@ async function fetchSvgContent(
     return { svg: svgText };
   } catch (err: unknown) {
     console.error("🔴 [Convert API] fetchSvgContent error:", err);
-    incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
         { error: "Failed to fetch SVG" },
@@ -706,9 +704,7 @@ export async function POST(request: NextRequest) {
     const { svgUrl, format } = await request.json();
     if (!svgUrl) {
       console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
+      incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
       return jsonWithCors({ error: "Missing svgUrl parameter" }, request, 400);
     }
 
@@ -720,9 +716,7 @@ export async function POST(request: NextRequest) {
         `⚠️ [Convert API] Unsupported format '${format}' from ${ip}`,
       );
       // Increment analytics for failed requests to keep metrics consistent
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
+      incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
       return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
     }
     let requestedFormat = normalizedFormat;
@@ -807,9 +801,7 @@ export async function POST(request: NextRequest) {
     console.log(
       `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
     );
-    incrementAnalytics("analytics:convert_api:successful_requests").catch(
-      () => {},
-    );
+    incrementAnalyticsInBackground("analytics:convert_api:successful_requests");
     return jsonWithCors({ pngDataUrl }, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -820,7 +812,7 @@ export async function POST(request: NextRequest) {
     if (error.stack) {
       console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
     }
-    incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
     return jsonWithCors({ error: "Conversion failed" }, request, 500);
   }
 }

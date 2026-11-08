@@ -1,6 +1,6 @@
 import {
   redisClient,
-  incrementAnalytics,
+  incrementAnalyticsInBackground,
   jsonWithCors,
   apiJsonHeaders,
 } from "@/lib/api-utils";
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const numericUserId = Number.parseInt(userId);
   if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
-    incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:cards_api:failed_requests");
     return jsonWithCors({ error: "Invalid user ID format" }, request, 400);
   }
 
@@ -58,9 +58,7 @@ export async function GET(request: Request) {
         `⏳ [Cards API] Slow response time: ${duration}ms for user ${numericUserId}`,
       );
     }
-    incrementAnalytics("analytics:cards_api:successful_requests").catch(
-      () => {},
-    );
+    incrementAnalyticsInBackground("analytics:cards_api:successful_requests");
     return jsonWithCors(cardData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -71,7 +69,7 @@ export async function GET(request: Request) {
     if (error.stack) {
       console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
     }
-    incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
+    incrementAnalyticsInBackground("analytics:cards_api:failed_requests");
     return jsonWithCors({ error: "Failed to fetch cards" }, request, 500);
   }
 }
