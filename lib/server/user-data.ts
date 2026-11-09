@@ -208,6 +208,20 @@ interface UserMeta {
 const VOLATILE_META_FIELDS = ["updatedAt", "dataUpdatedAt"] as const;
 
 /**
+ * Meta fields that are no longer written into the meta part.
+ *
+ * `aggregates` is returned as its own part, so it was stored twice until the
+ * duplicate was removed. A record written before that change still carries a
+ * copy in `meta`, which is ignored here so the leftover copy does not read as
+ * a content change and move every card URL on the first save after the
+ * change. The part itself is still compared, in the same loop, so an
+ * aggregates-only change is not missed.
+ *
+ * @source
+ */
+const LEGACY_META_FIELDS = ["aggregates"] as const;
+
+/**
  * Serializes a meta part with the volatile timestamps removed.
  *
  * Stored values arrive parsed from the Upstash client and values being written
@@ -233,6 +247,7 @@ function serializeStableMeta(value: unknown): string {
 
   const stable = { ...(parsed as Record<string, unknown>) };
   for (const field of VOLATILE_META_FIELDS) delete stable[field];
+  for (const field of LEGACY_META_FIELDS) delete stable[field];
   return JSON.stringify(stable);
 }
 
@@ -488,6 +503,7 @@ export function splitUserRecord(record: UserRecord) {
 
   const metaBaseRest = { ...(metaBase as Record<string, unknown>) };
   delete metaBaseRest.ip;
+  delete metaBaseRest.aggregates;
 
   const statsObj = (rawStats || {}) as unknown;
   const userObj = isObject((statsObj as Record<string, unknown>)["User"])
