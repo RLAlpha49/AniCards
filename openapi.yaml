@@ -304,6 +304,15 @@ paths:
               examples:
                 notFound:
                   value: { error: "Cards not found" }
+        "429":
+          description: "Rate-limited (10 requests per 5 seconds per client address)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                rateLimited:
+                  value: { error: "Too many requests" }
         "500":
           description: "Server error while reading Redis"
           content:
@@ -836,6 +845,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "429":
+          description: "Rate-limited (10 requests per 5 seconds per client address)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                rateLimited:
+                  value: { error: "Too many requests" }
 components:
   securitySchemes:
     CronSecret:

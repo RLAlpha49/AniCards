@@ -3,12 +3,18 @@ import {
   incrementAnalyticsInBackground,
   jsonWithCors,
   apiJsonHeaders,
+  checkRateLimit,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
 /**
  * Serves cached card configurations for the requested user from Redis.
+ *
+ * The rate limit runs before any Redis command, so an unauthenticated caller
+ * cannot turn this endpoint into unbounded reads and analytics writes. The
+ * user page calls it once per load, well inside the default 10 per 5 s.
+ *
  * @param request - HTTP request carrying the userId query and related headers.
  * @returns JSON response containing the card data or an explanatory error payload.
  * @source
@@ -18,6 +24,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
   const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+
+  const rateLimitResponse = await checkRateLimit(
+    request,
+    ip,
+    "Cards API",
+    "cards_api",
+  );
+  if (rateLimitResponse) return rateLimitResponse;
+
   console.log(`🚀 [Cards API] New request from ${ip} for userId: ${userId}`);
 
   if (!userId) {

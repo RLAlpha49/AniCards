@@ -6,6 +6,7 @@ import {
   isValidUsername,
   jsonWithCors,
   apiJsonHeaders,
+  checkRateLimit,
 } from "@/lib/api-utils";
 import {
   fetchUserDataParts,
@@ -273,6 +274,11 @@ async function resolveRequestTarget(
 
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
+ *
+ * The rate limit runs before the username index lookup and the record read, so
+ * an unauthenticated caller cannot drive unbounded Redis commands. The user
+ * page makes one request per load, well inside the default 10 per 5 s.
+ *
  * @param request - Incoming request with query parameters and headers.
  * @returns NextResponse carrying the user data or the relevant error payload.
  * @source
@@ -280,6 +286,15 @@ async function resolveRequestTarget(
 export async function GET(request: Request) {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+
+  const rateLimitResponse = await checkRateLimit(
+    request,
+    ip,
+    "User API",
+    "user_api",
+  );
+  if (rateLimitResponse) return rateLimitResponse;
+
   console.log(`🚀 [User API] Received request from IP: ${ip}`);
 
   const { searchParams } = new URL(request.url);
