@@ -104,6 +104,36 @@ export async function fetchUserDataOnly(
 }
 
 /**
+ * Reads the requested user record parts, mapping a Redis failure to the
+ * corrupted-record error the card route renders.
+ *
+ * Extracted from {@link fetchUserData} so the part read keeps its own error
+ * mapping while running at the same time as the independent card-document
+ * read.
+ *
+ * @param numericUserId - Numeric user id stored in Redis keys 'user:{id}'.
+ * @param parts - Record parts to read.
+ * @returns The parsed parts that were stored.
+ * @throws {CardDataError} If a part cannot be read from Redis.
+ * @source
+ */
+async function loadUserDataPartsOrThrow(
+  numericUserId: number,
+  parts: UserDataPart[],
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  try {
+    return await fetchUserDataParts(numericUserId, parts);
+  } catch (error) {
+    if (error instanceof CardDataError) throw error;
+
+    incrementAnalyticsInBackground(
+      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
+    );
+    throw new CardDataError("Server Error: Corrupted user record", 500);
+  }
+}
+
+/**
  * Loads and parses cached cards and user records from Redis for a numeric user ID.
  * Validates presence and JSON structure; records corrupted or missing values will increment analytics and throw CardDataError.
  * @param numericUserId - Numeric user id stored in Redis keys 'cards:{id}' and 'user:{id}'.
@@ -117,22 +147,10 @@ export async function fetchUserData(
   cardName?: string,
 ): Promise<{ cardDoc: CardsRecord; userDoc: UserRecord }> {
   const parts = cardName ? getPartsForCard(cardName) : USER_DATA_PARTS;
-
-  // Fetch cards data first - if this fails with a Redis error, let it bubble up
-  // to generate a generic "Internal Error" response as expected by tests.
-  const cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
-
-  let userDataParts: Partial<Record<UserDataPart, unknown>>;
-  try {
-    userDataParts = await fetchUserDataParts(numericUserId, parts);
-  } catch (error) {
-    if (error instanceof CardDataError) throw error;
-
-    incrementAnalyticsInBackground(
-      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    );
-    throw new CardDataError("Server Error: Corrupted user record", 500);
-  }
+  const [cardsDataStr, userDataParts] = await Promise.all([
+    redisClient.get(`cards:${numericUserId}`),
+    loadUserDataPartsOrThrow(numericUserId, parts),
+  ]);
 
   if (!cardsDataStr || cardsDataStr === "null" || !userDataParts.meta) {
     throw new CardDataError("Not Found: User data not found", 404);

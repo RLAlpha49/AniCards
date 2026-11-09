@@ -304,10 +304,10 @@ export async function GET(request: Request) {
   const { userId: numericUserId, selectedParts } = target;
 
   try {
-    const userDataParts = await fetchUserDataParts(
-      numericUserId,
-      selectedParts,
-    );
+    const [userDataParts, activity] = await Promise.all([
+      fetchUserDataParts(numericUserId, selectedParts),
+      getUserActivity(numericUserId),
+    ]);
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
@@ -318,9 +318,6 @@ export async function GET(request: Request) {
     }
 
     const userData = reconstructUserRecord(userDataParts);
-    // Activity is derived from card requests only, so a cron refresh that
-    // rewrites the record does not make the user look active.
-    const activity = await getUserActivity(numericUserId);
     const etag = buildUserEtag(userDataParts, selectedParts, activity);
     const responseHeaders: Record<string, string> = {
       ...apiJsonHeaders(request),
