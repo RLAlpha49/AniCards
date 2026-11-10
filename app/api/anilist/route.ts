@@ -211,14 +211,13 @@ export async function POST(request: Request) {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime } = init;
+  const { startTime, ip } = init;
   let operationInfo: OperationInfo = {
     name: "unknown",
     userIdentifier: "not_provided",
   };
 
   try {
-    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
     console.log(`🚀 [AniList API] Incoming request from IP: ${ip}`);
 
     const requestData = (await request.json()) as GraphQLRequest;

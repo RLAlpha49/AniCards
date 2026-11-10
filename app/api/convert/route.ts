@@ -4,6 +4,7 @@ import {
   incrementAnalyticsInBackground,
   apiJsonHeaders,
   jsonWithCors,
+  getClientIp,
 } from "@/lib/api-utils";
 import { resolveApiBase, type ConversionFormat } from "@/lib/utils";
 import {
@@ -696,7 +697,7 @@ async function convertSvgToDataUrl(
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+  const ip = getClientIp(request);
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {

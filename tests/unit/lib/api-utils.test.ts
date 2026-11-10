@@ -9,6 +9,7 @@ import {
 import {
   createRateLimiter,
   getAllowedApiOrigin,
+  getClientIp,
   mgetInBatches,
   scanAllKeys,
 } from "@/lib/api-utils";
@@ -228,6 +229,65 @@ describe("getAllowedApiOrigin", () => {
     });
 
     expect(getAllowedApiOrigin(request)).toBe("https://dev.example");
+  });
+});
+
+describe("Client IP resolution", () => {
+  const originalHeaders = process.env.TRUSTED_CLIENT_IP_HEADERS;
+
+  afterEach(() => {
+    // Assigning `undefined` stores the string "undefined", which would then be
+    // read as a header name. Delete instead so the default really applies.
+    if (originalHeaders === undefined)
+      delete (process.env as Record<string, string | undefined>)[
+        "TRUSTED_CLIENT_IP_HEADERS"
+      ];
+    else
+      (process.env as Record<string, string | undefined>)[
+        "TRUSTED_CLIENT_IP_HEADERS"
+      ] = originalHeaders;
+  });
+
+  function requestWith(headers: Record<string, string>): Request {
+    return new Request("https://api.example/x", { headers });
+  }
+
+  it("should use one identifier when the header carries a list", () => {
+    // The whole list as the limiter key made one caller look like many, so
+    // every new entry in the chain bought its own counter.
+    const request = requestWith({ "x-forwarded-for": "1.2.3.4, 10.0.0.1" });
+
+    expect(getClientIp(request)).toBe("1.2.3.4");
+  });
+
+  it("should reject a header value that is not an IP literal", () => {
+    // An arbitrary string would become its own identifier and its own counter.
+    const request = requestWith({ "x-forwarded-for": "not-an-ip" });
+
+    expect(getClientIp(request)).toBe("127.0.0.1");
+  });
+
+  it("should normalize the spelling of an IPv4 address", () => {
+    const request = requestWith({ "x-forwarded-for": "010.000.0.1" });
+
+    expect(getClientIp(request)).toBe("10.0.0.1");
+  });
+
+  it("should read a configured trusted header instead of the default", () => {
+    (process.env as Record<string, string | undefined>)[
+      "TRUSTED_CLIENT_IP_HEADERS"
+    ] = "cf-connecting-ip";
+    const request = requestWith({
+      "cf-connecting-ip": "5.6.7.8",
+      "x-forwarded-for": "1.2.3.4",
+    });
+
+    expect(getClientIp(request)).toBe("5.6.7.8");
+  });
+
+  it("should fall back to one shared bucket without a usable header", () => {
+    expect(getClientIp(undefined)).toBe("127.0.0.1");
+    expect(getClientIp(requestWith({}))).toBe("127.0.0.1");
   });
 });
 

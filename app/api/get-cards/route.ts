@@ -4,6 +4,7 @@ import {
   jsonWithCors,
   apiJsonHeaders,
   checkRateLimit,
+  getClientIp,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
-  const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+  const ip = getClientIp(request);
 
   const rateLimitResponse = await checkRateLimit(
     request,
