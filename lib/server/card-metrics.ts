@@ -32,7 +32,6 @@ import {
   queueCardUrlProfileWrites,
   type CardUrlOutcome,
   type CardUrlProfilePipeline,
-  type CardUrlUserIdentifier,
 } from "@/lib/server/url-usage";
 
 /** Analytics endpoint key shared by every card counter. @source */
@@ -55,18 +54,12 @@ export interface CardRequestMetrics {
   /** Queues the counter for a request that asked not to use a stored copy. */
   recordCacheBypass(): void;
   /**
-   * Queues the URL profile counters for the cards-key removal audit.
+   * Queues the URL profile counter for the cards-key removal audit.
    *
    * @param profile - Canonical profile from `buildCardUrlProfile`.
    * @param outcome - Cache outcome and response status for this request.
-   * @param userIdentifier - URL user identifier for database-dependent
-   *   profiles, when the request supplies one.
    */
-  recordUrlProfile(
-    profile: string,
-    outcome: CardUrlOutcome,
-    userIdentifier?: CardUrlUserIdentifier,
-  ): void;
+  recordUrlProfile(profile: string, outcome: CardUrlOutcome): void;
   /**
    * Sends every queued command in one pipeline and clears the queue.
    *
@@ -145,8 +138,8 @@ export function createCardRequestMetrics(): CardRequestMetrics {
       );
     },
 
-    recordUrlProfile(profile, outcome, userIdentifier) {
-      queueCardUrlProfileWrites(queue(), profile, outcome, userIdentifier);
+    recordUrlProfile(profile, outcome) {
+      queueCardUrlProfileWrites(queue(), profile, outcome);
     },
 
     async flush() {

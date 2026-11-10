@@ -553,15 +553,9 @@ export async function GET(request: Request) {
 
   // Canonical URL profile for the cards-key removal audit. Built before the
   // cache lookup so cache hits are counted, and written once per request at the
-  // terminal points below so background revalidation cannot double count.
+  // terminal points below so background revalidation cannot double count. The
+  // profile names the URL shape, never the user, so no identifier is tracked.
   const cardConfigClassification = classifyCardConfigSource(params);
-  let trackingUserIdentifier:
-    { type: "userId" | "userName"; value: string } | undefined;
-  if (params.userId) {
-    trackingUserIdentifier = { type: "userId", value: params.userId };
-  } else if (params.userName) {
-    trackingUserIdentifier = { type: "userName", value: params.userName };
-  }
   const urlProfile = buildCardUrlProfile({
     routePath: new URL(request.url).pathname,
     cardType: params.cardType,
@@ -623,13 +617,7 @@ export async function GET(request: Request) {
     console.log(
       `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
     );
-    metrics.recordUrlProfile(
-      urlProfile,
-      { cache: "hit", status: 200 },
-      cardConfigClassification.source === "db"
-        ? trackingUserIdentifier
-        : undefined,
-    );
+    metrics.recordUrlProfile(urlProfile, { cache: "hit", status: 200 });
     metrics.flushInBackground();
     return createSuccessResponse(
       markTrustedSvg(cachedEntry.svg),
@@ -654,13 +642,10 @@ export async function GET(request: Request) {
     cacheKey,
     bypassCache,
   );
-  metrics.recordUrlProfile(
-    urlProfile,
-    { cache: "miss", status: response.status },
-    cardConfigClassification.source === "db"
-      ? trackingUserIdentifier
-      : undefined,
-  );
+  metrics.recordUrlProfile(urlProfile, {
+    cache: "miss",
+    status: response.status,
+  });
   await metrics.flush();
   return response;
 }
