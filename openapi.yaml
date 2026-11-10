@@ -772,11 +772,13 @@ paths:
       summary: "Retrieve stored user data by numeric userId or username"
       description: >
         Returns the user record rebuilt from its stored parts. The response
-        carries a weak `ETag` derived from the parts returned, the meta
-        `updatedAt` the cron writes, and the last card request time. Send it
-        back in `If-None-Match` to receive `304 Not Modified` when the record
-        has not changed. `Cache-Control` is `private, no-cache`, so a shared
-        cache never stores the response.
+        carries a weak `ETag` derived from the parts returned and the meta
+        `updatedAt` the cron writes. When `activity` is among the requested
+        parts, the last card request time is part of the tag as well, because
+        the body then depends on it. Send the tag back in `If-None-Match` to
+        receive `304 Not Modified` when the record has not changed.
+        `Cache-Control` is `private, no-cache`, so a shared cache never stores
+        the response.
       tags:
         - "user"
       parameters:
@@ -816,7 +818,9 @@ paths:
           description: >
             Comma-separated list of stored parts to return. `meta` is always
             returned because it carries the identity fields. When omitted,
-            every part is returned. Unknown part names return 400.
+            every part is returned. Unknown part names return 400. The
+            `lastCardRequestAt` and `isActive` fields come from the activity
+            record and are returned only when `activity` is requested.
       responses:
         "200":
           description: "User record stored in Redis"
@@ -1084,10 +1088,10 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: "When a card was last successfully requested for this user; null when no card request is recorded."
+          description: "When a card was last successfully requested for this user; null when no card request is recorded. Present only when the `activity` part is requested."
         isActive:
           type: boolean
-          description: "True when a card for this user was requested within the last 30 days. Cron stats refreshes do not affect this value."
+          description: "True when a card for this user was requested within the last 30 days. Cron stats refreshes do not affect this value. Present only when the `activity` part is requested."
       required: ["userId", "stats", "createdAt", "updatedAt"]
     AnalyticsReport:
       type: object

@@ -54,20 +54,24 @@ function parseRequestedParts(raw: string | null): UserDataPart[] | null {
  * Builds a weak ETag for a user response.
  *
  * Every input the body depends on is part of the tag: the selected parts, the
- * identity fields from meta, the meta timestamp the cron writes, and the
- * activity timestamp the card route writes. A record without a readable
+ * identity fields from meta, the meta timestamp the cron writes, and, only
+ * when the caller asked for the `activity` part, the activity timestamp the
+ * card route writes. A `parts=meta` read never looks at activity, so leaving
+ * it out of the tag keeps that validator stable until the record changes
+ * instead of changing on every card render. A record without a readable
  * `updatedAt` gets no ETag, so a legacy record is never reported as unchanged.
  *
  * @param userDataParts - Parts read for this request.
  * @param selectedParts - Parts the caller asked for.
- * @param activity - Activity state merged into the response.
+ * @param activity - Activity state merged into the response, or null when the
+ *   request did not ask for it.
  * @returns A quoted weak validator, or null when it cannot be built.
  * @source
  */
 function buildUserEtag(
   userDataParts: Partial<Record<UserDataPart, unknown>>,
   selectedParts: UserDataPart[],
-  activity: UserActivity,
+  activity: UserActivity | null,
 ): string | null {
   const meta = userDataParts.meta as
     { updatedAt?: unknown; username?: unknown } | undefined;
@@ -82,7 +86,7 @@ function buildUserEtag(
       [
         String(updatedAt),
         username,
-        activity.lastCardRequestAt ?? "",
+        activity?.lastCardRequestAt ?? "",
         selectedParts.join(","),
       ].join("|"),
     )
@@ -302,11 +306,14 @@ export async function GET(request: Request) {
   if ("errorResponse" in target) return target.errorResponse;
 
   const { userId: numericUserId, selectedParts } = target;
+  /* Activity is a separate key and a separate round trip. Only the part that
+     carries it pays for the read; a `parts=meta` caller does not. */
+  const wantsActivity = selectedParts.includes("activity");
 
   try {
     const [userDataParts, activity] = await Promise.all([
       fetchUserDataParts(numericUserId, selectedParts),
-      getUserActivity(numericUserId),
+      wantsActivity ? getUserActivity(numericUserId) : Promise.resolve(null),
     ]);
     const duration = Date.now() - startTime;
 
@@ -342,7 +349,7 @@ export async function GET(request: Request) {
           userData as unknown as Record<string, unknown>,
           selectedParts,
         ),
-        ...activity,
+        ...(activity ?? {}),
       } as unknown,
       { headers: responseHeaders },
     );
