@@ -22,6 +22,8 @@ import {
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
 import { isValidTimestamp } from "@/lib/server/card-version";
+import type { CardId } from "@/lib/cards/registry";
+import { CARD_REGISTRY, hasCardId } from "@/lib/cards/registry";
 
 /**
  * Error wrapper including an HTTP status code, error category, and recovery suggestions.
@@ -73,69 +75,16 @@ export type StudioItem = { studio: { name: string }; count: number };
 export type StaffItem = { staff: { name: { full: string } }; count: number };
 
 /**
- * Mapping of internal card type keys to human-readable display names.
+ * Short display labels for each card type, derived from the card registry.
  * Used when rendering card labels or titles in the UI and templates.
  * @source
  */
-const cardDisplayNames = {
-  animeStats: "Anime Stats",
-  socialStats: "Social Stats",
-  socialMilestones: "Social Milestones",
-  mangaStats: "Manga Stats",
-  animeGenres: "Anime Genres",
-  animeTags: "Anime Tags",
-  animeVoiceActors: "Anime Voice Actors",
-  animeStudios: "Anime Studios",
-  animeStaff: "Anime Staff",
-  mangaGenres: "Manga Genres",
-  mangaTags: "Manga Tags",
-  mangaStaff: "Manga Staff",
-  animeStatusDistribution: "Anime Statuses",
-  mangaStatusDistribution: "Manga Statuses",
-  animeFormatDistribution: "Anime Formats",
-  mangaFormatDistribution: "Manga Formats",
-  animeSourceMaterialDistribution: "Anime Source Materials",
-  animeSeasonalPreference: "Anime Seasons",
-  animeGenreSynergy: "Genre Synergy",
-  animeScoreDistribution: "Anime Scores",
-  mangaScoreDistribution: "Manga Scores",
-  animeYearDistribution: "Anime Years",
-  mangaYearDistribution: "Manga Years",
-  animeCountry: "Anime Countries",
-  mangaCountry: "Manga Countries",
-  profileOverview: "Profile Overview",
-  favoritesSummary: "Favourites Summary",
-  favoritesGrid: "Favourites Grid",
-  activityHeatmap: "Activity Heatmap",
-  recentActivitySummary: "Recent Activity Summary",
-  recentActivityFeed: "Recent Activity Feed",
-  activityStreaks: "Activity Streaks",
-  topActivityDays: "Top Activity Days",
-  statusCompletionOverview: "Status Completion Overview",
-  milestones: "Consumption Milestones",
-  personalRecords: "Personal Records",
-  planningBacklog: "Planning Backlog",
-  mostRewatched: "Most Rewatched/Reread",
-  currentlyWatchingReading: "Currently Watching / Reading",
-  animeMangaOverview: "Anime vs Manga Overview",
-  scoreCompareAnimeManga: "Anime vs Manga Score Comparison",
-  countryDiversity: "Country Diversity",
-  genreDiversity: "Genre Diversity",
-  formatPreferenceOverview: "Format Preference Overview",
-  releaseEraPreference: "Release Era Preference",
-  startYearMomentum: "Start-Year Momentum",
-  lengthPreference: "Length Preference",
-  animeEpisodeLengthPreferences: "Episode Length Preferences",
-  tagCategoryDistribution: "Tag Category Distribution",
-  tagDiversity: "Tag Diversity",
-  seasonalViewingPatterns: "Seasonal Viewing Patterns",
-  droppedMedia: "Dropped Media",
-  reviewStats: "Review Statistics",
-  studioCollaboration: "Studio Collaboration",
-};
+export const displayNames: Record<string, string> = Object.fromEntries(
+  CARD_REGISTRY.map((card) => [card.id, card.label]),
+);
 
-export type CardType = keyof typeof cardDisplayNames;
-export const displayNames: Record<string, string> = cardDisplayNames;
+/** Identifier of a card type the product supports. @source */
+export type CardType = CardId;
 
 /**
  * Returns whether the provided card type string corresponds to a supported
@@ -150,7 +99,7 @@ export function isValidCardType(candidate: unknown): boolean {
     return false;
   }
   const [base] = candidate.split("-");
-  return Object.hasOwn(displayNames, base);
+  return hasCardId(base);
 }
 
 /**

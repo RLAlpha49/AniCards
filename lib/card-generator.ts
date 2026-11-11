@@ -40,6 +40,7 @@ import {
 } from "@/lib/svg-templates/user-analytics";
 import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import { TrustedSVG } from "@/lib/types/svg";
+import type { CardId } from "@/lib/cards/registry";
 import {
   ActivityHistoryItem,
   StoredCardConfig,
@@ -445,105 +446,96 @@ export async function generateCardSvg(
       typeof cardConfig.gridRows === "number" ? cardConfig.gridRows : undefined,
   };
 
-  const comparativeDispatch: Record<
-    string,
-    (p: CardGenerationParams) => TrustedSVG
-  > = {
-    animeMangaOverview: generateAnimeMangaOverviewCard,
-    scoreCompareAnimeManga: generateScoreCompareAnimeMangaCard,
-    countryDiversity: generateCountryDiversityCard,
-    genreDiversity: generateGenreDiversityCard,
-    formatPreferenceOverview: generateFormatPreferenceOverviewCard,
-    releaseEraPreference: generateReleaseEraPreferenceCard,
-    startYearMomentum: generateStartYearMomentumCard,
-    lengthPreference: generateLengthPreferenceCard,
-    tagCategoryDistribution: generateTagCategoryDistributionCard,
-    tagDiversity: generateTagDiversityCard,
-    seasonalViewingPatterns: generateSeasonalViewingPatternsCard,
-    droppedMedia: generateDroppedMediaCard,
-    reviewStats: generateReviewStatsCard,
-    studioCollaboration: generateStudioCollaborationCard,
-  };
-
-  const comparativeGenerator = comparativeDispatch[baseCardType];
-  if (comparativeGenerator) {
-    return comparativeGenerator(params);
+  const renderer = CARD_RENDERERS[baseCardType as CardId];
+  if (!renderer) {
+    throw new CardDataError("Unsupported card type", 400);
   }
-
-  switch (baseCardType) {
-    case "animeStats":
-      return generateStatsCard(params, "anime");
-    case "mangaStats":
-      return generateStatsCard(params, "manga");
-    case "socialStats":
-      return generateSocialStatsCard(params);
-    case "socialMilestones":
-      return generateSocialMilestonesCard(params);
-    case "animeGenres":
-    case "animeTags":
-    case "animeVoiceActors":
-    case "animeStudios":
-    case "animeStaff":
-    case "mangaGenres":
-    case "mangaTags":
-    case "mangaStaff":
-      return generateCategoryCard(params, baseCardType);
-    case "animeStatusDistribution":
-    case "mangaStatusDistribution":
-      return generateStatusDistributionCard(params, baseCardType);
-    case "animeFormatDistribution":
-    case "mangaFormatDistribution":
-      return generateFormatDistributionCard(params, baseCardType);
-    case "animeSourceMaterialDistribution":
-      return generateSourceMaterialDistributionCard(params);
-    case "animeSeasonalPreference":
-      return generateSeasonalPreferenceCard(params);
-    case "animeEpisodeLengthPreferences":
-      return generateEpisodeLengthPreferencesCard(params);
-    case "animeGenreSynergy":
-      return generateGenreSynergyCard(params);
-    case "animeScoreDistribution":
-    case "mangaScoreDistribution":
-      return generateDistributionCard(params, baseCardType, "score");
-    case "animeYearDistribution":
-    case "mangaYearDistribution":
-      return generateDistributionCard(params, baseCardType, "year");
-    case "animeCountry":
-    case "mangaCountry":
-      return generateCountryCard(params, baseCardType);
-    case "profileOverview":
-      return await generateProfileOverviewCard(params);
-    case "favoritesSummary":
-      return generateFavoritesSummaryCard(params);
-    case "favoritesGrid":
-      return generateFavoritesGridCard(params);
-    case "activityHeatmap":
-      return generateActivityHeatmapCard(params);
-    case "recentActivitySummary":
-      return generateRecentActivitySummaryCard(params);
-    case "recentActivityFeed":
-      return generateRecentActivityFeedCard(params);
-    case "activityStreaks":
-      return generateActivityStreaksCard(params);
-    case "topActivityDays":
-      return generateTopActivityDaysCard(params);
-    case "statusCompletionOverview":
-      return generateStatusCompletionOverviewCard(params);
-    case "milestones":
-      return generateMilestonesCard(params);
-    case "personalRecords":
-      return generatePersonalRecordsCard(params);
-    case "planningBacklog":
-      return generatePlanningBacklogCard(params);
-    case "mostRewatched":
-      return generateMostRewatchedCard(params);
-    case "currentlyWatchingReading":
-      return await generateCurrentlyWatchingReadingCard(params);
-
-    default:
-      throw new CardDataError("Unsupported card type", 400);
-  }
+  return await renderer(params);
 }
+
+/**
+ * The renderer for every card type, keyed by card id.
+ *
+ * Typed as `Record<CardId, ...>`, so adding a card to the registry without
+ * giving it a renderer here is a compile error rather than a runtime 400.
+ * @source
+ */
+const CARD_RENDERERS: Record<
+  CardId,
+  (params: CardGenerationParams) => TrustedSVG | Promise<TrustedSVG>
+> = {
+  animeStats: (params) => generateStatsCard(params, "anime"),
+  mangaStats: (params) => generateStatsCard(params, "manga"),
+  socialStats: (params) => generateSocialStatsCard(params),
+  socialMilestones: (params) => generateSocialMilestonesCard(params),
+  animeGenres: (params) => generateCategoryCard(params, "animeGenres"),
+  animeTags: (params) => generateCategoryCard(params, "animeTags"),
+  animeVoiceActors: (params) =>
+    generateCategoryCard(params, "animeVoiceActors"),
+  animeStudios: (params) => generateCategoryCard(params, "animeStudios"),
+  animeStaff: (params) => generateCategoryCard(params, "animeStaff"),
+  mangaGenres: (params) => generateCategoryCard(params, "mangaGenres"),
+  mangaTags: (params) => generateCategoryCard(params, "mangaTags"),
+  mangaStaff: (params) => generateCategoryCard(params, "mangaStaff"),
+  animeStatusDistribution: (params) =>
+    generateStatusDistributionCard(params, "animeStatusDistribution"),
+  mangaStatusDistribution: (params) =>
+    generateStatusDistributionCard(params, "mangaStatusDistribution"),
+  animeFormatDistribution: (params) =>
+    generateFormatDistributionCard(params, "animeFormatDistribution"),
+  mangaFormatDistribution: (params) =>
+    generateFormatDistributionCard(params, "mangaFormatDistribution"),
+  animeSourceMaterialDistribution: (params) =>
+    generateSourceMaterialDistributionCard(params),
+  animeSeasonalPreference: (params) => generateSeasonalPreferenceCard(params),
+  animeEpisodeLengthPreferences: (params) =>
+    generateEpisodeLengthPreferencesCard(params),
+  animeGenreSynergy: (params) => generateGenreSynergyCard(params),
+  animeScoreDistribution: (params) =>
+    generateDistributionCard(params, "animeScoreDistribution", "score"),
+  mangaScoreDistribution: (params) =>
+    generateDistributionCard(params, "mangaScoreDistribution", "score"),
+  animeYearDistribution: (params) =>
+    generateDistributionCard(params, "animeYearDistribution", "year"),
+  mangaYearDistribution: (params) =>
+    generateDistributionCard(params, "mangaYearDistribution", "year"),
+  animeCountry: (params) => generateCountryCard(params, "animeCountry"),
+  mangaCountry: (params) => generateCountryCard(params, "mangaCountry"),
+  profileOverview: (params) => generateProfileOverviewCard(params),
+  favoritesSummary: (params) => generateFavoritesSummaryCard(params),
+  favoritesGrid: (params) => generateFavoritesGridCard(params),
+  activityHeatmap: (params) => generateActivityHeatmapCard(params),
+  recentActivitySummary: (params) => generateRecentActivitySummaryCard(params),
+  recentActivityFeed: (params) => generateRecentActivityFeedCard(params),
+  activityStreaks: (params) => generateActivityStreaksCard(params),
+  topActivityDays: (params) => generateTopActivityDaysCard(params),
+  statusCompletionOverview: (params) =>
+    generateStatusCompletionOverviewCard(params),
+  milestones: (params) => generateMilestonesCard(params),
+  personalRecords: (params) => generatePersonalRecordsCard(params),
+  planningBacklog: (params) => generatePlanningBacklogCard(params),
+  mostRewatched: (params) => generateMostRewatchedCard(params),
+  currentlyWatchingReading: (params) =>
+    generateCurrentlyWatchingReadingCard(params),
+  animeMangaOverview: (params) => generateAnimeMangaOverviewCard(params),
+  scoreCompareAnimeManga: (params) =>
+    generateScoreCompareAnimeMangaCard(params),
+  countryDiversity: (params) => generateCountryDiversityCard(params),
+  genreDiversity: (params) => generateGenreDiversityCard(params),
+  formatPreferenceOverview: (params) =>
+    generateFormatPreferenceOverviewCard(params),
+  releaseEraPreference: (params) => generateReleaseEraPreferenceCard(params),
+  startYearMomentum: (params) => generateStartYearMomentumCard(params),
+  lengthPreference: (params) => generateLengthPreferenceCard(params),
+  tagCategoryDistribution: (params) =>
+    generateTagCategoryDistributionCard(params),
+  tagDiversity: (params) => generateTagDiversityCard(params),
+  seasonalViewingPatterns: (params) =>
+    generateSeasonalViewingPatternsCard(params),
+  droppedMedia: (params) => generateDroppedMediaCard(params),
+  reviewStats: (params) => generateReviewStatsCard(params),
+  studioCollaboration: (params) => generateStudioCollaborationCard(params),
+};
 
 /**
  * Generate an Anime vs Manga Overview card.

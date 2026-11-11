@@ -14,7 +14,6 @@ import {
   Users,
 } from "@/lib/icons";
 import {
-  CARD_GROUPS,
   DEFAULT_BASE_CARD_URL,
   DEFAULT_EXAMPLE_USER_ID,
   VARIATION_LABEL_MAP,
@@ -22,26 +21,18 @@ import {
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
 import type { CardUrlParams } from "@/lib/card-groups";
+import type { CardGroupName, CardId, VariationDef } from "@/lib/cards/registry";
+import { CARD_GROUP_NAMES, CARD_REGISTRY } from "@/lib/cards/registry";
 import type { StoredCardConfig } from "@/lib/types/records";
 
 /**
- * The six groups the generator sorts card types into.
- *
- * These names match the `cardTitle` values in `lib/card-groups.ts`, so the
- * examples page and the generator use one set of labels.
+ * The six groups the generator sorts card types into, in display order.
  * @source
  */
-export const GROUPS = [
-  "Core Stats",
-  "Anime Deep Dive",
-  "Manga Deep Dive",
-  "Activity & Engagement",
-  "Library & Progress",
-  "Advanced Analytics",
-] as const;
+export const GROUPS: readonly CardGroupName[] = CARD_GROUP_NAMES;
 
 /** A group name from {@link GROUPS}. @source */
-export type GroupName = (typeof GROUPS)[number];
+export type GroupName = CardGroupName;
 
 /** Kanji numerals shown beside each group heading. @source */
 export const GROUP_NUMERALS = ["壱", "弐", "参", "肆", "伍", "陸"] as const;
@@ -61,7 +52,7 @@ export type CardVariation = Readonly<{
   /** Label shown on the variation chip, for example "Pie Chart". */
   name: string;
   /** Card type identifier passed to the card API. */
-  cardType: string;
+  cardType: CardId;
   /** Variation identifier passed to the card API. */
   variation: string;
   /** Absolute URL of the rendered SVG. */
@@ -71,7 +62,7 @@ export type CardVariation = Readonly<{
 /** A card type together with every variation the generator supports. @source */
 export type CardType = Readonly<{
   /** Card identifier the card API accepts, for example `animeStats`. */
-  id: string;
+  id: CardId;
   title: string;
   description: string;
   group: GroupName;
@@ -88,362 +79,69 @@ export type GroupSummary = Readonly<{
   matchCount: number;
 }>;
 
-/** Metadata for one card type, before its variations are resolved. @source */
-type CardTypeMeta = Readonly<{
-  title: string;
-  description: string;
-  group: GroupName;
-  icon: HugeIcon;
-}>;
-
 /**
- * Every card type the card API renders, in display order.
+ * Icon shown beside each card on the examples page and in the generator.
  *
- * Each description says what the card shows, not which variations it has. The
- * chips on the card list the variations, so the description does not repeat
- * them.
+ * Icons live here rather than in the registry so `lib/` stays free of React
+ * imports. Adding a card requires one icon entry.
  * @source
  */
-const CARD_TYPE_METADATA: CardTypeMeta[] = [
-  // Core Stats
-  {
-    title: "Anime Statistics",
-    description:
-      "Totals for your anime list: count, episodes, minutes, and mean score",
-    group: "Core Stats",
-    icon: BarChart2,
-  },
-  {
-    title: "Manga Statistics",
-    description:
-      "Totals for your manga list: count, chapters, volumes, and mean score",
-    group: "Core Stats",
-    icon: BookOpen,
-  },
-  {
-    title: "Social Statistics",
-    description: "Followers, following, threads, and reviews",
-    group: "Core Stats",
-    icon: Users,
-  },
-  {
-    title: "Profile Overview",
-    description: "Your avatar, banner, and list totals",
-    group: "Core Stats",
-    icon: Users,
-  },
-  {
-    title: "Anime vs Manga Overview",
-    description: "Anime and manga totals side by side",
-    group: "Core Stats",
-    icon: BarChart2,
-  },
-
-  // Anime Deep Dive
-  {
-    title: "Anime Genres",
-    description: "Time spent in each genre",
-    group: "Anime Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Anime Tags",
-    description: "Tags that appear most across your anime",
-    group: "Anime Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Voice Actors",
-    description: "Voice actors with the most roles in your list",
-    group: "Anime Deep Dive",
-    icon: Mic,
-  },
-  {
-    title: "Animation Studios",
-    description: "Studios behind the anime you watched",
-    group: "Anime Deep Dive",
-    icon: Building2,
-  },
-  {
-    title: "Anime Staff",
-    description: "Staff credited on the anime you watched",
-    group: "Anime Deep Dive",
-    icon: Users,
-  },
-  {
-    title: "Anime Status Distribution",
-    description: "How your anime splits across watching statuses",
-    group: "Anime Deep Dive",
-    icon: TrendingUp,
-  },
-  {
-    title: "Anime Format Distribution",
-    description: "How your anime splits across TV, movie, OVA, and the rest",
-    group: "Anime Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Anime Source Material Distribution",
-    description:
-      "Where your anime came from: manga, original, light novel, and the rest",
-    group: "Anime Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Anime Seasonal Preference",
-    description: "Which seasons your anime aired in",
-    group: "Anime Deep Dive",
-    icon: Calendar,
-  },
-  {
-    title: "Anime Country Distribution",
-    description: "Countries of origin across your anime",
-    group: "Anime Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Anime Score Distribution",
-    description: "How many titles sit at each score",
-    group: "Anime Deep Dive",
-    icon: TrendingUp,
-  },
-  {
-    title: "Anime Year Distribution",
-    description: "Release years across your anime",
-    group: "Anime Deep Dive",
-    icon: TrendingUp,
-  },
-  {
-    title: "Episode Length Preferences",
-    description: "Episode lengths you watch most",
-    group: "Anime Deep Dive",
-    icon: Clock,
-  },
-  {
-    title: "Genre Synergy",
-    description: "Genres that show up together in your list",
-    group: "Anime Deep Dive",
-    icon: BarChart2,
-  },
-
-  // Manga Deep Dive
-  {
-    title: "Manga Genres",
-    description: "Time spent in each genre",
-    group: "Manga Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Manga Tags",
-    description: "Tags that appear most across your manga",
-    group: "Manga Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Manga Staff",
-    description: "Staff credited on the manga you read",
-    group: "Manga Deep Dive",
-    icon: Users,
-  },
-  {
-    title: "Manga Status Distribution",
-    description: "How your manga splits across reading statuses",
-    group: "Manga Deep Dive",
-    icon: TrendingUp,
-  },
-  {
-    title: "Manga Format Distribution",
-    description: "How your manga splits across manga, novel, and the rest",
-    group: "Manga Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Manga Country Distribution",
-    description: "Countries of origin across your manga",
-    group: "Manga Deep Dive",
-    icon: PieChart,
-  },
-  {
-    title: "Manga Score Distribution",
-    description: "How many titles sit at each score",
-    group: "Manga Deep Dive",
-    icon: TrendingUp,
-  },
-  {
-    title: "Manga Year Distribution",
-    description: "Release years across your manga",
-    group: "Manga Deep Dive",
-    icon: TrendingUp,
-  },
-
-  // Activity & Engagement
-  {
-    title: "Activity Heatmap",
-    description: "A calendar of your daily activity",
-    group: "Activity & Engagement",
-    icon: Calendar,
-  },
-  {
-    title: "Recent Activity Summary",
-    description: "A sparkline of activity over recent weeks",
-    group: "Activity & Engagement",
-    icon: Activity,
-  },
-  {
-    title: "Recent Activity Feed",
-    description: "Your latest activity, newest first",
-    group: "Activity & Engagement",
-    icon: Clock,
-  },
-  {
-    title: "Activity Streaks",
-    description: "Your current and longest streaks",
-    group: "Activity & Engagement",
-    icon: Clock,
-  },
-  {
-    title: "Top Activity Days",
-    description: "The days you were most active",
-    group: "Activity & Engagement",
-    icon: Activity,
-  },
-  {
-    title: "Social Milestones",
-    description: "Milestones from your social activity",
-    group: "Activity & Engagement",
-    icon: TrendingUp,
-  },
-  {
-    title: "Review Statistics",
-    description: "Your reviews and the scores you gave them",
-    group: "Activity & Engagement",
-    icon: BarChart2,
-  },
-  {
-    title: "Seasonal Viewing Patterns",
-    description: "When you watch, by day of the week and month",
-    group: "Activity & Engagement",
-    icon: Calendar,
-  },
-
-  // Library & Progress
-  {
-    title: "Favourites Summary",
-    description: "Counts of your favourite anime, manga, and characters",
-    group: "Library & Progress",
-    icon: Heart,
-  },
-  {
-    title: "Favourites Grid",
-    description: "A grid of your favourites, in the mix you choose",
-    group: "Library & Progress",
-    icon: LayoutGrid,
-  },
-  {
-    title: "Status Completion Overview",
-    description: "Anime and manga completion totals, together or split",
-    group: "Library & Progress",
-    icon: TrendingUp,
-  },
-  {
-    title: "Consumption Milestones",
-    description: "Your biggest anime and manga milestones",
-    group: "Library & Progress",
-    icon: Calendar,
-  },
-  {
-    title: "Personal Records",
-    description: "Your highest and longest completed titles",
-    group: "Library & Progress",
-    icon: BarChart2,
-  },
-  {
-    title: "Planning Backlog",
-    description: "What is sitting in your planning list",
-    group: "Library & Progress",
-    icon: Clock,
-  },
-  {
-    title: "Most Rewatched/Reread",
-    description: "Titles you have revisited most",
-    group: "Library & Progress",
-    icon: Activity,
-  },
-  {
-    title: "Currently Watching / Reading",
-    description: "What you have in progress right now",
-    group: "Library & Progress",
-    icon: Clock,
-  },
-  {
-    title: "Dropped Media",
-    description: "Titles you dropped, and where you stopped",
-    group: "Library & Progress",
-    icon: Activity,
-  },
-
-  // Advanced Analytics
-  {
-    title: "Anime vs Manga Score Comparison",
-    description: "Your scores in anime against your scores in manga",
-    group: "Advanced Analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Country Diversity",
-    description: "How varied the countries are in each list",
-    group: "Advanced Analytics",
-    icon: PieChart,
-  },
-  {
-    title: "Genre Diversity",
-    description: "How varied the genres are in each list",
-    group: "Advanced Analytics",
-    icon: PieChart,
-  },
-  {
-    title: "Format Preference Overview",
-    description: "Formats you pick in anime against manga",
-    group: "Advanced Analytics",
-    icon: PieChart,
-  },
-  {
-    title: "Release Era Preference",
-    description: "Which release eras you consume most",
-    group: "Advanced Analytics",
-    icon: Calendar,
-  },
-  {
-    title: "Start-Year Momentum",
-    description: "How your start years differ between anime and manga",
-    group: "Advanced Analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Length Preference",
-    description: "Short series against long ones in each list",
-    group: "Advanced Analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Tag Category Distribution",
-    description: "Tag categories in anime against manga",
-    group: "Advanced Analytics",
-    icon: PieChart,
-  },
-  {
-    title: "Tag Diversity",
-    description: "How varied the tags are in each list",
-    group: "Advanced Analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Studio Collaboration",
-    description: "Studios that keep working together in your list",
-    group: "Advanced Analytics",
-    icon: Building2,
-  },
-];
+const CARD_ICONS: Record<CardId, HugeIcon> = {
+  animeStats: BarChart2,
+  mangaStats: BookOpen,
+  socialStats: Users,
+  profileOverview: Users,
+  animeMangaOverview: BarChart2,
+  animeGenres: PieChart,
+  animeTags: PieChart,
+  animeVoiceActors: Mic,
+  animeStudios: Building2,
+  animeStaff: Users,
+  animeStatusDistribution: TrendingUp,
+  animeFormatDistribution: PieChart,
+  animeSourceMaterialDistribution: PieChart,
+  animeSeasonalPreference: Calendar,
+  animeCountry: PieChart,
+  animeScoreDistribution: TrendingUp,
+  animeYearDistribution: TrendingUp,
+  animeEpisodeLengthPreferences: Clock,
+  animeGenreSynergy: BarChart2,
+  mangaGenres: PieChart,
+  mangaTags: PieChart,
+  mangaStaff: Users,
+  mangaStatusDistribution: TrendingUp,
+  mangaFormatDistribution: PieChart,
+  mangaCountry: PieChart,
+  mangaScoreDistribution: TrendingUp,
+  mangaYearDistribution: TrendingUp,
+  activityHeatmap: Calendar,
+  recentActivitySummary: Activity,
+  recentActivityFeed: Clock,
+  activityStreaks: Clock,
+  topActivityDays: Activity,
+  socialMilestones: TrendingUp,
+  reviewStats: BarChart2,
+  seasonalViewingPatterns: Calendar,
+  favoritesSummary: Heart,
+  favoritesGrid: LayoutGrid,
+  statusCompletionOverview: TrendingUp,
+  milestones: Calendar,
+  personalRecords: BarChart2,
+  planningBacklog: Clock,
+  mostRewatched: Activity,
+  currentlyWatchingReading: Clock,
+  droppedMedia: Activity,
+  scoreCompareAnimeManga: TrendingUp,
+  countryDiversity: PieChart,
+  genreDiversity: PieChart,
+  formatPreferenceOverview: PieChart,
+  releaseEraPreference: Calendar,
+  startYearMomentum: TrendingUp,
+  lengthPreference: TrendingUp,
+  tagCategoryDistribution: PieChart,
+  tagDiversity: TrendingUp,
+  studioCollaboration: Building2,
+};
 
 /** Base URL every preview is generated from. @source */
 const BASE_URL = DEFAULT_BASE_CARD_URL;
@@ -462,7 +160,7 @@ const FAVORITES_GRID_SIZE = 3;
 /**
  * Turns a variation's declared extras into card URL parameters.
  *
- * @param extras - Raw extras from {@link CARD_GROUPS}, if any.
+ * @param extras - Raw extras from the card registry, if any.
  * @returns Partial card URL parameters.
  * @source
  */
@@ -518,25 +216,34 @@ function extrasToParams(
 }
 
 /**
+ * Splits a variation entry into its id and extras.
+ * @param entry - Variation as declared in the card registry.
+ * @source
+ */
+function splitVariation(entry: VariationDef): {
+  variation: string;
+  extras?: Record<string, string>;
+} {
+  return typeof entry === "string"
+    ? { variation: entry }
+    : { variation: entry.variation, extras: entry.extras };
+}
+
+/**
  * Builds every card type with a preview URL for each variation it supports.
  *
- * @returns The card types in group order.
+ * @returns The card types in registry order.
  * @source
  */
 export function buildCardTypes(): CardType[] {
-  return CARD_TYPE_METADATA.map((meta) => {
-    const group = CARD_GROUPS.find((entry) => entry.cardTitle === meta.title);
-
-    if (!group) return { ...meta, id: "", variations: [] };
-
-    const variations = group.variations.map((entry) => {
-      const variation = typeof entry === "string" ? entry : entry.variation;
-      const extras = typeof entry === "string" ? undefined : entry.extras;
+  return CARD_REGISTRY.map((card) => {
+    const variations = card.variations.map((entry) => {
+      const { variation, extras } = splitVariation(entry);
       const params = extrasToParams(extras);
-      const needsGridSize = group.cardType === "favoritesGrid";
+      const needsGridSize = card.id === "favoritesGrid";
 
       const candidate: Partial<StoredCardConfig> = {
-        cardName: group.cardType,
+        cardName: card.id,
         variation,
         colorPreset: params.colorPreset,
         titleColor: params.titleColor,
@@ -554,7 +261,7 @@ export function buildCardTypes(): CardType[] {
 
       return {
         name: VARIATION_LABEL_MAP[variation] ?? variation,
-        cardType: group.cardType,
+        cardType: card.id,
         variation,
         url: buildCardUrlWithParams(
           mapStoredConfigToCardUrlParams(candidate, {
@@ -566,7 +273,14 @@ export function buildCardTypes(): CardType[] {
       };
     });
 
-    return { ...meta, id: group.cardType, variations };
+    return {
+      id: card.id,
+      title: card.title,
+      description: card.description,
+      group: card.group,
+      icon: CARD_ICONS[card.id],
+      variations,
+    };
   });
 }
 

@@ -25,6 +25,7 @@ import {
   buildCardConfigFromParams,
   processFavorites,
 } from "@/lib/card-data";
+import { CARD_REGISTRY } from "@/lib/cards/registry";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   generateCacheKey,
@@ -42,63 +43,10 @@ import {
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
 
-/** Whitelist of supported card types the API will render. @source */
-const ALLOWED_CARD_TYPES = new Set([
-  "animeStats",
-  "socialStats",
-  "socialMilestones",
-  "mangaStats",
-  "animeGenres",
-  "animeTags",
-  "animeVoiceActors",
-  "animeStudios",
-  "animeStaff",
-  "mangaGenres",
-  "mangaTags",
-  "mangaStaff",
-  "animeStatusDistribution",
-  "mangaStatusDistribution",
-  "animeFormatDistribution",
-  "mangaFormatDistribution",
-  "animeSourceMaterialDistribution",
-  "animeSeasonalPreference",
-  "animeEpisodeLengthPreferences",
-  "animeGenreSynergy",
-  "animeScoreDistribution",
-  "mangaScoreDistribution",
-  "animeYearDistribution",
-  "mangaYearDistribution",
-  "animeCountry",
-  "mangaCountry",
-  "profileOverview",
-  "favoritesSummary",
-  "favoritesGrid",
-  "activityHeatmap",
-  "recentActivitySummary",
-  "recentActivityFeed",
-  "activityStreaks",
-  "topActivityDays",
-  "statusCompletionOverview",
-  "milestones",
-  "personalRecords",
-  "planningBacklog",
-  "mostRewatched",
-  "currentlyWatchingReading",
-  "animeMangaOverview",
-  "scoreCompareAnimeManga",
-  "countryDiversity",
-  "genreDiversity",
-  "formatPreferenceOverview",
-  "releaseEraPreference",
-  "startYearMomentum",
-  "lengthPreference",
-  "tagCategoryDistribution",
-  "tagDiversity",
-  "seasonalViewingPatterns",
-  "droppedMedia",
-  "reviewStats",
-  "studioCollaboration",
-]);
+/** Whitelist of supported card types the API will render, from the card registry. @source */
+const ALLOWED_CARD_TYPES = new Set<string>(
+  CARD_REGISTRY.map((card) => card.id),
+);
 
 /**
  * Generate the error SVG returned for a failed card request.

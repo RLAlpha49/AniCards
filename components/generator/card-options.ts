@@ -34,7 +34,9 @@ export type CardSelection = Readonly<{
 }>;
 
 /** Card types keyed by card id. @source */
-const CARD_BY_ID = new Map(CARD_TYPES.map((card) => [card.id, card]));
+const CARD_BY_ID = new Map<string, CardType>(
+  CARD_TYPES.map((card) => [card.id, card]),
+);
 
 /**
  * Looks a card type up by card id.
