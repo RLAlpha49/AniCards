@@ -1,0 +1,471 @@
+.overlay,
+.plate {
+  --paper: #f3e9d5;
+  --paper-deep: #e8dcc3;
+  --paper-raise: #fbf4e5;
+  --ink: #191512;
+  --ink-soft: #4d443a;
+  --ink-faint: rgba(25, 21, 18, 0.68);
+  --line: rgba(25, 21, 18, 0.2);
+  --line-strong: rgba(25, 21, 18, 0.4);
+  --vermillion: #b83a24;
+  --vermillion-wash: rgba(184, 58, 36, 0.14);
+  --hatch: rgba(25, 21, 18, 0.05);
+  --plate-shadow: rgba(25, 21, 18, 0.4);
+}
+
+:global(.dark) .overlay,
+:global(.dark) .plate {
+  --paper: #16120f;
+  --paper-deep: #1e1915;
+  --paper-raise: #221c17;
+  --ink: #ece1c9;
+  --ink-soft: #b6a88f;
+  --ink-faint: rgba(236, 225, 201, 0.72);
+  --line: rgba(236, 225, 201, 0.2);
+  --line-strong: rgba(236, 225, 201, 0.4);
+  --vermillion: #d4573c;
+  --vermillion-wash: rgba(212, 87, 60, 0.16);
+  --hatch: rgba(236, 225, 201, 0.045);
+  --plate-shadow: rgba(0, 0, 0, 0.8);
+}
+
+/* ── veil ────────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background-color: color-mix(in srgb, var(--paper) 86%, transparent);
+  background-image:
+    repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 11px),
+    radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgba(166, 124, 51, 0.2),
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 70% 60% at 50% 100%,
+      rgba(184, 58, 36, 0.12),
+      transparent 70%
+    );
+  backdrop-filter: blur(5px) saturate(0.92);
+  animation: veilIn 220ms ease backwards;
+}
+
+:global(.dark) .overlay {
+  background-image:
+    repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 11px),
+    radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgba(198, 154, 82, 0.14),
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 70% 60% at 50% 100%,
+      rgba(212, 87, 60, 0.12),
+      transparent 70%
+    );
+}
+
+.overlay[data-state="closed"] {
+  animation: veilOut 160ms ease forwards;
+}
+
+/* ── plate ───────────────────────────────────────────────────── */
+
+.plate {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 91;
+  translate: -50% -50%;
+  display: grid;
+  width: min(calc(100vw - 2rem), 30rem);
+  max-height: calc(100dvh - 2rem);
+  border: 1px solid var(--line-strong);
+  outline: 1px solid var(--line);
+  outline-offset: 4px;
+  background: linear-gradient(165deg, var(--paper-raise), var(--paper-deep));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    9px 9px 0 var(--vermillion-wash),
+    0 34px 60px -26px var(--plate-shadow);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "palt" 1;
+  animation: plateIn 360ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+/* The plate clips its own contents so its gradients and border stay crisp, but
+   the seal has to hang over the corner. The body therefore owns the scroll and
+   the seal lives outside it. */
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem 1.6rem 1.4rem;
+}
+
+:global(.dark) .plate {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    9px 9px 0 var(--vermillion-wash),
+    0 34px 60px -26px var(--plate-shadow);
+}
+
+.plate[data-state="closed"] {
+  animation: plateOut 160ms ease forwards;
+}
+
+/* The seal hangs over the top-right corner, the way 刷 and 再 do on the
+   generating cover. 誤 (error) reads at a glance and needs no copy. */
+.seal {
+  position: absolute;
+  top: -1rem;
+  right: -1rem;
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  rotate: 6deg;
+  outline: 1px solid rgba(248, 239, 220, 0.4);
+  outline-offset: -5px;
+  background: var(--vermillion);
+  color: #f8efdc;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.5rem;
+  line-height: 1;
+  box-shadow: 0 12px 22px -12px rgba(184, 58, 36, 0.9);
+  animation: sealStamp 520ms cubic-bezier(0.22, 0.8, 0.3, 1) 180ms backwards;
+}
+
+/* Edition line: what kind of stop this is, then whether it can be retried. */
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0 2.4rem 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.56rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.rule {
+  flex: 1 1 0;
+  min-width: 0.75rem;
+  height: 1px;
+  background: var(--line);
+}
+
+.title {
+  margin-top: 1.05rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.35rem, 3.4vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.note {
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+/* ── recovery suggestions ───────────────────────────────────── */
+
+.suggestions {
+  margin-top: 1.3rem;
+}
+
+.suggestionsHead {
+  font-size: 0.56rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  list-style: none;
+  counter-reset: step;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  border: 1px solid var(--line);
+  padding: 0.7rem 0.8rem;
+  background: color-mix(in srgb, var(--paper-raise) 62%, transparent);
+  counter-increment: step;
+  animation: rowIn 380ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.item:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.item:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.item:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+/* Printed step numerals instead of bullet glyphs. */
+.item::before {
+  content: counter(step, decimal-leading-zero);
+  padding-top: 0.1rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--vermillion);
+}
+
+.itemTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.itemNote {
+  margin-top: 0.25rem;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.itemLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  border-bottom: 1px solid var(--vermillion);
+  padding-bottom: 0.1rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.itemLink svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  transition: transform 180ms ease;
+}
+
+.itemLink:hover svg,
+.itemLink:focus-visible svg {
+  transform: translateX(3px);
+}
+
+/* ── actions ────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1.35rem;
+  padding-top: 1.05rem;
+  border-top: 1px solid var(--line);
+}
+
+.quiet {
+  border-bottom: 1px solid transparent;
+  padding: 0.6rem 0.15rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.quiet:hover,
+.quiet:focus-visible {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Same fill-and-hard-shadow button as the closing CTA, so the pressed look is
+   consistent across the site. */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 2px solid var(--vermillion);
+  background: var(--vermillion);
+  padding: 0.68rem 1.45rem;
+  color: #fbf3e2;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 0 var(--ink);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.primary:hover,
+.primary:focus-visible {
+  background-color: color-mix(in srgb, var(--vermillion) 86%, var(--ink));
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.primary:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.primary svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: rotate 320ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.primary:hover svg,
+.primary:focus-visible svg {
+  rotate: -40deg;
+}
+
+.quiet:focus-visible,
+.primary:focus-visible,
+.itemLink:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── motion ─────────────────────────────────────────────────── */
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes veilOut {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The plate is centred with `translate`, so the entrance animates `scale`
+   instead; animating `translate` would fight the centring. */
+@keyframes plateIn {
+  from {
+    opacity: 0;
+    scale: 0.97 0.97;
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    scale: 1 1;
+    filter: none;
+  }
+}
+
+@keyframes plateOut {
+  to {
+    opacity: 0;
+    scale: 0.985 0.985;
+  }
+}
+
+@keyframes sealStamp {
+  from {
+    opacity: 0;
+    scale: 1.6 1.6;
+  }
+  to {
+    opacity: 1;
+    scale: 1 1;
+  }
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .plate,
+  .seal,
+  .item,
+  .overlay[data-state="closed"],
+  .plate[data-state="closed"] {
+    animation: none;
+  }
+}
+
+/* On a phone the plate runs nearly edge to edge, so the seal tucks into the
+   corner rather than hanging past the viewport. */
+@media (max-width: 420px) {
+  .body {
+    padding: 1.3rem 1.15rem 1.2rem;
+  }
+
+  .plate {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      6px 6px 0 var(--vermillion-wash),
+      0 30px 54px -26px var(--plate-shadow);
+  }
+
+  :global(.dark) .plate {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      6px 6px 0 var(--vermillion-wash),
+      0 30px 54px -26px var(--plate-shadow);
+  }
+
+  .seal {
+    top: -0.65rem;
+    right: -0.45rem;
+    width: 2.6rem;
+    height: 2.6rem;
+    font-size: 1.3rem;
+  }
+
+  .edition {
+    gap: 0.5rem;
+    padding-right: 1.9rem;
+    letter-spacing: 0.18em;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .quiet,
+  .primary {
+    justify-content: center;
+  }
+}

@@ -1,18 +1,12 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
-import { AlertCircle, ChevronRight, RotateCcw } from "@/lib/icons";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { ArrowRight, RotateCcw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { trackError, safeTrack } from "@/lib/utils/google-analytics";
 import { useEffect } from "react";
 import type { RecoverySuggestion } from "@/lib/error-messages";
+import styles from "./ErrorPopup.module.css";
 
 /**
  * Props for the error dialog component.
@@ -38,36 +32,30 @@ interface ErrorPopupProps {
 }
 
 /**
- * Individual recovery suggestion component.
+ * One numbered recovery step on the error plate.
  * @source
  */
-function RecoverySuggestionItem({
+function RecoveryStep({
   suggestion,
-}: Readonly<{
-  suggestion: RecoverySuggestion;
-}>) {
+}: Readonly<{ suggestion: RecoverySuggestion }>) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-      <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500 dark:text-blue-400" />
-      <div className="flex-1">
-        <h4 className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          {suggestion.title}
-        </h4>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-          {suggestion.description}
-        </p>
+    <li className={styles.item}>
+      <div>
+        <h4 className={styles.itemTitle}>{suggestion.title}</h4>
+        <p className={styles.itemNote}>{suggestion.description}</p>
         {suggestion.actionUrl && suggestion.actionLabel && (
           <a
             href={suggestion.actionUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-block text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            className={styles.itemLink}
           >
-            {suggestion.actionLabel} →
+            {suggestion.actionLabel}
+            <ArrowRight aria-hidden="true" />
           </a>
         )}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -97,62 +85,62 @@ export function ErrorPopup({
   }, [isOpen, title, description]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      {/* Dialog styling: red border for emphasis, accepts additional classes. */}
-      <DialogContent
-        className={cn("border-red-500 sm:max-w-[500px]", className)}
-      >
-        <DialogHeader>
-          {/* Error header with icon and title */}
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-6 w-6 flex-shrink-0 text-red-500" />
-            <DialogTitle className="text-red-500">{title}</DialogTitle>
-          </div>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={onClose}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className={styles.overlay} />
+        <DialogPrimitive.Content className={cn(styles.plate, className)}>
+          {/* Seal: 誤 (error), reading at a glance without any copy. */}
+          <span className={styles.seal} aria-hidden="true">
+            誤
+          </span>
 
-          {/* Error description - uses text-foreground for better readability */}
-          <DialogDescription className="text-foreground pt-2">
-            {description}
-          </DialogDescription>
-        </DialogHeader>
+          <div className={styles.body}>
+            <p className={styles.edition}>
+              <span>Errata</span>
+              <span className={styles.rule} aria-hidden="true" />
+              <span>{isRetryable ? "Retryable" : "Not retryable"}</span>
+            </p>
 
-        {/* Recovery suggestions section */}
-        {suggestions && suggestions.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              What you can do:
-            </h3>
-            <div className="space-y-2">
-              {suggestions.map((suggestion, index) => (
-                <RecoverySuggestionItem
-                  key={`${suggestion.title}-${index}`}
-                  suggestion={suggestion}
-                />
-              ))}
+            <DialogPrimitive.Title className={styles.title}>
+              {title}
+            </DialogPrimitive.Title>
+
+            <DialogPrimitive.Description className={styles.note}>
+              {description}
+            </DialogPrimitive.Description>
+
+            {suggestions && suggestions.length > 0 && (
+              <div className={styles.suggestions}>
+                <h3 className={styles.suggestionsHead}>What you can do</h3>
+                <ol className={styles.list}>
+                  {suggestions.map((suggestion, index) => (
+                    <RecoveryStep
+                      key={`${suggestion.title}-${index}`}
+                      suggestion={suggestion}
+                    />
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            <div className={styles.actions}>
+              <DialogPrimitive.Close className={styles.quiet}>
+                Close
+              </DialogPrimitive.Close>
+              {isRetryable && onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className={styles.primary}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Try Again
+                </button>
+              )}
             </div>
           </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="flex-1 sm:flex-none"
-          >
-            Close
-          </Button>
-          {isRetryable && onRetry && (
-            <Button
-              variant="default"
-              onClick={onRetry}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 sm:flex-none dark:bg-blue-600 dark:hover:bg-blue-700"
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Try Again
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
