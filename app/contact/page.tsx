@@ -1,8 +1,8 @@
 "use client";
 
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PaperSurface } from "@/components/PaperSurface";
-import { SeigaihaDivider } from "@/components/SeigaihaDivider";
+import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
+import { PaperSurface } from "@/components/primitives/PaperSurface";
+import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { ContactHero } from "@/components/contact/ContactHero";
 import { ContactDesk } from "@/components/contact/ContactDesk";

@@ -1,6 +1,6 @@
 "use client";
 
-import { CardPreviewImage } from "@/components/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
 import { SavedCardActions } from "./SavedCardActions";
 import type { SavedCard } from "./types";
 import styles from "./user.module.css";

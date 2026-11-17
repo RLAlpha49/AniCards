@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PaperSurface } from "@/components/PaperSurface";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
+import { PaperSurface } from "@/components/primitives/PaperSurface";
+import { LoadingSpinner } from "@/components/feedback/LoadingSpinner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { SearchHero } from "@/components/search/SearchHero";
 import styles from "@/components/search/search.module.css";

@@ -7,8 +7,8 @@ import {
   trackNavigation,
   safeTrack,
 } from "@/lib/analytics/google-analytics";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PaperSurface } from "@/components/PaperSurface";
+import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
+import { PaperSurface } from "@/components/primitives/PaperSurface";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PreviewShowcase } from "@/components/home/PreviewShowcase";
 import { FeaturesSection } from "@/components/home/FeaturesSection";

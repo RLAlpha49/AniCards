@@ -7,7 +7,7 @@ import {
 } from "@/lib/seo";
 import { UserPageClient } from "@/components/user/UserPageClient";
 import { UserPageState } from "@/components/user/UserPageState";
-import { PaperSurface } from "@/components/PaperSurface";
+import { PaperSurface } from "@/components/primitives/PaperSurface";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.

@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStatCardSubmit } from "@/hooks/useStatCardSubmit";
 import { useGeneratorDraft } from "@/hooks/useGeneratorDraft";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { ErrorPopup } from "@/components/ErrorPopup";
-import { PaperSurface } from "@/components/PaperSurface";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorPopup } from "@/components/feedback/ErrorPopup";
+import { PaperSurface } from "@/components/primitives/PaperSurface";
+import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
 import { List, Sparkles } from "@/lib/icons";
 import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
 import {

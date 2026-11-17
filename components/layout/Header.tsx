@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import DarkModeToggle from "@/components/DarkModeToggle";
-import { MastheadMenu, MastheadNav } from "@/components/MastheadNav";
+import DarkModeToggle from "@/components/theme/DarkModeToggle";
+import { MastheadMenu, MastheadNav } from "./MastheadNav";
 import { cn } from "@/lib/cn";
 
 /**

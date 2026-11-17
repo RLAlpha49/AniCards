@@ -1,6 +1,6 @@
 "use client";
 
-import { CardPreviewImage } from "@/components/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
 import homeStyles from "@/components/home/home.module.css";
