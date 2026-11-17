@@ -10,7 +10,7 @@ import {
   buildAnalyticsMetricKey,
   jsonWithCors,
 } from "@/lib/api-utils";
-import { invalidateSvgCache } from "@/lib/stores/svg-cache";
+import { invalidateSvgCache } from "@/lib/server/svg-cache";
 import { saveCardsRecord } from "@/lib/api/store-cards/save-cards";
 
 /**

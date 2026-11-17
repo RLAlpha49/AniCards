@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
+import { createBackwardCompatibleStorage } from "@/lib/client/storage-adapter";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/card-style";
 import type { ColorValue } from "@/lib/types/card";
 

@@ -25,7 +25,7 @@ import {
   buildCardConfigFromParams,
   processFavorites,
 } from "@/lib/card-data";
-import { generateCacheKey } from "@/lib/stores/svg-cache";
+import { generateCacheKey } from "@/lib/server/svg-cache";
 import { buildCardUrlProfile } from "@/lib/server/url-usage";
 import type { CardRequestMetrics } from "@/lib/server/card-metrics";
 import type { StoredCardConfig, UserRecord } from "@/lib/types/records";

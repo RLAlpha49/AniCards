@@ -11,7 +11,7 @@ import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import {
   getSvgFromMemoryCache,
   setSvgInMemoryCache,
-} from "@/lib/stores/svg-cache";
+} from "@/lib/server/svg-cache";
 import { trackUserActionError } from "@/lib/error-tracking";
 import {
   createCardRequestMetrics,

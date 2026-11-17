@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
+import { createBackwardCompatibleStorage } from "@/lib/client/storage-adapter";
 
 /**
  * State shape for user preferences.

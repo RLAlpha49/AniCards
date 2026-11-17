@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCardSettings, useUserPreferences } from "@/lib/stores";
+import { useCardSettings, useUserPreferences } from "@/lib/client";
 import { colorPresets } from "@/lib/card-catalogue";
 import {
   FAVOURITE_CARD_TYPES,

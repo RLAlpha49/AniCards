@@ -1,7 +1,7 @@
 /**
- * Barrel export for all Zustand stores.
+ * Barrel export for all browser-side Zustand stores.
  * Provides a single import point for all stores:
- * `import { useCardSettings, useUserPreferences } from '@/lib/stores'`
+ * `import { useCardSettings, useUserPreferences } from '@/lib/client'`
  * @source
  */
 

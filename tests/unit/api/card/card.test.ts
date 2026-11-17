@@ -8,7 +8,7 @@ import {
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
 } from "@/tests/unit/__setup__";
-import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
+import { clearSvgCache, clearUserRequestStats } from "@/lib/server/svg-cache";
 import { splitUserRecord } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
 import type { UserDataPart } from "@/lib/server/user-data";
