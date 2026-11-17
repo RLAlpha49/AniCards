@@ -14,11 +14,7 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { fitCardText } from "@/lib/svg-templates/common/text-metrics";
-import {
-  fitStatusText,
-  getDimensions,
-  getMediaTitle,
-} from "./shared";
+import { fitStatusText, getDimensions, getMediaTitle } from "./shared";
 
 /** Planning backlog card input structure. @source */
 interface PlanningBacklogInput {

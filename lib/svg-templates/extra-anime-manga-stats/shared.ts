@@ -232,11 +232,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
           Math.max(0, defaultValueX - defaultValueWidth - 12),
           "stat",
         ) +
-        createFittedValue(
-          String(stat.count),
-          defaultValueX,
-          defaultValueWidth,
-        );
+        createFittedValue(String(stat.count), defaultValueX, defaultValueWidth);
 
       return createStaggeredGroup(
         `translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})`,
@@ -622,7 +618,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
           140,
           Math.max(
             ...data.stats.map((stat) =>
-              estimateCardTextWidth(String(stat.count), TYPOGRAPHY.STAT_SIZE, 600),
+              estimateCardTextWidth(
+                String(stat.count),
+                TYPOGRAPHY.STAT_SIZE,
+                600,
+              ),
             ),
           ),
         );

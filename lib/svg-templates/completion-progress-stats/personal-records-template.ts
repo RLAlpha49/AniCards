@@ -13,11 +13,7 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
-import {
-  fitStatusText,
-  getDimensions,
-  getMediaTitle,
-} from "./shared";
+import { fitStatusText, getDimensions, getMediaTitle } from "./shared";
 
 /** Personal records card input structure. @source */
 interface PersonalRecordsInput {
@@ -112,7 +108,10 @@ export function personalRecordsTemplate(
     const score = entry?.score ?? 0;
     if (!entry || score <= 0) return { value: "—", missing: true };
     const titleText = getMediaTitle(entry);
-    return { value: `${escapeForXml(titleText)} (${escapeForXml(score)}/10)`, missing: false };
+    return {
+      value: `${escapeForXml(titleText)} (${escapeForXml(score)}/10)`,
+      missing: false,
+    };
   };
 
   const longestAnimeRow = longestAnime?.media.episodes

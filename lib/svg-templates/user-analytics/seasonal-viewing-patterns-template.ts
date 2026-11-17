@@ -49,24 +49,26 @@ function estimateTitleWidth(text: string, fontSize: number): number {
   ];
   return Array.from(text).reduce((width, character) => {
     const originalCode = character.codePointAt(0) ?? 0;
-    const code = originalCode <= 0x024f
-      ? (character.normalize("NFD").codePointAt(0) ?? originalCode)
-      : originalCode;
-    const factor = code >= 65 && code <= 90
-      ? uppercase[code - 65]
-      : code >= 97 && code <= 122
-        ? lowercase[code - 97]
-        : code >= 48 && code <= 57
-          ? digits[code - 48]
-          : /[ .,':;]/u.test(character)
-            ? 0.275
-            : (code >= 0x2e80 && code <= 0xd7ff) ||
-                (code >= 0xf900 && code <= 0xfaff) ||
-                (code >= 0x20000 && code <= 0x3ffff)
-              ? 1
-              : code > 0x7f
-                ? 1.5
-                : 1;
+    const code =
+      originalCode <= 0x024f
+        ? (character.normalize("NFD").codePointAt(0) ?? originalCode)
+        : originalCode;
+    const factor =
+      code >= 65 && code <= 90
+        ? uppercase[code - 65]
+        : code >= 97 && code <= 122
+          ? lowercase[code - 97]
+          : code >= 48 && code <= 57
+            ? digits[code - 48]
+            : /[ .,':;]/u.test(character)
+              ? 0.275
+              : (code >= 0x2e80 && code <= 0xd7ff) ||
+                  (code >= 0xf900 && code <= 0xfaff) ||
+                  (code >= 0x20000 && code <= 0x3ffff)
+                ? 1
+                : code > 0x7f
+                  ? 1.5
+                  : 1;
     return width + factor * fontSize;
   }, 0);
 }
