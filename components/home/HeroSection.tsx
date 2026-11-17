@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowRight, Play } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { CardPreviewImage } from "@/components/CardPreviewImage";
 import { SeigaihaDivider } from "@/components/SeigaihaDivider";
 import styles from "./home.module.css";

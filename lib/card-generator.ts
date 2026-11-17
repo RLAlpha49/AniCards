@@ -1,5 +1,5 @@
-import { calculateMilestones } from "@/lib/utils/milestones";
-import { extractStyles } from "@/lib/utils";
+import { calculateMilestones } from "@/lib/stats/milestones";
+import { extractStyles } from "@/lib/card-style";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
 import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
 import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";

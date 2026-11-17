@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { clampBorderRadius, validateBorderRadius } from "@/lib/utils";
+import { clampBorderRadius, validateBorderRadius } from "@/lib/card-style";
 import type { ColorValue } from "@/lib/types/card";
 import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";

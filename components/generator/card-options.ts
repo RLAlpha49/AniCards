@@ -15,7 +15,7 @@ import type { CardType } from "@/components/examples/card-types";
 import { colorPresets } from "@/lib/card-catalogue";
 import type { ColorValue } from "@/lib/types/card";
 import type { StoredCardConfig } from "@/lib/types/records";
-import { isGradient } from "@/lib/utils";
+import { isGradient } from "@/lib/color/gradients";
 
 /**
  * Every card the generator can render.

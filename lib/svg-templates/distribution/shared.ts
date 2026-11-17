@@ -20,13 +20,10 @@ import {
   type CardFontWeight,
 } from "@/lib/svg-templates/common/text-metrics";
 
-import {
-  getCardBorderRadius,
-  processColorsForSVG,
-  escapeForXml,
-  markTrustedSvg,
-  toFiniteNumber,
-} from "@/lib/utils";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { toFiniteNumber } from "@/lib/numbers";
 import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */

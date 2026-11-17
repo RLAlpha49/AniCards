@@ -7,12 +7,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import { copyToClipboard, svgToPng, type ConversionFormat } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/browser";
+import { svgToPng, type ConversionFormat } from "@/lib/export/batch";
 import {
   safeTrack,
   trackCardDownload,
   trackCopyAction,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import { cardAnilistLine, cardSvgLink } from "./saved-card-links";
 import type { SavedCard } from "./types";
 import styles from "./user.module.css";

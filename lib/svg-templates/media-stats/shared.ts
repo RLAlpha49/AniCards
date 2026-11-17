@@ -12,14 +12,11 @@ import {
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
 
-import {
-  calculateDynamicFontSize,
-  processColorsForSVG,
-  getCardBorderRadius,
-  escapeForXml,
-  markTrustedSvg,
-  toFiniteNumber,
-} from "@/lib/utils";
+import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import { processColorsForSVG } from "@/lib/color/gradients";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { toFiniteNumber } from "@/lib/numbers";
 import {
   ANIMATION,
   POSITIONING,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, ExternalLink } from "@/lib/icons";
 import { CardPreviewImage } from "@/components/CardPreviewImage";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import styles from "./card-examples.module.css";
 import type { CardType, CardVariation } from "./card-types";
 

@@ -13,7 +13,7 @@ import { splitUserRecord } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
 import type { UserDataPart } from "@/lib/server/user-data";
 
-mock.module("@/lib/utils/milestones", () => ({
+mock.module("@/lib/stats/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 

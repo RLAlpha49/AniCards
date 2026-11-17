@@ -9,17 +9,16 @@ import {
 } from "@/components/ui/Popover";
 import {
   batchConvertAndZip,
-  cn,
-  copyToClipboard,
-  getAbsoluteUrl,
   type BatchConversionProgress,
   type ConversionFormat,
-} from "@/lib/utils";
+} from "@/lib/export/batch";
+import { cn } from "@/lib/cn";
+import { copyToClipboard, getAbsoluteUrl } from "@/lib/browser";
 import {
   safeTrack,
   trackBatchExport,
   trackCopyAction,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import { cardAnilistLine, cardSvgLink } from "./saved-card-links";
 import type { SavedCard } from "./types";
 import styles from "./user.module.css";

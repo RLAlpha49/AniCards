@@ -11,13 +11,10 @@ import {
   resolveCircleBaseColor,
 } from "@/lib/svg-templates/common";
 
-import {
-  calculateDynamicFontSize,
-  getCardBorderRadius,
-  processColorsForSVG,
-  escapeForXml,
-  markTrustedSvg,
-} from "@/lib/utils";
+import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import type { ColorValue } from "@/lib/types/card";
 
 import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";

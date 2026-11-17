@@ -4,7 +4,7 @@ import {
   checkRateLimit,
   getClientIp,
 } from "@/lib/api-utils";
-import { markTrustedSvg } from "@/lib/utils";
+import { markTrustedSvg } from "@/lib/svg-markup";
 import generateCardSvg from "@/lib/card-generator";
 import { CardDataError } from "@/lib/card-data";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";

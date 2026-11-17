@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronUp } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
-import { safeTrack, trackButtonClick } from "@/lib/utils/google-analytics";
+import { cn } from "@/lib/cn";
+import { safeTrack, trackButtonClick } from "@/lib/analytics/google-analytics";
 import styles from "./PageCta.module.css";
 
 /**

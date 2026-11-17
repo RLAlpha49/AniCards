@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, List, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import styles from "./generator.module.css";
 
 /** One step the generator walks through. @source */

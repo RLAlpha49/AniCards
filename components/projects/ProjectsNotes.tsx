@@ -2,7 +2,7 @@
 
 import { ShieldCheck } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import homeStyles from "@/components/home/home.module.css";
 import { SHARED_NOTES } from "./catalogue";
 import styles from "./projects.module.css";

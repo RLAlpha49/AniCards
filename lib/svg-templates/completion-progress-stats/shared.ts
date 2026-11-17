@@ -1,5 +1,5 @@
 import type { MediaListEntry } from "@/lib/types/records";
-import { escapeForXml } from "@/lib/utils";
+import { escapeForXml } from "@/lib/svg-markup";
 import { ANIMATION } from "@/lib/svg-templates/common/constants";
 import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
 import {

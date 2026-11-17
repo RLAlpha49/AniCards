@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, ExternalLink } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { SectionHeading } from "@/components/home/SectionHeading";
 import homeStyles from "@/components/home/home.module.css";
 import styles from "./user.module.css";

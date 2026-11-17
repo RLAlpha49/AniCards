@@ -7,7 +7,7 @@ import {
   safeTrack,
   trackButtonClick,
   trackNavigation,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 
 /**
  * Closing block for the contact page.

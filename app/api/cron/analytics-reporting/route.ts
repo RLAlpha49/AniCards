@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import type { Redis as UpstashRedis } from "@upstash/redis";
-import { safeParse } from "@/lib/utils";
+import { safeParse } from "@/lib/json";
 
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
 const ANALYTICS_REPORTS_LOCK_KEY = "cron:analytics-reporting:lock";

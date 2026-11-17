@@ -14,7 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-sans" });
 

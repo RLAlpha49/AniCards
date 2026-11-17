@@ -5,12 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaperSurface } from "@/components/PaperSurface";
 import { displayNames } from "@/lib/card-data/validation";
-import {
-  getCardBorderRadius,
-  getResponseErrorMessage,
-  isGradient,
-  parseResponsePayload,
-} from "@/lib/utils";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { getResponseErrorMessage, parseResponsePayload } from "@/lib/response";
+import { isGradient } from "@/lib/color/gradients";
 import {
   VARIATION_LABEL_MAP,
   buildCardUrlWithParams,

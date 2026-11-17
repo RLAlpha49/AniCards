@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   type HugeIcon,
 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   FAVOURITE_CARD_TYPES,
   findCardType,

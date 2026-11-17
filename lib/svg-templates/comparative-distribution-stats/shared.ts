@@ -18,13 +18,10 @@ import {
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-import {
-  calculateDynamicFontSize,
-  escapeForXml,
-  getCardBorderRadius,
-  markTrustedSvg,
-  processColorsForSVG,
-} from "@/lib/utils";
+import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
 
 export type ComparativeMetricRow = {
   label: string;

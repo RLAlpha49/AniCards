@@ -1,4 +1,4 @@
-import { calculateMilestones } from "@/lib/utils/milestones";
+import { calculateMilestones } from "@/lib/stats/milestones";
 import {
   UserRecord,
   UserStatsData,

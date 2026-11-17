@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowDown, ArrowRight } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   safeTrack,
   trackButtonClick,
   trackNavigation,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/home/home.module.css";
 import { HERO_FACTS, START_ROUTES, type StartRoute } from "./catalogue";
 import styles from "./projects.module.css";

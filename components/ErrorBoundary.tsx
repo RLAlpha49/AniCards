@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { AlertCircle, Home, RefreshCw } from "@/lib/icons";
 import { Button } from "@/components/ui/Button";
-import { trackError, safeTrack } from "@/lib/utils/google-analytics";
-import { cn } from "@/lib/utils";
+import { trackError, safeTrack } from "@/lib/analytics/google-analytics";
+import { cn } from "@/lib/cn";
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 

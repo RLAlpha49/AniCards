@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { CardPreviewImage } from "@/components/CardPreviewImage";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Eye } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   buildCardPreviewUrl,
   findCardType,

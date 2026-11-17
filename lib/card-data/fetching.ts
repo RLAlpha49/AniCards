@@ -3,7 +3,7 @@ import {
   incrementAnalyticsInBackground,
   buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
-import { safeParse } from "@/lib/utils";
+import { safeParse } from "@/lib/json";
 import { UserRecord, CardsRecord } from "@/lib/types/records";
 import { CardDataError } from "./validation";
 import {

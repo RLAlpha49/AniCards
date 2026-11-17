@@ -2,7 +2,7 @@
 
 import { ArrowRight } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { SectionHeading } from "./SectionHeading";
 import styles from "./home.module.css";
 

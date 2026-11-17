@@ -9,13 +9,10 @@ import {
 } from "@/lib/svg-templates/common";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
-import {
-  calculateDynamicFontSize,
-  escapeForXml,
-  getCardBorderRadius,
-  markTrustedSvg,
-  processColorsForSVG,
-} from "@/lib/utils";
+import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   type ComparativeBarRow,
   type ComparativeMetricRow,

@@ -4,13 +4,13 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, Hash, Search, User } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   safeTrack,
   trackFormSubmission,
   trackNavigation,
   trackUserSearch,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import { LookupField } from "./LookupField";
 import styles from "./search.module.css";
 

@@ -1,4 +1,4 @@
-import { escapeForXml } from "@/lib/utils";
+import { escapeForXml } from "@/lib/svg-markup";
 import type {
   GroupOptions,
   RectOptions,

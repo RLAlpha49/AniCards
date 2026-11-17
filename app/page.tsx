@@ -6,7 +6,7 @@ import {
   trackButtonClick,
   trackNavigation,
   safeTrack,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaperSurface } from "@/components/PaperSurface";
 import { HeroSection } from "@/components/home/HeroSection";

@@ -3,11 +3,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
+import { validateBorderRadius } from "@/lib/card-style";
 import {
-  validateBorderRadius,
   validateColorValue,
   getColorInvalidReason,
-} from "@/lib/utils";
+} from "@/lib/color/gradients";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import { logRequest } from "@/lib/server/api-logging";
 export { logRequest, logSuccess } from "@/lib/server/api-logging";

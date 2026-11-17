@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { ArrowRight, ExternalLink, Search, X } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import homeStyles from "@/components/home/home.module.css";
 import styles from "./card-examples.module.css";
 import type { GroupSummary } from "./card-types";

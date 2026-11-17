@@ -4,12 +4,13 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, ExternalLink, RefreshCw } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn, copyToClipboard, getAbsoluteUrl } from "@/lib/utils";
+import { cn } from "@/lib/cn";
+import { copyToClipboard, getAbsoluteUrl } from "@/lib/browser";
 import {
   safeTrack,
   trackCopyAction,
   trackExternalLinkClick,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/home/home.module.css";
 import styles from "./user.module.css";
 

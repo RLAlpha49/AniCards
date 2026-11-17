@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, RefreshCw, Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import styles from "./user.module.css";
 
 type UserPageStateProps = Readonly<{

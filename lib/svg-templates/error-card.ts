@@ -1,4 +1,4 @@
-import { escapeForXml, markTrustedSvg } from "@/lib/utils";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import type { TrustedSVG } from "@/lib/types/svg";
 
 /**

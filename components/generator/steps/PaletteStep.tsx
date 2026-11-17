@@ -2,7 +2,8 @@
 
 import { useId, useMemo, useState } from "react";
 import { Check, CornerDownRight, Layers, RotateCcw } from "@/lib/icons";
-import { cn, isGradient } from "@/lib/utils";
+import { cn } from "@/lib/cn";
+import { isGradient } from "@/lib/color/gradients";
 import type {
   ColorValue,
   GradientDefinition,

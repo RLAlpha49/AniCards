@@ -5,7 +5,10 @@ import { useTheme } from "next-themes";
 import { motion } from "motion/react";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { Sun, Moon } from "@/lib/icons";
-import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
+import {
+  trackSettingsChanged,
+  safeTrack,
+} from "@/lib/analytics/google-analytics";
 
 /**
  * Interactive toggle to switch between light and dark themes.

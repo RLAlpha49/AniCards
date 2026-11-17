@@ -1,4 +1,4 @@
-import { getAbsoluteUrl } from "@/lib/utils";
+import { getAbsoluteUrl } from "@/lib/browser";
 import type { SavedCard } from "./types";
 
 /** Stands in for the origin when a relative URL has to be parsed. @source */

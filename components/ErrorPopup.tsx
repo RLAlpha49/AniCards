@@ -2,8 +2,8 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowRight, RotateCcw } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { trackError, safeTrack } from "@/lib/utils/google-analytics";
+import { cn } from "@/lib/cn";
+import { trackError, safeTrack } from "@/lib/analytics/google-analytics";
 import { useEffect } from "react";
 import type { RecoverySuggestion } from "@/lib/error-messages";
 import styles from "./ErrorPopup.module.css";

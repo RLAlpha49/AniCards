@@ -10,11 +10,9 @@ import {
   findCardType,
   type CardSelection,
 } from "@/components/generator/card-options";
-import {
-  clampBorderRadius,
-  isValidHexColor,
-  validateColorValue,
-} from "@/lib/utils";
+import { clampBorderRadius } from "@/lib/card-style";
+import { isValidHexColor } from "@/lib/color/convert";
+import { validateColorValue } from "@/lib/color/gradients";
 import type { ColorValue } from "@/lib/types/card";
 
 /** Border colour used when the generator first turns a frame on. @source */

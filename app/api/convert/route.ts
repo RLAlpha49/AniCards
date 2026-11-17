@@ -6,7 +6,8 @@ import {
   jsonWithCors,
   getClientIp,
 } from "@/lib/api-utils";
-import { resolveApiBase, type ConversionFormat } from "@/lib/utils";
+import { resolveApiBase } from "@/lib/api/base-url";
+import { type ConversionFormat } from "@/lib/export/batch";
 import { optimizeSvgMarkup } from "@/lib/api/convert/css-optimizer";
 
 /**

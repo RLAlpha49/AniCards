@@ -13,7 +13,10 @@ import {
   doesCardSvgOriginVary,
   runAfterResponse,
 } from "@/lib/api-utils";
-import { getCardBorderRadius, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+import {
+  getCardBorderRadius,
+  DEFAULT_CARD_BORDER_RADIUS,
+} from "@/lib/card-style";
 import { buildErrorCardSvg } from "@/lib/svg-templates/error-card";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 import { recordUserCardRequest } from "@/lib/server/user-activity";

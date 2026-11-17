@@ -1,4 +1,4 @@
-import { clampBorderRadius } from "@/lib/utils";
+import { clampBorderRadius } from "@/lib/card-style";
 import { colorPresets } from "@/lib/card-catalogue";
 import { StoredCardConfig, CardsRecord, UserRecord } from "@/lib/types/records";
 import { ColorValue } from "@/lib/types/card";

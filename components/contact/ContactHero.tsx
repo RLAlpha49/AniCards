@@ -2,7 +2,7 @@
 
 import { CardPreviewImage } from "@/components/CardPreviewImage";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import homeStyles from "@/components/home/home.module.css";
 import styles from "./contact.module.css";
 

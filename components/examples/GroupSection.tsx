@@ -1,7 +1,7 @@
 "use client";
 
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import homeStyles from "@/components/home/home.module.css";
 import styles from "./card-examples.module.css";
 import { CardTypePreview } from "./CardTypePreview";

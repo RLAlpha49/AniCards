@@ -7,7 +7,7 @@ import {
   getClientIp,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
+import { safeParse } from "@/lib/json";
 
 /**
  * Serves cached card configurations for the requested user from Redis.

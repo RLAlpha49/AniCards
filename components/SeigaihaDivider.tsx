@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import styles from "./SeigaihaDivider.module.css";
 
 /**

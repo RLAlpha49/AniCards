@@ -7,13 +7,10 @@ import {
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 
-import {
-  calculateDynamicFontSize,
-  processColorsForSVG,
-  getCardBorderRadius,
-  escapeForXml,
-  markTrustedSvg,
-} from "../utils";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
+import { calculateDynamicFontSize } from "./common/text-metrics";
 import { estimateCardTextWidth } from "./common/text-metrics";
 
 /**

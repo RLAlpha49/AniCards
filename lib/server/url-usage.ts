@@ -11,7 +11,7 @@
 
 import { redisClient } from "@/lib/api-utils";
 import { colorPresets } from "@/lib/card-catalogue";
-import { clampBorderRadius } from "@/lib/utils";
+import { clampBorderRadius } from "@/lib/card-style";
 import type { CardConfigClassification } from "@/lib/card-data/config";
 
 /** Redis key prefix for daily card URL profile buckets. @source */

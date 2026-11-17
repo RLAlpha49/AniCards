@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { NAV_ITEMS } from "@/lib/navigation";
 import { Menu } from "@/lib/icons";
-import { trackNavigation, safeTrack } from "@/lib/utils/google-analytics";
+import { trackNavigation, safeTrack } from "@/lib/analytics/google-analytics";
 import {
   Sheet,
   SheetClose,

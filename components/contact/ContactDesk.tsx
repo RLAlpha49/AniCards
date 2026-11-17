@@ -6,7 +6,7 @@ import {
   safeTrack,
   trackExternalLinkClick,
   trackFormSubmission,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import {
   CONTACT_INTENTS,
   DEFAULT_INTENT_ID,

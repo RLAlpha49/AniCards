@@ -19,7 +19,8 @@ import {
   redisClient,
   buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
-import { clampBorderRadius, safeParse } from "@/lib/utils";
+import { clampBorderRadius } from "@/lib/card-style";
+import { safeParse } from "@/lib/json";
 import { isValidCardType } from "@/lib/card-data/validation";
 
 /**

@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl } from "@/lib/api/base-url";
 import { colorPresets } from "@/lib/card-catalogue";
 import type { CardId, VariationDef } from "@/lib/cards/registry";
 import { CARD_REGISTRY } from "@/lib/cards/registry";

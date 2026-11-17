@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { ArrowRight, GithubBrand } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   safeTrack,
   trackButtonClick,
   trackExternalLinkClick,
   trackNavigation,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/home/home.module.css";
 import type { Project } from "./catalogue";
 import styles from "./projects.module.css";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { SectionHeading } from "@/components/home/SectionHeading";
 import homeStyles from "@/components/home/home.module.css";
 import { SavedCardPlate } from "./SavedCardPlate";

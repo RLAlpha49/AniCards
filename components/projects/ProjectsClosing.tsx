@@ -6,7 +6,7 @@ import {
   safeTrack,
   trackExternalLinkClick,
   trackNavigation,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 
 /**
  * Closing block for the projects page.

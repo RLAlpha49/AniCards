@@ -6,7 +6,7 @@ import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import {
   trackExternalLinkClick,
   safeTrack,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import {
   AniListBrand,
   DiscordBrand,
@@ -15,7 +15,7 @@ import {
   Mail,
   Scale,
 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 const MotionLink = motion.create(Link);
 

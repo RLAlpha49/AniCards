@@ -9,11 +9,11 @@ import {
   Mail,
 } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   safeTrack,
   trackExternalLinkClick,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/home/home.module.css";
 import { DIRECTORY_CHANNELS, type DirectoryChannel } from "./channels";
 import styles from "./contact.module.css";

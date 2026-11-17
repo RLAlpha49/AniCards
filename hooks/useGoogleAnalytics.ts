@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { pageview, safeTrack } from "@/lib/utils/google-analytics";
+import { pageview, safeTrack } from "@/lib/analytics/google-analytics";
 
 /**
  * Send pageview events to Google Analytics when the pathname or query changes.

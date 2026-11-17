@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { CardPreviewImage } from "@/components/CardPreviewImage";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { buildCardPreviewUrl, type PreviewOptions } from "./card-options";
 import styles from "./generator.module.css";
 

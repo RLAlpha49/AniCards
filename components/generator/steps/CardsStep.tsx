@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { Check, Heart, Search, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import {
   FAVOURITE_CARD_TYPES,
   CARD_TYPES,

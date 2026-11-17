@@ -15,7 +15,7 @@ import {
   trackButtonClick,
   trackCardGeneration,
   trackUserSearch,
-} from "@/lib/utils/google-analytics";
+} from "@/lib/analytics/google-analytics";
 import { type PreviewOptions } from "./card-options";
 import { GeneratingOverlay } from "./GeneratingOverlay";
 import { StepRail, type Step } from "./StepRail";
