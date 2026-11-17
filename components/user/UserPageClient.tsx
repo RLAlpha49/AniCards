@@ -13,7 +13,7 @@ import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
-import { buildCardVersion } from "@/lib/server/card-version";
+import { buildCardVersion } from "@/lib/card-version";
 import type { ColorValue } from "@/lib/types/card";
 import { UserMasthead } from "./UserMasthead";
 import { SavedCardSet } from "./SavedCardSet";

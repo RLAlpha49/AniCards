@@ -4,10 +4,7 @@ import {
   queryUserMetaKeys,
   USERS_SEARCH_INDEX,
 } from "@/lib/server/search-indexes";
-import {
-  resolveLatestTimestamp,
-  isValidTimestamp,
-} from "@/lib/server/card-version";
+import { resolveLatestTimestamp, isValidTimestamp } from "@/lib/card-version";
 import {
   buildUsernameIndexKey,
   REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,

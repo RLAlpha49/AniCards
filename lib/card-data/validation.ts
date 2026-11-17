@@ -21,7 +21,7 @@ import {
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
-import { isValidTimestamp } from "@/lib/server/card-version";
+import { isValidTimestamp } from "@/lib/card-version";
 import type { CardId } from "@/lib/cards/registry";
 import { CARD_REGISTRY, hasCardId } from "@/lib/cards/registry";
 
