@@ -1,3 +1,5 @@
+import "server-only";
+
 import { mgetInBatches, redisClient, scanAllKeys } from "@/lib/api-utils";
 import {
   queryCardKeys,

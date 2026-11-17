@@ -1,5 +1,13 @@
 import { mock } from "bun:test";
 
+/**
+ * `lib/server/` modules import `server-only`, which Next aliases in its own
+ * compiler and the package itself makes a hard error. Bun resolves the
+ * throwing build, so the suite stubs it out.
+ * @source
+ */
+mock.module("server-only", () => ({}));
+
 // Silence console output
 console.debug = mock(() => {});
 console.log = mock(() => {});

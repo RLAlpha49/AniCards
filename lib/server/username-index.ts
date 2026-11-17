@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { Redis } from "@upstash/redis";
 
 export const REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT = `

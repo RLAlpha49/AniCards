@@ -1,3 +1,5 @@
+import "server-only";
+
 export function logRequest(
   endpoint: string,
   ip: string,

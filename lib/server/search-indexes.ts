@@ -34,6 +34,8 @@
  * @source
  */
 
+import "server-only";
+
 import type { Redis } from "@upstash/redis";
 import { USER_ACTIVITY_KEY_PREFIX } from "@/lib/server/user-activity";
 

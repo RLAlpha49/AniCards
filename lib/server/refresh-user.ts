@@ -1,3 +1,5 @@
+import "server-only";
+
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { isValidUsername, redisClient } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";

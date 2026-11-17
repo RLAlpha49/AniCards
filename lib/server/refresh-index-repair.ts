@@ -1,3 +1,5 @@
+import "server-only";
+
 import { redisClient } from "@/lib/api-utils";
 import {
   rebuildUserRefreshIndex,

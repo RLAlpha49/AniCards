@@ -19,6 +19,8 @@
  * @source
  */
 
+import "server-only";
+
 import { redisClient } from "@/lib/api-utils";
 
 /** Days without a card request after which a user is inactive. @source */

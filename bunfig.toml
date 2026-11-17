@@ -1,3 +1,5 @@
+preload = ["./scripts/server-only-preload.ts"]
+
 [test]
 root = "./tests/unit"
 preload = ["./tests/unit/__setup__.ts"]

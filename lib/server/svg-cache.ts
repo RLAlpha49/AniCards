@@ -16,6 +16,8 @@
  * @source
  */
 
+import "server-only";
+
 import { LRUCache } from "lru-cache";
 
 /**

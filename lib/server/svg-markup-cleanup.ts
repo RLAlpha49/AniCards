@@ -1,3 +1,5 @@
+import "server-only";
+
 export function removeClassTokensFromMarkup(
   svg: string,
   classTokens: string[],

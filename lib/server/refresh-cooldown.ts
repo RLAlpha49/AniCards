@@ -14,6 +14,8 @@
  * @source
  */
 
+import "server-only";
+
 /** How long a failed refresh keeps a user out of the selection window. */
 export const REFRESH_COOLDOWN_SECONDS = 15 * 60;
 

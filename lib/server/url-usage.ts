@@ -9,6 +9,8 @@
  * @source
  */
 
+import "server-only";
+
 import { redisClient } from "@/lib/api-utils";
 import { colorPresets } from "@/lib/card-catalogue";
 import { clampBorderRadius } from "@/lib/card-style";

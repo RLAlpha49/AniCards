@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createHash, timingSafeEqual } from "node:crypto";
 import { apiJsonHeaders } from "@/lib/api-utils";
 

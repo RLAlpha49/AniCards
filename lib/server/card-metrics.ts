@@ -23,6 +23,8 @@
  * @source
  */
 
+import "server-only";
+
 import {
   buildAnalyticsMetricKey,
   redisClient,

@@ -17,6 +17,8 @@
  * @source
  */
 
+import "server-only";
+
 import { redisClient } from "@/lib/api-utils";
 import { buildRefreshCooldownKey } from "@/lib/server/refresh-cooldown";
 import {

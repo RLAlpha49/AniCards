@@ -1,3 +1,5 @@
+import "server-only";
+
 import { Client, type FlowControl } from "@upstash/qstash";
 
 /**
