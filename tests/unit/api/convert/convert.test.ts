@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { POST } from "@/app/api/convert/route";
 import {
-  POST,
   removeEmptyCssRules,
   sanitizeCssContent,
-} from "@/app/api/convert/route";
+} from "@/lib/api/convert/css-optimizer";
 import {
   removeClassTokensFromMarkup,
   sanitizeInlineStyleAttributes,
