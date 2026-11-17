@@ -113,7 +113,7 @@ type ExtraStatsVariant = PieBarVariant | "radar";
 /** @source */
 type DistributionVariant = "default" | "horizontal" | "cumulative";
 /** @source */
-type ProfileVariant = "default";
+type ProfileVariant = "default" | "compact" | "minimal";
 /** @source */
 type StatusCompletionVariant = "combined" | "split";
 /** @source */
@@ -200,6 +200,11 @@ function normalizeVariant(
     "minimal",
     "badges",
   ]);
+  const profileVariants = new Set<CardGenVariant>([
+    "default",
+    "compact",
+    "minimal",
+  ]);
   const pieBarVariants = new Set<CardGenVariant>([
     "default",
     "pie",
@@ -251,8 +256,8 @@ function normalizeVariant(
     mangaScoreDistribution: scoreDistributionVariants,
     animeYearDistribution: distributionVariants,
     mangaYearDistribution: distributionVariants,
-    profileOverview: socialVariants,
-    favoritesSummary: socialVariants,
+    profileOverview: profileVariants,
+    favoritesSummary: profileVariants,
     activityHeatmap: new Set<CardGenVariant>(["default", "github", "fire"]),
     recentActivitySummary: new Set<CardGenVariant>(["default"]),
     recentActivityFeed: new Set<CardGenVariant>(["default"]),
@@ -1094,7 +1099,10 @@ async function generateProfileOverviewCard(
   }
 
   const avatarUrl = user.avatar?.large || user.avatar?.medium;
-  const avatarDataUrl = avatarUrl ? await fetchImageAsDataUrl(avatarUrl) : null;
+  const avatarDataUrl =
+    variant !== "minimal" && avatarUrl
+      ? await fetchImageAsDataUrl(avatarUrl)
+      : null;
 
   return profileOverviewTemplate({
     username: userRecord.username ?? userRecord.userId,

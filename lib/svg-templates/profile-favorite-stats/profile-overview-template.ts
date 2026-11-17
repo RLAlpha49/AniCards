@@ -14,7 +14,7 @@ import {
   processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import { type TemplateStyles } from "./shared";
+import { fitText, type ProfileVariant, type TemplateStyles } from "./shared";
 import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 
@@ -27,7 +27,7 @@ import { generateCardBackground } from "../common/base-template-utils";
  */
 export const profileOverviewTemplate = (data: {
   username: string;
-  variant?: "default";
+  variant?: ProfileVariant;
   styles: TemplateStyles;
   statistics: UserStatistics;
   avatar?: UserAvatar;
@@ -70,12 +70,14 @@ export const profileOverviewTemplate = (data: {
       )
     : undefined;
 
-  const dims = getCardDimensions("profileOverview", "default");
+  const variant = data.variant ?? "default";
+  const dims = getCardDimensions("profileOverview", variant);
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Profile`;
   const safeTitle = escapeForXml(title);
   const safeUsername = escapeForXml(data.username);
+  const titleFontSize = Number.parseFloat(calculateDynamicFontSize(title));
 
   const avatarUrl =
     data.avatarDataUrl || data.avatar?.medium || data.avatar?.large;
@@ -88,6 +90,20 @@ export const profileOverviewTemplate = (data: {
   const hrefAttr = isDataUrl
     ? `href="${escapeForXml(avatarUrl)}"`
     : `xlink:href="${escapeForXml(avatarUrl)}"`;
+  const isDefault = variant === "default";
+  const isMinimal = variant === "minimal";
+  const showAvatar = !isMinimal && !!avatarUrl;
+  const avatarSize = isDefault ? PROFILE.AVATAR_SIZE : 44;
+  const avatarRadius = avatarSize / 2;
+  const headerX = showAvatar ? (isDefault ? 100 : 78) : 20;
+  const headerWidth = isMinimal && yearsActive ? 160 : dims.w - headerX - 20;
+  const activeLabel = `${yearsActive} year${yearSuffix} active`;
+  const metrics = [
+    { label: "ANIME", value: animeStats.count },
+    { label: "MANGA", value: mangaStats.count },
+    { label: "DAYS", value: daysWatched },
+    { label: "CHAPTERS", value: mangaStats.chaptersRead },
+  ];
 
   return markTrustedSvg(`
 <svg
@@ -109,74 +125,76 @@ export const profileOverviewTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, titleFontSize)}
 
-    .username {
-      fill: ${resolvedColors.titleColor};
-      font: 700 ${TYPOGRAPHY.USERNAME_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+    [data-testid="main-card-body"] .stat-value {
+      fill: ${isDefault ? resolvedColors.textColor : resolvedColors.circleColor};
     }
 
-    .avatar-clip {
-      clip-path: circle(${PROFILE.AVATAR_RADIUS}px at ${PROFILE.AVATAR_RADIUS + 5}px ${PROFILE.AVATAR_RADIUS + 5}px);
+    .metric-label {
+      font: 600 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
   </style>
 
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
-  ${(() => {
-    // Default variant
-    return `
-      <g data-testid="card-title" transform="translate(100, 45)">
-        <text x="0" y="0" class="header">${safeUsername}</text>
-      </g>
-      ${
-        avatarUrl
-          ? `
-        <g transform="translate(20, 10)">
+  <g data-testid="card-title" transform="translate(${headerX}, ${isMinimal ? 30 : 33})">
+    <text x="0" y="0" class="header" ${fitText(data.username, headerWidth, titleFontSize)}>${safeUsername}</text>
+  </g>
+  ${
+    yearsActive
+      ? `<text class="stat-label" x="${isMinimal ? 280 : headerX}" y="${isMinimal ? 30 : 53}" ${isMinimal ? 'text-anchor="end"' : ""} ${fitText(activeLabel, isMinimal ? 90 : dims.w - headerX - 20, 12)}>${activeLabel}</text>`
+      : ""
+  }
+  ${
+    showAvatar
+      ? `<g transform="translate(20, ${isDefault ? 10 : 12})">
           <clipPath id="avatar-clip">
-            <circle cx="${PROFILE.AVATAR_RADIUS}" cy="${PROFILE.AVATAR_RADIUS}" r="${PROFILE.AVATAR_RADIUS}"/>
+            <circle cx="${avatarRadius}" cy="${avatarRadius}" r="${avatarRadius}"/>
           </clipPath>
-          <image
-            x="0" y="0" width="${PROFILE.AVATAR_SIZE}" height="${PROFILE.AVATAR_SIZE}"
-            ${hrefAttr}
-            clip-path="url(#avatar-clip)"
-            preserveAspectRatio="xMidYMid slice"
-          />
-          <circle cx="${PROFILE.AVATAR_RADIUS}" cy="${PROFILE.AVATAR_RADIUS}" r="${PROFILE.AVATAR_RADIUS}" fill="none" stroke="${resolvedColors.circleColor}" stroke-width="${PROFILE.AVATAR_STROKE_WIDTH}"/>
-        </g>
-      `
-          : ""
-      }
-      <g data-testid="main-card-body" transform="translate(20, 100)">
-        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 150}ms">
-          <text class="section-title" x="0" y="0">ANIME</text>
-          <text class="stat-value" x="0" y="20">${animeStats.count}</text>
-          <text class="stat-label" x="50" y="20">titles</text>
-          <text class="stat-label" x="0" y="40">${daysWatched} days watched</text>
-        </g>
-        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY}ms" transform="translate(${PROFILE.SECTION_SPACING}, 0)">
-          <text class="section-title" x="0" y="0">MANGA</text>
-          <text class="stat-value" x="0" y="20">${mangaStats.count}</text>
-          <text class="stat-label" x="50" y="20">titles</text>
-          <text class="stat-label" x="0" y="40">${mangaStats.chaptersRead} chapters read</text>
-        </g>
-        ${
-          yearsActive
-            ? `
-          <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + 150}ms" transform="translate(${PROFILE.YEARS_SECTION_X}, 0)">
-            <text class="section-title" x="0" y="0">ACTIVE</text>
-            <text class="stat-value" x="0" y="20">${yearsActive}</text>
-            <text class="stat-label" x="30" y="20">year${yearSuffix}</text>
-          </g>
-        `
-            : ""
-        }
-      </g>
-    `;
-  })()}
+          <image x="0" y="0" width="${avatarSize}" height="${avatarSize}" ${hrefAttr}
+            clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>
+          <circle cx="${avatarRadius}" cy="${avatarRadius}" r="${avatarRadius}" fill="none" stroke="${resolvedColors.circleColor}" stroke-width="${PROFILE.AVATAR_STROKE_WIDTH}"/>
+        </g>`
+      : ""
+  }
+  ${
+    isDefault
+      ? `<g data-testid="main-card-body" transform="translate(20, 100)">
+          ${[
+            {
+              label: "ANIME",
+              count: animeStats.count,
+              detail: `${daysWatched} days watched`,
+            },
+            {
+              label: "MANGA",
+              count: mangaStats.count,
+              detail: `${mangaStats.chaptersRead} chapters read`,
+            },
+          ]
+            .map(
+              (item, index) => `
+              <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 150 + index * 150}ms" transform="translate(${index * PROFILE.SECTION_SPACING}, 0)">
+                <text class="section-title" x="0" y="0">${item.label}</text>
+                <text x="0" y="20" ${fitText(`${item.count} titles`, 110, 14)}><tspan class="stat-value">${item.count}</tspan><tspan class="stat-label"> titles</tspan></text>
+                <text class="stat-label" x="0" y="40" ${fitText(item.detail, 110, 12)}>${item.detail}</text>
+              </g>`,
+            )
+            .join("")}
+        </g>`
+      : `<g data-testid="main-card-body" transform="translate(20, ${isMinimal ? 60 : 83})">
+          ${metrics
+            .map(
+              (metric, index) => `
+              <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 150 + index * ANIMATION.FAST_INCREMENT}ms" transform="translate(${index * 67}, 0)">
+                <text class="stat-value" x="0" y="0" ${fitText(metric.value, 60, 14)}>${metric.value}</text>
+                <text class="metric-label" x="0" y="17">${metric.label}</text>
+              </g>`,
+            )
+            .join("")}
+        </g>`
+  }
 </svg>
 `);
 };

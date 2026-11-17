@@ -1,6 +1,7 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { UserFavourites } from "@/lib/types/records";
 import { ANIMATION, SPACING } from "@/lib/svg-templates/common/constants";
+import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
 
 /** Common styles interface for all profile/favourites templates. @source */
 export interface TemplateStyles {
@@ -10,6 +11,31 @@ export interface TemplateStyles {
   circleColor: ColorValue;
   borderColor?: ColorValue;
   borderRadius?: number;
+}
+
+export type ProfileVariant = "default" | "compact" | "minimal";
+
+/**
+ * Fit text into `width` by shrinking the font size.
+ *
+ * Widths come from measured font advances, so text that already fits keeps its
+ * natural size. `textLength` with `lengthAdjust="spacingAndGlyphs"` stretches
+ * or squeezes every glyph advance, which visibly warps the label, so it is
+ * never emitted: the measured estimate is accurate enough that scaling the
+ * size alone fits the budget.
+ * @source
+ */
+export function fitText(
+  value: string | number,
+  width: number,
+  fontSize: number,
+): string {
+  const text = String(value);
+  if (width <= 0) return "";
+  const naturalWidth = estimateCardTextWidth(text, fontSize, 600);
+  if (naturalWidth <= width) return "";
+  const scaledSize = Math.max(6, (fontSize * width) / naturalWidth);
+  return `style="font-size:${scaledSize.toFixed(2)}px"`;
 }
 
 /**
@@ -43,6 +69,7 @@ export function getFavouriteCounts(favourites: UserFavourites) {
  */
 export function generateFavouritesSummaryBody(
   counts: ReturnType<typeof getFavouriteCounts>,
+  variant: ProfileVariant = "default",
 ): string {
   const total =
     counts.anime +
@@ -58,21 +85,39 @@ export function generateFavouritesSummaryBody(
     { label: "Studios", count: counts.studios },
   ];
 
+  const isDefault = variant === "default";
+  const isMinimal = variant === "minimal";
+  const totalText = `${total} total`;
+  const totalLabelX = Math.min(
+    125,
+    Math.max(45, String(total).length * 15 + 10),
+  );
+
   return `
     <g data-testid="main-card-body" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.CONTENT_Y})">
-      <g class="stagger" style="animation-delay: ${ANIMATION.PROFILE_BASE_DELAY}ms">
-        <text class="total-count" x="0" y="20">${total}</text>
-        <text class="stat-label" x="45" y="20">total favourites</text>
-      </g>
+      ${
+        isMinimal
+          ? `<text class="stat-label" x="300" y="-20" text-anchor="end" ${fitText(totalText, 85, 12)}>${totalText}</text>`
+          : `<g class="stagger" style="animation-delay: ${ANIMATION.PROFILE_BASE_DELAY}ms">
+              <text class="total-count" x="0" y="20" ${fitText(total, 110, 24)}>${total}</text>
+              <text class="stat-label" x="${totalLabelX}" y="20">total favourites</text>
+            </g>`
+      }
       ${categories
-        .map(
-          (cat, i) => `
-        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 100 + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${(i % 3) * 100}, ${50 + Math.floor(i / 3) * 30})">
-          <text class="stat-value" x="0" y="12">${cat.count}</text>
-          <text class="stat-label" x="30" y="12">${cat.label}</text>
+        .map((cat, i) => {
+          const x = isDefault ? (i % 3) * 100 : i * 61;
+          const y = isDefault
+            ? 62 + Math.floor(i / 3) * 37
+            : isMinimal
+              ? 0
+              : 42;
+          return `
+        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 100 + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
+          <text class="stat-value" x="0" y="0" ${fitText(cat.count, isDefault ? 90 : 56, 14)}>${cat.count}</text>
+          <text class="category-label" x="0" y="16">${cat.label}</text>
         </g>
-      `,
-        )
+      `;
+        })
         .join("")}
     </g>
   `;

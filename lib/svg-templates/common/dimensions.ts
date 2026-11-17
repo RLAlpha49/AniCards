@@ -74,9 +74,13 @@ export const CARD_DIMENSIONS = {
   // Profile and favorites
   profileOverview: {
     default: { w: 300, h: 170 },
+    compact: { w: 300, h: 130 },
+    minimal: { w: 300, h: 100 },
   },
   favoritesSummary: {
     default: { w: 350, h: 180 },
+    compact: { w: 350, h: 130 },
+    minimal: { w: 350, h: 100 },
   },
 
   // Comparative & distribution cards

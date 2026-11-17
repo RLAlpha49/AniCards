@@ -12,6 +12,8 @@ import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import {
   generateFavouritesSummaryBody,
   getFavouriteCounts,
+  fitText,
+  type ProfileVariant,
   type TemplateStyles,
 } from "./shared";
 import { generateCommonStyles } from "../common/style-generators";
@@ -26,7 +28,7 @@ import { generateCardBackground } from "../common/base-template-utils";
  */
 export const favoritesSummaryTemplate = (data: {
   username: string;
-  variant?: "default";
+  variant?: ProfileVariant;
   styles: TemplateStyles;
   favourites: UserFavourites;
 }): TrustedSVG => {
@@ -58,11 +60,13 @@ export const favoritesSummaryTemplate = (data: {
   const totalFavourites =
     animeCount + mangaCount + charactersCount + staffCount + studiosCount;
 
-  const dims = getCardDimensions("favoritesSummary", "default");
+  const variant = data.variant ?? "default";
+  const dims = getCardDimensions("favoritesSummary", variant);
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Favourites`;
   const safeTitle = escapeForXml(title);
+  const titleFontSize = Number.parseFloat(calculateDynamicFontSize(title));
 
   return markTrustedSvg(`
 <svg
@@ -83,29 +87,30 @@ export const favoritesSummaryTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, titleFontSize)}
 
     .total-count {
-      fill: ${resolvedColors.circleColor};
+      fill: ${variant === "default" ? resolvedColors.textColor : resolvedColors.circleColor};
       font: 700 ${TYPOGRAPHY.KPI_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
-    .category-icon {
-      fill: ${resolvedColors.circleColor};
-      font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px;
+    [data-testid="main-card-body"] .total-count,
+    [data-testid="main-card-body"] .stat-value {
+      fill: ${variant === "default" ? resolvedColors.textColor : resolvedColors.circleColor};
+    }
+
+    .category-label {
+      font: 600 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
   </style>
 
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header" ${fitText(title, variant === "minimal" ? 200 : 300, titleFontSize)}>${safeTitle}</text>
   </g>
 
-  ${generateFavouritesSummaryBody(counts)}
+  ${generateFavouritesSummaryBody(counts, variant)}
 </svg>
 `);
 };
