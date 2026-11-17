@@ -1069,7 +1069,7 @@ function generateCountryCard(
     throw new CardDataError("Not Found: No country data for this user", 404);
   }
   const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
+    ["pie", "bar", "donut"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
