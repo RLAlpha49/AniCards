@@ -14,7 +14,11 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { getHeatmapColor, type HeatmapPalette } from "./shared";
+import {
+  fitActivityTitle,
+  getHeatmapColor,
+  type HeatmapPalette,
+} from "./shared";
 
 /**
  * Generates a GitHub-style activity heatmap calendar.
@@ -72,7 +76,8 @@ export function activityHeatmapTemplate(data: {
 
   // Generate calendar grid for the last ~90 days (13 weeks)
   const weeks = HEATMAP.WEEKS;
-  const cellSize = SHAPES.CELL_SIZE;
+  const cellSize =
+    SHAPES.CELL_SIZE + (cardRadius > 70 ? -1 : cardRadius > 40 ? 0 : 1);
   const cellGap = SHAPES.CELL_GAP;
   const now = new Date();
   // Start from midnight UTC today
@@ -85,8 +90,8 @@ export function activityHeatmapTemplate(data: {
   // Align to start of week (Sunday) in UTC
   startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
 
-  const gridX = 30;
-  const gridY = 60;
+  const gridX = cardRadius > 70 ? 48 : 36;
+  const gridY = 58;
   const gridStep = cellSize + cellGap;
   const dayLabelX = gridX - 6;
   const dayLabelBaselineOffset = cellSize - 3;
@@ -168,6 +173,9 @@ export function activityHeatmapTemplate(data: {
     .join("");
 
   const dims = getCardDimensions("activityHeatmap", "default");
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, 180),
+  );
 
   return markTrustedSvg(`
 <svg
@@ -185,18 +193,18 @@ export function activityHeatmapTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, 180)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .day-label {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 500 ${TYPOGRAPHY.SMALL_TEXT_SIZE + 1}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.7;
       text-anchor: end;
     }
     .month-label {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 500 ${TYPOGRAPHY.SMALL_TEXT_SIZE + 1}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.7;
     }
     .stagger {
@@ -218,8 +226,8 @@ export function activityHeatmapTemplate(data: {
     ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
     stroke-width="2"
   />
-  <g transform="translate(15, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+  <g transform="translate(${cardRadius > 70 ? 40 : 15}, 30)">
+    <text x="0" y="0" class="header" ${fitActivityTitle(title, headerFontSize, dims.w - (cardRadius > 70 ? 80 : 30))}>${safeTitle}</text>
   </g>
   ${monthLabels.join("")}
   ${dayLabelsSvg}

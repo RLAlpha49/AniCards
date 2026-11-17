@@ -31,6 +31,46 @@ import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 /** Media type used by the media stats templates — either anime or manga. @source */
 export type MediaType = "anime" | "manga";
 
+// Semibold Segoe UI advance widths in em; unknown glyphs use a wider fallback.
+function estimateTitleWidth(text: string, fontSize: number): number {
+  const uppercase = [
+    0.6714, 0.604, 0.6211, 0.7173, 0.5176, 0.5024, 0.6973, 0.7354, 0.2915,
+    0.3965, 0.6108, 0.4888, 0.9243, 0.7671, 0.7559, 0.5845, 0.7559, 0.6226,
+    0.5444, 0.5518, 0.7031, 0.6416, 0.9658, 0.6191, 0.5771, 0.5869,
+  ];
+  const lowercase = [
+    0.522, 0.6025, 0.4702, 0.6025, 0.5313, 0.3447, 0.6025, 0.582, 0.2612,
+    0.2612, 0.5249, 0.2612, 0.8857, 0.5835, 0.5972, 0.6025, 0.6025, 0.3701,
+    0.4312, 0.3613, 0.5835, 0.5073, 0.7563, 0.501, 0.5083, 0.4644,
+  ];
+  const digits = [
+    0.5552, 0.4023, 0.5552, 0.5552, 0.5762, 0.5552, 0.5581, 0.5361, 0.5552,
+    0.5581,
+  ];
+  return Array.from(text).reduce((width, character) => {
+    const originalCode = character.codePointAt(0) ?? 0;
+    const code = originalCode <= 0x024f
+      ? (character.normalize("NFD").codePointAt(0) ?? originalCode)
+      : originalCode;
+    const factor = code >= 65 && code <= 90
+      ? uppercase[code - 65]
+      : code >= 97 && code <= 122
+        ? lowercase[code - 97]
+        : code >= 48 && code <= 57
+          ? digits[code - 48]
+          : /[ .,':;]/u.test(character)
+            ? 0.275
+            : (code >= 0x2e80 && code <= 0xd7ff) ||
+                (code >= 0xf900 && code <= 0xfaff) ||
+                (code >= 0x20000 && code <= 0x3ffff)
+              ? 1
+              : code > 0x7f
+                ? 1.5
+                : 1;
+    return width + factor * fontSize;
+  }, 0);
+}
+
 /**
  * Renders an SVG circular progress indicator and rim used by rank visuals.
  * @param cx - Circle center X coordinate.
@@ -310,6 +350,21 @@ export const mediaStatsTemplate = (data: {
 
   // Dimensions per variant
   const dims = getCardDimensions("mediaStats", data.variant ?? "default");
+  const baseTitleFontSize =
+    Number.parseFloat(calculateDynamicFontSize(titleText)) || 18;
+  // The default variant places the milestone beside the heading.
+  const titleWidth =
+    dims.w - (data.variant === "default" || !data.variant ? 165 : 50);
+  // These suffix widths include kerning at the header's semibold weight.
+  const suffixWidth = data.mediaType === "anime" ? 6.3238 : 6.545;
+  const estimatedTitleWidth =
+    estimateTitleWidth(data.username, baseTitleFontSize) +
+    suffixWidth * baseTitleFontSize;
+  const titleFontSize =
+    baseTitleFontSize *
+    (estimatedTitleWidth > titleWidth
+      ? (titleWidth * 0.98) / estimatedTitleWidth
+      : 1);
 
   // Circle radius per variant
   const circleRadius = (() => {
@@ -366,8 +421,13 @@ export const mediaStatsTemplate = (data: {
     Standard Deviation: ${escapeForXml(data.stats.standardDeviation)}
   </desc>
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(titleText)) || 18)}
+    ${generateCommonStyles(resolvedColors, titleFontSize)}
     ${rankCircleStyle}
+    .main-stat, .label, .milestone {
+      font-family: 'Segoe UI', Ubuntu, Sans-Serif;
+    }
+    .main-stat { font-weight: 700; }
+    .label, .milestone { font-weight: 600; }
   </style>
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
   <g data-testid="card-title" transform="translate(25, 35)">

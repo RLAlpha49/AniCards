@@ -2,7 +2,6 @@ import { SocialStats, ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
   ANIMATION,
-  POSITIONING,
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
@@ -15,6 +14,23 @@ import {
   escapeForXml,
   markTrustedSvg,
 } from "../utils";
+import { estimateCardTextWidth } from "./common/text-metrics";
+
+/**
+ * Fit text into `width` by shrinking the font size instead of stretching
+ * glyphs.
+ *
+ * `textLength` with `lengthAdjust="spacingAndGlyphs"` rewrites every glyph's
+ * advance, which visibly warps the label. Widths now come from measured font
+ * advances, so text that already fits keeps its natural shape.
+ * @source
+ */
+const fitText = (text: string, width: number, fontSize: number): string => {
+  const naturalWidth = estimateCardTextWidth(text, fontSize, 600);
+  if (naturalWidth <= width) return "";
+  const scaledSize = Math.max(6, (fontSize * width) / naturalWidth);
+  return `style="font-size:${scaledSize.toFixed(2)}px"`;
+};
 
 /**
  * Renders an SVG string visualizing a user's social metrics: followers,
@@ -108,6 +124,7 @@ export const socialStatsTemplate = (data: {
 
   const title = `${data.username}'s Social Stats`;
   const safeTitle = escapeForXml(title);
+  const headerFontSize = Number(calculateDynamicFontSize(title));
 
   const activityTimespanStr = hasActivity
     ? `${totalActivity} over ${daysDifference} ${dayLabel}`
@@ -154,7 +171,7 @@ export const socialStatsTemplate = (data: {
             }
             .kpi-label {
               fill: ${resolvedColors.textColor};
-              opacity: 0.82;
+              opacity: 1;
               font: 600 10px 'Segoe UI', Ubuntu, Sans-Serif;
               letter-spacing: 0.4px;
             }
@@ -179,7 +196,7 @@ export const socialStatsTemplate = (data: {
                   <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + idx * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(${x}, ${y})">
                     <rect class="kpi-box" rx="10" ry="10" width="${w}" height="${cellH}" />
                     <text class="kpi-label" x="12" y="15">${safeLabel(it.label)}</text>
-                    <text class="kpi-value" x="12" y="34">${safeValue(it.value)}</text>
+                    <text class="kpi-value" x="12" y="34" ${fitText(formatCompact(it.value), w - 24, 16)}>${safeValue(it.value)}</text>
                   </g>`;
               })
               .join("")}
@@ -234,8 +251,8 @@ export const socialStatsTemplate = (data: {
               style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms"
               transform="translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})"
             >
-              <text class="stat.bold" y="12.5">${escapeForXml(stat.label)}</text>
-              <text class="stat.bold" x="${POSITIONING.STAT_VALUE_X_DEFAULT}" y="12.5">${escapeForXml(String(stat.value))}</text>
+              <text class="stat" y="12.5" ${stat.id === "activity" && daysDifference >= 10000 ? fitText(stat.label, 145, TYPOGRAPHY.STAT_SIZE) : ""}>${escapeForXml(stat.label)}</text>
+              <text class="stat stat-value" x="${dims.w - SPACING.CARD_PADDING * 2}" y="12.5" text-anchor="end" ${fitText(String(stat.value), 75, TYPOGRAPHY.STAT_SIZE)}>${escapeForXml(String(stat.value))}</text>
             </g>`,
             )
             .join("")}
@@ -265,7 +282,7 @@ export const socialStatsTemplate = (data: {
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
 
@@ -291,6 +308,10 @@ export const socialStatsTemplate = (data: {
       font: 400 ${TYPOGRAPHY.STAT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
+    .stat-value {
+      font-weight: 600;
+    }
+
     .stagger {
       opacity: 0;
       animation: fadeInAnimation 0.3s ease-in-out forwards;
@@ -314,7 +335,7 @@ export const socialStatsTemplate = (data: {
   />
   <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
     <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">
+      <text x="0" y="0" class="header" data-testid="header" ${fitText(title, dims.w - SPACING.CARD_PADDING * 2, headerFontSize)}>
         ${safeTitle}
       </text>
     </g>

@@ -14,9 +14,13 @@ import {
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
+import {
+  estimateCardTextWidth,
+  fitCardText,
+  type CardFontWeight,
+} from "@/lib/svg-templates/common/text-metrics";
 
 import {
-  calculateDynamicFontSize,
   getCardBorderRadius,
   processColorsForSVG,
   escapeForXml,
@@ -53,6 +57,45 @@ interface DistributionTemplateInput {
 }
 
 /**
+ * Conservative text width for numeric labels and card titles.
+ *
+ * Numeric axes and titles render at different weights, so the weight is passed
+ * through to the measured advance tables rather than approximated per
+ * character class.
+ * @source
+ */
+function estimateTextWidth(
+  text: string,
+  fontSize: number,
+  weight: CardFontWeight = 400,
+): number {
+  return estimateCardTextWidth(text, fontSize, weight);
+}
+
+function maxLabelWidth(
+  values: number[],
+  fontSize: number,
+  weight: CardFontWeight = 400,
+): number {
+  return Math.max(
+    0,
+    ...values.map((value) =>
+      estimateTextWidth(String(value), fontSize, weight),
+    ),
+  );
+}
+
+function verticalBarSpacing(data: DistributionDatum[]): number {
+  return Math.max(
+    DISTRIBUTION.VERTICAL_BAR_SPACING,
+    maxLabelWidth(
+      data.flatMap((d) => [d.value, d.count]),
+      11,
+    ) + 10,
+  );
+}
+
+/**
  * Generates an SVG cumulative distribution chart (CDF) for score distributions.
  * Expects data sorted by ascending score value.
  * @source
@@ -61,21 +104,29 @@ function generateCumulativeChart(
   dataAsc: DistributionDatum[],
   dims: { w: number; h: number },
 ): string {
-  const left = 56;
-  const right = 22;
+  const left = Math.max(
+    56,
+    estimateTextWidth(String(dataAsc[0]?.value ?? ""), 11) / 2 + 20,
+  );
+  const right = Math.max(
+    22,
+    estimateTextWidth(String(dataAsc.at(-1)?.value ?? ""), 11) / 2 + 20,
+  );
   const top = 78;
   const bottom = 42;
 
   const chartW = Math.max(10, dims.w - left - right);
   const chartH = Math.max(10, dims.h - top - bottom);
 
-  const total = dataAsc.reduce((sum, d) => sum + d.count, 0);
+  // Scale before summing so very large counts cannot overflow the total.
+  const scale = Math.max(1, ...dataAsc.map((d) => d.count));
+  const total = dataAsc.reduce((sum, d) => sum + d.count / scale, 0);
   let cumulative = 0;
 
   const n = dataAsc.length;
   const stepX = n > 1 ? chartW / (n - 1) : 0;
   const points = dataAsc.map((d, i) => {
-    cumulative += d.count;
+    cumulative += d.count / scale;
     const pct = total > 0 ? (cumulative / total) * 100 : 0;
     const x = left + i * stepX;
     const y = top + chartH - (pct / 100) * chartH;
@@ -110,11 +161,22 @@ function generateCumulativeChart(
     })
     .join("");
 
+  let previousLabelEnd = -Infinity;
+  const lastLabelStart =
+    left +
+    (n - 1) * stepX -
+    estimateTextWidth(String(dataAsc.at(-1)?.value ?? ""), 11) / 2;
   const xLabels = dataAsc
     .map((d, i) => {
-      const show = n <= 12 || i % 2 === 0 || i === n - 1;
-      if (!show) return "";
       const x = left + i * stepX;
+      const halfWidth = estimateTextWidth(String(d.value), 11) / 2;
+      if (
+        i !== n - 1 &&
+        (x - halfWidth < previousLabelEnd + 4 ||
+          (i > 0 && x + halfWidth + 4 > lastLabelStart))
+      )
+        return "";
+      previousLabelEnd = x + halfWidth;
       const y = top + chartH + 18;
       return `<text class="cdf-axis" x="${x.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="middle">${d.value}</text>`;
     })
@@ -229,19 +291,18 @@ function generateBarItems(
   barColor: string,
   opts?: {
     showYearGaps?: boolean;
+    barStartX: number;
+    rowSpacing: number;
   },
 ): string {
   const showYearGaps = opts?.showYearGaps ?? false;
-  const rowLabelBaselineY = 12;
-  const gapMarkerLineY = rowLabelBaselineY + SPACING.ITEM_GAP / 3;
-  const gapMarkerDotsY = gapMarkerLineY + 2;
+  const barStartX = opts?.barStartX ?? DISTRIBUTION.BAR_START_X;
+  const rowSpacing = opts?.rowSpacing ?? SPACING.ITEM_GAP;
 
   return data
     .map((d, i) => {
       const width = (d.count / maxCount) * maxBarWidth;
-      const safeWidth = Math.max(2, width);
-      const barStartX = DISTRIBUTION.BAR_START_X;
-      const countBaseX = DISTRIBUTION.COUNT_BASE_X;
+      const safeWidth = Number(width.toFixed(2));
 
       const next = data[i + 1];
       const yearGapSize =
@@ -249,36 +310,29 @@ function generateBarItems(
 
       const content = [
         createTextElement(0, 12, String(d.value), "score-label"),
-        createRectElement(barStartX, 3, Number(safeWidth.toFixed(2)), 10, {
+        createRectElement(barStartX, 3, maxBarWidth, 10, {
+          rx: 3,
+          fill: barColor,
+          opacity: 0.1,
+        }),
+        createRectElement(barStartX, 3, safeWidth, 10, {
           rx: 3,
           fill: barColor,
           opacity: 0.85,
         }),
         createTextElement(
-          countBaseX + safeWidth,
+          barStartX + safeWidth + 6,
           12,
           String(d.count),
           "score-count",
         ),
         yearGapSize > 0
-          ? [
-              `<line class="year-gap-line" x1="${barStartX}" y1="${gapMarkerLineY - 1}" x2="${barStartX + maxBarWidth}" y2="${gapMarkerLineY}" />`,
-              createTextElement(
-                barStartX - 14,
-                gapMarkerDotsY,
-                "⋯",
-                "year-gap-dots",
-                {
-                  textAnchor: "middle",
-                  fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
-                },
-              ),
-            ].join("")
+          ? `<line class="year-gap-line" x1="${barStartX}" y1="${(rowSpacing + 16) / 2}" x2="${barStartX + maxBarWidth}" y2="${(rowSpacing + 16) / 2}" />`
           : "",
       ].join("");
 
       return createStaggeredGroup(
-        `translate(0, ${i * SPACING.ITEM_GAP})`,
+        `translate(0, ${i * rowSpacing})`,
         content,
         `${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms`,
       );
@@ -298,22 +352,24 @@ function generateVerticalBars(
   data: DistributionDatum[],
   maxCount: number,
   barColor: string,
+  dims: { w: number; h: number },
   opts?: {
     /** When true, renders subtle markers when there are gaps between consecutive years. */
     showYearGaps?: boolean;
   },
 ): string {
   const showYearGaps = opts?.showYearGaps ?? false;
+  const cellWidth = (dims.w - 40) / Math.max(1, data.length);
 
   return data
     .map((d, i) => {
       const height = Number(
-        ((d.count / maxCount) * DISTRIBUTION.VERTICAL_BAR_MAX_HEIGHT).toFixed(
-          2,
-        ),
+        (
+          (d.count / maxCount) *
+          (DISTRIBUTION.VERTICAL_BAR_MAX_HEIGHT - 6)
+        ).toFixed(2),
       );
-      const x =
-        i * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
+      const x = 20 + (i + 0.5) * cellWidth;
       const barTop = DISTRIBUTION.VERTICAL_BAR_Y_BASE - height;
 
       const next = data[i + 1];
@@ -323,7 +379,7 @@ function generateVerticalBars(
       const content = [
         createTextElement(0, barTop - 6, String(d.count), "h-count", {
           textAnchor: "middle",
-          fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+          fontSize: 11,
         }),
         createRectElement(
           -DISTRIBUTION.VERTICAL_BAR_WIDTH / 2,
@@ -336,19 +392,7 @@ function generateVerticalBars(
           },
         ),
         yearGapSize > 0
-          ? [
-              `<line class="year-gap-line" x1="${DISTRIBUTION.VERTICAL_BAR_SPACING / 2}" y1="12" x2="${DISTRIBUTION.VERTICAL_BAR_SPACING / 2}" y2="${DISTRIBUTION.VERTICAL_BAR_Y_BASE + 4}" />`,
-              createTextElement(
-                DISTRIBUTION.VERTICAL_BAR_SPACING / 2,
-                DISTRIBUTION.VERTICAL_BAR_Y_BASE + 11,
-                "⋯",
-                "year-gap-dots",
-                {
-                  textAnchor: "middle",
-                  fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
-                },
-              ),
-            ].join("")
+          ? `<line class="year-gap-line" x1="${cellWidth / 2}" y1="36" x2="${cellWidth / 2}" y2="${DISTRIBUTION.VERTICAL_BAR_Y_BASE}" />`
           : "",
         createTextElement(
           0,
@@ -357,7 +401,7 @@ function generateVerticalBars(
           "h-score",
           {
             textAnchor: "middle",
-            fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+            fontSize: 11,
           },
         ),
       ].join("");
@@ -429,10 +473,7 @@ function computeDimsForVariant(
     const n = renderedData.length;
     if (n <= 0) return baseDims;
 
-    const lastX =
-      (n - 1) * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
-    const requiredWidth =
-      lastX + DISTRIBUTION.VERTICAL_BAR_WIDTH / 2 + SPACING.CARD_PADDING;
+    const requiredWidth = n * verticalBarSpacing(renderedData) + 40;
 
     return {
       ...baseDims,
@@ -446,9 +487,25 @@ function computeDimsForVariant(
   const chartTopY = 70;
   const lastRowBottom = chartTopY + (n - 1) * SPACING.ITEM_GAP + (4 + 10); // rect y + rect height
   const requiredHeight = lastRowBottom + SPACING.CARD_PADDING;
+  const requiredWidth =
+    30 +
+    Math.max(
+      DISTRIBUTION.BAR_START_X,
+      maxLabelWidth(
+        renderedData.map((d) => d.value),
+        12,
+      ) + 10,
+    ) +
+    maxLabelWidth(
+      renderedData.map((d) => d.count),
+      11,
+    ) +
+    26 +
+    80;
 
   return {
     ...baseDims,
+    w: Math.max(baseDims.w, Math.ceil(requiredWidth)),
     h: Math.max(baseDims.h, Math.ceil(requiredHeight)),
   };
 }
@@ -466,19 +523,29 @@ function renderMainContent(
     maxBarWidth: number;
     barColor: string;
     showYearGaps: boolean;
+    barStartX: number;
+    rowSpacing: number;
   },
 ) {
-  const { dims, maxCount, maxBarWidth, barColor, showYearGaps } = opts;
+  const {
+    dims,
+    maxCount,
+    maxBarWidth,
+    barColor,
+    showYearGaps,
+    barStartX,
+    rowSpacing,
+  } = opts;
 
   if (variant === "horizontal") {
-    return `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`;
+    return `<g transform="translate(0,40)"><line class="chart-baseline" x1="20" y1="${DISTRIBUTION.VERTICAL_BAR_Y_BASE}" x2="${dims.w - 20}" y2="${DISTRIBUTION.VERTICAL_BAR_Y_BASE}" />${generateVerticalBars(renderedData, maxCount, barColor, dims, { showYearGaps })}</g>`;
   }
 
   if (variant === "cumulative" && kind === "score") {
     return generateCumulativeChart(renderedData, dims);
   }
 
-  return `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
+  return `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps, barStartX, rowSpacing })}</g>`;
 }
 
 /**
@@ -533,11 +600,29 @@ export function distributionTemplate(
 
   // Layout constants
   const barColor = resolvedColors.circleColor;
-  const countBaseX = DISTRIBUTION.COUNT_BASE_X;
-  const maxBarWidth = Math.max(
-    10,
-    dims.w - countBaseX - DISTRIBUTION.MAX_BAR_WIDTH_OFFSET,
+  const barStartX = Math.max(
+    DISTRIBUTION.BAR_START_X,
+    maxLabelWidth(
+      renderedData.map((d) => d.value),
+      12,
+    ) + 10,
   );
+  const countWidth = maxLabelWidth(
+    renderedData.map((d) => d.count),
+    11,
+  );
+  const maxBarWidth = Math.max(10, dims.w - 30 - barStartX - countWidth - 26);
+  const rowSpacing =
+    kind === "year" && renderedData.length > 1
+      ? Math.max(
+          SPACING.ITEM_GAP,
+          Math.min(
+            26,
+            (dims.h - 70 - SPACING.CARD_PADDING - 14) /
+              (renderedData.length - 1),
+          ),
+        )
+      : SPACING.ITEM_GAP;
 
   // Generate content based on variant
   const mainContent = renderMainContent(variant, kind, renderedData, {
@@ -546,10 +631,28 @@ export function distributionTemplate(
     maxBarWidth,
     barColor,
     showYearGaps,
+    barStartX,
+    rowSpacing,
   });
 
-  const headerFontSize = calculateDynamicFontSize(title, 18, 300);
-  const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;
+  // Headers render at weight 600, so size and truncation both measure at 600.
+  const headerFontSizeNumber = Math.min(
+    18,
+    Math.max(12, (dims.w - 40) / estimateTextWidth(title, 1, 600)),
+  );
+  const titleSuffix = `'s ${capitalize(mediaType)} ${baseTitle}`;
+  const availableUsernameWidth =
+    dims.w - 40 - estimateTextWidth(titleSuffix, headerFontSizeNumber, 600);
+  // The suffix is always shown, so only the username is truncated. Measured
+  // advances keep the ellipsis next to the real end of the available room
+  // instead of a third of a row early.
+  const visibleUsername = fitCardText(
+    username,
+    availableUsernameWidth,
+    headerFontSizeNumber,
+    600,
+  );
+  const safeVisibleTitle = escapeForXml(`${visibleUsername}${titleSuffix}`);
 
   return markTrustedSvg(`
 <svg
@@ -580,19 +683,19 @@ export function distributionTemplate(
       ${generateCommonStyles(resolvedColors, headerFontSizeNumber)}
       .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       .score-count { font-size:${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
-      .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }
-      .year-gap-line { stroke:${resolvedColors.textColor}; stroke-width:1; stroke-dasharray:3 3; opacity:0.35; }
-      .year-gap-dots { fill:${resolvedColors.textColor}; opacity:0.55; }
+      .h-score,.h-count { font-size:11px; }
+      .year-gap-line { stroke:${resolvedColors.textColor}; stroke-width:1; stroke-dasharray:2 4; opacity:0.25; }
+      .chart-baseline { stroke:${resolvedColors.textColor}; stroke-width:1; opacity:0.22; }
       .cdf-grid { stroke:${resolvedColors.textColor}; stroke-width:1; opacity:0.12; }
       .cdf-baseline { stroke:${resolvedColors.textColor}; stroke-width:1; opacity:0.22; }
-      .cdf-axis { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.85; }
-      .cdf-legend { fill:${resolvedColors.textColor}; font:600 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.9; }
+      .cdf-axis { fill:${resolvedColors.textColor}; font:400 11px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.9; }
+      .cdf-legend { fill:${resolvedColors.textColor}; font:600 11px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.9; }
       .cdf-line { stroke:${resolvedColors.circleColor}; stroke-width:2.5; fill:none; stroke-linecap:round; stroke-linejoin:round; }
       .cdf-area { fill:${resolvedColors.circleColor}; opacity:0.14; }
       .cdf-dot { fill:${resolvedColors.circleColor}; opacity:0.95; }
     </style>
     ${generateCardBackground(dims, cardRadius, resolvedColors)}
-    <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
+    <g transform="translate(20,35)"><text class="header">${safeVisibleTitle}</text></g>
     ${mainContent}
   </svg>`);
 }

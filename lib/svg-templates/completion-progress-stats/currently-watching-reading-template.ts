@@ -15,10 +15,14 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import {
+  estimateCardTextWidth,
+  fitCardText,
+} from "@/lib/svg-templates/common/text-metrics";
+import {
+  fitStatusText,
   getDimensions,
   getMediaTitle,
   toSvgIdFragment,
-  truncateWithEllipsis,
 } from "./shared";
 
 /** Currently watching/reading card input structure. @source */
@@ -110,9 +114,9 @@ function getStatsLine(
   animeCount: number,
   mangaCount: number,
 ): string {
-  if (variant === "anime") return `📺 ${animeCount} watching`;
-  if (variant === "manga") return `📚 ${mangaCount} reading`;
-  return `📺 ${animeCount} watching | 📚 ${mangaCount} reading`;
+  if (variant === "anime") return `${animeCount} watching`;
+  if (variant === "manga") return `${mangaCount} reading`;
+  return `${animeCount} watching  ·  ${mangaCount} reading`;
 }
 
 /**
@@ -186,10 +190,25 @@ export function currentlyWatchingReadingTemplate(
   const entriesContent = rows
     .map(({ entry, type }, i) => {
       const mediaTitle = getMediaTitle(entry);
-      const clippedTitle = truncateWithEllipsis(mediaTitle, 44);
-
-      const icon = type === "anime" ? "📺" : "📚";
       const { label, ratio } = getProgressMeta(entry, type);
+      const progressLabel = `${type === "anime" ? "Anime" : "Manga"} · ${label}`;
+      // Reserve only the width this row's meta text actually needs. A fixed
+      // 115px reservation left ~40px unused on every row and truncated the
+      // title well before the row ran out of room.
+      const metaWidth = estimateCardTextWidth(
+        progressLabel,
+        TYPOGRAPHY.SMALL_TEXT_SIZE,
+        400,
+      );
+      const titleWidth = contentW - textX - metaWidth - 10;
+      // Fit to the measured width instead of a fixed character count: a char
+      // cap truncates long titles while the row still has room to spare.
+      const clippedTitle = fitCardText(
+        mediaTitle,
+        titleWidth,
+        TYPOGRAPHY.STAT_LABEL_SIZE,
+        600,
+      );
 
       const coverColor =
         entry.media.coverImage?.color || String(resolvedColors.circleColor);
@@ -210,15 +229,13 @@ export function currentlyWatchingReadingTemplate(
         const escaped = escapeForXml(coverDataUrl);
         coverImage = `<image x="0" y="-18" width="${COVER_W}" height="${COVER_H}" href="${escaped}" xlink:href="${escaped}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})"/>`;
       }
-      const titleX = textX + 18;
 
       return `
         <g transform="translate(${SPACING.CARD_PADDING}, ${rowY})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
           ${coverRect}
           ${coverImage}
-          <text class="entry-icon" x="${textX}" y="0" fill="${resolvedColors.textColor}">${escapeForXml(icon)}</text>
-          <text class="entry-title" x="${titleX}" y="0" fill="${resolvedColors.textColor}">${escapeForXml(clippedTitle)}</text>
-          <text class="entry-meta" x="${contentW}" y="0" text-anchor="end" fill="${resolvedColors.circleColor}">${escapeForXml(label)}</text>
+          <text class="entry-title" x="${textX}" y="0" fill="${resolvedColors.textColor}" ${fitStatusText(clippedTitle, titleWidth, TYPOGRAPHY.STAT_LABEL_SIZE)}>${escapeForXml(clippedTitle)}</text>
+          <text class="entry-meta" x="${contentW}" y="0" text-anchor="end" fill="${resolvedColors.circleColor}" ${fitStatusText(progressLabel, metaWidth, TYPOGRAPHY.SMALL_TEXT_SIZE)}>${escapeForXml(progressLabel)}</text>
           ${track}
           ${fill}
         </g>
@@ -241,7 +258,6 @@ export function currentlyWatchingReadingTemplate(
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-icon { font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px; }
         .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .entry-meta { font: 600 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.95; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
@@ -249,10 +265,10 @@ export function currentlyWatchingReadingTemplate(
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header" ${fitStatusText(title, dims.w - 40, Number(headerFontSize))}>${safeTitle}</text>
       </g>
       <g transform="translate(25, 58)">
-        <text class="stats-line" fill="${resolvedColors.textColor}">${escapeForXml(statsLine)}</text>
+        <text class="stats-line" fill="${resolvedColors.textColor}" ${fitStatusText(statsLine, dims.w - 50, TYPOGRAPHY.STAT_LABEL_SIZE)}>${escapeForXml(statsLine)}</text>
       </g>
       ${entriesContent}
       ${noDataMessage}

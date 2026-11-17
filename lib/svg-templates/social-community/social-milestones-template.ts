@@ -2,6 +2,7 @@ import type { ColorValue } from "../../types/card";
 import type { TrustedSVG } from "../../types/svg";
 import { MILESTONES } from "../common/constants";
 import { getCardDimensions } from "../common/dimensions";
+import { estimateCardTextWidth } from "../common/text-metrics";
 import { toSvgIdFragment } from "../completion-progress-stats/shared";
 import {
   calculateDynamicFontSize,
@@ -38,6 +39,13 @@ const SOCIAL_TIERS = {
   threadComments: [50, 200, 500, 1000, 2000],
   reviews: [10, 50, 100, 200, 500],
 } as const;
+
+const fitText = (text: string, width: number, fontSize: number): string => {
+  const naturalWidth = estimateCardTextWidth(text, fontSize, 600);
+  if (naturalWidth <= width) return "";
+  const scaledSize = Math.max(6, (fontSize * width) / naturalWidth);
+  return `style="font-size:${scaledSize.toFixed(2)}px"`;
+};
 
 function getTierProgress(
   value: number,
@@ -78,7 +86,6 @@ function renderMilestoneRow(opts: {
   idPrefix: string;
   barColor: string;
   textColor: string;
-  backgroundColor: string;
   delay: number;
 }): string {
   const {
@@ -92,7 +99,6 @@ function renderMilestoneRow(opts: {
     idPrefix,
     barColor,
     textColor,
-    backgroundColor,
     delay,
   } = opts;
 
@@ -104,12 +110,14 @@ function renderMilestoneRow(opts: {
   const clipId = `${idPrefix}-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}`;
 
   const targetText = next === null ? "Max tier" : `→ ${next.toLocaleString()}`;
+  const valueText = safeValue.toLocaleString();
+  const progressText = `${valueText} ${targetText}`;
 
   return `
     <g transform="translate(${x}, ${y})" class="stagger" style="animation-delay:${delay}ms">
       <rect x="-12" y="${MILESTONES.ROW_Y_OFFSET}" width="${width + 24}" height="${barHeight + MILESTONES.ROW_HEIGHT}" rx="12" opacity="0.08" />
       <text x="0" y="${MILESTONES.LABEL_Y_OFFSET}" class="row-label" fill="${textColor}">${escapeForXml(label)}</text>
-      <text x="${width}" y="${MILESTONES.LABEL_Y_OFFSET}" text-anchor="end" class="row-target" fill="${textColor}">${escapeForXml(targetText)}</text>
+      <text x="${width}" y="${MILESTONES.LABEL_Y_OFFSET}" text-anchor="end" class="row-target" fill="${textColor}" ${fitText(progressText, width - 125, 11)}><tspan class="row-value">${escapeForXml(valueText)}</tspan><tspan dx="6">${escapeForXml(targetText)}</tspan></text>
 
       <defs>
         <clipPath id="${clipId}">
@@ -122,8 +130,6 @@ function renderMilestoneRow(opts: {
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${barHeight}" fill="${barColor}" />
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${Math.max(1, Math.floor(barHeight / 2))}" fill="#ffffff" opacity="0.12" />
       </g>
-
-      <text x="${width / 2}" y="${barHeight + MILESTONES.VALUE_Y_OFFSET}" text-anchor="middle" class="row-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke">${safeValue.toLocaleString()}</text>
     </g>
   `;
 }
@@ -155,7 +161,9 @@ export function socialMilestonesTemplate(
 
   const title = `${username}'s Social Milestones`;
   const safeTitle = escapeForXml(title);
-  const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, 18, dims.w - 40),
+  );
 
   const idPrefix = `sm-${toSvgIdFragment(username)}-${toSvgIdFragment(variant)}`;
 
@@ -213,12 +221,11 @@ export function socialMilestonesTemplate(
     }
 
     .row-target {
-      font: 500 10px 'Segoe UI', Ubuntu, Sans-Serif;
-      opacity: 0.75;
+      font: 500 11px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .row-value {
-      font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif;
+      font-weight: 700;
     }
 
     .stagger {
@@ -244,7 +251,7 @@ export function socialMilestonesTemplate(
   />
 
   <g transform="translate(20, 34)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header" ${fitText(title, dims.w - 40, headerFontSize)}>${safeTitle}</text>
   </g>
 
   <g transform="translate(0, 64)">
@@ -261,7 +268,6 @@ export function socialMilestonesTemplate(
           idPrefix,
           barColor: resolvedColors.circleColor,
           textColor: resolvedColors.textColor,
-          backgroundColor: resolvedColors.backgroundColor,
           delay: MILESTONES.BASE_DELAY + index * MILESTONES.DELAY_INCREMENT,
         }),
       )

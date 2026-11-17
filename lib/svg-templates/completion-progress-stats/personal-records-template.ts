@@ -13,7 +13,11 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
-import { getDimensions, getMediaTitle, truncateWithEllipsis } from "./shared";
+import {
+  fitStatusText,
+  getDimensions,
+  getMediaTitle,
+} from "./shared";
 
 /** Personal records card input structure. @source */
 interface PersonalRecordsInput {
@@ -91,16 +95,15 @@ export function personalRecordsTemplate(
     (a, b) => (b.repeat ?? 0) - (a.repeat ?? 0),
   )[0];
 
-  const maxTitleChars = 42;
-
   const formatMediaValue = (
     entry: MediaListEntry | undefined,
     suffix: string,
   ): { value: string; missing: boolean } => {
     if (!entry) return { value: "—", missing: true };
     const titleText = getMediaTitle(entry);
-    const clipped = truncateWithEllipsis(titleText, maxTitleChars);
-    return { value: `${escapeForXml(clipped)} ${suffix}`, missing: false };
+    // Keep the full title here; the row fits it to the measured width when it
+    // renders. A character cap drops text while the row still has room.
+    return { value: `${escapeForXml(titleText)} ${suffix}`, missing: false };
   };
 
   const formatScoreValue = (
@@ -109,11 +112,7 @@ export function personalRecordsTemplate(
     const score = entry?.score ?? 0;
     if (!entry || score <= 0) return { value: "—", missing: true };
     const titleText = getMediaTitle(entry);
-    const clipped = truncateWithEllipsis(titleText, maxTitleChars);
-    return {
-      value: `${escapeForXml(clipped)} (${escapeForXml(score)}/10)`,
-      missing: false,
-    };
+    return { value: `${escapeForXml(titleText)} (${escapeForXml(score)}/10)`, missing: false };
   };
 
   const longestAnimeRow = longestAnime?.media.episodes
@@ -190,8 +189,9 @@ export function personalRecordsTemplate(
       const valueOpacity = r.missing ? 0.65 : 1;
       return `
       <g transform="translate(${SPACING.CARD_PADDING}, ${startY + i * rowHeight})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms">
-        <text class="record-label" x="0" y="0" fill="${resolvedColors.textColor}">${escapeForXml(r.label)}:</text>
-        <text class="record-value" x="0" y="16" fill="${valueFill}" opacity="${valueOpacity}">${r.value}</text>
+        <text class="record-label" x="0" y="0" fill="${resolvedColors.textColor}">${escapeForXml(r.label)}</text>
+        <text class="record-value" x="0" y="16" fill="${valueFill}" opacity="${valueOpacity}" ${fitStatusText(r.value.replaceAll(/&(?:amp|lt|gt|quot|#39);/g, "X"), dims.w - SPACING.CARD_PADDING * 2, TYPOGRAPHY.STAT_LABEL_SIZE)}>${r.value}</text>
+        ${i < rows.length - 1 ? `<path d="M0 25 H${dims.w - SPACING.CARD_PADDING * 2}" stroke="${resolvedColors.textColor}" opacity="0.12"/>` : ""}
       </g>
     `;
     })
@@ -203,14 +203,14 @@ export function personalRecordsTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .record-label { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 500; font-size: ${TYPOGRAPHY.STAT_LABEL_SIZE}px; }
-        .record-value { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 400; font-size: ${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
+        .record-label { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 600; font-size: ${TYPOGRAPHY.SMALL_TEXT_SIZE}px; opacity: 0.8; }
+        .record-value { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 500; font-size: ${TYPOGRAPHY.STAT_LABEL_SIZE}px; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header" ${fitStatusText(title, dims.w - 40, Number(headerFontSize))}>${safeTitle}</text>
       </g>
       ${recordsContent}
     </svg>

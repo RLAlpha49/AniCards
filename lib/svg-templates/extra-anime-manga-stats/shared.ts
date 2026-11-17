@@ -27,6 +27,58 @@ import {
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
+import {
+  estimateCardTextWidth,
+  fitCardText,
+} from "@/lib/svg-templates/common/text-metrics";
+
+/**
+ * Truncate `label` to the widest prefix that fits `maxWidth`.
+ *
+ * Widths come from measured font advances. The previous per-character guess
+ * over-measured prose by up to 1.7x, so labels were ellipsised with a third of
+ * the row still empty. Radar labels render at weight 500, which resolves to
+ * the same glyph advances as 600.
+ * @source
+ */
+const fitLabel = (
+  label: string,
+  maxWidth: number,
+  fontSize: number,
+  weight: 400 | 600 = 400,
+): string => fitCardText(label, maxWidth, fontSize, weight);
+
+const createFittedLabel = (
+  label: string,
+  maxWidth: number,
+  className: string,
+): string => {
+  if (maxWidth <= 0) return "";
+  const fitted = fitLabel(label, maxWidth, TYPOGRAPHY.STAT_SIZE);
+  return `<svg x="0" y="0" width="${maxWidth}" height="18" overflow="hidden"><title>${escapeForXml(label)}</title>${createTextElement(0, 12.5, fitted, className)}</svg>`;
+};
+
+/**
+ * Render `value` right-aligned at `x`, shrinking it when it overflows
+ * `maxWidth`.
+ *
+ * The size is set through an inline style because a `font-size` attribute
+ * loses to the stylesheet's `font:` shorthand. `textLength` is avoided so the
+ * glyphs keep their natural advances instead of being squeezed.
+ * @source
+ */
+const createFittedValue = (
+  value: string,
+  x: number,
+  maxWidth: number,
+): string => {
+  const width = estimateCardTextWidth(value, TYPOGRAPHY.STAT_SIZE, 600);
+  const style =
+    width > maxWidth
+      ? ` style="font-size:${Math.max(6, (TYPOGRAPHY.STAT_SIZE * maxWidth) / width).toFixed(2)}px"`
+      : "";
+  return `<text x="${x}" y="12.5" text-anchor="end" class="stat bold"${style}>${escapeForXml(value)}</text>`;
+};
 
 /**
  * Render an SVG card for additional anime/manga statistics including pie/bar
@@ -96,6 +148,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   })();
   svgWidth = svgDims.w;
   const viewBoxWidth = svgWidth;
+  const visibleTitle = fitLabel(titleText, svgWidth - 40, titleFontSize);
   const baseHeight = svgDims.h;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
@@ -104,8 +157,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 
   const barRowCount = (() => {
     if (!isBar || !data.stats || data.stats.length === 0) return 0;
-    const hasRenderableBars = data.stats.some((s) => Math.max(0, s.count) > 0);
-    return hasRenderableBars ? data.stats.length : 0;
+    return data.stats.length;
   })();
 
   const bodyContentHeight = (() => {
@@ -150,17 +202,40 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const heartSVG =
     '<svg x="-18" y="2" width="14" height="14" viewBox="0 0 20 20" fill="#fe428e" xmlns="http://www.w3.org/2000/svg"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>';
 
+  const defaultValueX = svgWidth - SPACING.CARD_PADDING * 2;
+  const legendValueX = 175;
+  /**
+   * Right edge of the legend column, in card coordinates. The column is drawn
+   * inside `translate(${LEGEND_X}, 0)` and its value text is end-anchored at
+   * `legendValueX`, so this is where legend content stops. Radar labels grow
+   * leftward from the chart and must not cross it.
+   * @source
+   */
+  const legendRightEdge = 45 + legendValueX;
+  const defaultValueWidth = Math.min(
+    defaultValueX - 110,
+    Math.max(
+      0,
+      ...data.stats.map((stat) =>
+        estimateCardTextWidth(String(stat.count), TYPOGRAPHY.STAT_SIZE, 600),
+      ),
+    ),
+  );
+
   const statsContentWithoutPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
       const content =
         `${isFavorite ? heartSVG : ""}` +
-        createTextElement(0, 12.5, `${stat.name}:`, "stat bold") +
-        createTextElement(
-          POSITIONING.STAT_VALUE_X_DEFAULT,
-          12.5,
+        createFittedLabel(
+          `${stat.name}:`,
+          Math.max(0, defaultValueX - defaultValueWidth - 12),
+          "stat",
+        ) +
+        createFittedValue(
           String(stat.count),
-          "stat bold",
+          defaultValueX,
+          defaultValueWidth,
         );
 
       return createStaggeredGroup(
@@ -176,6 +251,20 @@ export const extraAnimeMangaStatsTemplate = (data: {
     count: Math.max(0, s.count),
   }));
   const totalForPie = normalizedStats.reduce((acc, s) => acc + s.count, 0) || 1;
+  const legendValueWidth = Math.min(
+    105,
+    Math.max(
+      0,
+      ...data.stats.map((stat) => {
+        const pct = ((Math.max(0, stat.count) / totalForPie) * 100).toFixed(0);
+        return estimateCardTextWidth(
+          `${stat.count}${showPercentages ? ` (${pct}%)` : ""}`,
+          TYPOGRAPHY.STAT_SIZE,
+          600,
+        );
+      }),
+    ),
+  );
   const statsContentWithPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
@@ -190,13 +279,16 @@ export const extraAnimeMangaStatsTemplate = (data: {
       const pctSuffix = showPercentages ? ` (${pct}%)` : "";
       const content =
         `${isFavorite ? heartLegendSVG : ""}` +
-        createRectElement(-20, 2, 12, 12, { fill: fillColor }) +
-        createTextElement(0, 12.5, `${stat.name}:`, "stat") +
-        createTextElement(
-          POSITIONING.STAT_VALUE_X_LARGE,
-          12.5,
-          `${stat.count}${pctSuffix}`,
+        createRectElement(-20, 2, 12, 12, { rx: 3, fill: fillColor }) +
+        createFittedLabel(
+          `${stat.name}:`,
+          Math.max(0, legendValueX - legendValueWidth - 10),
           "stat",
+        ) +
+        createFittedValue(
+          `${stat.count}${pctSuffix}`,
+          legendValueX,
+          legendValueWidth,
         );
 
       return createStaggeredGroup(
@@ -251,14 +343,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
         const startRadians = ((startAngle - 90) * Math.PI) / 180;
         const endRadians = ((currentAngle - 90) * Math.PI) / 180;
         const largeArc = angle > 180 ? 1 : 0;
+        const path =
+          angle >= 360
+            ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r} Z`
+            : `M ${cx} ${cy} L ${cx + r * Math.cos(startRadians)} ${cy + r * Math.sin(startRadians)} A ${r} ${r} 0 ${largeArc} 1 ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)} Z`;
 
         return `
               <path
-                d="M ${cx} ${cy}
-                  L ${cx + r * Math.cos(startRadians)} ${cy + r * Math.sin(startRadians)}
-                  A ${r} ${r} 0 ${largeArc} 1 
-                  ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)}
-                  Z"
+                d="${path}"
                 fill="${getStatColor(
                   stat.index,
                   stat.name,
@@ -343,14 +435,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
           statBaseCircleColor,
           data.fixedStatusColors && data.format.endsWith("Statuses"),
         );
+        const path =
+          angle >= 360
+            ? `M ${cx} ${cy - outerR} A ${outerR} ${outerR} 0 1 1 ${cx} ${cy + outerR} A ${outerR} ${outerR} 0 1 1 ${cx} ${cy - outerR} Z M ${cx} ${cy - innerR} A ${innerR} ${innerR} 0 1 0 ${cx} ${cy + innerR} A ${innerR} ${innerR} 0 1 0 ${cx} ${cy - innerR} Z`
+            : `M ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
 
         return `
           <path
-            d="M ${ox1} ${oy1}
-              A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2}
-              L ${ix2} ${iy2}
-              A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1}
-              Z"
+            d="${path}"
             fill="${fill}"
             stroke="${resolvedColors.backgroundColor}"
             stroke-width="1.2"
@@ -364,7 +456,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 
     return `
       ${slices}
-      <text x="${cx}" y="${cy}" text-anchor="middle" class="donut-total">${total}</text>
+      <text x="${cx}" y="${cy}" text-anchor="middle" class="donut-total" style="font-size:${Math.min(14, (14 * 38) / estimateCardTextWidth(String(total), 14, 700))}px">${total}</text>
       <text x="${cx}" y="${cy + 15}" text-anchor="middle" class="donut-label">Total</text>
     `;
   })();
@@ -389,11 +481,10 @@ export const extraAnimeMangaStatsTemplate = (data: {
     const startAngle = -Math.PI / 2;
     const step = (Math.PI * 2) / Math.max(1, n);
 
-    const truncateLabel = (value: string, maxLen: number) => {
-      const s = String(value ?? "");
-      if (s.length <= maxLen) return s;
-      return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
-    };
+    const radarChartX = Math.max(
+      svgWidth - 250,
+      POSITIONING.STAT_VALUE_X_LARGE + 135,
+    );
 
     const axisPoints = statsForRadar.map((s, i) => {
       const angle = startAngle + i * step;
@@ -425,7 +516,22 @@ export const extraAnimeMangaStatsTemplate = (data: {
         lx,
         ly,
         anchor,
-        label: truncateLabel(s.name, 14),
+        label: fitLabel(
+          s.name,
+          Math.max(
+            0,
+            anchor === "start"
+              ? svgWidth - 10 - radarChartX - lx
+              : anchor === "end"
+                ? radarChartX + lx - legendRightEdge
+                : Math.min(
+                    radarChartX + lx - legendRightEdge,
+                    svgWidth - 10 - radarChartX - lx,
+                  ) * 2,
+          ),
+          9,
+          600,
+        ),
       };
     });
 
@@ -511,25 +617,36 @@ export const extraAnimeMangaStatsTemplate = (data: {
 
         const sanitizedCounts = data.stats.map((s) => Math.max(0, s.count));
         const maxCount = Math.max(1, ...sanitizedCounts);
-
-        const hasRenderableBars = sanitizedCounts.some((c) => c > 0);
-        if (!hasRenderableBars) {
-          return "";
-        }
+        const valueX = svgWidth - SPACING.CARD_PADDING * 2;
+        const valueWidth = Math.min(
+          140,
+          Math.max(
+            ...data.stats.map((stat) =>
+              estimateCardTextWidth(String(stat.count), TYPOGRAPHY.STAT_SIZE, 600),
+            ),
+          ),
+        );
+        const barX = 150;
+        const trackWidth = Math.max(0, valueX - valueWidth - 10 - barX);
 
         return data.stats
           .map((stat, index) => {
             const count = Math.max(0, stat.count);
-            const barWidth = ((count / maxCount) * 140).toFixed(2);
+            const barWidth = ((count / maxCount) * trackWidth).toFixed(2);
             const isFavorite =
               showFavorites && data.favorites?.includes(stat.name);
             const fill = getColorByIndex(index, statBaseCircleColor);
             const w = Number(barWidth);
             const content =
               `${isFavorite ? heartSVG : ""}` +
-              createTextElement(0, 12, `${stat.name}:`, "stat") +
-              createRectElement(150, 2, w, 14, { rx: 3, fill }) +
-              createTextElement(155 + w, 13, String(count), "stat");
+              createFittedLabel(`${stat.name}:`, barX - 10, "stat") +
+              createRectElement(barX, 2, trackWidth, 12, {
+                rx: 6,
+                fill,
+                opacity: 0.16,
+              }) +
+              createRectElement(barX, 2, w, 12, { rx: 6, fill }) +
+              createFittedValue(String(stat.count), valueX, valueWidth);
 
             return createStaggeredGroup(
               `translate(0, ${index * SPACING.ROW_HEIGHT_LARGE})`,
@@ -587,7 +704,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       viewBox="0 0 ${viewBoxWidth} ${svgHeight}"
       fill="none"
       role="img"
-      aria-labelledby="desc-id"
+      aria-labelledby="title-id desc-id"
     >
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
@@ -647,11 +764,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
       </style>
       ${generateCardBackground({ w: viewBoxWidth, h: svgHeight }, cardRadius, resolvedColors)}
       <g data-testid="card-title" transform="translate(25, 35)">
-        <g transform="translate(0, 0)">
-          <text x="0" y="0" class="header" data-testid="header">
-            ${safeTitle}
+        <svg x="0" y="-20" width="${svgWidth - 40}" height="25" overflow="hidden">
+          <text x="0" y="20" class="header" data-testid="header">
+            ${escapeForXml(visibleTitle)}
           </text>
-        </g>
+        </svg>
       </g>
       <g data-testid="main-card-body" transform="translate(0, ${BODY_Y})">
         ${mainStatsContent}

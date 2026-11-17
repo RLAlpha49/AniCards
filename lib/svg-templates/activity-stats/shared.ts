@@ -1,8 +1,29 @@
 import type { ActivityHistoryItem } from "@/lib/types/records";
+import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
 export {
   getHeatmapColor,
   type HeatmapPalette,
 } from "@/lib/svg-templates/common";
+
+/**
+ * Fit unusually wide activity titles by shrinking the font, not by stretching
+ * glyphs.
+ *
+ * `textLength` with `lengthAdjust="spacingAndGlyphs"` rewrites glyph advances
+ * and warps the header. Measured advances keep the natural shape and only
+ * reduce the size when the title genuinely overflows.
+ * @source
+ */
+export function fitActivityTitle(
+  title: string,
+  fontSize: number,
+  width: number,
+): string {
+  const naturalWidth = estimateCardTextWidth(title, fontSize, 600);
+  if (naturalWidth <= width) return "";
+  const scaledSize = Math.max(6, (fontSize * width) / naturalWidth);
+  return `style="font-size:${scaledSize.toFixed(2)}px"`;
+}
 
 /**
  * Renders a sparkline SVG path from data points.

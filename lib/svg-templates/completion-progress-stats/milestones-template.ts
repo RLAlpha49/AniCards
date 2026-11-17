@@ -9,7 +9,7 @@ import {
 } from "@/lib/utils";
 import { MILESTONES } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { toSvgIdFragment } from "./shared";
+import { fitStatusText, toSvgIdFragment } from "./shared";
 
 /** Milestones card input structure. @source */
 interface MilestonesInput {
@@ -93,7 +93,6 @@ interface MilestoneBarOptions {
   idPrefix: string;
   circleColor: string;
   textColor: string;
-  backgroundColor: string;
   delay: number;
 }
 
@@ -114,7 +113,6 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
     idPrefix,
     circleColor,
     textColor,
-    backgroundColor,
     delay,
   } = opts;
   const safeValue = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -123,15 +121,12 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
   const barRadius = Math.max(4, Math.min(barHeight / 2, 10));
   const clipId = `${idPrefix}-ms-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}`;
   const labelY = MILESTONES.LABEL_Y_OFFSET;
-  const valueY = barHeight + MILESTONES.VALUE_Y_OFFSET;
-  const rowY = MILESTONES.ROW_Y_OFFSET;
-  const rowHeight = barHeight + MILESTONES.ROW_HEIGHT;
+  const progressLabel = `${safeValue.toLocaleString()} ${unit} → ${next.toLocaleString()}`;
 
   return `
     <g transform="translate(${x}, ${y})" class="stagger" style="animation-delay:${delay}ms">
-      <rect x="-12" y="${rowY}" width="${width + 24}" height="${rowHeight}" rx="12" opacity="0.08"/>
       <text x="0" y="${labelY}" class="milestone-label" fill="${textColor}">${escapeForXml(label)}</text>
-      <text x="${width}" y="${labelY}" text-anchor="end" class="milestone-target" fill="${textColor}">→ ${next.toLocaleString()} ${unit}</text>
+      <text x="${width}" y="${labelY}" text-anchor="end" class="milestone-target" fill="${textColor}" ${fitStatusText(progressLabel, width * 0.48, 11)}>${escapeForXml(progressLabel)}</text>
       <defs>
         <clipPath id="${clipId}">
           <rect x="0" y="0" width="${width}" height="${barHeight}" rx="${barRadius}"/>
@@ -142,7 +137,6 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${barHeight}" fill="${circleColor}"/>
         <rect x="0" y="0" width="${barWidth.toFixed(2)}" height="${Math.max(1, Math.floor(barHeight / 2))}" fill="#ffffff" opacity="0.12"/>
       </g>
-      <text x="${width / 2}" y="${valueY}" text-anchor="middle" class="milestone-value" fill="${textColor}" stroke="${backgroundColor}" stroke-width="3" paint-order="stroke">${safeValue.toLocaleString()} ${unit}</text>
     </g>
   `;
 }
@@ -204,7 +198,6 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         idPrefix,
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
-        backgroundColor: resolvedColors.backgroundColor,
         delay: nextDelay(),
       }),
     );
@@ -225,7 +218,6 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         idPrefix,
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
-        backgroundColor: resolvedColors.backgroundColor,
         delay: nextDelay(),
       }),
     );
@@ -246,7 +238,6 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         idPrefix,
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
-        backgroundColor: resolvedColors.backgroundColor,
         delay: nextDelay(),
       }),
     );
@@ -267,7 +258,6 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         idPrefix,
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
-        backgroundColor: resolvedColors.backgroundColor,
         delay: nextDelay(),
       }),
     );
@@ -289,7 +279,6 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         idPrefix,
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
-        backgroundColor: resolvedColors.backgroundColor,
         delay: nextDelay(),
       }),
     );
@@ -307,16 +296,16 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .milestone-label { font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .milestone-target { font: 500 11px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.78; }
-        .milestone-value { font: 700 10px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .milestone-target { font: 600 11px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
       <rect x="0.5" y="0.5" width="${baseDims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header" ${fitStatusText(title, baseDims.w - 40, Number(headerFontSize))}>${safeTitle}</text>
       </g>
       ${milestoneBars.join("")}
+      ${barCount === 0 ? `<text x="20" y="70" class="milestone-label" fill="${resolvedColors.textColor}">No milestones yet</text>` : ""}
     </svg>
   `);
 }

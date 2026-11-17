@@ -9,6 +9,7 @@ import {
 } from "@/lib/utils";
 import {
   calculateCompletionRatio,
+  fitStatusText,
   getDimensions,
   generateStackedBar,
   generateStatusLegend,
@@ -65,6 +66,7 @@ export function statusCompletionOverviewTemplate(
   const title = `${username}'s Completion Overview`;
   const safeTitle = escapeForXml(title);
   const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
+  const contentWidth = dims.w - SPACING.CARD_PADDING * 2;
 
   const animeRatio = calculateCompletionRatio(animeStatuses);
   const mangaRatio = calculateCompletionRatio(mangaStatuses);
@@ -76,27 +78,27 @@ export function statusCompletionOverviewTemplate(
 
   if (variant === "split") {
     content = `
-      <g transform="translate(${SPACING.CARD_PADDING}, 65)">
+      <g transform="translate(${SPACING.CARD_PADDING}, 58)">
         ${generateStackedBar(animeStatuses, {
           x: 0,
           y: 0,
-          width: dims.w - 50,
-          height: 20,
+          width: contentWidth,
+          height: 12,
           label: animeLabel,
           textColor: resolvedColors.textColor,
           trackColor: resolvedColors.circleColor,
         })}
-        ${generateStatusLegend(animeStatuses, 0, 34, resolvedColors.textColor)}
+        ${generateStatusLegend(animeStatuses, 0, 27, resolvedColors.textColor, contentWidth)}
         ${generateStackedBar(mangaStatuses, {
           x: 0,
-          y: 80,
-          width: dims.w - 50,
-          height: 20,
+          y: 89,
+          width: contentWidth,
+          height: 12,
           label: mangaLabel,
           textColor: resolvedColors.textColor,
           trackColor: resolvedColors.circleColor,
         })}
-        ${generateStatusLegend(mangaStatuses, 0, 114, resolvedColors.textColor)}
+        ${generateStatusLegend(mangaStatuses, 0, 116, resolvedColors.textColor, contentWidth)}
       </g>
     `;
   } else {
@@ -113,13 +115,13 @@ export function statusCompletionOverviewTemplate(
         ${generateStackedBar(combinedStatuses, {
           x: 0,
           y: 0,
-          width: dims.w - 50,
-          height: 24,
+          width: contentWidth,
+          height: 14,
           label: combinedLabel,
           textColor: resolvedColors.textColor,
           trackColor: resolvedColors.circleColor,
         })}
-        ${generateStatusLegend(combinedStatuses, 0, 40, resolvedColors.textColor)}
+        ${generateStatusLegend(combinedStatuses, 0, 32, resolvedColors.textColor, contentWidth)}
       </g>
     `;
   }
@@ -130,14 +132,14 @@ export function statusCompletionOverviewTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .bar-label { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .legend-text { font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .bar-label { font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .legend-text { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${dims.h - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
-      <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+      <g transform="translate(20, ${variant === "split" ? 30 : 35})">
+        <text class="header" ${fitStatusText(title, dims.w - 40, Number(headerFontSize))}>${safeTitle}</text>
       </g>
       ${content}
     </svg>

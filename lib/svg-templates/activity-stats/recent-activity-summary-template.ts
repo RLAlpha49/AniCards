@@ -8,13 +8,10 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
+import { ANIMATION, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { generateSparkline } from "./shared";
+import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
+import { fitActivityTitle, generateSparkline } from "./shared";
 
 /**
  * Generates a recent activity summary card with sparkline.
@@ -76,18 +73,31 @@ export function recentActivitySummaryTemplate(data: {
     : "N/A";
 
   const dims = getCardDimensions("recentActivitySummary", "default");
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40),
+  );
 
   // Generate sparkline data (last 30 points or all if less)
   const sparklineData = sorted.slice(-30).map((item) => item.amount);
-  const sparklineWidth = dims.w - 40;
-  const sparklineHeight = 30;
+  const sparklinePadding = cardRadius > 70 ? 40 : 20;
+  const sparklineWidth = dims.w - sparklinePadding * 2;
+  const sparklineHeight = 24;
   const sparklinePath = generateSparkline(
     sparklineData,
     sparklineWidth,
     sparklineHeight,
   );
 
-  const showSparkline = true;
+  const metrics = [
+    { label: "Total activity", value: String(totalActivity), x: 0, width: 80 },
+    { label: "Daily avg.", value: avgPerDay, x: 85, width: 65 },
+    {
+      label: "Best day",
+      value: `${bestDay.amount} (${bestDayStr})`,
+      x: 155,
+      width: 85,
+    },
+  ];
 
   return markTrustedSvg(`
 <svg
@@ -105,16 +115,20 @@ export function recentActivitySummaryTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 500 11px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .stat-value {
       fill: ${resolvedColors.circleColor};
       font: 600 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+    }
+    .chart-label {
+      fill: ${resolvedColors.textColor};
+      font: 500 10px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .sparkline {
       fill: none;
@@ -144,26 +158,26 @@ export function recentActivitySummaryTemplate(data: {
     ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
     stroke-width="2"
   />
-  <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+  <g transform="translate(${cardRadius > 70 ? 40 : 20}, 30)">
+    <text x="0" y="0" class="header" ${fitActivityTitle(title, headerFontSize, dims.w - (cardRadius > 70 ? 80 : 40))}>${safeTitle}</text>
   </g>
   <g transform="translate(20, 50)">
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY}ms">
-      <text class="stat" y="12">Total Activities:</text>
-      <text class="stat-value" x="110" y="12">${totalActivity}</text>
-    </g>
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT})">
-      <text class="stat" y="12">Avg per Day:</text>
-      <text class="stat-value" x="110" y="12">${avgPerDay}</text>
-    </g>
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + 2 * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT * 2})">
-      <text class="stat" y="12">Best Day:</text>
-      <text class="stat-value" x="110" y="12">${bestDay.amount} (${bestDayStr})</text>
-    </g>
+    ${metrics
+      .map(
+        (
+          metric,
+          i,
+        ) => `<g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(${metric.x}, 0)">
+      <text class="stat" y="10">${metric.label}</text>
+      <text class="stat-value" y="29" ${estimateCardTextWidth(metric.value, 14, 700) > metric.width ? `style="font-size:${Math.max(6, (14 * metric.width) / estimateCardTextWidth(metric.value, 14, 700)).toFixed(2)}px"` : ""}>${metric.value}</text>
+    </g>`,
+      )
+      .join("")}
   </g>
   ${
-    showSparkline && sparklinePath
-      ? `<g transform="translate(20, ${dims.h - 50})">
+    sparklinePath
+      ? `<g transform="translate(${sparklinePadding}, ${dims.h - 45})">
+    <text class="chart-label" y="-7">Last ${sparklineData.length} entries</text>
     <path class="sparkline" d="${sparklinePath}" />
   </g>`
       : ""

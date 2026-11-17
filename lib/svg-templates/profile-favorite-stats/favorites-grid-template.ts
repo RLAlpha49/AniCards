@@ -10,7 +10,8 @@ import {
 import { getVariantLabel, type TemplateStyles } from "./shared";
 import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
-import { ANIMATION, TYPOGRAPHY } from "../common/constants";
+import { ANIMATION } from "../common/constants";
+import { fitCardText } from "../common/text-metrics";
 
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,
@@ -236,6 +237,27 @@ export const favoritesGridTemplate = (data: {
       ? `${data.username}'s ${variantLabel}`
       : `${data.username}'s Favorite ${variantLabel}`;
   const safeTitle = escapeForXml(title);
+  const titleFontSize = Number.parseFloat(
+    calculateDynamicFontSize(title, cols === 1 ? 16 : 18, dims.w - 40, 11),
+  );
+  const captionFontSize = 13;
+
+  /**
+   * Truncate `value` to the widest prefix that fits `width`.
+   *
+   * Widths come from measured font advances. The previous per-character guess
+   * over-measured by up to a quarter, so captions were ellipsised early, and
+   * its `maxCharacters` cap cut strings that would have fitted.
+   * @source
+   */
+  const truncateToWidth = (
+    value: string,
+    width: number,
+    fontSize: number,
+    weight: 400 | 600 = 600,
+  ): string => fitCardText(value, width, fontSize, weight);
+
+  const visibleTitle = truncateToWidth(title, dims.w - 40, titleFontSize);
 
   return markTrustedSvg(`
 <svg
@@ -257,14 +279,11 @@ export const favoritesGridTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, titleFontSize)}
 
     .item-name {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${captionFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .item-placeholder {
@@ -276,7 +295,7 @@ export const favoritesGridTemplate = (data: {
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   <g data-testid="card-title" transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header">${escapeForXml(visibleTitle)}</text>
   </g>
 
   <g data-testid="main-card-body" transform="translate(20, 50)">
@@ -292,9 +311,9 @@ export const favoritesGridTemplate = (data: {
             return `
             <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
               <clipPath id="clip-${cell.placeholderId}">
-                <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
+                <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="8"/>
               </clipPath>
-              <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
+              <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="8"/>
             </g>
           `;
           }
@@ -310,6 +329,11 @@ export const favoritesGridTemplate = (data: {
           }
 
           const clipId = `clip-${item.type}-${item.id}-${i}`;
+          const caption = truncateToWidth(
+            item.name,
+            cellWidth,
+            captionFontSize,
+          );
 
           // Studios don't have images - render text-only tiles with initials
           if (item.type === "studio") {
@@ -318,7 +342,7 @@ export const favoritesGridTemplate = (data: {
             return `
           <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
             <a xlink:href="${escapeForXml(anilistUrl)}" target="_blank">
-              <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4" fill="${studioColor}" opacity="0.9"/>
+              <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="8" fill="${studioColor}" opacity="0.9"/>
               <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}" 
                     text-anchor="middle" 
                     fill="white" 
@@ -326,12 +350,8 @@ export const favoritesGridTemplate = (data: {
                     font-weight="bold" 
                     font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
             </a>
-            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+            <text class="item-name" x="0" y="${cellHeight - 3}">
+              ${escapeForXml(caption)}
             </text>
           </g>
         `;
@@ -340,7 +360,7 @@ export const favoritesGridTemplate = (data: {
           return `
           <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
             <clipPath id="${clipId}">
-              <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
+              <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="8"/>
             </clipPath>
             ${
               item.image
@@ -355,15 +375,11 @@ export const favoritesGridTemplate = (data: {
               </a>
             `
                 : `
-              <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
+              <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="8"/>
             `
             }
-            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+            <text class="item-name" x="0" y="${cellHeight - 3}">
+              ${escapeForXml(caption)}
             </text>
           </g>
         `;

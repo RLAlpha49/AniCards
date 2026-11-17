@@ -7,6 +7,9 @@ import {
   SPACING,
   TYPOGRAPHY,
   getCardDimensions,
+  estimateCardTextWidth,
+  fitCardFontSize,
+  type CardFontWeight,
 } from "@/lib/svg-templates/common";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
@@ -92,12 +95,49 @@ function formatInt(n: number | undefined | null): string {
   return v.toLocaleString("en-US");
 }
 
-function estimateTextWidthPx(text: string, fontSizePx: number): number {
-  const t = typeof text === "string" ? text : "";
-  if (!t) return 0;
+function estimateTextWidthPx(
+  text: string,
+  fontSizePx: number,
+  weight: CardFontWeight = 400,
+): number {
+  return estimateCardTextWidth(text, fontSizePx, weight);
+}
 
-  const charWidthMultiplier = Math.max(0.4, 0.6 - t.length * 0.003);
-  return t.length * fontSizePx * charWidthMultiplier;
+/**
+ * Render `text` inside `maxWidth`, shrinking the font size when it overflows.
+ *
+ * The previous implementation wrapped the text in `scale(sx, 1)`, which
+ * compresses glyph advances horizontally and visibly warps letters. Scaling the
+ * font size keeps glyph proportions intact.
+ *
+ * The size is emitted as an inline `style`, not a `font-size` attribute:
+ * presentation attributes lose to the stylesheet's `font:` shorthand, so an
+ * attribute would be silently ignored.
+ * @source
+ */
+export function renderFittedText(
+  x: number,
+  y: number,
+  text: string,
+  className: string,
+  maxWidth: number,
+  fontSize: number,
+  textAnchor?: "end",
+  weight: CardFontWeight = 600,
+): string {
+  const fittedSize = fitCardFontSize(
+    text,
+    maxWidth,
+    fontSize,
+    weight,
+    fontSize * 0.6,
+  );
+  const element = createTextElement(x, y, text, className, { textAnchor });
+  if (fittedSize >= fontSize) return element;
+  return element.replace(
+    "<text ",
+    `<text style="font-size:${fittedSize.toFixed(2)}px" `,
+  );
 }
 
 function renderMetricsBlock(
@@ -106,11 +146,29 @@ function renderMetricsBlock(
 ): string {
   return metrics
     .map((m, i) => {
+      const valueWidth = Math.min(
+        estimateTextWidthPx(m.value, TYPOGRAPHY.STAT_VALUE_SIZE),
+        colW * 0.72,
+      );
+      const labelWidth = colW - valueWidth - 8;
       const content =
-        createTextElement(0, 12, m.label, "stat") +
-        createTextElement(colW, 12, m.value, "stat-value", {
-          textAnchor: "end",
-        });
+        renderFittedText(
+          0,
+          12,
+          m.label,
+          "stat",
+          labelWidth,
+          TYPOGRAPHY.STAT_SIZE,
+        ) +
+        renderFittedText(
+          colW,
+          12,
+          m.value,
+          "stat-value",
+          valueWidth,
+          TYPOGRAPHY.STAT_VALUE_SIZE,
+          "end",
+        );
 
       return createStaggeredGroup(
         `translate(0, ${i * SPACING.ROW_HEIGHT_COMPACT})`,
@@ -135,14 +193,11 @@ function renderBarsBlock(
     .filter((b) => b.label.trim().length > 0);
 
   const maxCount = Math.max(1, ...sanitized.map((b) => b.count));
-  const labelToBarGap = 10;
-  const barToCountGap = 10;
+  const labelToBarGap = 8;
+  const barToCountGap = 8;
   const minBarW = 20;
 
-  const fallbackBarStartX = 74;
-  const fallbackCountPad = 36;
-
-  const rows = sanitized.slice(0, 8).map((b) => {
+  const rows = sanitized.slice(0, MAX_BARS_PER_COLUMN).map((b) => {
     const countText = formatInt(b.count);
     const labelW = estimateTextWidthPx(b.label, TYPOGRAPHY.STAT_SIZE);
     const countW = estimateTextWidthPx(countText, TYPOGRAPHY.STAT_SIZE);
@@ -150,26 +205,18 @@ function renderBarsBlock(
   });
 
   const maxLabelW = Math.max(0, ...rows.map((r) => r.labelW));
-  const maxCountW = Math.max(0, ...rows.map((r) => r.countW));
-
-  let barStartX = Math.ceil(maxLabelW + labelToBarGap);
-  let barEndX = Math.floor(colW - maxCountW - barToCountGap);
-  let maxBarW = barEndX - barStartX;
-
-  if (!Number.isFinite(barStartX) || !Number.isFinite(maxBarW)) {
-    barStartX = fallbackBarStartX;
-    maxBarW = colW - fallbackBarStartX - fallbackCountPad;
-  }
-
-  if (maxBarW < minBarW) {
-    barStartX = fallbackBarStartX;
-    maxBarW = colW - fallbackBarStartX - fallbackCountPad;
-  }
-
-  maxBarW = Math.max(minBarW, Math.floor(maxBarW));
-  barStartX = Math.min(
-    Math.max(0, barStartX),
-    Math.max(0, Math.floor(colW - maxBarW)),
+  const maxCountW = Math.min(
+    Math.max(0, ...rows.map((r) => r.countW)),
+    colW * 0.35,
+  );
+  const labelWidth = Math.min(
+    maxLabelW,
+    colW - maxCountW - labelToBarGap - barToCountGap - minBarW,
+  );
+  const barStartX = Math.ceil(labelWidth + labelToBarGap);
+  const maxBarW = Math.max(
+    minBarW,
+    Math.floor(colW - maxCountW - barToCountGap - barStartX),
   );
 
   return rows
@@ -179,15 +226,32 @@ function renderBarsBlock(
         Math.max(2, Math.round((Math.max(0, b.count) / maxCount) * maxBarW)),
       );
       const content =
-        createTextElement(0, 12, b.label, "stat") +
+        renderFittedText(
+          0,
+          12,
+          b.label,
+          "stat",
+          labelWidth,
+          TYPOGRAPHY.STAT_SIZE,
+        ) +
+        createRectElement(barStartX, 4, maxBarW, SHAPES.BAR_HEIGHT_SMALL, {
+          rx: SHAPES.BAR_RADIUS,
+          fill: barColor,
+          opacity: 0.16,
+        }) +
         createRectElement(barStartX, 4, w, SHAPES.BAR_HEIGHT_SMALL, {
           rx: SHAPES.BAR_RADIUS,
           fill: barColor,
-          opacity: 0.85,
         }) +
-        createTextElement(colW, 12, b.countText, "stat", {
-          textAnchor: "end",
-        });
+        renderFittedText(
+          colW,
+          12,
+          b.countText,
+          "stat",
+          maxCountW,
+          TYPOGRAPHY.STAT_SIZE,
+          "end",
+        );
 
       return createStaggeredGroup(
         `translate(0, ${i * SPACING.ITEM_GAP})`,
@@ -292,7 +356,7 @@ export function comparativeTwoColumnTemplate(
     ? `<g transform="translate(0, ${leftBarsY})">${renderBarsBlock(leftBars, colW, resolvedColors.circleColor)}</g>`
     : "";
   const rightBarsBlock = rightBars.length
-    ? `<g transform="translate(0, ${rightBarsY})">${renderBarsBlock(rightBars, colW, resolvedColors.circleColor)}</g>`
+    ? `<g transform="translate(0, ${rightBarsY})">${renderBarsBlock(rightBars, colW, resolvedColors.titleColor)}</g>`
     : "";
 
   const leftEmpty =
@@ -310,23 +374,28 @@ export function comparativeTwoColumnTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         ${generateCommonStyles(resolvedColors, headerFontSize)}
-        .col-title { fill: ${resolvedColors.circleColor}; font: 600 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .col-title { fill: ${resolvedColors.textColor}; font: 700 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       </style>
       ${generateCardBackground(dims, cardRadius, resolvedColors)}
       <g transform="translate(20, ${SPACING.HEADER_Y})" data-testid="card-title">
-        <text class="header">${safeTitle}</text>
+        ${renderFittedText(0, 0, fullTitle, "header", dims.w - 40, headerFontSize, undefined, 600)}
       </g>
 
       <g data-testid="main-card-body">
+        ${createRectElement(dims.w / 2, SPACING.CONTENT_Y, 1, dims.h - SPACING.CONTENT_Y - padding, { fill: resolvedColors.textColor, opacity: 0.12 })}
         <g transform="translate(${col1X}, ${SPACING.CONTENT_Y})">
-          <text class="col-title" x="0" y="${sectionTitleY}">${escapeForXml(input.left.title)}</text>
+          ${createRectElement(0, 1, 3, 13, { rx: 1, fill: resolvedColors.circleColor })}
+          ${renderFittedText(10, sectionTitleY, input.left.title, "col-title", colW - 10, TYPOGRAPHY.STAT_VALUE_SIZE)}
+          ${createRectElement(0, 19, colW, 1, { fill: resolvedColors.circleColor, opacity: 0.35 })}
           ${leftMetricsBlock}
           ${leftBarsBlock}
           ${leftEmpty}
         </g>
 
         <g transform="translate(${col2X}, ${SPACING.CONTENT_Y})">
-          <text class="col-title" x="0" y="${sectionTitleY}">${escapeForXml(input.right.title)}</text>
+          ${createRectElement(0, 1, 3, 13, { rx: 1, fill: resolvedColors.titleColor })}
+          ${renderFittedText(10, sectionTitleY, input.right.title, "col-title", colW - 10, TYPOGRAPHY.STAT_VALUE_SIZE)}
+          ${createRectElement(0, 19, colW, 1, { fill: resolvedColors.titleColor, opacity: 0.35 })}
           ${rightMetricsBlock}
           ${rightBarsBlock}
           ${rightEmpty}

@@ -14,6 +14,11 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import {
+  estimateCardTextWidth,
+  fitCardText,
+} from "@/lib/svg-templates/common/text-metrics";
+import {
+  fitStatusText,
   getDimensions,
   getMediaTitle,
   dedupeByMediaIdKeepHighestRepeat,
@@ -116,18 +121,36 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
   const totalRereads =
     input.totalRereads ??
     mangaReread.reduce((sum, e) => sum + (e.repeat ?? 0), 0);
-  const statsLine = `🔄 ${totalRewatches} rewatches | 📖 ${totalRereads} rereads`;
+  const statsLine = `${totalRewatches} rewatches  ·  ${totalRereads} rereads`;
 
   const entriesContent = displayEntries
     .map(({ entry, type }, i) => {
       const mediaTitle = getMediaTitle(entry);
       const repeatCount = entry.repeat ?? 0;
-      const icon = type === "anime" ? "📺" : "📚";
+      const count = `${repeatCount}x`;
+      // The title starts after the type label and must stop short of the
+      // count text, which is end-anchored at `dims.w - 45`. Derive the limit
+      // from those two anchors instead of a fixed 140px reservation, which
+      // cut titles ~30px earlier than the row required.
+      const titleX = 48;
+      const countRightEdge = dims.w - 45;
+      const countWidth =
+        estimateCardTextWidth(count, TYPOGRAPHY.STAT_LABEL_SIZE, 600) + 12;
+      const titleWidth = countRightEdge - countWidth - titleX;
+      // Fit to the measured width instead of a fixed character count: a char
+      // cap truncates long titles while the row still has room to spare.
+      const clippedTitle = fitCardText(
+        mediaTitle,
+        titleWidth,
+        TYPOGRAPHY.STAT_LABEL_SIZE,
+        400,
+      );
       return `
         <g transform="translate(${SPACING.CARD_PADDING}, ${85 + i * 28})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
-          <text class="entry-icon" fill="${resolvedColors.textColor}">${escapeForXml(icon)}</text>
-          <text class="entry-title" x="22" fill="${resolvedColors.textColor}">${escapeForXml(mediaTitle.slice(0, 32))}${mediaTitle.length > 32 ? "..." : ""}</text>
-          <text class="entry-count" x="${dims.w - 45}" fill="${resolvedColors.circleColor}" text-anchor="end">${escapeForXml(repeatCount)}x</text>
+          <text class="entry-type" fill="${resolvedColors.circleColor}">${type === "anime" ? "ANIME" : "MANGA"}</text>
+          <text class="entry-title" x="${titleX}" fill="${resolvedColors.textColor}" ${fitStatusText(clippedTitle, titleWidth, TYPOGRAPHY.STAT_LABEL_SIZE)}>${escapeForXml(clippedTitle)}</text>
+          <text class="entry-count" x="${dims.w - 45}" fill="${resolvedColors.circleColor}" text-anchor="end" ${fitStatusText(count, 40, TYPOGRAPHY.STAT_LABEL_SIZE)}>${escapeForXml(count)}</text>
+          ${i < displayEntries.length - 1 ? `<path d="M0 13 H${dims.w - 50}" stroke="${resolvedColors.textColor}" opacity="0.12"/>` : ""}
         </g>
       `;
     })
@@ -145,7 +168,7 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-icon { font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px; }
+        .entry-type { font: 700 9px 'Segoe UI', Ubuntu, Sans-Serif; letter-spacing: 0.3px; }
         .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .entry-count { font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
@@ -153,10 +176,10 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       </style>
       <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${svgHeight - 1}" rx="${cardRadius}" fill="${resolvedColors.backgroundColor}" ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""} stroke-width="2"/>
       <g transform="translate(20, 35)">
-        <text class="header">${safeTitle}</text>
+        <text class="header" ${fitStatusText(title, dims.w - 40, Number(headerFontSize))}>${safeTitle}</text>
       </g>
       <g transform="translate(25, 58)">
-        <text class="stats-line" fill="${resolvedColors.textColor}">${escapeForXml(statsLine)}</text>
+        <text class="stats-line" fill="${resolvedColors.textColor}" ${fitStatusText(statsLine, dims.w - 50, TYPOGRAPHY.STAT_LABEL_SIZE)}>${escapeForXml(statsLine)}</text>
       </g>
       ${entriesContent}
       ${noDataMessage}

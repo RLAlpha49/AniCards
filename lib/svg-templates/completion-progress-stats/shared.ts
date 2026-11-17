@@ -1,6 +1,7 @@
 import type { MediaListEntry } from "@/lib/types/records";
 import { escapeForXml } from "@/lib/utils";
 import { ANIMATION } from "@/lib/svg-templates/common/constants";
+import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
 import {
   CARD_DIMENSIONS,
   getCardDimensions,
@@ -107,10 +108,11 @@ export function getDimensions(
  */
 export function truncateWithEllipsis(text: string, maxChars: number): string {
   const s = String(text ?? "").trim();
+  const characters = Array.from(s);
   if (maxChars <= 0) return "";
-  if (s.length <= maxChars) return s;
+  if (characters.length <= maxChars) return s;
   if (maxChars === 1) return "…";
-  return `${s.slice(0, maxChars - 1)}…`;
+  return `${characters.slice(0, maxChars - 1).join("")}…`;
 }
 
 /**
@@ -149,7 +151,6 @@ export function generateStackedBar(
   const { x, y, width, height, label, textColor, trackColor } = opts;
   const normalized = normalizeStatusCounts(statuses).filter((s) => s.count > 0);
   const total = normalized.reduce((sum, s) => sum + s.count, 0);
-  if (total === 0) return "";
 
   const barRadius = Math.max(2, Math.min(height / 2, 10));
   const clipId = `bar-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}-${Math.round(width)}-${Math.round(height)}`;
@@ -183,6 +184,25 @@ export function generateStackedBar(
 }
 
 /**
+ * Fit long text within the available space by shrinking the font size.
+ *
+ * Widths come from advances measured from the card font. The previous
+ * per-character guess over-measured prose, so labels shrank further than the
+ * available room required. The size is emitted as an inline style because a
+ * `font-size` attribute loses to a stylesheet's `font:` shorthand.
+ * @source
+ */
+export function fitStatusText(
+  text: string,
+  width: number,
+  fontSize: number,
+): string {
+  const measured = estimateCardTextWidth(text, fontSize, 400);
+  if (measured <= width) return "";
+  return `style="font-size:${Math.max(6, (fontSize * width) / measured).toFixed(2)}px"`;
+}
+
+/**
  * Generate a legend for status colors.
  * @source
  */
@@ -191,21 +211,29 @@ export function generateStatusLegend(
   x: number,
   y: number,
   textColor: string,
+  width: number,
 ): string {
-  return normalizeStatusCounts(statuses)
+  const visibleStatuses = normalizeStatusCounts(statuses)
     .filter((s) => s.count > 0)
-    .slice(0, 6)
+    .slice(0, 6);
+  if (visibleStatuses.length === 0) {
+    return `<text x="${x}" y="${y}" class="legend-text" fill="${textColor}">No entries</text>`;
+  }
+
+  const columnWidth = width / 2;
+  return visibleStatuses
     .map((s, i) => {
       const color = STATUS_COLORS[s.status] ?? "#95a5a6";
       const name = STATUS_NAMES[s.status] ?? s.status;
-      const row = Math.floor(i / 3);
-      const col = i % 3;
-      const itemX = x + col * 110;
-      const itemY = y + row * 18;
+      const label = `${name}: ${s.count}`;
+      const row = Math.floor(i / 2);
+      const col = i % 2;
+      const itemX = x + col * columnWidth;
+      const itemY = y + row * 17;
       return `
         <g transform="translate(${itemX}, ${itemY})" class="stagger" style="animation-delay:${ANIMATION.LEGEND_BASE_DELAY + i * ANIMATION.LEGEND_INCREMENT}ms">
           <rect x="0" y="-8" width="10" height="10" rx="2" fill="${color}"/>
-          <text x="14" y="0" class="legend-text" fill="${textColor}">${escapeForXml(name)}: ${s.count}</text>
+          <text x="14" y="0" class="legend-text" fill="${textColor}" ${fitStatusText(label, columnWidth - 22, 12)}>${escapeForXml(label)}</text>
         </g>
       `;
     })

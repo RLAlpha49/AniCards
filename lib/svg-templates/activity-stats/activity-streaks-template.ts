@@ -8,13 +8,9 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
+import { ANIMATION, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { computeStreaks } from "./shared";
+import { computeStreaks, fitActivityTitle } from "./shared";
 
 /**
  * Generates an activity streaks card showing current/longest streaks.
@@ -59,6 +55,9 @@ export function activityStreaksTemplate(data: {
   const streakInfo = computeStreaks(data.activityHistory);
 
   const dims = getCardDimensions("activityStreaks", "default");
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40),
+  );
 
   const stats = [
     {
@@ -78,9 +77,10 @@ export function activityStreaksTemplate(data: {
   const statsContent = stats
     .map(
       (stat, i) => `
-    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${i * SPACING.ROW_HEIGHT})">
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${i * 31})">
       <text class="stat" y="12">${stat.label}</text>
       <text class="stat-value" x="${dims.w - 40}" y="12" text-anchor="end">${stat.value}</text>
+      ${i < stats.length - 1 ? `<path d="M0 22 H${dims.w - 40}" stroke="${resolvedColors.textColor}" stroke-opacity="0.16" />` : ""}
     </g>
   `,
     )
@@ -102,7 +102,7 @@ export function activityStreaksTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
@@ -133,7 +133,7 @@ export function activityStreaksTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header" ${fitActivityTitle(title, headerFontSize, dims.w - 40)}>${safeTitle}</text>
   </g>
   <g transform="translate(20, 55)">
     ${statsContent}

@@ -15,7 +15,7 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { detectTopActivityDays } from "./shared";
+import { detectTopActivityDays, fitActivityTitle } from "./shared";
 
 /**
  * Generates a Top Activity Days card showing days with the highest activity.
@@ -61,6 +61,9 @@ export function topActivityDaysTemplate(data: {
   const topDays = topActivityDays.slice(0, 5);
 
   const dims = getCardDimensions("topActivityDays", "default");
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40),
+  );
 
   const activityRows =
     topDays.length > 0
@@ -71,6 +74,7 @@ export function topActivityDaysTemplate(data: {
         <text class="rank" y="12">#${i + 1}</text>
         <text class="date" x="${POSITIONING.BAR_START_X}" y="12">${day.date}</text>
         <text class="amount" x="${dims.w - 40}" y="12" text-anchor="end">${day.amount} activities</text>
+        ${i < topDays.length - 1 ? `<path d="M${POSITIONING.BAR_START_X} 20 H${dims.w - 40}" stroke="${resolvedColors.textColor}" stroke-opacity="0.16" />` : ""}
       </g>
     `,
           )
@@ -93,26 +97,25 @@ export function topActivityDaysTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .rank {
       fill: ${resolvedColors.circleColor};
-      font: 600 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .date {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .amount {
       fill: ${resolvedColors.textColor};
-      font: 500 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
-      opacity: 0.9;
+      font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .no-data {
       fill: ${resolvedColors.textColor};
       font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
-      opacity: 0.6;
+      opacity: 0.9;
     }
     .stagger {
       opacity: 0;
@@ -134,7 +137,7 @@ export function topActivityDaysTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header" ${fitActivityTitle(title, headerFontSize, dims.w - 40)}>${safeTitle}</text>
   </g>
   <g transform="translate(20, ${SPACING.CONTENT_Y})">
     ${activityRows}

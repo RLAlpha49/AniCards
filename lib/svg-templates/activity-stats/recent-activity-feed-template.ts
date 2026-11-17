@@ -14,6 +14,7 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { fitActivityTitle } from "./shared";
 
 /**
  * Generates a recent activity feed card (text-based listing).
@@ -63,6 +64,9 @@ export function recentActivityFeedTemplate(data: {
     .slice(0, 5);
 
   const dims = getCardDimensions("recentActivityFeed", "default");
+  const headerFontSize = Number(
+    calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40),
+  );
 
   const feedItems = sorted.map((item, i) => {
     const date = new Date(item.date * 1000);
@@ -76,6 +80,7 @@ export function recentActivityFeedTemplate(data: {
         <circle cx="8" cy="8" r="4" fill="${resolvedColors.circleColor}" />
         <text class="feed-date" x="20" y="12">${dateStr}</text>
         <text class="feed-amount" x="${dims.w - 40}" y="12" text-anchor="end">${item.amount} activities</text>
+        ${i < sorted.length - 1 ? `<path d="M20 20 H${dims.w - 40}" stroke="${resolvedColors.textColor}" stroke-opacity="0.16" />` : ""}
       </g>
     `;
   });
@@ -96,17 +101,16 @@ export function recentActivityFeedTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .feed-date {
       fill: ${resolvedColors.textColor};
-      font: 500 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .feed-amount {
       fill: ${resolvedColors.textColor};
-      font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
-      opacity: 0.8;
+      font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
       text-anchor: end;
     }
     .stagger {
@@ -129,7 +133,7 @@ export function recentActivityFeedTemplate(data: {
     stroke-width="2"
   />
   <g transform="translate(20, 30)">
-    <text x="0" y="0" class="header">${safeTitle}</text>
+    <text x="0" y="0" class="header" ${fitActivityTitle(title, headerFontSize, dims.w - 40)}>${safeTitle}</text>
   </g>
   <g transform="translate(20, 50)">
     ${feedItems.join("")}
