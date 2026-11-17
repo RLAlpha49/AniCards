@@ -526,9 +526,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Anime-only should not include the manga icon/label in the stats line.
-      expect(body).toContain("📺");
-      expect(body).not.toContain("📚");
+      // Anime-only should not include manga entries or labels.
+      expect(body).toContain("1 watching");
+      expect(body).toContain("Anime · 6/12 ep");
+      expect(body).not.toContain("Manga ·");
+      expect(body).not.toContain("reading");
 
       // Progress bar track should be positioned within the translated row group.
       expect(body).toContain('opacity="0.16"');
@@ -598,9 +600,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Manga-only should not include the anime icon/label in the stats line.
-      expect(body).toContain("📚");
-      expect(body).not.toContain("📺");
+      // Manga-only should not include anime entries or labels.
+      expect(body).toContain("1 reading");
+      expect(body).toContain("Manga · 10/100 ch");
+      expect(body).not.toContain("Anime ·");
+      expect(body).not.toContain("watching");
 
       expect(body).toContain('opacity="0.16"');
       expect(body).toContain('y="10"');
