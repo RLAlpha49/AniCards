@@ -304,6 +304,8 @@ bun run test:e2e:docker
 | `bun run db:setup` | Start Redis and the REST proxy |
 | `bun run db:seed` | Seed the local database |
 | `bun run db:reset` | Delete all local Redis data |
+| `bun run audit:capture` | Render every card variation for a visual audit |
+| `bun run audit:report` | Rebuild the HTML report from the last capture |
 | `bun run update` | Update dependencies with npm-check-updates |
 
 ### Project layout

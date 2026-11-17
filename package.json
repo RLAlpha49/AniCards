@@ -12,6 +12,8 @@
     "db:setup": "docker compose up -d --wait redis serverless-redis-http",
     "db:seed": "bun run scripts/db/seed.ts",
     "db:reset": "bun run scripts/db/reset.ts",
+    "audit:capture": "bun run scripts/visual-audit/index.ts capture",
+    "audit:report": "bun run scripts/visual-audit/index.ts report",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
