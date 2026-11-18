@@ -11,7 +11,7 @@ import {
   trackCopyAction,
   trackExternalLinkClick,
 } from "@/lib/analytics/google-analytics";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./user.module.css";
 
 type UserMastheadProps = Readonly<{

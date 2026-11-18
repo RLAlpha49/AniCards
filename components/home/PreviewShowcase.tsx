@@ -13,7 +13,7 @@ import {
   SHOWCASE_CARDS,
   type ShowcaseCategory,
 } from "./showcase";
-import styles from "./home.module.css";
+import styles from "@/components/shared/paper.module.css";
 
 type PreviewShowcaseProps = Readonly<{
   onGetStarted: () => void;

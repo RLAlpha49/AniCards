@@ -7,132 +7,6 @@
   padding-inline: clamp(1.25rem, 4vw, 4.5rem);
 }
 
-/* ── hero ────────────────────────────────────────────────────── */
-
-.hero {
-  position: relative;
-}
-
-.edition {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.95rem 0 0.8rem;
-  font-size: 0.58rem;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.editionRule {
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-
-.heroRule {
-  border-top: 2px solid var(--ink);
-}
-
-.heroCopy {
-  min-width: 0;
-}
-
-/* Two columns on a wide screen: the copy, and the three stages a message goes
-   through. The stages answer "what happens next" before the visitor commits to
-   a channel. */
-.heroInner {
-  display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
-  align-items: start;
-  gap: clamp(2rem, 5vw, 4.5rem);
-  padding-top: clamp(2rem, 4vw, 3rem);
-  padding-bottom: clamp(1.8rem, 3.5vw, 2.6rem);
-}
-
-.kicker {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--vermillion);
-}
-
-.kickerRule {
-  width: 2.6rem;
-  height: 1px;
-  background: var(--vermillion);
-}
-
-.title {
-  position: relative;
-  z-index: 0;
-  margin-top: 1.35rem;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: clamp(2.2rem, 4vw, 3.6rem);
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-}
-
-.title em {
-  position: relative;
-  font-style: italic;
-  font-weight: 600;
-  color: var(--vermillion);
-}
-
-.title em::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  right: -0.06em;
-  bottom: 0.2em;
-  left: -0.06em;
-  height: 0.9em;
-  background: var(--vermillion-wash);
-}
-
-.lede {
-  margin-top: 1.4rem;
-  max-width: 34rem;
-  font-size: 0.97rem;
-  line-height: 1.85;
-  color: var(--ink-soft);
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: clamp(1.4rem, 3.5vw, 3rem);
-  margin-top: clamp(1.7rem, 3vw, 2.4rem);
-  border-top: 1px solid var(--line);
-  padding-top: 1.1rem;
-}
-
-.meta dt {
-  font-size: 0.56rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.meta dd {
-  margin-top: 0.2rem;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: 1.4rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-/* ── hero print ──────────────────────────────────────────────── */
-
-/* One card print, mounted on paper with a keyline and a strip of tape, with a
-   score strip tucked behind it. The caption below says what the print is,
-   because the artwork itself carries no alt text: the card is an example, not
-   information. */
 .printFrame {
   position: relative;
   width: min(100%, 25rem);
@@ -795,7 +669,6 @@
   }
 }
 
-/* Idle drift for the hero print, matching the home page collage. */
 @keyframes drift {
   0%,
   100% {
@@ -887,11 +760,6 @@
     border-bottom: 1px dashed var(--line-strong);
   }
 
-  .heroInner {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 2rem;
-  }
-
   /* The print moves under the copy and shrinks, so it still reads as the
      subject of the page without pushing the desk below the fold. */
   .printFrame {
@@ -920,17 +788,6 @@
 }
 
 @media (max-width: 560px) {
-  .edition {
-    gap: 0.55rem;
-    letter-spacing: 0.16em;
-  }
-
-  /* The right-hand note is decoration. On a phone it clips rather than
-     wrapping, so it stands down and leaves the label on its own. */
-  .edition > span:last-child {
-    display: none;
-  }
-
   .deskAsk {
     padding: 0.9rem 0.85rem 1rem;
   }
@@ -968,10 +825,6 @@
   .dirCard:last-child {
     border-bottom: none;
     padding-bottom: 0;
-  }
-
-  .meta {
-    gap: 1.4rem;
   }
 }
 

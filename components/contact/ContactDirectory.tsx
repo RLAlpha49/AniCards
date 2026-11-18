@@ -14,7 +14,7 @@ import {
   safeTrack,
   trackExternalLinkClick,
 } from "@/lib/analytics/google-analytics";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import { DIRECTORY_CHANNELS, type DirectoryChannel } from "./channels";
 import styles from "./contact.module.css";
 

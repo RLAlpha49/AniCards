@@ -1,144 +1,4 @@
-/* Search page: the way back to saved cards, on the home page's paper ground. */
-
-.sheet {
-  width: 100%;
-  max-width: 1500px;
-  margin-inline: auto;
-  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
-}
-
-/* ── hero ────────────────────────────────────────────────────── */
-
-/* The hero is the whole page, so it centres in the viewport when there is
-   room to spare and simply flows when there is not. */
-.hero {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: calc(100dvh - 61px);
-  padding-bottom: clamp(2rem, 5vw, 4rem);
-}
-
-.edition {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.95rem 0 0.8rem;
-  font-size: 0.58rem;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.editionRule {
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-
-.heroRule {
-  border-top: 2px solid var(--ink);
-}
-
-/* Copy and facts stack in the left column, the panel fills the right and
-   centres against both. Stacked narrow, the panel moves between them so the
-   field comes before the facts. */
-.heroInner {
-  display: grid;
-  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
-  grid-template-rows: 1fr auto;
-  align-items: center;
-  column-gap: clamp(2rem, 4.5vw, 4rem);
-  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
-}
-
-.heroCopy {
-  min-width: 0;
-  grid-column: 1;
-  grid-row: 1;
-  align-self: end;
-}
-
-.kicker {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--vermillion);
-}
-
-.kickerRule {
-  width: 2.6rem;
-  height: 1px;
-  background: var(--vermillion);
-}
-
-.title {
-  position: relative;
-  z-index: 0;
-  margin-top: 1.35rem;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: clamp(2.2rem, 4vw, 3.6rem);
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -0.02em;
-}
-
-.title em {
-  position: relative;
-  font-style: italic;
-  font-weight: 600;
-  color: var(--vermillion);
-}
-
-.title em::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  right: -0.06em;
-  bottom: 0.2em;
-  left: -0.06em;
-  height: 0.9em;
-  background: var(--vermillion-wash);
-}
-
-.lede {
-  margin-top: 1.4rem;
-  max-width: 32rem;
-  font-size: 0.97rem;
-  line-height: 1.85;
-  color: var(--ink-soft);
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1;
-  grid-row: 2;
-  gap: clamp(1.4rem, 3.5vw, 3rem);
-  margin-top: clamp(1.8rem, 3.5vw, 2.6rem);
-  border-top: 1px solid var(--line);
-  padding-top: 1.1rem;
-}
-
-.meta dt {
-  font-size: 0.56rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.meta dd {
-  margin-top: 0.2rem;
-  font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: 1.4rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-/* ── lookup panel ────────────────────────────────────────────── */
+/* Search page: the way back to saved cards, on the paper ground. */
 
 .panel {
   position: relative;
@@ -555,56 +415,16 @@
 @media (max-width: 1080px) {
   /* Stacked, the panel follows the intro and the facts follow the panel, so
      the field is the first control rather than something below the fold. */
-  .hero {
-    justify-content: flex-start;
-    min-height: 0;
-    padding-bottom: clamp(2.5rem, 6vw, 4rem);
-  }
-
-  .heroInner {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    align-items: start;
-    row-gap: 1.8rem;
-  }
-
-  .heroCopy {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: auto;
-  }
-
   .panel {
     grid-column: 1;
     grid-row: 2;
     align-self: auto;
   }
-
-  .meta {
-    grid-column: 1;
-    grid-row: 3;
-    margin-top: 0;
-  }
 }
 
 @media (max-width: 560px) {
-  .edition {
-    gap: 0.55rem;
-    letter-spacing: 0.16em;
-  }
-
-  /* The right-hand note is decoration. On a phone it clips rather than
-     wrapping, so it stands down and leaves the label on its own. */
-  .edition > span:last-child {
-    display: none;
-  }
-
   .panel {
     padding: 0.95rem 0.95rem 1.1rem;
-  }
-
-  .meta {
-    gap: 1.4rem;
   }
 }
 

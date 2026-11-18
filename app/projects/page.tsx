@@ -10,7 +10,7 @@ import { ProjectEntry } from "@/components/projects/ProjectEntry";
 import { ProjectsNotes } from "@/components/projects/ProjectsNotes";
 import { ProjectsClosing } from "@/components/projects/ProjectsClosing";
 import { PROJECTS } from "@/components/projects/catalogue";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/projects/projects.module.css";
 
 /**

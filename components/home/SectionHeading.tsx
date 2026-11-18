@@ -1,4 +1,4 @@
-import styles from "./home.module.css";
+import styles from "@/components/shared/paper.module.css";
 
 type SectionHeadingProps = Readonly<{
   numeral: string;

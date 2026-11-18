@@ -1,8 +1,8 @@
-/* User page: the cards saved for one AniList profile, on the home paper ground.
+/* User page: the cards saved for one AniList profile, on the paper ground.
 
    The page reads as a record of one run: who the cards belong to, what was
    saved, how to take it, and where to put it. Paper tokens come from the
-   shared `.page` surface in home.module.css. */
+   shared `.page` surface in paper.module.css. */
 
 .sheet {
   width: 100%;

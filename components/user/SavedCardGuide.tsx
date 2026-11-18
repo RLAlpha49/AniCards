@@ -5,7 +5,7 @@ import { ArrowRight, ExternalLink } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
 import { SectionHeading } from "@/components/home/SectionHeading";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./user.module.css";
 
 const STEPS = [

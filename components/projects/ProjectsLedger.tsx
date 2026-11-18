@@ -2,7 +2,7 @@
 
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import { FLOW_ROWS } from "./catalogue";
 import styles from "./projects.module.css";
 

@@ -5,7 +5,7 @@ import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
 import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
 import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
-import styles from "./home.module.css";
+import styles from "@/components/shared/paper.module.css";
 
 type HeroSectionProps = Readonly<{
   onGetStarted: () => void;
@@ -44,7 +44,7 @@ export function HeroSection({ onGetStarted, onSeeExamples }: HeroSectionProps) {
 
         <div className={styles.heroRule} />
 
-        <div className={styles.heroInner}>
+        <div className={cn(styles.heroInner, styles.heroInnerPrint)}>
           <div
             ref={ref}
             data-reveal={phase}

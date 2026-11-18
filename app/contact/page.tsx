@@ -8,7 +8,7 @@ import { ContactHero } from "@/components/contact/ContactHero";
 import { ContactDesk } from "@/components/contact/ContactDesk";
 import { ContactDirectory } from "@/components/contact/ContactDirectory";
 import { ContactClosing } from "@/components/contact/ContactClosing";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/contact/contact.module.css";
 
 /**

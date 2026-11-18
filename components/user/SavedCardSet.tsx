@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
 import { SectionHeading } from "@/components/home/SectionHeading";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import { SavedCardPlate } from "./SavedCardPlate";
 import { SavedCardSetDesk } from "./SavedCardSetDesk";
 import type { SavedCard } from "./types";

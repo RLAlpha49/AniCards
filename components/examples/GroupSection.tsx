@@ -2,7 +2,7 @@
 
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./card-examples.module.css";
 import { CardTypePreview } from "./CardTypePreview";
 import { groupAnchor, type CardType, type GroupName } from "./card-types";

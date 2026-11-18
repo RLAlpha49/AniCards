@@ -1,4 +1,6 @@
-/* Home page surface: warm paper, sumi ink, vermillion seals, seigaiha rule. */
+/* Paper design system: warm paper, sumi ink, vermillion seals, seigaiha rule.
+   Shared by the home page and every paper-themed page, so the hero shell, the
+   sheet width, the scroll reveal, and the paper tokens have one home. */
 
 .page {
   --paper: #f3e9d5;
@@ -124,13 +126,78 @@
   border-top: 2px solid var(--ink);
 }
 
+/* Two columns: the copy, and one element that belongs to the page. Each page
+   positions that element itself, so the grid only places the copy. */
 .heroInner {
   display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  align-items: start;
+  gap: clamp(2rem, 4.5vw, 4.5rem);
+  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
+  padding-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+/* A hero whose only job is one control, so it centres in the viewport when
+   there is room to spare and simply flows when there is not. */
+.heroCentred {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100dvh - 61px);
+  padding-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+/* The copy and the facts stack in the left column; the page's own aside fills
+   the right one and centres against both. The facts sit outside the copy so
+   the aside can span them. */
+.heroInnerCentred {
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  column-gap: clamp(2rem, 4.5vw, 4rem);
+  padding-top: clamp(2.2rem, 4.5vw, 3.6rem);
+}
+
+.heroCopyCentred {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+}
+
+.heroFactsCentred {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+/* The home hero's collage is taller than the copy, so the copy centres against
+   it and the row opens up to hold the stack. The collage hero also sets its
+   copy larger than the plainer heroes, so it carries its own type scale. */
+.heroInnerPrint {
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   align-items: center;
   gap: clamp(2rem, 5vw, 5rem);
   padding-top: clamp(2.4rem, 5.5vw, 4.6rem);
   padding-bottom: clamp(2.6rem, 5vw, 3.6rem);
+}
+
+.heroInnerPrint .title {
+  margin-top: 1.5rem;
+  font-size: clamp(2.2rem, 3.9vw, 3.4rem);
+}
+
+.heroInnerPrint .lede {
+  margin-top: 1.75rem;
+  font-size: 1rem;
+}
+
+.heroInnerPrint .meta {
+  gap: clamp(1.4rem, 3.5vw, 3.2rem);
+  margin-top: 2.8rem;
+  padding-top: 1.25rem;
+}
+
+.heroInnerPrint .meta dd {
+  font-size: 1.55rem;
 }
 
 .heroCopy {
@@ -156,9 +223,9 @@
 .title {
   position: relative;
   z-index: 0;
-  margin-top: 1.5rem;
+  margin-top: 1.35rem;
   font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: clamp(2.2rem, 3.9vw, 3.4rem);
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
   font-weight: 800;
   line-height: 1.02;
   letter-spacing: -0.02em;
@@ -183,11 +250,21 @@
 }
 
 .lede {
-  margin-top: 1.75rem;
+  margin-top: 1.4rem;
   max-width: 34rem;
-  font-size: 1rem;
+  font-size: 0.97rem;
   line-height: 1.85;
   color: var(--ink-soft);
+}
+
+/* A second line of copy under the lede, for a caveat that would interrupt the
+   paragraph above it. */
+.ledeNote {
+  margin-top: 0.9rem;
+  max-width: 34rem;
+  font-size: 0.74rem;
+  line-height: 1.7;
+  color: var(--ink-faint);
 }
 
 .actions {
@@ -257,13 +334,14 @@
   height: 0.9rem;
 }
 
+/* Figures under the hero copy, ruled off from it. */
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: clamp(1.4rem, 3.5vw, 3.2rem);
-  margin-top: 2.8rem;
+  gap: clamp(1.4rem, 3.5vw, 3rem);
+  margin-top: clamp(1.7rem, 3vw, 2.4rem);
   border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
+  padding-top: 1.1rem;
 }
 
 .meta dt {
@@ -276,7 +354,7 @@
 .meta dd {
   margin-top: 0.2rem;
   font-family: var(--font-display), "Yu Mincho", serif;
-  font-size: 1.55rem;
+  font-size: 1.45rem;
   font-weight: 600;
   line-height: 1;
 }
@@ -1059,10 +1137,45 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 2rem;
   }
+
+  /* Stacked, the page's aside follows the intro and the facts follow the
+     aside, so the control comes before the figures describing it. The collage
+     hero keeps its two columns until 860px, where its copy would otherwise
+     sit beside artwork too narrow to read. */
+  .heroInner:not(.heroInnerPrint),
+  .heroInnerCentred {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .heroInnerCentred {
+    grid-template-rows: auto auto auto;
+    align-items: start;
+    row-gap: 1.8rem;
+  }
+
+  .heroCopyCentred {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: auto;
+  }
+
+  .heroFactsCentred {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 0;
+  }
+
+  /* A hero that centres in the viewport has nothing to centre once the page
+     stacks, so it returns to the normal flow. */
+  .heroCentred {
+    justify-content: flex-start;
+    min-height: 0;
+    padding-bottom: clamp(2.5rem, 6vw, 4rem);
+  }
 }
 
 @media (max-width: 860px) {
-  .heroInner {
+  .heroInnerPrint {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1098,6 +1211,12 @@
   .edition {
     gap: 0.55rem;
     letter-spacing: 0.16em;
+  }
+
+  /* A note the page marks as decoration stands down on a phone, where it would
+     clip rather than wrap, leaving the label on its own. */
+  .editionNoteDecorative {
+    display: none;
   }
 
   .printFrame {

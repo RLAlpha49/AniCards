@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { homeFontStyles } from "@/lib/fonts";
-import styles from "../home/home.module.css";
+import styles from "../shared/paper.module.css";
 
 /**
  * Paper surface shared by the paper-themed pages.

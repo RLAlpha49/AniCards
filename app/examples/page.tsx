@@ -18,7 +18,7 @@ import { ExamplesHeroSection } from "@/components/examples/ExamplesHeroSection";
 import { GroupSection } from "@/components/examples/GroupSection";
 import { ExamplesCTA } from "@/components/examples/ExamplesCTA";
 import { X } from "@/lib/icons";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/examples/card-examples.module.css";
 
 /**

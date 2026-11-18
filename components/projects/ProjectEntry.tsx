@@ -10,7 +10,7 @@ import {
   trackExternalLinkClick,
   trackNavigation,
 } from "@/lib/analytics/google-analytics";
-import homeStyles from "@/components/home/home.module.css";
+import homeStyles from "@/components/shared/paper.module.css";
 import type { Project } from "./catalogue";
 import styles from "./projects.module.css";
 
