@@ -7,7 +7,7 @@ import styles from "./card-examples.module.css";
 import { CardTypePreview } from "./CardTypePreview";
 import {
   groupAnchor,
-  type CardType,
+  type CardCatalogEntry,
   type GroupName,
 } from "@/lib/cards/catalogue";
 
@@ -15,7 +15,7 @@ type GroupSectionProps = Readonly<{
   group: GroupName;
   numeral: string;
   note: string;
-  cardTypes: CardType[];
+  cardTypes: CardCatalogEntry[];
   onOpenGenerator: () => void;
 }>;
 

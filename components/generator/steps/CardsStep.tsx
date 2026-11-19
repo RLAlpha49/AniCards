@@ -9,7 +9,7 @@ import {
   GROUP_SUMMARIES,
   filterCardTypes,
   type CardSelection,
-  type CardType,
+  type CardCatalogEntry,
   type GroupName,
 } from "@/lib/cards/catalogue";
 import styles from "../generator.module.css";
@@ -54,7 +54,7 @@ export function CardsStep({
   const matching = useMemo(() => filterCardTypes(CARD_TYPES, query), [query]);
 
   const byGroup = useMemo(() => {
-    const map = new Map<GroupName, CardType[]>();
+    const map = new Map<GroupName, CardCatalogEntry[]>();
     for (const card of matching) {
       const list = map.get(card.group);
       if (list) list.push(card);
@@ -235,7 +235,7 @@ export function CardsStep({
 }
 
 type CardRowProps = Readonly<{
-  card: CardType;
+  card: CardCatalogEntry;
   selection: CardSelection | undefined;
   onToggle: () => void;
   onVariationChange: (variation: string) => void;

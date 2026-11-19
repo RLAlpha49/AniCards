@@ -5,10 +5,10 @@ import { ArrowRight, ExternalLink } from "@/lib/icons";
 import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
 import { cn } from "@/lib/cn";
 import styles from "./card-examples.module.css";
-import type { CardType, CardVariation } from "@/lib/cards/catalogue";
+import type { CardCatalogEntry, CardVariation } from "@/lib/cards/catalogue";
 
 type CardTypePreviewProps = Readonly<{
-  cardType: CardType;
+  cardType: CardCatalogEntry;
   /** Position within its group, used as the card's number. */
   index: number;
   onOpenGenerator: () => void;

@@ -60,7 +60,7 @@ export type CardVariation = Readonly<{
 }>;
 
 /** A card type together with every variation the generator supports. @source */
-export type CardType = Readonly<{
+export type CardCatalogEntry = Readonly<{
   /** Card identifier the card API accepts, for example `animeStats`. */
   id: CardId;
   title: string;
@@ -236,7 +236,7 @@ function splitVariation(entry: VariationDef): {
  * @returns The card types in registry order.
  * @source
  */
-export function buildCardTypes(): CardType[] {
+export function buildCardTypes(): CardCatalogEntry[] {
   return CARD_REGISTRY.map((card) => {
     const variations = card.variations.map((entry) => {
       const { variation, extras } = splitVariation(entry);
@@ -309,10 +309,10 @@ export type CardSelection = Readonly<{
  * second lookup.
  * @source
  */
-export const CARD_TYPES: CardType[] = buildCardTypes();
+export const CARD_TYPES: CardCatalogEntry[] = buildCardTypes();
 
 /** Card types keyed by card id. @source */
-const CARD_BY_ID = new Map<string, CardType>(
+const CARD_BY_ID = new Map<string, CardCatalogEntry>(
   CARD_TYPES.map((card) => [card.id, card]),
 );
 
@@ -322,7 +322,7 @@ const CARD_BY_ID = new Map<string, CardType>(
  * @returns The card type, or undefined when the id is unknown.
  * @source
  */
-export function findCardType(id: string): CardType | undefined {
+export function findCardType(id: string): CardCatalogEntry | undefined {
   return CARD_BY_ID.get(id);
 }
 
@@ -370,7 +370,10 @@ export function variationLabel(variation: string): string {
  * @returns Matching cards, or the input when the term is empty.
  * @source
  */
-export function filterCardTypes(cards: CardType[], query: string): CardType[] {
+export function filterCardTypes(
+  cards: CardCatalogEntry[],
+  query: string,
+): CardCatalogEntry[] {
   const term = query.trim().toLowerCase();
   if (!term) return cards;
 
