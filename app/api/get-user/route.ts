@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
-  redisClient,
   incrementAnalyticsInBackground,
   isValidUsername,
   jsonWithCors,
@@ -9,6 +8,7 @@ import {
   checkRateLimit,
   getClientIp,
 } from "@/lib/api-utils";
+import { resolveUserIdFromUsername } from "@/lib/card-data";
 import {
   fetchUserDataParts,
   reconstructUserRecord,
@@ -154,32 +154,6 @@ function projectRequestedParts(
     if (!selected.has(field as UserDataPart)) delete projected[field];
   }
   return projected;
-}
-
-/**
- * Resolves a normalized username to a numeric user ID via the Redis username
- * index.
- *
- * @param username - The username to normalize and resolve.
- * @returns The resolved user ID or null when the lookup fails.
- * @source
- */
-async function resolveUserIdFromUsername(
-  username: string,
-): Promise<number | null> {
-  const normalizedUsername = username.trim().toLowerCase();
-  const usernameIndexKey = `username:${normalizedUsername}`;
-  console.log(
-    `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
-  );
-  const userIdFromIndex = await redisClient.get(usernameIndexKey);
-  if (!userIdFromIndex) return null;
-  const candidate = Number.parseInt(userIdFromIndex as string, 10);
-  if (Number.isNaN(candidate)) return null;
-  console.log(
-    `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
-  );
-  return candidate;
 }
 
 /** The identity a request asked for, or the response that refuses it. */
