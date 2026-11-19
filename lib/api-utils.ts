@@ -11,6 +11,11 @@ import {
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import { logRequest } from "@/lib/server/api-logging";
 export { logRequest, logSuccess } from "@/lib/server/api-logging";
+import {
+  DEFAULT_SITE_ORIGIN,
+  normalizeOrigin,
+  resolveSiteOrigin,
+} from "@/lib/site-origin";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
@@ -64,33 +69,10 @@ function createRealRedisClient(): Redis {
 }
 
 /**
- * Public site origin used as the production fallback for JSON API CORS.
- * Mirrors the default in `lib/seo.ts` so both read one value.
- * @source
- */
-const DEFAULT_SITE_ORIGIN = "https://anicards.alpha49.com";
-
-/**
  * Public API origin. Mirrors the default in `lib/utils.ts`.
  * @source
  */
 const DEFAULT_API_ORIGIN = "https://api.anicards.alpha49.com";
-
-/**
- * Resolves the configured site origin, or the hardcoded default.
- *
- * Read at call time rather than at import time so a test or a script can set
- * the variable after this module is loaded.
- *
- * @returns A parseable origin. Never empty, because a misconfigured value
- *   falls back to the default rather than to an empty string that no browser
- *   would match.
- * @source
- */
-function getSiteOrigin(): string {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_ORIGIN;
-  return normalizeOrigin(raw) ?? DEFAULT_SITE_ORIGIN;
-}
 
 /**
  * Resolves the origin configured for the JSON APIs.
@@ -354,15 +336,6 @@ export interface ApiError {
   error: string;
 }
 
-function normalizeOrigin(value: string | null | undefined): string | null {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Reports whether `getAllowedCardSvgOrigin` can return a different value for
  * two requests to the same URL.
@@ -437,7 +410,7 @@ export function getAllowedApiOrigin(request?: Request): string {
   if (configured) {
     origin = configured;
   } else if (process.env.NODE_ENV === "production") {
-    origin = getSiteOrigin();
+    origin = resolveSiteOrigin();
     console.warn(
       "[API CORS] No API origin is configured; using the site origin for Access-Control-Allow-Origin",
     );

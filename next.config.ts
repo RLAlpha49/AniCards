@@ -1,37 +1,5 @@
 import type { NextConfig } from "next";
-
-/**
- * Public site origin used when `NEXT_PUBLIC_SITE_URL` is unset or unusable.
- * @source
- */
-const SITE_ORIGIN_FALLBACK = "https://anicards.alpha49.com";
-
-/**
- * Production host that serves the API.
- * @source
- */
-const API_HOST = "api.anicards.alpha49.com";
-
-/**
- * Development hosts that stand in for the API host.
- * @source
- */
-const DEV_API_HOSTS = [
-  "api.localhost",
-  "api.lvh.me",
-  "api.anicards.localhost",
-  "api.anicards.lvh.me",
-  "api.anicards.test",
-];
-
-/**
- * Every host the API is served on.
- *
- * Host conditions match the `Host` header with its port removed, so a
- * `host:3000` value would never match. One entry per host covers every port.
- * @source
- */
-const API_HOSTS = [API_HOST, ...DEV_API_HOSTS];
+import { API_HOSTS, resolveSiteOrigin } from "./lib/site-origin";
 
 /**
  * First path segments the API host serves instead of the site.
@@ -92,32 +60,6 @@ const NON_API_PATH_SOURCE = `/:path((?!(?:${API_SURFACE_SEGMENTS.join(
 const API_ALIAS_PATH_SOURCE = `/:path((?:${API_ALIAS_SEGMENTS.join(
   "|",
 )})(?:/.*)?)`;
-
-/**
- * Resolves the origin page requests on the API host are sent to.
- *
- * Read from `NEXT_PUBLIC_SITE_URL` so the Docker dev stack redirects to the dev
- * site host rather than to production. A value that points back at an API host
- * is ignored, because redirecting the API host to itself would loop.
- *
- * @returns A parseable origin with a non-API host.
- * @source
- */
-function getSiteOrigin(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!configured) return SITE_ORIGIN_FALLBACK;
-
-  let origin: string;
-  try {
-    origin = new URL(configured).origin;
-  } catch {
-    return SITE_ORIGIN_FALLBACK;
-  }
-
-  return API_HOSTS.includes(new URL(origin).hostname)
-    ? SITE_ORIGIN_FALLBACK
-    : origin;
-}
 
 /**
  * Next.js Configuration
@@ -247,7 +189,7 @@ const nextConfig: NextConfig = {
     return API_HOSTS.map((host) => ({
       source: NON_API_PATH_SOURCE,
       has: [{ type: "host" as const, value: host }],
-      destination: `${getSiteOrigin()}/:path`,
+      destination: `${resolveSiteOrigin()}/:path`,
       permanent: false,
     }));
   },
