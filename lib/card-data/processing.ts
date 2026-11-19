@@ -1,4 +1,5 @@
 import { calculateMilestones } from "@/lib/stats/milestones";
+import { normalizedShannon } from "@/lib/stats/diversity";
 import {
   UserRecord,
   UserStatsData,
@@ -545,27 +546,6 @@ export function toTemplateStudioCollaboration(
     (a, b) => `${a} + ${b}`,
     10,
   );
-}
-
-/**
- * Computes the Shannon entropy (normalized to 0-1) for a set of counts.
- * Used for diversity calculations.
- * @source
- */
-function normalizedShannon(counts: number[]): number {
-  const safeCounts = counts.filter((c) => c > 0);
-  if (safeCounts.length === 0) return 0;
-
-  const total = safeCounts.reduce((a, b) => a + b, 0);
-  if (total === 0) return 0;
-
-  const entropy = -safeCounts.reduce((sum, c) => {
-    const p = c / total;
-    return sum + (p > 0 ? p * Math.log(p) : 0);
-  }, 0);
-
-  const maxEntropy = Math.log(safeCounts.length);
-  return maxEntropy > 0 ? entropy / maxEntropy : 0;
 }
 
 /**

@@ -2,3 +2,4 @@ export * from "./constants";
 export * from "./dimensions";
 export * from "./color-utils";
 export * from "./text-metrics";
+export * from "./bars";

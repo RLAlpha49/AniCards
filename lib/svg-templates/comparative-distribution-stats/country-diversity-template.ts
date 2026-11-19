@@ -4,19 +4,20 @@ import type { TrustedSVG } from "@/lib/types/svg";
 import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
-  type ComparativeBarRow,
   type ComparativeMetricRow,
 } from "./shared";
-import { formatInt, formatPercent, normalizedShannon } from "./stats-utils";
+import { toBarRows } from "@/lib/svg-templates/common/bars";
+import { normalizedShannon } from "@/lib/stats/diversity";
+import { formatInt, formatPercent } from "./stats-utils";
 
 type CountryStat = { country: string; count: number };
 
-function toBars(countries: CountryStat[] | undefined): ComparativeBarRow[] {
-  return (countries ?? [])
-    .filter((c) => typeof c.country === "string")
-    .map((c) => ({ label: c.country, count: c.count }))
-    .toSorted((a, b) => b.count - a.count)
-    .slice(0, 8);
+function toBars(countries: CountryStat[] | undefined) {
+  return toBarRows(
+    countries,
+    (c) => c.country,
+    (c) => c.count,
+  );
 }
 
 function buildMetrics(

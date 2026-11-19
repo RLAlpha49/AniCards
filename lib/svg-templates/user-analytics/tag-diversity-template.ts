@@ -4,10 +4,10 @@ import type { TrustedSVG } from "@/lib/types/svg";
 import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
-  type ComparativeBarRow,
   type ComparativeMetricRow,
 } from "../comparative-distribution-stats/shared";
-import { normalizedShannon } from "../comparative-distribution-stats/stats-utils";
+import { toBarRows } from "@/lib/svg-templates/common/bars";
+import { normalizedShannon } from "@/lib/stats/diversity";
 
 type TagStat = { tag: { name: string; category?: string }; count: number };
 
@@ -22,12 +22,13 @@ function groupByCategory(tags: TagStat[] | undefined): Map<string, number> {
   return map;
 }
 
-function toBars(tags: TagStat[] | undefined): ComparativeBarRow[] {
-  const groups = groupByCategory(tags);
-  return [...groups.entries()]
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+function toBars(tags: TagStat[] | undefined) {
+  return toBarRows(
+    [...groupByCategory(tags).entries()],
+    ([label]) => label,
+    ([, count]) => count,
+    5,
+  );
 }
 
 function buildMetrics(tags: TagStat[] | undefined): ComparativeMetricRow[] {

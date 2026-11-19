@@ -4,19 +4,19 @@ import type { TrustedSVG } from "@/lib/types/svg";
 import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
-  type ComparativeBarRow,
   type ComparativeMetricRow,
 } from "./shared";
+import { toBarRows } from "@/lib/svg-templates/common/bars";
 import { formatInt, formatPercent } from "./stats-utils";
 
 type FormatStat = { format: string; count: number };
 
-function toBars(formats: FormatStat[] | undefined): ComparativeBarRow[] {
-  return (formats ?? [])
-    .filter((f) => typeof f.format === "string")
-    .map((f) => ({ label: f.format, count: f.count }))
-    .toSorted((a, b) => b.count - a.count)
-    .slice(0, 8);
+function toBars(formats: FormatStat[] | undefined) {
+  return toBarRows(
+    formats,
+    (f) => f.format,
+    (f) => f.count,
+  );
 }
 
 function buildMetrics(

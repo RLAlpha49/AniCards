@@ -13,8 +13,8 @@ import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metric
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
+import { toBarRows } from "@/lib/svg-templates/common/bars";
 import {
-  type ComparativeBarRow,
   type ComparativeMetricRow,
   renderFittedText,
 } from "../comparative-distribution-stats/shared";
@@ -32,13 +32,12 @@ function groupByCategory(tags: TagStat[] | undefined): Map<string, number> {
   return map;
 }
 
-function toBars(tags: TagStat[] | undefined): ComparativeBarRow[] {
-  const groups = groupByCategory(tags);
-  return [...groups.entries()]
-    .map(([label, count]) => ({ label, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8)
-    .filter((bar) => bar.label.trim().length > 0);
+function toBars(tags: TagStat[] | undefined) {
+  return toBarRows(
+    [...groupByCategory(tags).entries()],
+    ([label]) => label,
+    ([, count]) => count,
+  );
 }
 
 function buildMetrics(tags: TagStat[] | undefined): ComparativeMetricRow[] {
