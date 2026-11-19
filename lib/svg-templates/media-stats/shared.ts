@@ -1,4 +1,8 @@
-import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
+import {
+  TemplateAnimeStats,
+  TemplateMangaStats,
+  ColorValue,
+} from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 
 import {
@@ -164,7 +168,7 @@ function getVariantContent(
       circleColor: ColorValue;
       borderColor?: ColorValue;
     };
-    stats: (AnimeStats | MangaStats) & {
+    stats: (TemplateAnimeStats | TemplateMangaStats) & {
       previousMilestone: number;
       currentMilestone: number;
       dasharray: string;
@@ -290,7 +294,7 @@ export const mediaStatsTemplate = (data: {
     borderColor?: ColorValue;
     borderRadius?: number;
   };
-  stats: (AnimeStats | MangaStats) & {
+  stats: (TemplateAnimeStats | TemplateMangaStats) & {
     previousMilestone: number;
     currentMilestone: number;
     dasharray: string;
@@ -320,10 +324,10 @@ export const mediaStatsTemplate = (data: {
       title: `${data.username}'s Anime Stats`,
       mainStat: {
         label: "Episodes Watched",
-        value: (data.stats as AnimeStats).episodesWatched,
+        value: (data.stats as TemplateAnimeStats).episodesWatched,
         secondary: {
           label: "Minutes Watched",
-          value: (data.stats as AnimeStats).minutesWatched,
+          value: (data.stats as TemplateAnimeStats).minutesWatched,
         },
       },
     },
@@ -331,10 +335,10 @@ export const mediaStatsTemplate = (data: {
       title: `${data.username}'s Manga Stats`,
       mainStat: {
         label: "Chapters Read",
-        value: (data.stats as MangaStats).chaptersRead,
+        value: (data.stats as TemplateMangaStats).chaptersRead,
         secondary: {
           label: "Volumes Read",
-          value: (data.stats as MangaStats).volumesRead,
+          value: (data.stats as TemplateMangaStats).volumesRead,
         },
       },
     },

@@ -28,8 +28,16 @@ export interface AnimeStatStaff {
   count: number;
 }
 
-/** Aggregated statistics for anime consumed by a user. @source */
-export interface AnimeStats {
+/**
+ * Aggregated anime statistics as stored in Redis.
+ *
+ * This is the stored view: normalized camelCase buckets (`voiceActors`,
+ * `statuses[].count`). The template view of the same data is
+ * `TemplateAnimeStats` in `lib/types/card.ts`. The two are not
+ * interchangeable.
+ * @source
+ */
+export interface StoredAnimeStats {
   count: number;
   episodesWatched: number;
   minutesWatched: number;
@@ -67,8 +75,15 @@ export interface MangaStatStaff {
   count: number;
 }
 
-/** Aggregated statistics for manga consumed by a user. @source */
-export interface MangaStats {
+/**
+ * Aggregated manga statistics as stored in Redis.
+ *
+ * This is the stored view: normalized camelCase buckets. The template view of
+ * the same data is `TemplateMangaStats` in `lib/types/card.ts`. The two are
+ * not interchangeable.
+ * @source
+ */
+export interface StoredMangaStats {
   count: number;
   chaptersRead: number;
   volumesRead: number;
@@ -88,8 +103,8 @@ export interface MangaStats {
 
 /** Container that groups anime and manga statistics for a user. @source */
 export interface UserStatistics {
-  anime: AnimeStats;
-  manga: MangaStats;
+  anime: StoredAnimeStats;
+  manga: StoredMangaStats;
 }
 
 /** Title structure for anime/manga with multiple language options. @source */

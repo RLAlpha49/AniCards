@@ -24,6 +24,8 @@ export {
 
 // Re-export processing module exports
 export {
+  extractActivityHistory,
+  extractMediaListEntries,
   toTemplateSocialStats,
   buildCommonTemplateFields,
   toTemplateAnimeStats,

@@ -8,8 +8,8 @@ import {
 } from "@/lib/types/records";
 import {
   SocialStats,
-  AnimeStats as TemplateAnimeStats,
-  MangaStats as TemplateMangaStats,
+  TemplateAnimeStats,
+  TemplateMangaStats,
 } from "@/lib/types/card";
 import {
   GenreItem,
@@ -22,18 +22,27 @@ import {
 } from "./validation";
 
 /**
+ * Reads the activity history array from a stored statistics block.
+ *
+ * @param statsRoot - Stored `User.stats` block, or anything else the record holds.
+ * @returns The history entries, or an empty array when the block is absent or malformed.
+ * @source
+ */
+export function extractActivityHistory(
+  statsRoot: unknown,
+): ActivityHistoryItem[] {
+  if (!statsRoot || typeof statsRoot !== "object") return [];
+  const v = (statsRoot as Record<string, unknown>)["activityHistory"];
+  return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
+}
+
+/**
  * Builds SocialStats used by templates from a normalized UserRecord.
  * Copies follower/following/thread/review pages and activity history into template format.
  * @param userRecord - A validated and normalized UserRecord from the datastore.
  * @returns SocialStats shaped for template rendering.
  * @source
  */
-function extractActivityHistory(statsRoot: unknown): ActivityHistoryItem[] {
-  if (!statsRoot || typeof statsRoot !== "object") return [];
-  const v = (statsRoot as Record<string, unknown>)["activityHistory"];
-  return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
-}
-
 export function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
   return {
     followersPage: userRecord.stats.followersPage,
@@ -199,9 +208,11 @@ export function processFavorites(
 
 /**
  * Extract all entries from a MediaListCollection-like object.
+ * @param collection - The MediaListCollection object, or undefined when the record has no such list.
+ * @returns Flattened array of MediaListEntry items.
  * @source
  */
-function extractMediaListEntries(
+export function extractMediaListEntries(
   collection: { lists: { entries: MediaListEntry[] }[] } | undefined,
 ): MediaListEntry[] {
   if (!collection?.lists) return [];

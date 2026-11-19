@@ -62,16 +62,23 @@ export interface UserStats {
   username: string;
   User: {
     statistics: {
-      anime: AnimeStats;
-      manga: MangaStats;
+      anime: TemplateAnimeStats;
+      manga: TemplateMangaStats;
     };
     stats?: { activityHistory: { date: number; amount: number }[] };
   };
   social?: SocialStats;
 }
 
-/** Anime-specific aggregated statistics returned from AniList. @source */
-export interface AnimeStats {
+/**
+ * Anime statistics in the shape templates render.
+ *
+ * This is the template view: AniList's GraphQL field names (`voice_actors`,
+ * `statuses[].amount`). The stored view of the same data is `StoredAnimeStats`
+ * in `lib/types/records.ts`. The two are not interchangeable.
+ * @source
+ */
+export interface TemplateAnimeStats {
   count?: number;
   episodesWatched?: number;
   minutesWatched?: number;
@@ -88,8 +95,15 @@ export interface AnimeStats {
   scores?: { score: number; count: number }[];
 }
 
-/** Manga-specific aggregated statistics returned from AniList. @source */
-export interface MangaStats {
+/**
+ * Manga statistics in the shape templates render.
+ *
+ * This is the template view: AniList's GraphQL field names. The stored view is
+ * `StoredMangaStats` in `lib/types/records.ts`. The two are not
+ * interchangeable.
+ * @source
+ */
+export interface TemplateMangaStats {
   count?: number;
   chaptersRead?: number;
   volumesRead?: number;

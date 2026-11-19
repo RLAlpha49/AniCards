@@ -42,13 +42,14 @@ import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import type { CardId } from "@/lib/cards/registry";
 import {
-  ActivityHistoryItem,
   StoredCardConfig,
   UserRecord,
   UserStatsData,
   MediaListEntry,
 } from "@/lib/types/records";
 import {
+  extractActivityHistory,
+  extractMediaListEntries,
   toTemplateAnimeStats,
   toTemplateMangaStats,
   toTemplateSocialStats,
@@ -66,10 +67,7 @@ import {
   StudioItem,
   StaffItem,
 } from "@/lib/card-data";
-import {
-  AnimeStats as TemplateAnimeStats,
-  MangaStats as TemplateMangaStats,
-} from "@/lib/types/card";
+import { TemplateAnimeStats, TemplateMangaStats } from "@/lib/types/card";
 import {
   fetchImageAsDataUrl,
   embedFavoritesGridImages,
@@ -362,16 +360,6 @@ function generateStatsCard(
  * @returns A TrustedSVG with the rendered social stats card.
  * @source
  */
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === "object";
-}
-
-function extractActivityHistory(statsRoot: unknown): ActivityHistoryItem[] {
-  if (!isRecord(statsRoot)) return [];
-  const v = statsRoot["activityHistory"];
-  return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
-}
-
 function generateSocialStatsCard(params: CardGenerationParams) {
   const { cardConfig, userRecord, variant } = params;
   return socialStatsTemplate({
@@ -1304,19 +1292,6 @@ function generateTopActivityDaysCard(params: CardGenerationParams): TrustedSVG {
     styles: extractStyles(cardConfig),
     activityHistory,
   });
-}
-
-/**
- * Helper to extract all entries from a MediaListCollection.
- * @param collection - The MediaListCollection object.
- * @returns Flattened array of MediaListEntry items.
- * @source
- */
-function extractMediaListEntries(
-  collection: { lists: { entries: MediaListEntry[] }[] } | undefined,
-): MediaListEntry[] {
-  if (!collection?.lists) return [];
-  return collection.lists.flatMap((list) => list.entries ?? []);
 }
 
 /**

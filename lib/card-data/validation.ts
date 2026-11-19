@@ -1,8 +1,8 @@
 import {
   UserRecord,
   UserStatsData,
-  AnimeStats,
-  MangaStats,
+  StoredAnimeStats,
+  StoredMangaStats,
   AnimeStatVoiceActor,
   AnimeStatStudio,
   AnimeStatStaff,
@@ -269,7 +269,7 @@ export function validateAndNormalizeUserRecord(
   /**
    * Normalizes an anime or manga stats block.
    * It coerces numeric values, maps nested arrays (genres, tags, staff, etc.), and filters invalid entries.
-   * Returns a structured partial AnimeStats|MangaStats or undefined for invalid blocks.
+   * Returns a structured partial StoredAnimeStats|StoredMangaStats or undefined for invalid blocks.
    * @param rawStatBlock - Raw statistics block from the user record.
    * @param type - Either 'anime' or 'manga' to include type-specific fields.
    * @returns A normalized stats block or undefined.
@@ -508,7 +508,7 @@ export function validateAndNormalizeUserRecord(
     const meanScore = coerceNumber(block.meanScore);
     const standardDeviation = coerceNumber(block.standardDeviation);
 
-    const normalizedBlock: Partial<AnimeStats & MangaStats> = {
+    const normalizedBlock: Partial<StoredAnimeStats & StoredMangaStats> = {
       count,
       meanScore,
       standardDeviation,
@@ -1390,11 +1390,11 @@ export function validateAndNormalizeUserRecord(
           anime: normalizeStatBlock(
             statsData.User?.statistics?.anime,
             "anime",
-          ) as AnimeStats | undefined,
+          ) as StoredAnimeStats | undefined,
           manga: normalizeStatBlock(
             statsData.User?.statistics?.manga,
             "manga",
-          ) as MangaStats | undefined,
+          ) as StoredMangaStats | undefined,
         },
         avatar: (() => {
           const rawAvatar = statsData.User?.avatar;

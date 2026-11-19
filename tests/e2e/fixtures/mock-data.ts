@@ -2,15 +2,15 @@ import type {
   UserRecord,
   CardsRecord,
   UserStatsData,
-  AnimeStats,
-  MangaStats,
+  StoredAnimeStats,
+  StoredMangaStats,
 } from "../../../lib/types/records";
 
 /**
  * Mock anime statistics for E2E tests.
  * Provides realistic data structure matching the AniList API response.
  */
-export const mockAnimeStats: AnimeStats = {
+export const mockAnimeStats: StoredAnimeStats = {
   count: 250,
   episodesWatched: 3500,
   minutesWatched: 84000,
@@ -91,7 +91,7 @@ export const mockAnimeStats: AnimeStats = {
 /**
  * Mock manga statistics for E2E tests.
  */
-export const mockMangaStats: MangaStats = {
+export const mockMangaStats: StoredMangaStats = {
   count: 120,
   chaptersRead: 5200,
   volumesRead: 180,
