@@ -29,6 +29,7 @@ import {
   applySearchIndexes,
   SEARCH_INDEX_DEFINITIONS,
 } from "@/lib/server/search-indexes";
+import { loadDotEnv, requireEnv } from "../lib/env";
 
 /**
  * Filter for the verification count.
@@ -46,35 +47,6 @@ const ALLOW_LOCAL_FLAG = "--allow-local";
 
 /** Hosts that only resolve on the machine running this script. @source */
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
-
-/**
- * Loads `.env` from the working directory.
- *
- * A plain `node script.ts` invocation does not read it. Bun loads it on its
- * own, and loading it again is harmless because an existing value is never
- * overwritten. A missing file is not an error, so an operator who exports the
- * variables can still run the script.
- * @source
- */
-function loadDotEnv(): void {
-  try {
-    process.loadEnvFile();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-}
-
-/**
- * Reads a required environment variable.
- * @param name - Variable name.
- * @returns Its value.
- * @source
- */
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-}
 
 /**
  * Refuses a loopback database unless the caller opts in.

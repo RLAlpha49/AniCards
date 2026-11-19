@@ -27,6 +27,7 @@
  */
 
 import { Client } from "@upstash/qstash";
+import { loadDotEnv, requireEnv } from "../lib/env";
 
 export type ScheduleDefinition = {
   scheduleId: string;
@@ -97,29 +98,6 @@ export function resolveAppOrigin(override?: string): string {
     );
   }
   return url.origin;
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-}
-
-/**
- * Loads `.env` from the working directory.
- *
- * Node does not read `.env` for a plain `node script.ts` invocation, so every
- * required variable looked missing. Bun loads it on its own; loading it again
- * is harmless because an existing value is never overwritten. A missing file
- * is not an error, so an operator who exports the variables still can run it.
- * @source
- */
-function loadDotEnv(): void {
-  try {
-    process.loadEnvFile();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
 }
 
 /**

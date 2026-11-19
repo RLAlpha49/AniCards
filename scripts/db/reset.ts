@@ -1,30 +1,15 @@
 import { Redis } from "@upstash/redis";
+import { assertLocalRedis } from "../lib/env";
 
 const DEFAULT_LOCAL_REDIS_URL = "http://localhost:8079";
 const DEFAULT_LOCAL_REDIS_TOKEN = "local_dev_token";
-
-function assertLocalRedis(url: string): void {
-  const parsed = new URL(url);
-  const isHostLoopback = ["localhost", "127.0.0.1"].includes(parsed.hostname);
-  const isComposeProxy =
-    parsed.hostname === "serverless-redis-http" &&
-    (parsed.port === "" || parsed.port === "80");
-  if (
-    parsed.protocol !== "http:" ||
-    (!(isHostLoopback && parsed.port) && !isComposeProxy)
-  ) {
-    throw new Error(
-      `Refusing to reset non-local Redis URL: ${url}. Expected a loopback address or the Compose Redis proxy.`,
-    );
-  }
-}
 
 async function main(): Promise<void> {
   const url =
     process.env.LOCAL_REDIS_URL ??
     process.env.UPSTASH_REDIS_REST_URL ??
     DEFAULT_LOCAL_REDIS_URL;
-  assertLocalRedis(url);
+  assertLocalRedis(url, "reset");
 
   const token =
     process.env.LOCAL_REDIS_TOKEN ??

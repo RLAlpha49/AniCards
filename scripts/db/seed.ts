@@ -6,6 +6,7 @@ import {
 } from "@/lib/card-data/validation";
 import { splitUserRecord } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
+import { assertLocalRedis } from "../lib/env";
 
 const DEFAULT_LOCAL_REDIS_URL = "http://localhost:8079";
 const DEFAULT_LOCAL_REDIS_TOKEN = "local_dev_token";
@@ -36,22 +37,6 @@ const PIE_CARD_NAMES = new Set([
   "mangaFormatDistribution",
   "mangaCountry",
 ]);
-
-function assertLocalRedis(url: string): void {
-  const parsed = new URL(url);
-  const isHostLoopback = ["localhost", "127.0.0.1"].includes(parsed.hostname);
-  const isComposeProxy =
-    parsed.hostname === "serverless-redis-http" &&
-    (parsed.port === "" || parsed.port === "80");
-  if (
-    parsed.protocol !== "http:" ||
-    (!(isHostLoopback && parsed.port) && !isComposeProxy)
-  ) {
-    throw new Error(
-      `Refusing to seed non-local Redis URL: ${url}. Expected a loopback address or the Compose Redis proxy.`,
-    );
-  }
-}
 
 function isTransientAniListStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
@@ -229,7 +214,7 @@ async function main(): Promise<void> {
     process.env.LOCAL_REDIS_URL ??
     process.env.UPSTASH_REDIS_REST_URL ??
     DEFAULT_LOCAL_REDIS_URL;
-  assertLocalRedis(url);
+  assertLocalRedis(url, "seed");
 
   const token =
     process.env.LOCAL_REDIS_TOKEN ??
