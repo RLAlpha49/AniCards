@@ -9,7 +9,7 @@ import { ProjectsLedger } from "@/components/projects/ProjectsLedger";
 import { ProjectEntry } from "@/components/projects/ProjectEntry";
 import { ProjectsNotes } from "@/components/projects/ProjectsNotes";
 import { ProjectsClosing } from "@/components/projects/ProjectsClosing";
-import { PROJECTS } from "@/components/projects/catalogue";
+import { PROJECTS } from "@/lib/content/projects";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/projects/projects.module.css";
 

@@ -28,8 +28,8 @@ export type CardGroupName = (typeof CARD_GROUP_NAMES)[number];
  * templates. `title` is the longer catalogue name shown on the examples page
  * and in the generator. The two intentionally differ for some cards.
  *
- * Icons stay out of this module so `lib/` does not import React; the examples
- * page maps ids to icons in `components/examples/card-types.ts`.
+ * Icons stay out of this module because server modules read the registry; they
+ * live in the catalogue at `lib/cards/catalogue.ts`, which only UI code imports.
  * @source
  */
 export type CardEntry = Readonly<{

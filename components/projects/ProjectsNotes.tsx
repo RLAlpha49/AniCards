@@ -4,7 +4,7 @@ import { ShieldCheck } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
 import homeStyles from "@/components/shared/paper.module.css";
-import { SHARED_NOTES } from "./catalogue";
+import { SHARED_NOTES } from "@/lib/content/projects";
 import styles from "./projects.module.css";
 
 /**

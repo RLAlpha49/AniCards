@@ -6,12 +6,11 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Eye } from "@/lib/icons";
 import { cn } from "@/lib/cn";
 import {
-  buildCardPreviewUrl,
   findCardType,
   variationLabel,
   type CardSelection,
-  type PreviewOptions,
-} from "./card-options";
+} from "@/lib/cards/catalogue";
+import { buildCardPreviewUrl, type PreviewOptions } from "./card-options";
 import styles from "./generator.module.css";
 
 type PreviewPanelProps = Readonly<{

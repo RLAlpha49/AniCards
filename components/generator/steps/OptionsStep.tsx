@@ -13,8 +13,9 @@ import {
   FAVOURITE_CARD_TYPES,
   findCardType,
   variationLabel,
-} from "../card-options";
-import type { CardSelection, PreviewOptions } from "../card-options";
+  type CardSelection,
+} from "@/lib/cards/catalogue";
+import type { PreviewOptions } from "../card-options";
 import { OptionDemoPair } from "../OptionDemo";
 import styles from "../generator.module.css";
 

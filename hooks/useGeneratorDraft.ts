@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCardSettings, useUserPreferences } from "@/lib/client";
 import { colorPresets } from "@/lib/card-catalogue";
 import {
+  CARD_TYPES,
   FAVOURITE_CARD_TYPES,
   GRID_CARD_TYPE,
-  CARD_TYPES,
   findCardType,
   type CardSelection,
-} from "@/components/generator/card-options";
+} from "@/lib/cards/catalogue";
 import { clampBorderRadius } from "@/lib/card-style";
 import { isValidHexColor } from "@/lib/color/convert";
 import { validateColorValue } from "@/lib/color/gradients";

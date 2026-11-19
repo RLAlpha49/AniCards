@@ -5,7 +5,11 @@ import { cn } from "@/lib/cn";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./card-examples.module.css";
 import { CardTypePreview } from "./CardTypePreview";
-import { groupAnchor, type CardType, type GroupName } from "./card-types";
+import {
+  groupAnchor,
+  type CardType,
+  type GroupName,
+} from "@/lib/cards/catalogue";
 
 type GroupSectionProps = Readonly<{
   group: GroupName;

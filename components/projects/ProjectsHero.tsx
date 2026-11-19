@@ -10,7 +10,11 @@ import {
   trackNavigation,
 } from "@/lib/analytics/google-analytics";
 import { PaperHero } from "@/components/primitives/PaperHero";
-import { HERO_FACTS, START_ROUTES, type StartRoute } from "./catalogue";
+import {
+  HERO_FACTS,
+  START_ROUTES,
+  type StartRoute,
+} from "@/lib/content/projects";
 import styles from "./projects.module.css";
 
 /**

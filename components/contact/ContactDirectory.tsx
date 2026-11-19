@@ -15,7 +15,10 @@ import {
   trackExternalLinkClick,
 } from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/shared/paper.module.css";
-import { DIRECTORY_CHANNELS, type DirectoryChannel } from "./channels";
+import {
+  DIRECTORY_CHANNELS,
+  type DirectoryChannel,
+} from "@/lib/content/contact-channels";
 import styles from "./contact.module.css";
 
 /** Brand marks, keyed by the channel's brand field. @source */

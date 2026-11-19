@@ -12,8 +12,8 @@ import {
   GROUP_NUMERALS,
   buildCardTypes,
   groupAnchor,
-} from "@/components/examples/card-types";
-import type { GroupSummary } from "@/components/examples/card-types";
+} from "@/lib/cards/catalogue";
+import type { GroupSummary } from "@/lib/cards/catalogue";
 import { ExamplesHeroSection } from "@/components/examples/ExamplesHeroSection";
 import { GroupSection } from "@/components/examples/GroupSection";
 import { ExamplesCTA } from "@/components/examples/ExamplesCTA";

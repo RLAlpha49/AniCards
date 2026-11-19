@@ -11,7 +11,7 @@ import {
   trackNavigation,
 } from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/shared/paper.module.css";
-import type { Project } from "./catalogue";
+import type { Project } from "@/lib/content/projects";
 import styles from "./projects.module.css";
 
 type ProjectEntryProps = Readonly<{

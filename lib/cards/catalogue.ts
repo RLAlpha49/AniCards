@@ -82,8 +82,9 @@ export type GroupSummary = Readonly<{
 /**
  * Icon shown beside each card on the examples page and in the generator.
  *
- * Icons live here rather than in the registry so `lib/` stays free of React
- * imports. Adding a card requires one icon entry.
+ * Icons live in the catalogue rather than the registry, because the registry is
+ * read by server modules that must not pull React in. Adding a card requires one
+ * icon entry.
  * @source
  */
 const CARD_ICONS: Record<CardId, HugeIcon> = {
@@ -293,4 +294,93 @@ export function buildCardTypes(): CardType[] {
  */
 export function groupAnchor(group: GroupName): string {
   return `group-${group.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+/** A card selection: which card, and which variation of it. @source */
+export type CardSelection = Readonly<{
+  variation: string;
+  showFavourites: boolean;
+}>;
+
+/**
+ * Every card the generator can render.
+ *
+ * Each entry carries its stable card id, so selections can be keyed without a
+ * second lookup.
+ * @source
+ */
+export const CARD_TYPES: CardType[] = buildCardTypes();
+
+/** Card types keyed by card id. @source */
+const CARD_BY_ID = new Map<string, CardType>(
+  CARD_TYPES.map((card) => [card.id, card]),
+);
+
+/**
+ * Looks a card type up by card id.
+ * @param id - Card identifier, for example `animeStats`.
+ * @returns The card type, or undefined when the id is unknown.
+ * @source
+ */
+export function findCardType(id: string): CardType | undefined {
+  return CARD_BY_ID.get(id);
+}
+
+/** The six card groups, in catalogue order. @source */
+export const GROUP_SUMMARIES = GROUPS.map((name, index) => ({
+  name,
+  numeral: GROUP_NUMERALS[index],
+  note: GROUP_NOTES[name],
+  count: CARD_TYPES.filter((card) => card.group === name).length,
+}));
+
+/**
+ * Card types whose template can list favourites alongside the counted names.
+ * Mirrors the set the card API accepts `showFavorites` for.
+ * @source
+ */
+export const FAVOURITE_CARD_TYPES = new Set([
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+]);
+
+/** The card that needs an explicit grid size before the API will render it. @source */
+export const GRID_CARD_TYPE = "favoritesGrid";
+
+/**
+ * Reads a variation id as a label.
+ * @param variation - Variation id, for example `donut`.
+ * @returns A human label, falling back to the raw id.
+ * @source
+ */
+export function variationLabel(variation: string): string {
+  return VARIATION_LABEL_MAP[variation] ?? variation;
+}
+
+/**
+ * Filters cards by a search term.
+ *
+ * Matches the card title, its description, its group, and its variation names,
+ * so a search for "donut" finds every chart that offers that shape.
+ *
+ * @param cards - Cards to filter.
+ * @param query - Raw search term.
+ * @returns Matching cards, or the input when the term is empty.
+ * @source
+ */
+export function filterCardTypes(cards: CardType[], query: string): CardType[] {
+  const term = query.trim().toLowerCase();
+  if (!term) return cards;
+
+  return cards.filter(
+    (card) =>
+      card.title.toLowerCase().includes(term) ||
+      card.description.toLowerCase().includes(term) ||
+      card.group.toLowerCase().includes(term) ||
+      card.variations.some((variation) =>
+        variationLabel(variation.variation).toLowerCase().includes(term),
+      ),
+  );
 }

@@ -12,7 +12,7 @@ import {
   SHOWCASE_FILTERS,
   SHOWCASE_CARDS,
   type ShowcaseCategory,
-} from "./showcase";
+} from "@/lib/content/showcase";
 import styles from "@/components/shared/paper.module.css";
 
 type PreviewShowcaseProps = Readonly<{

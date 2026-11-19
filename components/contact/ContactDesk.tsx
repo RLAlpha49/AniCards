@@ -12,7 +12,7 @@ import {
   DEFAULT_INTENT_ID,
   type ContactIntent,
   type IntentId,
-} from "./channels";
+} from "@/lib/content/contact-channels";
 import styles from "./contact.module.css";
 
 type ChannelMarkProps = Readonly<{

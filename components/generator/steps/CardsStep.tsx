@@ -4,13 +4,14 @@ import { useId, useMemo, useState } from "react";
 import { Check, Heart, Search, X } from "@/lib/icons";
 import { cn } from "@/lib/cn";
 import {
-  FAVOURITE_CARD_TYPES,
   CARD_TYPES,
+  FAVOURITE_CARD_TYPES,
   GROUP_SUMMARIES,
   filterCardTypes,
-} from "../card-options";
-import type { CardSelection } from "../card-options";
-import type { CardType, GroupName } from "@/components/examples/card-types";
+  type CardSelection,
+  type CardType,
+  type GroupName,
+} from "@/lib/cards/catalogue";
 import styles from "../generator.module.css";
 
 type CardsStepProps = Readonly<{

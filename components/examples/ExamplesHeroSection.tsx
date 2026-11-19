@@ -5,7 +5,7 @@ import { ArrowRight, ExternalLink, Search, X } from "@/lib/icons";
 import { cn } from "@/lib/cn";
 import { PaperHero } from "@/components/primitives/PaperHero";
 import styles from "./card-examples.module.css";
-import type { GroupSummary } from "./card-types";
+import type { GroupSummary } from "@/lib/cards/catalogue";
 
 type ExamplesHeroSectionProps = Readonly<{
   groups: GroupSummary[];
