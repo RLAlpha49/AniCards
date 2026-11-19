@@ -1,7 +1,10 @@
-export interface CardDimensions {
-  w: number;
-  h: number;
-}
+/**
+ * The card size type is declared once, in `./dimensions`, beside the table of
+ * sizes that produces it. Re-exported here so the shared option types stay in
+ * one import.
+ * @source
+ */
+export type { CardDimensions } from "./dimensions";
 
 export interface StyleOptions {
   includeRankCircle?: boolean;

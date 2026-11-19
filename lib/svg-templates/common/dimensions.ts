@@ -1,3 +1,4 @@
+/** Size of a rendered card in SVG user units. Declared here, beside the size table. @source */
 export interface CardDimensions {
   w: number;
   h: number;
