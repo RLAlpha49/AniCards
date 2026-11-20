@@ -31,13 +31,11 @@ import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparativ
 import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
 import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
 import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
-import {
-  tagCategoryDistributionTemplate,
-  tagDiversityTemplate,
-  seasonalViewingPatternsTemplate,
-  droppedMediaTemplate,
-  reviewStatsTemplate,
-} from "@/lib/svg-templates/user-analytics";
+import { tagCategoryDistributionTemplate } from "@/lib/svg-templates/user-analytics/tag-category-distribution-template";
+import { tagDiversityTemplate } from "@/lib/svg-templates/user-analytics/tag-diversity-template";
+import { seasonalViewingPatternsTemplate } from "@/lib/svg-templates/user-analytics/seasonal-viewing-patterns-template";
+import { droppedMediaTemplate } from "@/lib/svg-templates/user-analytics/dropped-media-template";
+import { reviewStatsTemplate } from "@/lib/svg-templates/user-analytics/review-stats-template";
 import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import type { CardId } from "@/lib/cards/registry";
