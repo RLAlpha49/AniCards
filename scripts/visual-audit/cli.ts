@@ -6,7 +6,10 @@
  * small enough to read as the documentation for the tool: parse, run, print.
  *
  * Run with `bun run audit:capture` and `bun run audit:report`, or directly:
- * `bun run scripts/visual-audit/index.ts <action> [options]`.
+ * `bun run scripts/visual-audit/cli.ts <action> [options]`.
+ *
+ * The name is not `index.ts` because no module in this folder is a barrel:
+ * every sibling is an implementation, and this file is the executable.
  *
  * @source
  */

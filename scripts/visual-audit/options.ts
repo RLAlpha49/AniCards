@@ -123,7 +123,7 @@ export type Command =
 const USAGE = `Usage: bun run audit:capture [options]
        bun run audit:report [options]
 
-Or directly: bun run scripts/visual-audit/index.ts <action> [options]
+Or directly: bun run scripts/visual-audit/cli.ts <action> [options]
 
 Actions:
   capture                 Render every registered card variation.
