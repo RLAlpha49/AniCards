@@ -15,7 +15,7 @@ import {
   variationLabel,
   type CardSelection,
 } from "@/lib/cards/catalogue";
-import type { PreviewOptions } from "../card-options";
+import type { PreviewOptions } from "@/lib/cards/generator-options";
 import { OptionDemoPair } from "../OptionDemo";
 import styles from "../generator.module.css";
 

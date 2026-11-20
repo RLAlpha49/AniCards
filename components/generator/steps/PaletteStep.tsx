@@ -9,8 +9,11 @@ import type {
   GradientDefinition,
   GradientStop,
 } from "@/lib/types/card";
-import { PALETTE_PRESETS, paletteLabel } from "../card-options";
-import type { PalettePreset } from "../card-options";
+import {
+  PALETTE_PRESETS,
+  paletteLabel,
+  type PalettePreset,
+} from "@/lib/cards/generator-options";
 import styles from "../generator.module.css";
 
 /** Palette filters. 56 presets need a way to narrow the list. @source */

@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { cn } from "@/lib/cn";
-import { buildCardPreviewUrl, type PreviewOptions } from "./card-options";
+import {
+  buildCardPreviewUrl,
+  type PreviewOptions,
+} from "@/lib/cards/generator-options";
 import styles from "./generator.module.css";
 
 /** One side of a demo: a card rendered with a specific setting. @source */

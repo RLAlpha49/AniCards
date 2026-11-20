@@ -10,7 +10,10 @@ import {
   variationLabel,
   type CardSelection,
 } from "@/lib/cards/catalogue";
-import { buildCardPreviewUrl, type PreviewOptions } from "./card-options";
+import {
+  buildCardPreviewUrl,
+  type PreviewOptions,
+} from "@/lib/cards/generator-options";
 import styles from "./generator.module.css";
 
 type PreviewPanelProps = Readonly<{
