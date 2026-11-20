@@ -1,8 +1,8 @@
 "use client";
 
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives";
 import { SavedCardActions } from "./SavedCardActions";
-import type { SavedCard } from "./types";
+import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
 
 type SavedCardPlateProps = Readonly<{

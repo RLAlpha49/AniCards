@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import { SectionHeading } from "@/components/home/SectionHeading";
+import { SectionHeading } from "@/components/home";
 import homeStyles from "@/components/shared/paper.module.css";
 import { SavedCardPlate } from "./SavedCardPlate";
 import { SavedCardSetDesk } from "./SavedCardSetDesk";
-import type { SavedCard } from "./types";
+import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
 
 type SavedCardSetProps = Readonly<{

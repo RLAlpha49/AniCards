@@ -19,7 +19,7 @@ import { UserMasthead } from "./UserMasthead";
 import { SavedCardSet } from "./SavedCardSet";
 import { SavedCardClosing, SavedCardGuide } from "./SavedCardGuide";
 import { UserPageState } from "./UserPageState";
-import type { SavedCard } from "./types";
+import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
 
 /**

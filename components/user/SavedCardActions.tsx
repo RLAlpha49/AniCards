@@ -10,8 +10,8 @@ import {
   trackCardDownload,
   trackCopyAction,
 } from "@/lib/analytics/google-analytics";
-import { cardAnilistLine, cardSvgLink } from "./saved-card-links";
-import type { SavedCard } from "./types";
+import { cardAnilistLine, cardSvgLink } from "@/lib/cards/saved-card";
+import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
 
 const DOWNLOAD_FORMATS: ReadonlyArray<{
