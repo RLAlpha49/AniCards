@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
-import { GeneratorShell } from "@/components/generator/GeneratorShell";
+import { GeneratorShell } from "@/components/generator";
 
 /** Static metadata for the generator route. @source */
 export const metadata: Metadata = createMetadata(seoConfigs.generator);

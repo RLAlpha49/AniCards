@@ -1,7 +1,6 @@
 "use client";
 
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
-import { PaperHero } from "@/components/primitives/PaperHero";
+import { CardPreviewImage, PaperHero } from "@/components/primitives";
 import styles from "./contact.module.css";
 
 /** Figures under the hero copy, all true of this page. @source */

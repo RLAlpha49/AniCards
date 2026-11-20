@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowRight } from "@/lib/icons";
-import { PageCta } from "@/components/primitives/PageCta";
+import { PageCta } from "@/components/primitives";
 
 type ClosingSectionProps = Readonly<{
   onGetStarted: () => void;

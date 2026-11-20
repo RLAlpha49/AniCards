@@ -2,11 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Check, Copy, Download, FileArchive } from "@/lib/icons";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import {
   batchConvertAndZip,
   type BatchConversionProgress,

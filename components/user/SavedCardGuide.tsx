@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ExternalLink } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import { SectionHeading } from "@/components/home/SectionHeading";
+import { SectionHeading } from "@/components/home";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./user.module.css";
 

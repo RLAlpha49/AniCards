@@ -7,12 +7,14 @@ import {
   trackNavigation,
   safeTrack,
 } from "@/lib/analytics/google-analytics";
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
-import { HeroSection } from "@/components/home/HeroSection";
-import { PreviewShowcase } from "@/components/home/PreviewShowcase";
-import { FeaturesSection } from "@/components/home/FeaturesSection";
-import { ClosingSection } from "@/components/home/ClosingSection";
+import { ErrorBoundary } from "@/components/feedback";
+import { PaperSurface } from "@/components/primitives";
+import {
+  ClosingSection,
+  FeaturesSection,
+  HeroSection,
+  PreviewShowcase,
+} from "@/components/home";
 
 /**
  * Renders the AniCards landing page: hero, card gallery, capabilities, and a

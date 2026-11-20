@@ -1,14 +1,15 @@
 "use client";
 
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
-import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
+import { ErrorBoundary } from "@/components/feedback";
+import { PaperSurface, SeigaihaDivider } from "@/components/primitives";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { ProjectsHero } from "@/components/projects/ProjectsHero";
-import { ProjectsLedger } from "@/components/projects/ProjectsLedger";
-import { ProjectEntry } from "@/components/projects/ProjectEntry";
-import { ProjectsNotes } from "@/components/projects/ProjectsNotes";
-import { ProjectsClosing } from "@/components/projects/ProjectsClosing";
+import {
+  ProjectEntry,
+  ProjectsClosing,
+  ProjectsHero,
+  ProjectsLedger,
+  ProjectsNotes,
+} from "@/components/projects";
 import { PROJECTS } from "@/lib/content/projects";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/projects/projects.module.css";

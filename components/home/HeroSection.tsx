@@ -3,8 +3,7 @@
 import { ArrowDown, ArrowRight, Play } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
-import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
+import { CardPreviewImage, SeigaihaDivider } from "@/components/primitives";
 import styles from "@/components/shared/paper.module.css";
 
 type HeroSectionProps = Readonly<{

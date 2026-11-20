@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
+import { ErrorBoundary } from "@/components/feedback";
+import { PaperSurface } from "@/components/primitives";
 import { displayNames } from "@/lib/card-data/validation";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/response";

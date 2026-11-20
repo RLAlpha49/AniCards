@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AlertCircle, Home, RefreshCw } from "@/lib/icons";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui";
 import { trackError, safeTrack } from "@/lib/analytics/google-analytics";
 import { cn } from "@/lib/cn";
 import { Component } from "react";

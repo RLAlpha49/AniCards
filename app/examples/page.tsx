@@ -2,9 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
-import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
+import { ErrorBoundary } from "@/components/feedback";
+import { PaperSurface, SeigaihaDivider } from "@/components/primitives";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import {
   GROUPS,
@@ -14,9 +13,11 @@ import {
   groupAnchor,
 } from "@/lib/cards/catalogue";
 import type { GroupSummary } from "@/lib/cards/catalogue";
-import { ExamplesHeroSection } from "@/components/examples/ExamplesHeroSection";
-import { GroupSection } from "@/components/examples/GroupSection";
-import { ExamplesCTA } from "@/components/examples/ExamplesCTA";
+import {
+  ExamplesCTA,
+  ExamplesHeroSection,
+  GroupSection,
+} from "@/components/examples";
 import { X } from "@/lib/icons";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/examples/card-examples.module.css";

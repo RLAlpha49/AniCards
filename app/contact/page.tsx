@@ -1,13 +1,14 @@
 "use client";
 
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
-import { SeigaihaDivider } from "@/components/primitives/SeigaihaDivider";
+import { ErrorBoundary } from "@/components/feedback";
+import { PaperSurface, SeigaihaDivider } from "@/components/primitives";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { ContactHero } from "@/components/contact/ContactHero";
-import { ContactDesk } from "@/components/contact/ContactDesk";
-import { ContactDirectory } from "@/components/contact/ContactDirectory";
-import { ContactClosing } from "@/components/contact/ContactClosing";
+import {
+  ContactClosing,
+  ContactDesk,
+  ContactDirectory,
+  ContactHero,
+} from "@/components/contact";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "@/components/contact/contact.module.css";
 

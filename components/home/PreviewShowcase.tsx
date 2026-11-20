@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "@/lib/icons";
 import { useRevealInView } from "@/hooks/useRevealInView";
 import { cn } from "@/lib/cn";
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives";
 import { SectionHeading } from "./SectionHeading";
 import {
   CARDS_PER_PAGE,

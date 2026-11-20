@@ -1,6 +1,6 @@
 "use client";
 
-import { PaperHero } from "@/components/primitives/PaperHero";
+import { PaperHero } from "@/components/primitives";
 import { SearchLookupPanel } from "./SearchLookupPanel";
 
 type SearchHeroProps = Readonly<{

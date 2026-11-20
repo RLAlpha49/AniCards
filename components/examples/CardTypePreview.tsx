@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, ExternalLink } from "@/lib/icons";
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives";
 import { cn } from "@/lib/cn";
 import styles from "./card-examples.module.css";
 import type { CardCatalogEntry, CardVariation } from "@/lib/cards/catalogue";

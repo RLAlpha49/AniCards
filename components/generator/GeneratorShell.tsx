@@ -5,9 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useStatCardSubmit } from "@/hooks/useStatCardSubmit";
 import { useGeneratorDraft } from "@/hooks/useGeneratorDraft";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { ErrorPopup } from "@/components/feedback/ErrorPopup";
-import { PaperSurface } from "@/components/primitives/PaperSurface";
-import { ErrorBoundary } from "@/components/feedback/ErrorBoundary";
+import { ErrorBoundary, ErrorPopup } from "@/components/feedback";
+import { PaperSurface } from "@/components/primitives";
 import { List, Sparkles } from "@/lib/icons";
 import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
 import {

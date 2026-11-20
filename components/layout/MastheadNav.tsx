@@ -12,7 +12,7 @@ import {
   SheetContent,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/Sheet";
+} from "@/components/ui";
 
 /**
  * Reports a masthead navigation click to analytics.

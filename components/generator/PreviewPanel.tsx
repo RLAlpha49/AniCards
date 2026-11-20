@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { CardPreviewImage } from "@/components/primitives/CardPreviewImage";
+import { CardPreviewImage } from "@/components/primitives";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Eye } from "@/lib/icons";
 import { cn } from "@/lib/cn";

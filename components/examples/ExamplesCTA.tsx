@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight } from "@/lib/icons";
-import { PageCta } from "@/components/primitives/PageCta";
+import { PageCta } from "@/components/primitives";
 
 type ExamplesCTAProps = Readonly<{
   onOpenGenerator: () => void;

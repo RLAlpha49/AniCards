@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "@/lib/icons";
-import { PageCta } from "@/components/primitives/PageCta";
+import { PageCta } from "@/components/primitives";
 import {
   safeTrack,
   trackButtonClick,

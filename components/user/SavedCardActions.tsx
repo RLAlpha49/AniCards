@@ -2,11 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Check, Copy, Download } from "@/lib/icons";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { copyToClipboard } from "@/lib/browser";
 import { svgToPng, type ConversionFormat } from "@/lib/export/batch";
 import {

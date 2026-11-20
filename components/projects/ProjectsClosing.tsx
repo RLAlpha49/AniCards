@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, GithubBrand } from "@/lib/icons";
-import { PageCta } from "@/components/primitives/PageCta";
+import { PageCta } from "@/components/primitives";
 import {
   safeTrack,
   trackExternalLinkClick,

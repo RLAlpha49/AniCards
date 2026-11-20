@@ -9,7 +9,7 @@ import {
   trackButtonClick,
   trackNavigation,
 } from "@/lib/analytics/google-analytics";
-import { PaperHero } from "@/components/primitives/PaperHero";
+import { PaperHero } from "@/components/primitives";
 import {
   HERO_FACTS,
   START_ROUTES,

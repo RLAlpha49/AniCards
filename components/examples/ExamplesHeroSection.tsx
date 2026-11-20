@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { ArrowRight, ExternalLink, Search, X } from "@/lib/icons";
 import { cn } from "@/lib/cn";
-import { PaperHero } from "@/components/primitives/PaperHero";
+import { PaperHero } from "@/components/primitives";
 import styles from "./card-examples.module.css";
 import type { GroupSummary } from "@/lib/cards/catalogue";
 
