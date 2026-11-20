@@ -1,5 +1,5 @@
 import type { ActivityHistoryItem } from "@/lib/types/records";
-import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
+import { estimateCardTextWidth } from "@/lib/svg-templates/common";
 export {
   getHeatmapColor,
   type HeatmapPalette,

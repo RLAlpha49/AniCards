@@ -6,7 +6,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
 } from "./shared";
-import { toBarRows } from "@/lib/svg-templates/common/bars";
+import { toBarRows } from "@/lib/svg-templates/common";
 import { formatInt, formatPercent } from "./stats-utils";
 
 type LengthStat = { length: string; count: number };

@@ -1,11 +1,11 @@
 import type { MediaListEntry } from "@/lib/types/records";
 import { escapeForXml } from "@/lib/svg-markup";
-import { ANIMATION } from "@/lib/svg-templates/common/constants";
-import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
 import {
+  ANIMATION,
   CARD_DIMENSIONS,
+  estimateCardTextWidth,
   getCardDimensions,
-} from "@/lib/svg-templates/common/dimensions";
+} from "@/lib/svg-templates/common";
 
 /** Status color mapping for list statuses. @source */
 export const STATUS_COLORS: Record<string, string> = {

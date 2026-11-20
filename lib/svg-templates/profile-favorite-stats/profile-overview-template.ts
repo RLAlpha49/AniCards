@@ -4,9 +4,9 @@ import {
   ANIMATION,
   PROFILE,
   TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+  calculateDynamicFontSize,
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";

@@ -1,7 +1,10 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { UserFavourites } from "@/lib/types/records";
-import { ANIMATION, SPACING } from "@/lib/svg-templates/common/constants";
-import { estimateCardTextWidth } from "@/lib/svg-templates/common/text-metrics";
+import {
+  ANIMATION,
+  SPACING,
+  estimateCardTextWidth,
+} from "@/lib/svg-templates/common";
 
 /** Common styles interface for all profile/favourites templates. @source */
 export interface TemplateStyles {

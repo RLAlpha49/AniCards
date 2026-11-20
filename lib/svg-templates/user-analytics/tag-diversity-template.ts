@@ -6,7 +6,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
 } from "../comparative-distribution-stats/shared";
-import { toBarRows } from "@/lib/svg-templates/common/bars";
+import { toBarRows } from "@/lib/svg-templates/common";
 import { normalizedShannon } from "@/lib/stats/diversity";
 
 type TagStat = { tag: { name: string; category?: string }; count: number };

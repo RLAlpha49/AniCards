@@ -7,13 +7,15 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import {
+  calculateDynamicFontSize,
+  generateCardBackground,
+  generateCommonStyles,
+  toBarRows,
+} from "@/lib/svg-templates/common";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { toBarRows } from "@/lib/svg-templates/common/bars";
 import {
   type ComparativeMetricRow,
   renderFittedText,

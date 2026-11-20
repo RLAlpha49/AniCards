@@ -1,16 +1,16 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
-import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
-import { getCardBorderRadius } from "@/lib/card-style";
-import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   HEATMAP,
   SHAPES,
   TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+  calculateDynamicFontSize,
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   fitActivityTitle,
   getHeatmapColor,

@@ -1,24 +1,20 @@
 import type { TrustedSVG } from "@/lib/types/svg";
 
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   ANIMATION,
   DISTRIBUTION,
   SPACING,
   TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import {
   createRectElement,
   createStaggeredGroup,
   createTextElement,
-} from "@/lib/svg-templates/common/svg-primitives";
-import {
   estimateCardTextWidth,
   fitCardText,
-  type CardFontWeight,
-} from "@/lib/svg-templates/common/text-metrics";
+  generateCardBackground,
+  generateCommonStyles,
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
+import type { CardFontWeight } from "@/lib/svg-templates/common";
 
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";

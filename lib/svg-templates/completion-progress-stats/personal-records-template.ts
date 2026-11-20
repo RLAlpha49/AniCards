@@ -1,15 +1,15 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
-import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
-import { getCardBorderRadius } from "@/lib/card-style";
-import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
+  calculateDynamicFontSize,
+} from "@/lib/svg-templates/common";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
 import { fitStatusText, getDimensions, getMediaTitle } from "./shared";
 
 /** Personal records card input structure. @source */

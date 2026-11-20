@@ -11,23 +11,20 @@ import {
   resolveCircleBaseColor,
 } from "@/lib/svg-templates/common";
 
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import {
+  calculateDynamicFontSize,
+  createRectElement,
+  createStaggeredGroup,
+  createTextElement,
+  estimateCardTextWidth,
+  fitCardText,
+  generateCardBackground,
+  generateCommonStyles,
+} from "@/lib/svg-templates/common";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import type { ColorValue } from "@/lib/types/card";
-
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import {
-  createRectElement,
-  createStaggeredGroup,
-  createTextElement,
-} from "@/lib/svg-templates/common/svg-primitives";
-import {
-  estimateCardTextWidth,
-  fitCardText,
-} from "@/lib/svg-templates/common/text-metrics";
 
 /**
  * Truncate `label` to the widest prefix that fits `maxWidth`.

@@ -1,18 +1,18 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
-import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
-import { getCardBorderRadius } from "@/lib/card-style";
-import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   ANIMATION,
   SHAPES,
   SPACING,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
+  calculateDynamicFontSize,
+  generateCardBackground,
+  generateCommonStyles,
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { processColorsForSVG } from "@/lib/color/gradients";
 
 export interface SeasonalViewingPatternsTemplateInput {
   username: string;

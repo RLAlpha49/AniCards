@@ -4,8 +4,8 @@ import {
   ANIMATION,
   SPACING,
   TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
 
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";

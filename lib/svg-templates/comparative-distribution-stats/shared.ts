@@ -11,14 +11,14 @@ import {
   fitCardFontSize,
   type CardFontWeight,
 } from "@/lib/svg-templates/common";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
+  calculateDynamicFontSize,
   createRectElement,
   createStaggeredGroup,
   createTextElement,
-} from "@/lib/svg-templates/common/svg-primitives";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+  generateCardBackground,
+  generateCommonStyles,
+} from "@/lib/svg-templates/common";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";

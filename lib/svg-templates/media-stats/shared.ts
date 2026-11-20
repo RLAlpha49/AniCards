@@ -6,28 +6,24 @@ import {
 import type { TrustedSVG } from "@/lib/types/svg";
 
 import {
-  generateCommonStyles,
-  generateRankCircleStyles,
-} from "@/lib/svg-templates/common/style-generators";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import {
-  createGroupElement,
-  createStaggeredGroup,
-  createTextElement,
-} from "@/lib/svg-templates/common/svg-primitives";
-
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
-import { processColorsForSVG } from "@/lib/color/gradients";
-import { getCardBorderRadius } from "@/lib/card-style";
-import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
-import { toFiniteNumber } from "@/lib/numbers";
-import {
   ANIMATION,
   POSITIONING,
   SHAPES,
   SPACING,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+  calculateDynamicFontSize,
+  createGroupElement,
+  createStaggeredGroup,
+  createTextElement,
+  generateCardBackground,
+  generateCommonStyles,
+  generateRankCircleStyles,
+  getCardDimensions,
+} from "@/lib/svg-templates/common";
+
+import { processColorsForSVG } from "@/lib/color/gradients";
+import { getCardBorderRadius } from "@/lib/card-style";
+import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
+import { toFiniteNumber } from "@/lib/numbers";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 export type MediaType = "anime" | "manga";

@@ -1,6 +1,10 @@
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
-import { calculateDynamicFontSize } from "@/lib/svg-templates/common/text-metrics";
+import {
+  SPACING,
+  TYPOGRAPHY,
+  calculateDynamicFontSize,
+} from "@/lib/svg-templates/common";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
@@ -12,7 +16,6 @@ import {
   generateStatusLegend,
   normalizeStatusCounts,
 } from "./shared";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 
 /** Status completion input structure. @source */
 interface StatusCompletionInput {
