@@ -49,3 +49,19 @@ export function buildRefreshCooldownKey(userId: string | number): string {
 export function buildFailureClaimKey(userId: string | number): string {
   return `cron:refresh-404-claim:${userId}`;
 }
+
+/**
+ * Builds the key holding a user's AniList 404 count.
+ *
+ * The counter has no TTL, so it has to be removed explicitly. `deleteUserStorage`
+ * owns that removal along with the rest of the user's keys; the refresh
+ * consumer used to delete it separately, which left it behind whenever a
+ * different path removed the user.
+ *
+ * @param userId - AniList user identifier.
+ * @returns The Redis key holding the 404 count.
+ * @source
+ */
+export function buildFailedUpdatesKey(userId: string | number): string {
+  return `failed_updates:${userId}`;
+}

@@ -17,6 +17,7 @@ import {
   syncUsernameIndex,
 } from "@/lib/server/username-index";
 import {
+  buildFailedUpdatesKey,
   buildFailureClaimKey,
   buildRefreshCooldownKey,
   REFRESH_COOLDOWN_SECONDS,
@@ -228,7 +229,7 @@ async function setRefreshCooldown(userId: string): Promise<void> {
  */
 async function clearRefreshState(userId: string): Promise<void> {
   await redisClient.del(
-    `failed_updates:${userId}`,
+    buildFailedUpdatesKey(userId),
     buildRefreshCooldownKey(userId),
     buildFailureClaimKey(userId),
   );
@@ -293,7 +294,7 @@ async function recordAniListNotFound(
   }
 
   try {
-    const failureKey = `failed_updates:${userId}`;
+    const failureKey = buildFailedUpdatesKey(userId);
     const currentFailureCount = (await redisClient.get(failureKey)) || 0;
     const failures = Number(currentFailureCount) + 1;
 
@@ -303,7 +304,6 @@ async function recordAniListNotFound(
 
     if (failures >= FAILURES_BEFORE_REMOVAL) {
       const { usernameKeyRemoved } = await deleteUserStorage(userId);
-      await redisClient.del(failureKey);
       console.log(
         `🗑️ [Cron Job] User ${userId}: Removed from database after ${FAILURES_BEFORE_REMOVAL} failed attempts${
           usernameKeyRemoved ? " (removed the username key)" : ""

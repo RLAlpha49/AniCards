@@ -131,6 +131,12 @@ export function buildSchedules(origin: string): ScheduleDefinition[] {
       cron: "0 3 * * *",
       retries: 3,
     },
+    {
+      scheduleId: "anicards-inactive-sweep",
+      destination: `${origin}/api/cron/inactive-sweep`,
+      cron: "0 4 * * *",
+      retries: 3,
+    },
   ];
 }
 

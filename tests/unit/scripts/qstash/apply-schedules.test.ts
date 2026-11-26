@@ -14,7 +14,7 @@ import {
 const ORIGIN = "https://anicards.test";
 
 describe("QStash schedule definitions", () => {
-  it("should define the three schedules documented in the plan", () => {
+  it("should define the four schedules documented in the plan", () => {
     // This script is the only writer of production schedules, so a typo in a
     // cron string would ship without any other signal.
     const schedules = buildSchedules(ORIGIN);
@@ -45,6 +45,12 @@ describe("QStash schedule definitions", () => {
         cron: "0 3 * * *",
         retries: 3,
       },
+      {
+        scheduleId: "anicards-inactive-sweep",
+        destination: `${ORIGIN}/api/cron/inactive-sweep`,
+        cron: "0 4 * * *",
+        retries: 3,
+      },
     ]);
   });
 
@@ -73,8 +79,9 @@ describe("applySchedules", () => {
       "anicards-refresh-dispatch",
       "anicards-analytics-report",
       "anicards-repair-index",
+      "anicards-inactive-sweep",
     ]);
-    expect(sharedQstashSchedulesCreate).toHaveBeenCalledTimes(3);
+    expect(sharedQstashSchedulesCreate).toHaveBeenCalledTimes(4);
     expect(sharedQstashSchedulesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         scheduleId: "anicards-repair-index",

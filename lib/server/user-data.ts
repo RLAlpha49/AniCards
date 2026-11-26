@@ -11,6 +11,8 @@ import {
   buildUsernameIndexKey,
   REMOVE_USERNAME_INDEX_IF_OWNED_SCRIPT,
 } from "@/lib/server/username-index";
+import { buildFailedUpdatesKey } from "@/lib/server/refresh-cooldown";
+import { getUserActivityKey } from "@/lib/server/user-activity";
 import {
   UserRecord,
   UserStatsData,
@@ -129,12 +131,18 @@ const SEARCH_REBUILD_KEY_LIMIT = 10_000;
  * appears as long as it carries `userId`, and one carrying no schema field at
  * all is not a record `saveUserRecord` can produce.
  *
+ * Exported because the inactive-user sweep needs the same listing: it asks
+ * which stored users have no activity key, so the answer has to come from the
+ * same set the refresh index is rebuilt from.
+ *
  * @param onScanPage - Callback invoked after each scan page, used only on the
  *   fallback path.
  * @returns The meta keys.
  * @source
  */
-async function listUserMetaKeys(onScanPage?: () => void): Promise<string[]> {
+export async function listUserMetaKeys(
+  onScanPage?: () => void,
+): Promise<string[]> {
   const indexed = await queryUserMetaKeys(
     redisClient,
     SEARCH_REBUILD_KEY_LIMIT,
@@ -918,9 +926,18 @@ async function readStoredUsernameForDeletion(
  *
  * One function owns the deletion contract, so a caller cannot remove part of
  * a user and leave the rest behind. The keys a user owns are the ten record
- * parts, the refresh index entry, `cards:<id>`, and `username:<name>`. The
- * username key is removed with the compare-and-delete script, so a name that
- * has since been taken by another user is kept.
+ * parts, the refresh index entry, `cards:<id>`, `user_activity:<id>`,
+ * `failed_updates:<id>`, and `username:<name>`. The username key is removed
+ * with the compare-and-delete script, so a name that has since been taken by
+ * another user is kept.
+ *
+ * The activity key is included even though it expires on its own. Its TTL is
+ * 30 days, so a deletion that skipped it would leave a user who no longer
+ * exists looking active to anything that reads the key family.
+ *
+ * The 404 counter is included because it has no TTL at all. It used to be
+ * removed only by the refresh consumer's own removal path, so any other
+ * caller of this function left it behind for good.
  *
  * @param userId - Numeric AniList user ID.
  * @returns Whether any username key was removed.
@@ -938,7 +955,11 @@ export async function deleteUserStorage(
   pipeline.del(
     ...USER_DATA_PARTS.map((part) => getUserDataKey(userIdValue, part)),
   );
-  pipeline.del(getUserCardsKey(userIdValue));
+  pipeline.del(
+    getUserCardsKey(userIdValue),
+    getUserActivityKey(userIdValue),
+    buildFailedUpdatesKey(userIdValue),
+  );
   pipeline.zrem(USER_REFRESH_INDEX_KEY, userIdValue);
   await pipeline.exec();
 
