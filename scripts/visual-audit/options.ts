@@ -73,7 +73,7 @@ export const AUDIT_STYLES: Record<string, AuditStyle> = {
  * @returns The matching style.
  * @source
  */
-export function resolveAuditStyle(name: string): AuditStyle {
+function resolveAuditStyle(name: string): AuditStyle {
   const style = AUDIT_STYLES[name];
   if (!style) {
     throw new Error(
@@ -84,7 +84,7 @@ export function resolveAuditStyle(name: string): AuditStyle {
 }
 
 /** Where an audit reads and writes when nothing else is specified. @source */
-export type AuditPaths = {
+type AuditPaths = {
   root: string;
   auditDir: string;
   cardsDir: string;

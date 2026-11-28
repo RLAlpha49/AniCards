@@ -29,7 +29,7 @@ export function isGradient(value: ColorValue): value is GradientDefinition {
  * @returns A unique gradient ID string.
  * @source
  */
-export function generateGradientId(prefix: string): string {
+function generateGradientId(prefix: string): string {
   const uniquePart = Math.random().toString(36).substring(2, 9);
   return `gradient-${prefix}-${uniquePart}`;
 }
@@ -41,10 +41,7 @@ export function generateGradientId(prefix: string): string {
  * @returns SVG markup string for the gradient definition.
  * @source
  */
-export function generateGradientSVG(
-  gradient: GradientDefinition,
-  id: string,
-): string {
+function generateGradientSVG(gradient: GradientDefinition, id: string): string {
   const stops = gradient.stops
     .map((stop) => {
       const opacity =
@@ -71,29 +68,6 @@ export function generateGradientSVG(
     const r = gradient.r ?? 50;
     return `<radialGradient id="${id}" cx="${cx}%" cy="${cy}%" r="${r}%">${stops}</radialGradient>`;
   }
-}
-
-/**
- * Converts a ColorValue to a string suitable for SVG fill/stroke attributes.
- * For solid colors, returns the hex string directly.
- * For gradients, returns a url() reference to the gradient ID.
- * @param value - The color value (string or GradientDefinition).
- * @param gradientId - The ID to use if the value is a gradient.
- * @returns A string suitable for fill/stroke attributes.
- * @source
- */
-export function colorValueToString(
-  value: ColorValue,
-  gradientId?: string,
-): string {
-  if (isGradient(value)) {
-    if (gradientId) {
-      return `url(#${gradientId})`;
-    }
-    // Fallback: return the first stop color if no ID provided
-    return value.stops[0]?.color ?? "#000000";
-  }
-  return value;
 }
 
 /**
@@ -149,7 +123,7 @@ function isValidRadialProperties(grad: Record<string, unknown>): boolean {
  * @returns True if the value is a valid gradient definition.
  * @source
  */
-export function isValidGradient(value: unknown): boolean {
+function isValidGradient(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
 
   const grad = value as Record<string, unknown>;

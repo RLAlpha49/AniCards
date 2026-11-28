@@ -20,7 +20,7 @@
 import { createHash } from "node:crypto";
 
 /** Live access to what the render did that it should not have. @source */
-export type RenderGuard = {
+type RenderGuard = {
   /** Total blocked network attempts so far. */
   networkAttempts: () => number;
   /** Reseeds the random generator, so each card starts from the same state. */

@@ -71,7 +71,7 @@ export function escapeHtml(value: string): string {
  * @returns One entry per distinct phrase found.
  * @source
  */
-export function findEmptyStateText(svg: string): string[] {
+function findEmptyStateText(svg: string): string[] {
   const found = new Set<string>();
   for (const phrase of EMPTY_STATE_PHRASES) {
     const pattern = new RegExp(`>\\s*${escapeRegExp(phrase)}\\s*<`, "i");

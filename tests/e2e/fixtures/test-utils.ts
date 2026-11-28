@@ -10,7 +10,7 @@ import {
 /**
  * Custom fixture types for AniCards E2E tests.
  */
-export interface AniCardsFixtures {
+interface AniCardsFixtures {
   /** Drives the generator page. */
   generatorPage: GeneratorPage;
   /** Mocks the API responses for successful scenarios */

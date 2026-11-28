@@ -1,11 +1,11 @@
 /** Genre bucket in anime statistics with a count of items. @source */
-export interface AnimeStatGenre {
+interface AnimeStatGenre {
   genre: string;
   count: number;
 }
 
 /** Tag bucket in anime statistics with a referenced tag name and count. @source */
-export interface AnimeStatTag {
+interface AnimeStatTag {
   tag: { name: string; category?: string };
   count: number;
 }
@@ -58,13 +58,13 @@ export interface StoredAnimeStats {
 }
 
 /** Genre bucket in manga statistics with a count of items. @source */
-export interface MangaStatGenre {
+interface MangaStatGenre {
   genre: string;
   count: number;
 }
 
 /** Tag bucket in manga statistics with a referenced tag name and count. @source */
-export interface MangaStatTag {
+interface MangaStatTag {
   tag: { name: string; category?: string };
   count: number;
 }
@@ -108,41 +108,41 @@ export interface UserStatistics {
 }
 
 /** Title structure for anime/manga with multiple language options. @source */
-export interface MediaTitle {
+interface MediaTitle {
   english?: string;
   romaji?: string;
   native?: string;
 }
 
 /** Cover image structure for anime/manga with size variants and color. @source */
-export interface MediaCoverImage {
+interface MediaCoverImage {
   large?: string;
   medium?: string;
   color?: string;
 }
 
 /** A favorite anime node with title and cover. @source */
-export interface FavoriteAnimeNode {
+interface FavoriteAnimeNode {
   id: number;
   title: MediaTitle;
   coverImage: MediaCoverImage;
 }
 
 /** A favorite manga node with title and cover. @source */
-export interface FavoriteMangaNode {
+interface FavoriteMangaNode {
   id: number;
   title: MediaTitle;
   coverImage: MediaCoverImage;
 }
 
 /** Character image structure with size variants. @source */
-export interface CharacterImage {
+interface CharacterImage {
   large?: string;
   medium?: string;
 }
 
 /** A favorite character node with name and image. @source */
-export interface FavoriteCharacterNode {
+interface FavoriteCharacterNode {
   id: number;
   name: {
     full: string;
@@ -152,13 +152,13 @@ export interface FavoriteCharacterNode {
 }
 
 /** Staff image structure with size variants. @source */
-export interface StaffImage {
+interface StaffImage {
   large?: string;
   medium?: string;
 }
 
 /** A favorite staff node with name and image. @source */
-export interface FavoriteStaffNode {
+interface FavoriteStaffNode {
   id: number;
   name: {
     full: string;
@@ -168,7 +168,7 @@ export interface FavoriteStaffNode {
 }
 
 /** A favorite studio node with name. @source */
-export interface FavoriteStudioNode {
+interface FavoriteStudioNode {
   id: number;
   name: string;
 }
@@ -221,13 +221,13 @@ export interface ActivityHistoryItem {
 }
 
 /** Activity statistics container used for charting and summaries. @source */
-export interface ActivityStats {
+interface ActivityStats {
   activityHistory: ActivityHistoryItem[];
   [key: string]: unknown;
 }
 
 /** Pagination information used in AniList Page objects. @source */
-export interface PageInfo {
+interface PageInfo {
   total: number;
 }
 
@@ -333,7 +333,7 @@ export interface MediaListEntry {
 }
 
 /** A list within MediaListCollection containing entries grouped by status. @source */
-export interface MediaListGroup {
+interface MediaListGroup {
   name?: string;
   entries: MediaListEntry[];
 }

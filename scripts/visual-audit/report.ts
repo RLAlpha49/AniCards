@@ -729,7 +729,7 @@ function panelAnchor(panel: Panel): string {
 }
 
 /** Result of building a report. @source */
-export type ReportResult = {
+type ReportResult = {
   output: string;
   index: string;
   summary: Summary;

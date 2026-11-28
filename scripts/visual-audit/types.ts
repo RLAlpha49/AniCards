@@ -10,7 +10,7 @@
  */
 
 /** Colours an audit renders with. A missing value falls back to the app default. @source */
-export type AuditColors = {
+type AuditColors = {
   titleColor?: string;
   backgroundColor?: string;
   textColor?: string;
@@ -40,7 +40,7 @@ export type AuditStyle = {
 };
 
 /** Where the audited record came from. @source */
-export type AuditSource = {
+type AuditSource = {
   userId: string;
   username: string;
   /** Redis host the record was read from, so a local and a production run differ on the page. */

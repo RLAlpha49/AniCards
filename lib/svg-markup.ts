@@ -39,16 +39,3 @@ export function markTrustedSvg(svg: string): TrustedSVG {
   const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
   return `${prefix}${svg}` as TrustedSVG;
 }
-
-/**
- * Check whether the provided string is a marked Trusted SVG.
- * This is a lightweight runtime guard used by client components that render
- * pre-sanitized SVG markup to ensure the string passed to
- * `dangerouslySetInnerHTML` came from one of our trusted template helpers.
- * @param svg - The string to check.
- * @returns True if the string is marked as trusted.
- */
-export function isTrustedSvgString(svg: unknown): boolean {
-  if (typeof svg !== "string") return false;
-  return svg.startsWith("<!--ANICARDS_TRUSTED_SVG-->");
-}

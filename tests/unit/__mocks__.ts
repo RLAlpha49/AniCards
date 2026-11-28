@@ -11,21 +11,3 @@ export const mockRedisGet = mock();
 export const mockRedisIncr = mock();
 export const mockLimit = mock().mockResolvedValue({ success: true });
 export const mockSlidingWindow = mock(() => "fake-limiter");
-
-export function createRedisFromEnvMock() {
-  return {
-    set: mockRedisSet,
-    get: mockRedisGet,
-    incr: mockRedisIncr,
-  };
-}
-
-export function createRatelimitMockClass() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RatelimitMock: any = mock().mockImplementation(() => ({
-    limit: mockLimit,
-  }));
-  // Use the shared mockSlidingWindow so test files can spy on the same mock
-  RatelimitMock.slidingWindow = mockSlidingWindow;
-  return RatelimitMock;
-}

@@ -180,9 +180,6 @@ export const CSP_DIRECTIVES = {
   upgradeInsecureRequests: true,
 } as const;
 
-/** Type for CSP directive names. @source */
-export type CSPDirective = keyof typeof CSP_DIRECTIVES;
-
 /**
  * Assembles the policy string, injecting the nonce into `script-src`.
  *
@@ -244,34 +241,4 @@ export function buildCSPHeader(nonce: string): string {
  */
 export function buildReportOnlyCSPHeader(nonce: string): string {
   return buildDirectives(nonce, false);
-}
-
-/**
- * Validate that a base64-encoded nonce meets security requirements.
- *
- * @param nonce - Base64-encoded nonce to validate
- * @returns true when the nonce decodes to at least 16 bytes (128 bits)
- * @source
- */
-export function isValidNonce(nonce: string): boolean {
-  try {
-    // Check if it's valid base64
-    const decoded = Buffer.from(nonce, "base64");
-    // Ensure at least 16 bytes (128 bits) of entropy
-    return decoded.length >= 16;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Generate a base64-encoded 16-byte random nonce for testing.
- *
- * Note: production nonces are generated per request in the proxy using Web Crypto.
- * @returns Base64-encoded 16-byte nonce
- * @source
- */
-export function generateTestNonce(): string {
-  const crypto = require("node:crypto");
-  return crypto.randomBytes(16).toString("base64");
 }

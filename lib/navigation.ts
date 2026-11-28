@@ -9,7 +9,7 @@ import {
 } from "@/lib/icons";
 
 /** A single entry in the site navigation. @source */
-export type NavItem = {
+type NavItem = {
   title: string;
   href: string;
   icon: HugeIcon;

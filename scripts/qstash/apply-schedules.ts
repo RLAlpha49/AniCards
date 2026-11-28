@@ -29,7 +29,7 @@
 import { Client } from "@upstash/qstash";
 import { loadDotEnv, requireEnv } from "../lib/env";
 
-export type ScheduleDefinition = {
+type ScheduleDefinition = {
   scheduleId: string;
   destination: string;
   cron: string;
@@ -76,7 +76,7 @@ function readOriginOverride(): string | undefined {
  * @returns The origin without a trailing slash.
  * @source
  */
-export function resolveAppOrigin(override?: string): string {
+function resolveAppOrigin(override?: string): string {
   const configured =
     override ||
     process.env.NEXT_PUBLIC_APP_URL ||

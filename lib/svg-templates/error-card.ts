@@ -125,7 +125,7 @@ function limitLines(lines: string[]): string[] {
  * @returns The lines to render, already limited in count.
  * @source
  */
-export function wrapErrorText(message: string): string[] {
+function wrapErrorText(message: string): string[] {
   const lines: string[] = [];
 
   for (const paragraph of String(message ?? "").split(/\r?\n/)) {

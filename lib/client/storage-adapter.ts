@@ -7,7 +7,7 @@
  * not available (SSR / tests) and to support legacy formats where the value
  * may have been stored directly or nested under a ``value`` property.
  */
-export type LocalStorageLike = {
+type LocalStorageLike = {
   getItem: (name: string) => string | null;
   setItem: (name: string, value: string) => void;
   removeItem: (name: string) => void;

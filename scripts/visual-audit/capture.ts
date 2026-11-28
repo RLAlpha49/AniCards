@@ -40,7 +40,7 @@ import {
 } from "./real-data";
 
 /** Options for one capture run. @source */
-export type CaptureOptions = {
+type CaptureOptions = {
   /** AniList user id whose record drives every card. */
   userId: string;
   /** Rendering settings shared by every variation. */
@@ -238,7 +238,7 @@ function buildCaveats(style: AuditStyle): string[] {
 }
 
 /** Everything one capture produced. @source */
-export type CaptureResult = {
+type CaptureResult = {
   outputDir: string;
   manifest: Manifest;
   failed: Capture[];

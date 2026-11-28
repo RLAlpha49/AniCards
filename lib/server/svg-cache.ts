@@ -28,7 +28,7 @@ import { LRUCache } from "lru-cache";
  *
  * @source
  */
-export interface CachedSvgEntry {
+interface CachedSvgEntry {
   /** SVG content as a trusted SVG string */
   svg: string;
   /**
@@ -39,16 +39,6 @@ export interface CachedSvgEntry {
    * a card rendered with a custom one.
    */
   borderRadius?: number;
-}
-
-/**
- * Represents a cache key with user context.
- * @source
- */
-export interface CacheKey {
-  userId: number;
-  cardType: string;
-  hash: string; // Hash of parameters to differentiate variations
 }
 
 /**
@@ -222,21 +212,6 @@ function updateUserRequestStats(userId: number): void {
 }
 
 /**
- * Retrieves the list of top N most requested users.
- * Used for cache warming strategies.
- *
- * @param limit - Number of top users to return (default: 100)
- * @returns Array of user IDs sorted by request count
- * @source
- */
-export function getTopRequestedUsers(limit: number = 100): number[] {
-  return Array.from(userRequestStats.values())
-    .sort((a, b) => b.requestCount - a.requestCount)
-    .slice(0, limit)
-    .map((s) => s.userId);
-}
-
-/**
  * Clears the entire in-memory SVG cache.
  * Useful for memory cleanup or testing.
  *
@@ -254,21 +229,6 @@ export function clearSvgCache(): void {
  */
 export function clearUserRequestStats(): void {
   userRequestStats.clear();
-}
-
-/**
- * Gets cache statistics for monitoring and debugging.
- *
- * @returns Object with cache metrics
- * @source
- */
-export function getSvgCacheStats() {
-  return {
-    size: svgCache.size,
-    itemCount: svgCache.size, // LRUCache.size is the item count
-    maxSize: svgCache.maxSize,
-    maxItems: svgCache.max,
-  };
 }
 
 /**

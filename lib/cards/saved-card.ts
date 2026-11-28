@@ -46,7 +46,7 @@ const PLACEHOLDER_ORIGIN = "https://placeholder.invalid";
  * @returns The same URL without `_t`.
  * @source
  */
-export function stripTimestampParam(url: string): string {
+function stripTimestampParam(url: string): string {
   const absolute = /^[a-z][a-z\d+.-]*:/i.test(url);
   try {
     const parsed = new URL(url, absolute ? undefined : PLACEHOLDER_ORIGIN);

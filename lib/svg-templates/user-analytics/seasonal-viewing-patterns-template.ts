@@ -14,7 +14,7 @@ import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
 
-export interface SeasonalViewingPatternsTemplateInput {
+interface SeasonalViewingPatternsTemplateInput {
   username: string;
   variant?: "default";
   styles: {

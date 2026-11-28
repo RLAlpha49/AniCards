@@ -8,7 +8,7 @@
  */
 export type ShowcaseCategory = "stats" | "analysis" | "social" | "deep-dive";
 
-export type ShowcaseCard = {
+type ShowcaseCard = {
   cardType: string;
   variation: string;
   title: string;

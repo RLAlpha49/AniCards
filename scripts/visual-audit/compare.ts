@@ -18,14 +18,14 @@ import path from "node:path";
 import type { Capture, Manifest } from "./types";
 
 /** How one variation differs between two captures. @source */
-export type CaptureDiff = {
+type CaptureDiff = {
   card: string;
   variation: string;
   reason: "changed" | "added" | "removed";
 };
 
 /** The result of comparing two captures. @source */
-export type CompareResult = {
+type CompareResult = {
   /** Captures whose SVG changed, plus cards added or removed. */
   differences: CaptureDiff[];
   /** Variations present in both runs with identical bytes. */
@@ -40,7 +40,7 @@ export type CompareResult = {
  * @returns The parsed manifest.
  * @source
  */
-export function readManifest(cardsDir: string): Manifest {
+function readManifest(cardsDir: string): Manifest {
   return JSON.parse(
     readFileSync(path.join(cardsDir, "manifest.json"), "utf8"),
   ) as Manifest;
@@ -97,10 +97,7 @@ function compareSettings(before: Manifest, after: Manifest): string[] {
  * @returns Differences, unchanged count, and setting changes.
  * @source
  */
-export function compareManifests(
-  before: Manifest,
-  after: Manifest,
-): CompareResult {
+function compareManifests(before: Manifest, after: Manifest): CompareResult {
   const oldCaptures = indexByVariation(before);
   const newCaptures = indexByVariation(after);
   const differences: CaptureDiff[] = [];

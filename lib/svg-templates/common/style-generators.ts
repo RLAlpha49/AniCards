@@ -1,7 +1,7 @@
 import type { StyleOptions } from "@/lib/svg-templates/common/types";
 import { TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 
-export function generateFadeInKeyframes(): string {
+function generateFadeInKeyframes(): string {
   return `
     @keyframes fadeInAnimation {
       from { opacity: 0; }

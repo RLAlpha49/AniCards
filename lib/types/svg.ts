@@ -15,7 +15,7 @@ export type TrustedSVG = string & { readonly __trustedSVGBrand?: true };
  * preferred.
  * @param svg - A string that may or may not have the Trusted SVG marker.
  */
-export function stripTrustedSvgMarker(svg: string) {
+function stripTrustedSvgMarker(svg: string) {
   const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
   if (svg.startsWith(prefix)) return svg.slice(prefix.length);
   return svg;

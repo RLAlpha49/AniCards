@@ -10,7 +10,7 @@
  */
 
 /** A labelled count, the row shape every bar chart renders. @source */
-export type BarRow = {
+type BarRow = {
   label: string;
   count: number;
 };

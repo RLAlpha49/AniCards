@@ -1,6 +1,6 @@
 import type { ColorValue } from "@/lib/types/card";
 
-export interface ColorPreset {
+interface ColorPreset {
   colors: ColorValue[];
   mode: "dark" | "light" | "custom";
 }

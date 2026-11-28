@@ -19,7 +19,7 @@ import type { ColorValue } from "@/lib/types/card";
 const DEFAULT_FRAME_COLOR = "#e4e2e2";
 
 /** Everything the generator collects before it submits. @source */
-export type GeneratorDraft = Readonly<{
+type GeneratorDraft = Readonly<{
   username: string;
   presetName: string;
   colors: ColorValue[];

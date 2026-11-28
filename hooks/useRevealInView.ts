@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
  * plays the entrance.
  * @source
  */
-export type RevealPhase = "idle" | "hidden" | "shown";
+type RevealPhase = "idle" | "hidden" | "shown";
 
 type RevealInViewOptions = Readonly<{
   rootMargin?: string;

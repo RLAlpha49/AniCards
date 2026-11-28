@@ -33,7 +33,7 @@ import { CardDataError } from "@/lib/card-data";
  * @returns A TrustedSVG containing the wrapped message.
  * @source
  */
-export function svgError(message: string): TrustedSVG {
+function svgError(message: string): TrustedSVG {
   return buildErrorCardSvg(message);
 }
 
@@ -134,7 +134,7 @@ function errorHeaders(request?: Request) {
  *
  * @source
  */
-export type CardCacheSource = "memory" | "render" | "bypass";
+type CardCacheSource = "memory" | "render" | "bypass";
 
 /**
  * Creates the success response with SVG content and headers.

@@ -52,7 +52,7 @@ const ISO_TIMESTAMP_PATTERN =
  * @returns The instant in milliseconds, or null when the value is not a date.
  * @source
  */
-export function parseTimestampMillis(value: unknown): number | null {
+function parseTimestampMillis(value: unknown): number | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > MAX_TIMESTAMP_LENGTH) return null;

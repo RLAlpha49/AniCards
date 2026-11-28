@@ -54,23 +54,6 @@ export interface TemplateCardConfig {
 }
 
 /**
- * Aggregated structure representing AniList user stats responses used by
- * the server and templates to render cards.
- * @source
- */
-export interface UserStats {
-  username: string;
-  User: {
-    statistics: {
-      anime: TemplateAnimeStats;
-      manga: TemplateMangaStats;
-    };
-    stats?: { activityHistory: { date: number; amount: number }[] };
-  };
-  social?: SocialStats;
-}
-
-/**
  * Anime statistics in the shape templates render.
  *
  * This is the template view: AniList's GraphQL field names (`voice_actors`,
@@ -128,20 +111,4 @@ export interface SocialStats {
   };
   reviewsPage: { pageInfo: { total: number }; reviews: { id: number }[] };
   activityHistory?: { date: number; amount: number }[];
-}
-
-/** Document representation for persisted user card configurations. @source */
-export interface CardsDocument {
-  userId: number;
-  cards: TemplateCardConfig[];
-  updatedAt: Date;
-}
-
-/** Database document shape for a stored user containing minimal profile and metadata. @source */
-export interface UserDocument {
-  userId: number;
-  username: string;
-  stats: unknown;
-  createdAt: Date;
-  updatedAt: Date;
 }

@@ -9,7 +9,7 @@
  */
 
 /** One link offered by a project entry. @source */
-export type ProjectAction = Readonly<{
+type ProjectAction = Readonly<{
   /** Link text. */
   label: string;
   href: string;

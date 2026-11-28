@@ -38,7 +38,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
  * statistics card groups. Derived from the card registry.
  * @source
  */
-export type CardGroup = {
+type CardGroup = {
   cardType: CardId;
   cardTitle: string;
   variations: VariationDef[];
@@ -437,37 +437,10 @@ export function buildCardUrlWithParams(
 }
 
 /** Example variant shape used by UI examples for each card variation. @source */
-export type ExampleCardVariant = {
+type ExampleCardVariant = {
   cardType: string;
   cardTitle: string;
   variation: string;
   label: string;
   extras?: Record<string, string>;
 };
-
-/**
- * Creates a flattened list of example card variants from the configured
- * card groups. Each variant includes metadata and extras required to build
- * a preview card URL.
- * @param variationLabelMap - Optional mapping for variation labels.
- * @returns An array of ExampleCardVariant objects.
- * @source
- */
-export function generateExampleCardVariants(
-  variationLabelMap: Record<string, string> = VARIATION_LABEL_MAP,
-) {
-  return CARD_GROUPS.flatMap((group) =>
-    group.variations.map((v) => {
-      const variation = typeof v === "string" ? v : v.variation;
-      const extras = typeof v === "string" ? undefined : v.extras;
-
-      return {
-        cardType: group.cardType,
-        cardTitle: group.cardTitle,
-        variation,
-        label: variationLabelMap[variation] ?? variation,
-        ...(extras ? { extras } : {}),
-      } as ExampleCardVariant;
-    }),
-  );
-}

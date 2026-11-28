@@ -20,7 +20,7 @@
  * @returns The entropy, or 0 when nothing was counted.
  * @source
  */
-export function shannonDiversityIndex(counts: readonly number[]): number {
+function shannonDiversityIndex(counts: readonly number[]): number {
   let total = 0;
   let sumCLogC = 0;
 
