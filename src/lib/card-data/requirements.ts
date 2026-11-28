@@ -1,6 +1,6 @@
 import type { CardId } from "@/lib/cards/registry";
 import { CARD_BY_ID, CARD_REGISTRY } from "@/lib/cards/registry";
-import type { UserDataPart } from "@/lib/server/user-data";
+import type { UserDataPart } from "@/lib/types/records";
 
 /**
  * Parts to fetch when the card type is not registered. The card API validates

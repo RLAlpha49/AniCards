@@ -31,22 +31,11 @@ import {
   SeasonalPreferenceTotalsEntry,
   AnimeGenreSynergyTotalsEntry,
   StudioCollaborationTotalsEntry,
+  UserDataPart,
 } from "@/lib/types/records";
 import { createLogger } from "@/lib/log";
 
 const log = createLogger("User Data");
-
-export type UserDataPart =
-  | "meta"
-  | "activity"
-  | "favourites"
-  | "statistics"
-  | "pages"
-  | "planning"
-  | "current"
-  | "rewatched"
-  | "completed"
-  | "aggregates";
 
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
@@ -67,6 +56,9 @@ export const USER_DATA_PARTS: UserDataPart[] = [
   "completed",
   "aggregates",
 ];
+
+// Re-exported so callers that read the record shape from here still compile.
+export type { UserDataPart } from "@/lib/types/records";
 
 /**
  * Sorted set of user IDs scored by their last update time. The refresh cron

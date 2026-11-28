@@ -1,4 +1,4 @@
-import type { UserDataPart } from "@/lib/server/user-data";
+import type { UserDataPart } from "@/lib/types/records";
 
 /**
  * One variation of a card. A bare string is the variation id; the object form

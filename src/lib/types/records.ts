@@ -495,3 +495,22 @@ export interface CardsRecord {
   cards: StoredCardConfig[];
   updatedAt: string;
 }
+
+/**
+ * The parts a stored user record is split into in Redis.
+ *
+ * Lives here rather than in `lib/server/user-data` so the card registry can
+ * describe which parts a card needs without importing a server module.
+ * @source
+ */
+export type UserDataPart =
+  | "meta"
+  | "activity"
+  | "favourites"
+  | "statistics"
+  | "pages"
+  | "planning"
+  | "current"
+  | "rewatched"
+  | "completed"
+  | "aggregates";
