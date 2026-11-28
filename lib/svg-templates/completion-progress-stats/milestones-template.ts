@@ -8,7 +8,7 @@ import {
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { fitStatusText, toSvgIdFragment } from "./shared";
+import { fitStatusText, toSvgIdFragment } from "./completion-progress-stats";
 
 /** Milestones card input structure. @source */
 interface MilestonesInput {

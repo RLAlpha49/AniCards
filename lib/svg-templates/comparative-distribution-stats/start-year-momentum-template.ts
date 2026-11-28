@@ -6,7 +6,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { formatInt, formatPercent } from "./stats-utils";
 
 type StartYearStat = { startYear: number; count: number };
@@ -50,7 +50,7 @@ function buildMetrics(
   ];
 }
 
-export interface StartYearMomentumTemplateInput {
+interface StartYearMomentumTemplateInput {
   username: string;
   variant?: "default";
   styles: {

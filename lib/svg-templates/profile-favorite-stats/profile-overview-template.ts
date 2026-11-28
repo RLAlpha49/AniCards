@@ -11,7 +11,11 @@ import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
 import { toFiniteNumber } from "@/lib/numbers";
-import { fitText, type ProfileVariant, type TemplateStyles } from "./shared";
+import {
+  fitText,
+  type ProfileVariant,
+  type TemplateStyles,
+} from "./profile-favorite-stats";
 import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 

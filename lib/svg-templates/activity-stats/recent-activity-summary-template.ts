@@ -11,7 +11,7 @@ import {
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { fitActivityTitle, generateSparkline } from "./shared";
+import { fitActivityTitle, generateSparkline } from "./activity-stats";
 
 /**
  * Generates a recent activity summary card with sparkline.

@@ -17,7 +17,7 @@ mock.module("@/lib/stats/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 
-mock.module("@/lib/svg-templates/media-stats/shared", () => ({
+mock.module("@/lib/svg-templates/media-stats/media-stats", () => ({
   mediaStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<!--ANICARDS_TRUSTED_SVG-->` +
@@ -60,41 +60,44 @@ mock.module("@/lib/svg-templates/social-stats", () => ({
   ),
 }));
 
-mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => {
-  const extraAnimeMangaStatsTemplate = mock(
-    (data: {
-      styles?: { borderColor?: string };
-      fixedStatusColors?: boolean;
-      showPiePercentages?: boolean;
-      format?: string;
-    }) =>
-      `<svg data-template="extra" stroke="${data.styles?.borderColor ?? "none"}" fixedStatusColors="${data.fixedStatusColors ?? false}" showPiePercentages="${data.showPiePercentages ?? false}">Extra Stats</svg>`,
-  );
+mock.module(
+  "@/lib/svg-templates/extra-anime-manga-stats/extra-anime-manga-stats",
+  () => {
+    const extraAnimeMangaStatsTemplate = mock(
+      (data: {
+        styles?: { borderColor?: string };
+        fixedStatusColors?: boolean;
+        showPiePercentages?: boolean;
+        format?: string;
+      }) =>
+        `<svg data-template="extra" stroke="${data.styles?.borderColor ?? "none"}" fixedStatusColors="${data.fixedStatusColors ?? false}" showPiePercentages="${data.showPiePercentages ?? false}">Extra Stats</svg>`,
+    );
 
-  const createExtraStatsTemplate = (format: string) => {
-    return (input: {
-      styles?: { borderColor?: string };
-      fixedStatusColors?: boolean;
-      showPiePercentages?: boolean;
-    }) => extraAnimeMangaStatsTemplate({ ...input, format });
-  };
+    const createExtraStatsTemplate = (format: string) => {
+      return (input: {
+        styles?: { borderColor?: string };
+        fixedStatusColors?: boolean;
+        showPiePercentages?: boolean;
+      }) => extraAnimeMangaStatsTemplate({ ...input, format });
+    };
 
-  // Minimal map needed for template wrappers used by the generator.
-  const extraStatsTemplates = {
-    animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
-    animeEpisodeLengthPreferences: createExtraStatsTemplate(
-      "Episode Length Preferences",
-    ),
-  };
+    // Minimal map needed for template wrappers used by the generator.
+    const extraStatsTemplates = {
+      animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
+      animeEpisodeLengthPreferences: createExtraStatsTemplate(
+        "Episode Length Preferences",
+      ),
+    };
 
-  return {
-    extraAnimeMangaStatsTemplate,
-    createExtraStatsTemplate,
-    extraStatsTemplates,
-  };
-});
+    return {
+      extraAnimeMangaStatsTemplate,
+      createExtraStatsTemplate,
+      extraStatsTemplates,
+    };
+  },
+);
 
-mock.module("@/lib/svg-templates/distribution/shared", () => ({
+mock.module("@/lib/svg-templates/distribution/distribution", () => ({
   distributionTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<svg data-template="distribution" stroke="${data.styles?.borderColor ?? "none"}">Distribution</svg>`,
@@ -104,9 +107,9 @@ mock.module("@/lib/svg-templates/distribution/shared", () => ({
 const routeModule = await import("@/app/api/card/route");
 const { GET, OPTIONS } = routeModule;
 const { extraAnimeMangaStatsTemplate } =
-  await import("@/lib/svg-templates/extra-anime-manga-stats/shared");
+  await import("@/lib/svg-templates/extra-anime-manga-stats/extra-anime-manga-stats");
 const { mediaStatsTemplate } =
-  await import("@/lib/svg-templates/media-stats/shared");
+  await import("@/lib/svg-templates/media-stats/media-stats");
 const { favoritesGridTemplate } =
   await import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template");
 const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
@@ -117,7 +120,7 @@ const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
 const { colorPresets } = await import("@/lib/card-catalogue");
 const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
 const { distributionTemplate } =
-  await import("@/lib/svg-templates/distribution/shared");
+  await import("@/lib/svg-templates/distribution/distribution");
 const { socialStatsTemplate } =
   await import("@/lib/svg-templates/social-stats");
 const { buildErrorCardSvg } = await import("@/lib/svg-templates/error-card");

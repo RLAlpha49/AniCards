@@ -5,7 +5,7 @@ import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { toBarRows } from "@/lib/svg-templates/common";
 import { normalizedShannon } from "@/lib/stats/diversity";
 import { formatInt, formatPercent } from "./stats-utils";
@@ -44,7 +44,7 @@ function buildMetrics(genres: GenreStat[] | undefined): ComparativeMetricRow[] {
   ];
 }
 
-export interface GenreDiversityTemplateInput {
+interface GenreDiversityTemplateInput {
   username: string;
   variant?: "default";
   styles: {

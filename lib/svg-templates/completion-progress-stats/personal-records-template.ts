@@ -10,7 +10,11 @@ import {
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { fitStatusText, getDimensions, getMediaTitle } from "./shared";
+import {
+  fitStatusText,
+  getDimensions,
+  getMediaTitle,
+} from "./completion-progress-stats";
 
 /** Personal records card input structure. @source */
 interface PersonalRecordsInput {

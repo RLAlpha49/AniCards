@@ -3,7 +3,7 @@ import type { TrustedSVG } from "../../types/svg";
 import { MILESTONES } from "../common/constants";
 import { getCardDimensions } from "../common/dimensions";
 import { estimateCardTextWidth } from "../common/text-metrics";
-import { toSvgIdFragment } from "../completion-progress-stats/shared";
+import { toSvgIdFragment } from "@/lib/svg-templates/completion-progress-stats/completion-progress-stats";
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";

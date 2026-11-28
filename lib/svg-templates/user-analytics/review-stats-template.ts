@@ -5,7 +5,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
-} from "../comparative-distribution-stats/shared";
+} from "@/lib/svg-templates/comparative-distribution-stats/comparative-distribution-stats";
 
 function computeReviewStats(
   reviews: ReviewEntry[] | undefined,
@@ -81,7 +81,7 @@ function buildBars(
     .slice(0, 5);
 }
 
-export interface ReviewStatsTemplateInput {
+interface ReviewStatsTemplateInput {
   username: string;
   variant?: "default";
   styles: {

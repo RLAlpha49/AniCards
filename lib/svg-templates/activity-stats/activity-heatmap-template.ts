@@ -15,7 +15,7 @@ import {
   fitActivityTitle,
   getHeatmapColor,
   type HeatmapPalette,
-} from "./shared";
+} from "./activity-stats";
 
 /**
  * Generates a GitHub-style activity heatmap calendar.

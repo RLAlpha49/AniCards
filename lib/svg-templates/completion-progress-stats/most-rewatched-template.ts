@@ -17,7 +17,7 @@ import {
   getDimensions,
   getMediaTitle,
   dedupeByMediaIdKeepHighestRepeat,
-} from "./shared";
+} from "./completion-progress-stats";
 
 /** Most rewatched card input structure. @source */
 interface MostRewatchedInput {

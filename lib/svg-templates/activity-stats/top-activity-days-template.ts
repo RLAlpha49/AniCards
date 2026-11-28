@@ -12,7 +12,7 @@ import {
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { detectTopActivityDays, fitActivityTitle } from "./shared";
+import { detectTopActivityDays, fitActivityTitle } from "./activity-stats";
 
 /**
  * Generates a Top Activity Days card showing days with the highest activity.

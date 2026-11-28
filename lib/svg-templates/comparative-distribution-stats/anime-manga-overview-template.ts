@@ -5,7 +5,7 @@ import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { formatInt, formatScore } from "./stats-utils";
 
 function formatDaysFromMinutes(minutes: number | undefined | null): string {
@@ -15,7 +15,7 @@ function formatDaysFromMinutes(minutes: number | undefined | null): string {
   return `${days.toFixed(1)}d`;
 }
 
-export interface AnimeMangaOverviewTemplateInput {
+interface AnimeMangaOverviewTemplateInput {
   username: string;
   variant?: "default";
   styles: {

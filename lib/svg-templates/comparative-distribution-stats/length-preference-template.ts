@@ -5,7 +5,7 @@ import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { toBarRows } from "@/lib/svg-templates/common";
 import { formatInt, formatPercent } from "./stats-utils";
 
@@ -38,7 +38,7 @@ function buildMetrics(items: LengthStat[] | undefined): ComparativeMetricRow[] {
   ];
 }
 
-export interface LengthPreferenceTemplateInput {
+interface LengthPreferenceTemplateInput {
   username: string;
   variant?: "default";
   styles: {

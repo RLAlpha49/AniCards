@@ -15,7 +15,7 @@ import {
   generateStackedBar,
   generateStatusLegend,
   normalizeStatusCounts,
-} from "./shared";
+} from "./completion-progress-stats";
 
 /** Status completion input structure. @source */
 interface StatusCompletionInput {

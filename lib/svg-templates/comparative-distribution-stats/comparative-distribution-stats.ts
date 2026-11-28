@@ -33,7 +33,7 @@ export type ComparativeBarRow = {
   count: number;
 };
 
-export interface ComparativeTwoColumnTemplateInput {
+interface ComparativeTwoColumnTemplateInput {
   /** Card type key used to resolve dimensions. */
   cardType: Parameters<typeof getCardDimensions>[0];
   username: string;

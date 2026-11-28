@@ -18,7 +18,7 @@ import {
   getDimensions,
   getMediaTitle,
   toSvgIdFragment,
-} from "./shared";
+} from "./completion-progress-stats";
 
 /** Currently watching/reading card input structure. @source */
 interface CurrentlyWatchingReadingInput {

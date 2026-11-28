@@ -6,7 +6,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { formatInt, formatPercent } from "./stats-utils";
 
 type YearStat = { releaseYear: number; count: number };
@@ -59,7 +59,7 @@ function buildDecadeBars(years: YearStat[] | undefined): {
   return { bars, metrics };
 }
 
-export interface ReleaseEraPreferenceTemplateInput {
+interface ReleaseEraPreferenceTemplateInput {
   username: string;
   variant?: "default";
   styles: {

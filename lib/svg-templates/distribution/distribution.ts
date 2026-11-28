@@ -693,24 +693,6 @@ export function distributionTemplate(
   </svg>`);
 }
 
-/**
- * Factory function to create distribution template wrappers.
- * Accepts mediaType and kind, returns a wrapper that omits both from input.
- */
-export function createDistributionTemplate(
-  mediaType: "anime" | "manga",
-  kind: "score" | "year",
-) {
-  return (
-    input: Omit<
-      Parameters<typeof distributionTemplate>[0],
-      "mediaType" | "kind"
-    >,
-  ) => {
-    return distributionTemplate({ ...input, mediaType, kind });
-  };
-}
-
 /** Capitalize the first letter of a string. @source */
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);

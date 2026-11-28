@@ -15,7 +15,7 @@ import {
   fitText,
   type ProfileVariant,
   type TemplateStyles,
-} from "./shared";
+} from "./profile-favorite-stats";
 import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 

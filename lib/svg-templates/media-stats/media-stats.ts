@@ -26,7 +26,7 @@ import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { toFiniteNumber } from "@/lib/numbers";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
-export type MediaType = "anime" | "manga";
+type MediaType = "anime" | "manga";
 
 // Semibold Segoe UI advance widths in em; unknown glyphs use a wider fallback.
 function estimateTitleWidth(text: string, fontSize: number): number {
@@ -439,15 +439,3 @@ export const mediaStatsTemplate = (data: {
   </g>
 </svg>`);
 };
-
-/**
- * Factory function to create media-specific template wrappers.
- * Eliminates boilerplate by generating wrapper functions that inject mediaType.
- */
-export function createMediaStatsTemplate(mediaType: MediaType) {
-  return (
-    input: Omit<Parameters<typeof mediaStatsTemplate>[0], "mediaType">,
-  ) => {
-    return mediaStatsTemplate({ ...input, mediaType });
-  };
-}

@@ -19,7 +19,7 @@ import { processColorsForSVG } from "@/lib/color/gradients";
 import {
   type ComparativeMetricRow,
   renderFittedText,
-} from "../comparative-distribution-stats/shared";
+} from "@/lib/svg-templates/comparative-distribution-stats/comparative-distribution-stats";
 
 type TagStat = { tag: { name: string; category?: string }; count: number };
 
@@ -54,7 +54,7 @@ function buildMetrics(tags: TagStat[] | undefined): ComparativeMetricRow[] {
   ];
 }
 
-export interface TagCategoryDistributionTemplateInput {
+interface TagCategoryDistributionTemplateInput {
   username: string;
   variant?: "default";
   styles: {

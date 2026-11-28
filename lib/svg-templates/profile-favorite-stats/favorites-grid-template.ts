@@ -4,7 +4,7 @@ import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
 import { calculateDynamicFontSize } from "../common/text-metrics";
-import { getVariantLabel, type TemplateStyles } from "./shared";
+import { getVariantLabel, type TemplateStyles } from "./profile-favorite-stats";
 import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 import { ANIMATION } from "../common/constants";

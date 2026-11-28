@@ -10,7 +10,7 @@ import {
 import { escapeForXml, markTrustedSvg } from "@/lib/svg-markup";
 import { getCardBorderRadius } from "@/lib/card-style";
 import { processColorsForSVG } from "@/lib/color/gradients";
-import { computeStreaks, fitActivityTitle } from "./shared";
+import { computeStreaks, fitActivityTitle } from "./activity-stats";
 
 /**
  * Generates an activity streaks card showing current/longest streaks.

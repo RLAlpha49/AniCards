@@ -5,7 +5,7 @@ import type { UserStatsData } from "@/lib/types/records";
 import {
   comparativeTwoColumnTemplate,
   type ComparativeMetricRow,
-} from "../comparative-distribution-stats/shared";
+} from "@/lib/svg-templates/comparative-distribution-stats/comparative-distribution-stats";
 import { toBarRows } from "@/lib/svg-templates/common";
 import { normalizedShannon } from "@/lib/stats/diversity";
 
@@ -49,7 +49,7 @@ function buildMetrics(tags: TagStat[] | undefined): ComparativeMetricRow[] {
   ];
 }
 
-export interface TagDiversityTemplateInput {
+interface TagDiversityTemplateInput {
   username: string;
   variant?: "default";
   styles: {

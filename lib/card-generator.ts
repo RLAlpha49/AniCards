@@ -1,14 +1,13 @@
 import { calculateMilestones } from "@/lib/stats/milestones";
 import { extractStyles } from "@/lib/card-style";
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/extra-anime-manga-stats";
 import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
-import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
-import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
+import { extraStatsTemplates } from "@/lib/svg-templates/extra-anime-manga-stats/extra-anime-manga-stats";
 import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/media-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
-import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
+import { distributionTemplate } from "@/lib/svg-templates/distribution/distribution";
 import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
 import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
 import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
@@ -834,7 +833,7 @@ function generateSeasonalPreferenceCard(
     ["pie", "bar", "donut", "radar"].includes(variant) ? variant : "default"
   ) as ExtraStatsVariant;
 
-  return animeSeasonalPreferenceTemplate({
+  return extraStatsTemplates.animeSeasonalPreference({
     username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
@@ -867,7 +866,7 @@ function generateEpisodeLengthPreferencesCard(
     ["pie", "bar", "donut"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
-  return animeEpisodeLengthPreferencesTemplate({
+  return extraStatsTemplates.animeEpisodeLengthPreferences({
     username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),

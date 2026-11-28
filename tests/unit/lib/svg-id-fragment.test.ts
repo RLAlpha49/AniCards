@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { toSvgIdFragment } from "@/lib/svg-templates/completion-progress-stats/shared";
+import { toSvgIdFragment } from "@/lib/svg-templates/completion-progress-stats/completion-progress-stats";
 
 /**
  * `toSvgIdFragment` feeds both element ids and `url(#...)` references, so the

@@ -5,7 +5,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
-} from "../comparative-distribution-stats/shared";
+} from "@/lib/svg-templates/comparative-distribution-stats/comparative-distribution-stats";
 
 function computeDropStats(entries: MediaListEntry[] | undefined) {
   if (!Array.isArray(entries) || entries.length === 0) {
@@ -70,7 +70,7 @@ function buildBars(entries: MediaListEntry[] | undefined): ComparativeBarRow[] {
     .slice(0, 5);
 }
 
-export interface DroppedMediaTemplateInput {
+interface DroppedMediaTemplateInput {
   username: string;
   variant?: "default";
   styles: {

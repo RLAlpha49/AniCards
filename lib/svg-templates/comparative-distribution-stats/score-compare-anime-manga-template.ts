@@ -6,7 +6,7 @@ import {
   comparativeTwoColumnTemplate,
   type ComparativeBarRow,
   type ComparativeMetricRow,
-} from "./shared";
+} from "./comparative-distribution-stats";
 import { formatScore } from "./stats-utils";
 
 function toScoreBars(
@@ -18,7 +18,7 @@ function toScoreBars(
     .slice(0, 8);
 }
 
-export interface ScoreCompareAnimeMangaTemplateInput {
+interface ScoreCompareAnimeMangaTemplateInput {
   username: string;
   variant?: "default";
   styles: {

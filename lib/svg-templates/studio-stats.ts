@@ -1,12 +1,12 @@
 import type { TrustedSVG } from "@/lib/types/svg";
 import type { ColorValue } from "@/lib/types/card";
-import { extraAnimeMangaStatsTemplate } from "./extra-anime-manga-stats/shared";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/extra-anime-manga-stats";
 
 /**
  * Template input for the Studio Collaboration card.
  * @source
  */
-export interface StudioCollaborationTemplateInput {
+interface StudioCollaborationTemplateInput {
   username: string;
   variant?: "default";
   styles: {

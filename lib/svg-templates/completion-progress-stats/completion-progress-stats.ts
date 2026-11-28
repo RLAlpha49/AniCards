@@ -33,7 +33,7 @@ export const STATUS_NAMES: Record<string, string> = {
   REPEATING: "Repeating",
 };
 
-export type StatusCount = { status: string; count: number };
+type StatusCount = { status: string; count: number };
 
 const STATUS_SORT_WEIGHT: Record<string, number> = {
   COMPLETED: 10,
@@ -102,20 +102,6 @@ export function getDimensions(
 }
 
 /**
- * Truncate a string to a maximum character count, appending an ellipsis when needed.
- * Keep truncation deterministic and do not escape here; callers should escape right
- * before embedding into SVG.
- */
-export function truncateWithEllipsis(text: string, maxChars: number): string {
-  const s = String(text ?? "").trim();
-  const characters = Array.from(s);
-  if (maxChars <= 0) return "";
-  if (characters.length <= maxChars) return s;
-  if (maxChars === 1) return "…";
-  return `${characters.slice(0, maxChars - 1).join("")}…`;
-}
-
-/**
  * Calculate completion ratio and format as percentage.
  * @source
  */
@@ -134,7 +120,7 @@ export function calculateCompletionRatio(
  * Generate a stacked bar representation of status distribution.
  * @source
  */
-export interface StackedBarOptions {
+interface StackedBarOptions {
   x: number;
   y: number;
   width: number;
