@@ -5,7 +5,7 @@ import {
   sharedRedisMockIncr,
   sharedRedisMockMget,
   sharedRedisMockScan,
-} from "@/tests/unit/__setup__";
+} from "@tests/unit/__setup__";
 import {
   createRateLimiter,
   getAllowedApiOrigin,

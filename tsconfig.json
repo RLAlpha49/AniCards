@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"],
+      "@tests/*": ["./tests/*"],
+      "@scripts/*": ["./scripts/*"]
     },
     "types": ["bun", "node"]
   },

@@ -281,7 +281,7 @@ export async function runCapture(
   const [{ CARD_REGISTRY }, { generateCardSvg }, { toCleanSvgResponse }] =
     await Promise.all([
       import("@/lib/cards/registry"),
-      import("@/lib/card-generator"),
+      import("@/lib/cards/render-svg"),
       import("@/lib/types/svg"),
     ]);
 

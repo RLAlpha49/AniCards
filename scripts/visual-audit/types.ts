@@ -29,7 +29,7 @@ type AuditColors = {
 export type AuditStyle = {
   /** Style name, used on the command line and shown in the report. */
   name: string;
-  /** Named preset from `lib/card-catalogue.ts`, when the style uses one. */
+  /** Named preset from `lib/cards/colour-presets.ts`, when the style uses one. */
   colorPreset?: string;
   colors: AuditColors;
   borderRadius: number;

@@ -3,8 +3,8 @@ import {
   sharedRedisMockPipelineHincrby,
   sharedRedisMockPipelineExpire,
   sharedRedisMockPipelineExec,
-} from "@/tests/unit/__setup__";
-import { VARIATION_LABEL_MAP } from "@/lib/card-groups";
+} from "@tests/unit/__setup__";
+import { VARIATION_LABEL_MAP } from "@/lib/cards/urls";
 import {
   KNOWN_VARIATIONS,
   buildCardUrlProfile,

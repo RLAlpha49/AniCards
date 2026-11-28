@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { API_HOSTS, resolveSiteOrigin } from "./lib/site-origin";
+import { API_HOSTS, resolveSiteOrigin } from "./src/lib/site-origin";
 
 /**
  * First path segments the API host serves instead of the site.

@@ -7,7 +7,7 @@ import {
   sharedRedisMockMget,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__";
+} from "@tests/unit/__setup__";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/server/svg-cache";
 import { splitUserRecord } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
@@ -53,7 +53,7 @@ mock.module(
   }),
 );
 
-mock.module("@/lib/svg-templates/social-stats", () => ({
+mock.module("@/lib/svg-templates/social-community/social-stats", () => ({
   socialStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<svg data-template="social" stroke="${data.styles?.borderColor ?? "none"}">Social Stats</svg>`,
@@ -117,13 +117,13 @@ const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
     (data: { gridCols?: number; gridRows?: number; variant?: string }) => string
   >
 >;
-const { colorPresets } = await import("@/lib/card-catalogue");
+const { colorPresets } = await import("@/lib/cards/colour-presets");
 const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
 const { distributionTemplate } =
   await import("@/lib/svg-templates/distribution/distribution");
 const { socialStatsTemplate } =
-  await import("@/lib/svg-templates/social-stats");
-const { buildErrorCardSvg } = await import("@/lib/svg-templates/error-card");
+  await import("@/lib/svg-templates/social-community/social-stats");
+const { buildErrorCardSvg } = await import("@/lib/cards/error-card");
 const { toCleanSvgResponse } = await import("@/lib/types/svg");
 
 /**

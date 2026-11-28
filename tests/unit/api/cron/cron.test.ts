@@ -11,7 +11,7 @@ import {
   sharedRedisMockZrange,
   sharedRedisMockZrem,
   sharedRedisMockPipelineExec,
-} from "@/tests/unit/__setup__";
+} from "@tests/unit/__setup__";
 import {
   USER_REFRESH_INDEX_KEY,
   USER_REFRESH_INDEX_UNREADABLE_SCORE,

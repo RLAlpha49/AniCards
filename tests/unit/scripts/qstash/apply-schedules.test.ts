@@ -4,12 +4,12 @@ import {
   sharedQstashSchedulesCreate,
   sharedQstashSchedulesDelete,
   sharedQstashSchedulesList,
-} from "@/tests/unit/__setup__";
+} from "@tests/unit/__setup__";
 import {
   applySchedules,
   buildSchedules,
   SUPERSEDED_SCHEDULE_IDS,
-} from "@/scripts/qstash/apply-schedules";
+} from "@scripts/qstash/apply-schedules";
 
 const ORIGIN = "https://anicards.test";
 

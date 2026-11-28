@@ -11,8 +11,8 @@ import {
   sharedRedisMockZrem,
   sharedRedisMockTtl,
   sharedRedisMockPipelineExec,
-} from "@/tests/unit/__setup__";
-import { INDEX_REPAIR_LEASE_KEY } from "@/lib/server/refresh-index-repair";
+} from "@tests/unit/__setup__";
+import { INDEX_REPAIR_LEASE_KEY } from "@/lib/server/cron/refresh-index-repair";
 import { USER_REFRESH_INDEX_KEY } from "@/lib/server/user-data";
 
 const { POST } = await import("@/app/api/cron/repair-index/route");

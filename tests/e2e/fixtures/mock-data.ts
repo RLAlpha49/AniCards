@@ -4,7 +4,7 @@ import type {
   UserStatsData,
   StoredAnimeStats,
   StoredMangaStats,
-} from "../../../lib/types/records";
+} from "../../../src/lib/types/records";
 
 /**
  * Mock anime statistics for E2E tests.

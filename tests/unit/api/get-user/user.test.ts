@@ -3,7 +3,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
-} from "@/tests/unit/__setup__";
+} from "@tests/unit/__setup__";
 import { splitUserRecord, UserDataPart } from "@/lib/server/user-data";
 import type { UserRecord } from "@/lib/types/records";
 
