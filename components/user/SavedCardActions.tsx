@@ -13,6 +13,9 @@ import {
 import { cardAnilistLine, cardSvgLink } from "@/lib/cards/saved-card";
 import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("SavedCardActions");
 
 const DOWNLOAD_FORMATS: ReadonlyArray<{
   label: string;
@@ -53,7 +56,7 @@ export function SavedCardActions({ card }: SavedCardActionsProps) {
         globalThis.setTimeout(() => setCopied(null), 2000);
         safeTrack(() => trackCopyAction(`${kind}_${card.rawType}`));
       } catch (copyError) {
-        console.error("Unable to copy the card link", copyError);
+        log.error("Unable to copy the card link", copyError);
         setError("The browser blocked the copy. Open the link instead.");
       }
     },
@@ -72,7 +75,7 @@ export function SavedCardActions({ card }: SavedCardActionsProps) {
         link.click();
         safeTrack(() => trackCardDownload(`${card.rawType}_${format}`));
       } catch (downloadError) {
-        console.error("Unable to convert the card", downloadError);
+        log.error("Unable to convert the card", downloadError);
         setError("That card could not be converted. Try again in a moment.");
       } finally {
         setDownloading(false);

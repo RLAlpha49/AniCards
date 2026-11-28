@@ -12,6 +12,7 @@ import {
 } from "@/lib/api-utils";
 import { invalidateSvgCache } from "@/lib/server/svg-cache";
 import { saveCardsRecord } from "@/lib/api/store-cards/save-cards";
+import { logWith } from "@/lib/log";
 
 /**
  * Validates, persists, and reports analytics for the user card configuration payload.
@@ -32,8 +33,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = await request.json();
     const { statsData, userId, cards: incomingCards } = body;
-    console.log(
-      `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
+    logWith(
+      "log",
+      endpoint,
+      `Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
 
     // Validate incoming data
@@ -51,8 +54,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     if (statsData?.error) {
-      console.warn(
-        `⚠️ [${endpoint}] Invalid data for user ${userId}: ${statsData.error}`,
+      logWith(
+        "warn",
+        endpoint,
+        `Invalid data for user ${userId}: ${statsData.error}`,
       );
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
@@ -66,8 +71,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
-    console.log(
-      `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
+    logWith(
+      "log",
+      endpoint,
+      `Storing card configuration using key: ${cardsKey}`,
     );
 
     const cardsSaved = await saveCardsRecord(
@@ -79,8 +86,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     if (!cardsSaved) {
-      console.warn(
-        `⚠️ [${endpoint}] Concurrent card updates prevented saving for user ${userId}`,
+      logWith(
+        "warn",
+        endpoint,
+        `Concurrent card updates prevented saving for user ${userId}`,
       );
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),

@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { createBackwardCompatibleStorage } from "@/lib/client/storage-adapter";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("user-preferences");
 
 /**
  * State shape for user preferences.
@@ -101,7 +104,7 @@ export const useUserPreferences = create<UserPreferencesStore>()(
         storage: customStorage,
         onRehydrateStorage: () => (_state, error) => {
           if (error) {
-            console.error("Error rehydrating user preferences:", error);
+            log.error("Error rehydrating user preferences:", error);
             return;
           }
           migrateLegacyKeys((partial) => {

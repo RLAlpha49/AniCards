@@ -2,6 +2,9 @@ import { apiJsonHeaders } from "@/lib/api-utils";
 import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import { parseAniListUserId, refreshUser } from "@/lib/server/refresh-user";
 import type { RefreshUserOutcome } from "@/lib/server/refresh-user";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /** Status QStash reads as "do not retry; move the message to the dead letter queue". @source */
 const NON_RETRYABLE_STATUS = 489;
@@ -125,10 +128,8 @@ export async function POST(request: Request) {
   const { status, body: payload } = statusForOutcome(outcome);
 
   if (status >= 500) {
-    console.error(
-      `🔥 [Cron Job] User ${userId}: refresh failed and will be retried - ${
-        outcome.status === "retryable" ? outcome.reason : "unknown error"
-      }`,
+    log.error(
+      `User ${userId}: refresh failed and will be retried - ${outcome.status === "retryable" ? outcome.reason : "unknown error"}`,
     );
   }
 

@@ -3,6 +3,9 @@ import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/json";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Analytics & Reporting");
 
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
 const ANALYTICS_REPORTS_LOCK_KEY = "cron:analytics-reporting:lock";
@@ -207,8 +210,8 @@ async function createAndSaveReport(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(
-        `[Analytics & Reporting] Failed to prune stored reports. Saving the new report anyway: ${errorMessage}`,
+      log.error(
+        `Failed to prune stored reports. Saving the new report anyway: ${errorMessage}`,
       );
     }
 
@@ -223,9 +226,7 @@ async function createAndSaveReport(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(
-        `[Analytics & Reporting] Failed to release report lock: ${errorMessage}`,
-      );
+      log.error(`Failed to release report lock: ${errorMessage}`);
     }
   }
   return report;
@@ -245,9 +246,7 @@ export async function POST(request: Request) {
   }
 
   const startTime = Date.now();
-  console.log(
-    "🛠️ [Analytics & Reporting] Starting analytics and reporting job...",
-  );
+  log.log("Starting analytics and reporting job...");
 
   try {
     // Fetch and parse analytics data
@@ -264,7 +263,7 @@ export async function POST(request: Request) {
     );
 
     const duration = Date.now() - startTime;
-    console.log(`🛠️ [Analytics & Reporting] Job completed in ${duration}ms`);
+    log.log(`Job completed in ${duration}ms`);
 
     return new Response(JSON.stringify(report), {
       status: 200,
@@ -272,9 +271,9 @@ export async function POST(request: Request) {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Analytics & Reporting] Job failed: ${error.message}`);
+    log.error(`Job failed: ${error.message}`);
     if (error.stack) {
-      console.error(`💥 [Analytics & Reporting] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     return new Response("Analytics and reporting job failed", {
       status: 500,

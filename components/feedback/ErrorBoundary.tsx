@@ -7,6 +7,9 @@ import { trackError, safeTrack } from "@/lib/analytics/google-analytics";
 import { cn } from "@/lib/cn";
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("ErrorBoundary");
 
 type ResetKey = string | number | boolean;
 
@@ -80,7 +83,7 @@ export class ErrorBoundary extends Component<
    * @source
    */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    log.error("Caught error:", error, errorInfo);
 
     const compStack = (errorInfo?.componentStack ?? "").trim();
     const stackLines = compStack

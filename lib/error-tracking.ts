@@ -5,6 +5,9 @@
  */
 
 import type { ErrorCategory } from "@/lib/error-messages";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("ErrorTracking");
 
 /**
  * Context information about the user action when error occurred.
@@ -55,7 +58,7 @@ export function trackErrorWithContext(context: ErrorContext): void {
 
   // Log to console in development
   if (process.env.NODE_ENV === "development") {
-    console.error("[ErrorTracking]", entry);
+    log.error("", entry);
   }
 
   // Here you could also send to external service:

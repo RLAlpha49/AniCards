@@ -2,6 +2,9 @@
  * Numeric coercion and byte formatting.
  * @source
  */
+
+import { logWith } from "@/lib/log";
+
 /**
  * Safely coerce an unknown value into a finite number.
  * Returns a finite number when the input is a number or a numeric string,
@@ -30,7 +33,7 @@ export function toFiniteNumber(
   const warn = (message: string) => {
     if (!shouldLog) return;
     // Keep the message small and deterministic for tests and dev debugging.
-    console.warn(`[toFiniteNumber] ${label}${message}`);
+    logWith("warn", "toFiniteNumber", `${label}${message}`);
   };
 
   if (typeof value === "number") {

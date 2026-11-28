@@ -18,6 +18,9 @@ import {
 import { cardAnilistLine, cardSvgLink } from "@/lib/cards/saved-card";
 import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("SavedCardSetDesk");
 
 const FORMATS: ReadonlyArray<{ label: string; value: ConversionFormat }> = [
   { label: "PNG", value: "png" },
@@ -85,7 +88,7 @@ export function SavedCardSetDesk({
         globalThis.setTimeout(() => setCopied(null), 2200);
         safeTrack(() => trackCopyAction(`all_${kind}_links`));
       } catch (error) {
-        console.error("Unable to copy the card links", error);
+        log.error("Unable to copy the card links", error);
         setMessage("The browser blocked the copy. Select the text instead.");
       }
     },

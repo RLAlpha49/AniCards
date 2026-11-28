@@ -15,6 +15,9 @@ import { redisClient } from "@/lib/api-utils";
 import { colorPresets } from "@/lib/card-catalogue";
 import { clampBorderRadius } from "@/lib/card-style";
 import type { CardConfigClassification } from "@/lib/card-data/config";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card URL Usage");
 
 /** Redis key prefix for daily card URL profile buckets. @source */
 const CARD_URL_PROFILE_PREFIX = "card_url_profiles";
@@ -335,7 +338,7 @@ export async function trackCardUrlProfile(
     queueCardUrlProfileWrites(pipeline, profile, outcome);
     await pipeline.exec();
   } catch (error) {
-    console.warn("[Card URL Usage] Failed to record URL profile:", error);
+    log.warn("Failed to record URL profile:", error);
   }
 }
 

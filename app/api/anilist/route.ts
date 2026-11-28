@@ -8,6 +8,9 @@ import {
 } from "@/lib/api-utils";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("AniList API");
 
 /**
  * Payload sent to AniList, containing the GraphQL query and optional variables.
@@ -173,10 +176,8 @@ async function makeAniListRequest(
   const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
   const rateLimitReset = response.headers.get("X-RateLimit-Reset");
   if (rateLimitLimit || rateLimitRemaining || rateLimitReset) {
-    console.log(
-      `🧭 [AniList API] Rate Limit: ${rateLimitLimit || "?"} Remaining: ${
-        rateLimitRemaining || "?"
-      } Reset: ${rateLimitReset || "?"}`,
+    log.log(
+      `Rate Limit: ${rateLimitLimit || "?"} Remaining: ${rateLimitRemaining || "?"} Reset: ${rateLimitReset || "?"}`,
     );
   }
 
@@ -218,13 +219,13 @@ export async function POST(request: Request) {
   };
 
   try {
-    console.log(`🚀 [AniList API] Incoming request from IP: ${ip}`);
+    log.log(`Incoming request from IP: ${ip}`);
 
     const requestData = (await request.json()) as GraphQLRequest;
     operationInfo = parseOperationInfo(requestData);
 
-    console.log(
-      `🚀 [AniList API] Anilist request: ${operationInfo.name} for ${operationInfo.userIdentifier}`,
+    log.log(
+      `Anilist request: ${operationInfo.name} for ${operationInfo.userIdentifier}`,
     );
 
     const data = await makeAniListRequest(requestData, request);
@@ -232,18 +233,16 @@ export async function POST(request: Request) {
     const duration = Date.now() - startTime;
 
     if (duration > 1000) {
-      console.warn(
-        `⏳ [AniList API] Slow request detected: ${operationInfo.name} took ${duration}ms`,
+      log.warn(
+        `Slow request detected: ${operationInfo.name} took ${duration}ms`,
       );
     }
 
-    console.log(
-      `✅ [AniList API] Anilist response: ${operationInfo.name} [200] ${duration}ms | Identifier: ${operationInfo.userIdentifier}`,
+    log.log(
+      `Anilist response: ${operationInfo.name} [200] ${duration}ms | Identifier: ${operationInfo.userIdentifier}`,
     );
 
-    console.log(
-      `✅ [AniList API] Anilist operation ${operationInfo.name} completed successfully.`,
-    );
+    log.log(`Anilist operation ${operationInfo.name} completed successfully.`);
 
     await trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "successful_requests"),
@@ -254,12 +253,12 @@ export async function POST(request: Request) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
 
-    console.error(
-      `🔥 [AniList API] Anilist failed: ${operationInfo.name} [${duration}ms] | Identifier: ${operationInfo.userIdentifier} - ${errorMessage}`,
+    log.error(
+      `Anilist failed: ${operationInfo.name} [${duration}ms] | Identifier: ${operationInfo.userIdentifier} - ${errorMessage}`,
     );
 
     if (error instanceof Error && error.stack) {
-      console.error(`💥 [AniList API] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
 
     const statusPattern = /status:\s?(\d+)/;

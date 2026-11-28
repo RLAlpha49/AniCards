@@ -35,6 +35,9 @@ import {
   type CardUrlOutcome,
   type CardUrlProfilePipeline,
 } from "@/lib/server/url-usage";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card Metrics");
 
 /** Analytics endpoint key shared by every card counter. @source */
 const CARD_SVG_METRIC_ENDPOINT = "card_svg";
@@ -148,7 +151,7 @@ export function createCardRequestMetrics(): CardRequestMetrics {
       await takePipeline()
         ?.exec()
         .catch((error: unknown) => {
-          console.warn("[Card Metrics] Failed to record card metrics:", error);
+          log.warn("Failed to record card metrics:", error);
         });
     },
 
@@ -158,7 +161,7 @@ export function createCardRequestMetrics(): CardRequestMetrics {
 
       runAfterResponse(
         pending.exec().catch((error: unknown) => {
-          console.warn("[Card Metrics] Failed to record card metrics:", error);
+          log.warn("Failed to record card metrics:", error);
         }),
       );
     },

@@ -11,6 +11,7 @@ import {
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import { logRequest } from "@/lib/server/api-logging";
 export { logRequest, logSuccess } from "@/lib/server/api-logging";
+import { logWith } from "@/lib/log";
 import {
   DEFAULT_SITE_ORIGIN,
   normalizeOrigin,
@@ -39,7 +40,9 @@ try {
   }
 } catch {
   if (process.env.NODE_ENV !== "production") {
-    console.debug(
+    logWith(
+      "debug",
+      "HTTP agent",
       "Warning: HTTPS Agent not available; continuing without keepAlive agent.",
     );
   }
@@ -332,7 +335,7 @@ export function createRateLimiter(options?: {
  * Standardized API error response shape returned from API routes.
  * @source
  */
-export interface ApiError {
+interface ApiError {
   error: string;
 }
 
@@ -381,8 +384,10 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
   }
 
   if (process.env.NODE_ENV === "production" && origin === "*") {
-    console.warn(
-      "[Card CORS] Computed Access-Control-Allow-Origin is '*' in production; forcing to https://anilist.co",
+    logWith(
+      "warn",
+      "Card CORS",
+      "Computed Access-Control-Allow-Origin is '*' in production; forcing to https://anilist.co",
     );
     origin = "https://anilist.co";
   }
@@ -411,8 +416,10 @@ export function getAllowedApiOrigin(request?: Request): string {
     origin = configured;
   } else if (process.env.NODE_ENV === "production") {
     origin = resolveSiteOrigin();
-    console.warn(
-      "[API CORS] No API origin is configured; using the site origin for Access-Control-Allow-Origin",
+    logWith(
+      "warn",
+      "API CORS",
+      "No API origin is configured; using the site origin for Access-Control-Allow-Origin",
     );
   } else {
     const requestOrigin = request?.headers?.get("origin");
@@ -633,7 +640,7 @@ export async function checkRateLimit(
   // `after` to keep the invocation alive without delaying this response.
   runAfterResponse(pending);
   if (!success) {
-    console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
+    logWith("warn", endpointName, `Rate limited IP: ${ip}`);
     // A `cacheBlock` was answered from instance memory without touching Redis.
     // Recording it would add the Redis write the cache exists to avoid.
     if (reason !== "cacheBlock") {
@@ -656,7 +663,7 @@ export async function checkRateLimit(
  * @returns A NextResponse with an ApiError when unauthorized, or null when allowed.
  * @source
  */
-export function validateSameOrigin(
+function validateSameOrigin(
   request: Request,
   endpointName: string,
   endpointKey: string,
@@ -668,8 +675,10 @@ export function validateSameOrigin(
   const isSameOrigin = !origin || allowedOrigins.has(origin);
 
   if (!isSameOrigin) {
-    console.warn(
-      `🔐 [${endpointName}] Rejected cross-origin request from: ${origin} (allowed: ${[...allowedOrigins].join(", ")})`,
+    logWith(
+      "warn",
+      endpointName,
+      `Rejected cross-origin request from: ${origin} (allowed: ${[...allowedOrigins].join(", ")})`,
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
@@ -697,7 +706,12 @@ export async function incrementAnalytics(metric: string): Promise<void> {
     await redisClient.incr(metric);
   } catch (error) {
     // Silently fail analytics to avoid affecting main functionality
-    console.warn(`Failed to increment analytics for ${metric}:`, error);
+    logWith(
+      "warn",
+      "Analytics",
+      `Failed to increment analytics for ${metric}:`,
+      error,
+    );
   }
 }
 
@@ -776,38 +790,15 @@ export function handleError(
   request?: Request,
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
-  console.error(`🔥 [${endpoint}] Error after ${duration}ms: ${error.message}`);
+  logWith("error", endpoint, `Error after ${duration}ms: ${error.message}`);
 
   if (error.stack) {
-    console.error(`💥 [${endpoint}] Stack Trace: ${error.stack}`);
+    logWith("error", endpoint, `Stack Trace: ${error.stack}`);
   }
 
   incrementAnalyticsInBackground(analyticsMetric);
 
   return jsonWithCors({ error: errorMessage }, request, 500);
-}
-
-/**
- * Validates that the provided request data contains a valid userId.
- * @param data - The payload to validate.
- * @param endpoint - Logical endpoint name for logging context.
- * @returns A NextResponse with an ApiError when invalid, or null otherwise.
- * @source
- */
-export function validateRequestData(
-  data: Record<string, unknown>,
-  endpoint: string,
-  request?: Request,
-): NextResponse<ApiError> | null {
-  if (!data.userId) {
-    console.warn(`⚠️ [${endpoint}] Missing userId in request`);
-    return jsonWithCors(
-      { error: "Missing required field: userId" },
-      request,
-      400,
-    );
-  }
-  return null;
 }
 
 /**
@@ -825,28 +816,28 @@ export function validateUserData(
 ): NextResponse<ApiError> | null {
   // Check required fields
   if (data.userId === undefined || data.userId === null) {
-    console.warn(`⚠️ [${endpoint}] Missing userId`);
+    logWith("warn", endpoint, `Missing userId`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate userId is a number
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${data.userId}`);
+    logWith("warn", endpoint, `Invalid userId format: ${data.userId}`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
-      console.warn(`⚠️ [${endpoint}] Username invalid: ${data.username}`);
+      logWith("warn", endpoint, `Username invalid: ${data.username}`);
       return jsonWithCors({ error: "Invalid data" }, request, 400);
     }
   }
 
   // Validate stats exists and is an object
   if (!data.stats || typeof data.stats !== "object") {
-    console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
+    logWith("warn", endpoint, `Stats must be a valid object`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
@@ -899,15 +890,19 @@ function validateCardRequiredFields(
   ): NextResponse<ApiError> | null {
     for (const field of fields) {
       if (typeof cardObj[field] !== "string") {
-        console.warn(
-          `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
+        logWith(
+          "warn",
+          endpoint,
+          `Card ${cardIndex} missing or invalid field: ${field}`,
         );
         return jsonWithCors({ error: "Invalid data" }, request, 400);
       }
       const value = cardObj[field];
       if (value.length === 0 || value.length > 100) {
-        console.warn(
-          `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
+        logWith(
+          "warn",
+          endpoint,
+          `Card ${cardIndex} field ${field} exceeds length limits`,
         );
         return NextResponse.json(
           { error: "Invalid data" },
@@ -926,8 +921,10 @@ function validateCardRequiredFields(
     for (const field of fields) {
       const value = cardObj[field];
       if (value === undefined || value === null) {
-        console.warn(
-          `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
+        logWith(
+          "warn",
+          endpoint,
+          `Card ${cardIndex} missing required color field: ${field}`,
         );
         return NextResponse.json(
           { error: "Invalid data" },
@@ -936,8 +933,10 @@ function validateCardRequiredFields(
       }
       if (!validateColorValue(value)) {
         const reason = getColorInvalidReason(value);
-        console.warn(
-          `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
+        logWith(
+          "warn",
+          endpoint,
+          `Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
         );
         return NextResponse.json(
           { error: "Invalid data" },
@@ -954,10 +953,10 @@ function validateCardRequiredFields(
   // Ensure the cardName points to a supported card type (base type validation)
   const cardNameRaw = card["cardName"];
   if (typeof cardNameRaw !== "string" || !isValidCardType(cardNameRaw)) {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} has an invalid cardName: ${String(
-        cardNameRaw,
-      )}`,
+    logWith(
+      "warn",
+      endpoint,
+      `Card ${cardIndex} has an invalid cardName: ${String(cardNameRaw)}`,
     );
     return NextResponse.json(
       { error: "Invalid data: Invalid card type" },
@@ -1004,8 +1003,10 @@ function validateCardOptionalFields(
   for (const field of optionalBooleanFields) {
     const value = card[field];
     if (value !== undefined && typeof value !== "boolean") {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} must be boolean`,
+      logWith(
+        "warn",
+        endpoint,
+        `Card ${cardIndex} field ${field} must be boolean`,
       );
       return NextResponse.json(
         { error: "Invalid data" },
@@ -1020,8 +1021,10 @@ function validateCardOptionalFields(
   if (hasBorder) {
     if (!validateColorValue(borderColorValue)) {
       const reason = getColorInvalidReason(borderColorValue);
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format (${reason})`,
+      logWith(
+        "warn",
+        endpoint,
+        `Card ${cardIndex} invalid borderColor format (${reason})`,
       );
       return NextResponse.json(
         { error: "Invalid data" },
@@ -1044,8 +1047,10 @@ function validateCardOptionalFields(
   if (gridColsValue !== undefined) {
     const n = Number(gridColsValue);
     if (!Number.isInteger(n) || n < 1 || n > 5) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} gridCols must be an integer between 1 and 5`,
+      logWith(
+        "warn",
+        endpoint,
+        `Card ${cardIndex} gridCols must be an integer between 1 and 5`,
       );
       return NextResponse.json(
         { error: "Invalid data" },
@@ -1058,8 +1063,10 @@ function validateCardOptionalFields(
   if (gridRowsValue !== undefined) {
     const n = Number(gridRowsValue);
     if (!Number.isInteger(n) || n < 1 || n > 5) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} gridRows must be an integer between 1 and 5`,
+      logWith(
+        "warn",
+        endpoint,
+        `Card ${cardIndex} gridRows must be an integer between 1 and 5`,
       );
       return NextResponse.json(
         { error: "Invalid data" },
@@ -1081,8 +1088,10 @@ function validateBorderRadiusField(
   const { requireValue = false } = options ?? {};
   if (borderRadiusValue === undefined || borderRadiusValue === null) {
     if (requireValue) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} borderRadius required when border is enabled`,
+      logWith(
+        "warn",
+        endpoint,
+        `Card ${cardIndex} borderRadius required when border is enabled`,
       );
       return NextResponse.json(
         { error: "Invalid data" },
@@ -1092,8 +1101,10 @@ function validateBorderRadiusField(
     return null;
   }
   if (typeof borderRadiusValue !== "number") {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius must be a number`,
+    logWith(
+      "warn",
+      endpoint,
+      `Card ${cardIndex} borderRadius must be a number`,
     );
     return NextResponse.json(
       { error: "Invalid data" },
@@ -1101,8 +1112,10 @@ function validateBorderRadiusField(
     );
   }
   if (!validateBorderRadius(borderRadiusValue)) {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
+    logWith(
+      "warn",
+      endpoint,
+      `Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
     );
     return NextResponse.json(
       { error: "Invalid data" },
@@ -1124,7 +1137,7 @@ function validateUserIdField(
   request?: Request,
 ): NextResponse<ApiError> | null {
   if (userId === undefined || userId === null) {
-    console.warn(`⚠️ [${endpoint}] Missing userId`);
+    logWith("warn", endpoint, `Missing userId`);
     return NextResponse.json(
       { error: "Invalid data" },
       { status: 400, headers: apiJsonHeaders(request) },
@@ -1133,7 +1146,7 @@ function validateUserIdField(
 
   const userIdNum = Number(userId);
   if (!Number.isInteger(userIdNum) || userIdNum <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${userId}`);
+    logWith("warn", endpoint, `Invalid userId format: ${userId}`);
     return NextResponse.json(
       { error: "Invalid data" },
       { status: 400, headers: apiJsonHeaders(request) },
@@ -1152,7 +1165,7 @@ function validateCardsArrayField(
   request?: Request,
 ): NextResponse<ApiError> | null {
   if (!Array.isArray(cards)) {
-    console.warn(`⚠️ [${endpoint}] Cards must be an array`);
+    logWith("warn", endpoint, `Cards must be an array`);
     return NextResponse.json(
       { error: "Invalid data" },
       { status: 400, headers: apiJsonHeaders(request) },
@@ -1251,8 +1264,10 @@ function validateUniqueCardTypes(
 
   // If any invalid/unsupported card names are present, return a clear error
   if (unknownNames.size > 0) {
-    console.warn(
-      `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
+    logWith(
+      "warn",
+      endpoint,
+      `Invalid card types provided: ${[...unknownNames].join(", ")}`,
     );
 
     const suggestions = buildLevenshteinSuggestions(unknownNames, [
@@ -1271,8 +1286,10 @@ function validateUniqueCardTypes(
 
   // Enforce the allowed maximum against supported card types only
   if (uniqueSupportedNames.size > MAX_ALLOWED_CARDS) {
-    console.warn(
-      `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
+    logWith(
+      "warn",
+      endpoint,
+      `Too many unique card types provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
     );
     return NextResponse.json(
       {
@@ -1297,7 +1314,7 @@ function validateCardsItems(
     const card = cards[i];
 
     if (typeof card !== "object" || card === null) {
-      console.warn(`⚠️ [${endpoint}] Card ${i} is not a valid object`);
+      logWith("warn", endpoint, `Card ${i} is not a valid object`);
       return NextResponse.json(
         { error: "Invalid data" },
         { status: 400, headers: apiJsonHeaders(request) },
@@ -1369,7 +1386,7 @@ export function validateCardData(
  * context and any early error response encountered during initialization.
  * @source
  */
-export interface ApiInitResult {
+interface ApiInitResult {
   startTime: number;
   ip: string;
   endpoint: string;

@@ -16,6 +16,9 @@ import {
   type UserDataPart,
 } from "@/lib/server/user-data";
 import { getUserActivity, type UserActivity } from "@/lib/server/user-activity";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("User API");
 
 /**
  * A browser may keep a copy but must revalidate it with the ETag before reuse.
@@ -180,7 +183,7 @@ async function resolveRequestTarget(
   const usernameParam = searchParams.get("username");
 
   if (!userIdParam && !usernameParam) {
-    console.warn("⚠️ [User API] Missing userId or username parameter");
+    log.warn("Missing userId or username parameter");
     incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
@@ -193,7 +196,7 @@ async function resolveRequestTarget(
 
   const selectedParts = parseRequestedParts(searchParams.get("parts"));
   if (!selectedParts) {
-    console.warn("⚠️ [User API] Invalid parts parameter provided");
+    log.warn("Invalid parts parameter provided");
     incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
@@ -209,9 +212,7 @@ async function resolveRequestTarget(
   if (userIdParam) {
     const numericUserId = Number.parseInt(userIdParam, 10);
     if (Number.isNaN(numericUserId)) {
-      console.warn(
-        `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
-      );
+      log.warn(`Invalid userId parameter provided: ${userIdParam}`);
       incrementAnalyticsInBackground("analytics:user_api:failed_requests");
       return {
         errorResponse: jsonWithCors(
@@ -221,14 +222,12 @@ async function resolveRequestTarget(
         ),
       };
     }
-    console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
+    log.log(`Request received for userId: ${numericUserId}`);
     return { userId: numericUserId, selectedParts };
   }
 
   if (!isValidUsername(usernameParam)) {
-    console.warn(
-      `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
-    );
+    log.warn(`Invalid username parameter provided: ${usernameParam}`);
     incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
@@ -241,7 +240,7 @@ async function resolveRequestTarget(
 
   const userId = await resolveUserIdFromUsername(usernameParam!);
   if (!userId) {
-    console.warn(`⚠️ [User API] User not found for username: ${usernameParam}`);
+    log.warn(`User not found for username: ${usernameParam}`);
     incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return {
       errorResponse: jsonWithCors({ error: "User not found" }, request, 404),
@@ -274,7 +273,7 @@ export async function GET(request: Request) {
   );
   if (rateLimitResponse) return rateLimitResponse;
 
-  console.log(`🚀 [User API] Received request from IP: ${ip}`);
+  log.log(`Received request from IP: ${ip}`);
 
   const { searchParams } = new URL(request.url);
   const target = await resolveRequestTarget(searchParams, request);
@@ -293,8 +292,8 @@ export async function GET(request: Request) {
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
-      console.warn(
-        `⚠️ [User API] User record not found for userId ${numericUserId} [${duration}ms]`,
+      log.warn(
+        `User record not found for userId ${numericUserId} [${duration}ms]`,
       );
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
@@ -309,8 +308,8 @@ export async function GET(request: Request) {
     };
     if (etag) responseHeaders.ETag = etag;
 
-    console.log(
-      `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
+    log.log(
+      `Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );
     incrementAnalyticsInBackground("analytics:user_api:successful_requests");
 
@@ -331,11 +330,11 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error(
-      `🔥 [User API] Error fetching user data for user ${numericUserId} [${duration}ms]: ${error.message}`,
+    log.error(
+      `Error fetching user data for user ${numericUserId} [${duration}ms]: ${error.message}`,
     );
     if (error.stack) {
-      console.error(`💥 [User API] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     incrementAnalyticsInBackground("analytics:user_api:failed_requests");
     return jsonWithCors({ error: "Failed to fetch user data" }, request, 500);

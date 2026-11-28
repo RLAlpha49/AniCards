@@ -32,6 +32,9 @@ import {
   USER_ACTIVITY_KEY_PREFIX,
 } from "@/lib/server/user-activity";
 import { deleteUserStorage, listUserMetaKeys } from "@/lib/server/user-data";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Inactive Users");
 
 /**
  * Users removed or would be removed in one sweep run.
@@ -177,17 +180,15 @@ export async function sweepInactiveUsers(
         deleted++;
       } catch (error) {
         failed++;
-        console.error(
-          `🔥 [Inactive Users] Failed to delete user ${id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+        log.error(
+          `Failed to delete user ${id}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
   }
 
-  console.log(
-    `🧹 [Inactive Users] ${dryRun ? "Dry run" : "Sweep"}: ${userIds.length} stored users, ${inactive.length} without ${USER_ACTIVITY_KEY_PREFIX}*, ${oldEnough.length} past the window, ${dryRun ? `${batch.length} would be removed` : `${deleted} removed, ${failed} failed`}.`,
+  log.log(
+    `${dryRun ? "Dry run" : "Sweep"}: ${userIds.length} stored users, ${inactive.length} without ${USER_ACTIVITY_KEY_PREFIX}*, ${oldEnough.length} past the window, ${dryRun ? `${batch.length} would be removed` : `${deleted} removed, ${failed} failed`}.`,
   );
 
   return {

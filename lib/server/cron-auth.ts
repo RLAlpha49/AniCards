@@ -2,6 +2,9 @@ import "server-only";
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { apiJsonHeaders } from "@/lib/api-utils";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron");
 
 /**
  * Whether to accept unauthenticated cron calls because no secret is set.
@@ -58,20 +61,20 @@ export function authorizeCronRequest(request: Request): Response | null {
 
   if (!cronSecret) {
     if (!allowsUnauthenticatedDevelopmentCalls()) {
-      console.error("🔒 [Cron] CRON_SECRET is not configured");
+      log.error("CRON_SECRET is not configured");
       return new Response("Cron authorization is not configured", {
         status: 503,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
-    console.warn(
-      "[Cron] CRON_SECRET is not configured. CRON_SECRET_DEV_BYPASS=true is set, so authorization is skipped in development.",
+    log.warn(
+      "CRON_SECRET is not configured. CRON_SECRET_DEV_BYPASS=true is set, so authorization is skipped in development.",
     );
     return null;
   }
 
   if (!cronSecretMatches(cronSecretHeader)) {
-    console.error("🔒 [Cron] Unauthorized: Invalid Cron secret");
+    log.error("Unauthorized: Invalid Cron secret");
     return new Response("Unauthorized", {
       status: 401,
       headers: apiJsonHeaders(request),

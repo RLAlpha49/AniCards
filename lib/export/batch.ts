@@ -8,6 +8,9 @@
 import JSZip from "jszip";
 import { buildApiUrl } from "@/lib/api/base-url";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/response";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("batch");
 
 export type ConversionFormat = "png" | "webp";
 
@@ -106,7 +109,7 @@ export async function svgToPng(
 
     return extractImageDataUrl(payload);
   } catch (error) {
-    console.error("Conversion failed:", error);
+    log.error("Conversion failed:", error);
     throw error;
   }
 }

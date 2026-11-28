@@ -13,6 +13,9 @@ import {
   UserDataPart,
 } from "@/lib/server/user-data";
 import { getPartsForCard } from "./requirements";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card Data");
 
 /**
  * Resolves a username to a numeric user ID via the Redis username index.
@@ -27,16 +30,12 @@ export async function resolveUserIdFromUsername(
 ): Promise<number | null> {
   const normalizedUsername = username.trim().toLowerCase();
   const usernameIndexKey = `username:${normalizedUsername}`;
-  console.log(
-    `🔍 [Card Data] Searching user index for username: ${normalizedUsername}`,
-  );
+  log.log(`Searching user index for username: ${normalizedUsername}`);
   const userIdFromIndex = await redisClient.get(usernameIndexKey);
   if (!userIdFromIndex) return null;
   const candidate = Number.parseInt(userIdFromIndex as string, 10);
   if (Number.isNaN(candidate)) return null;
-  console.log(
-    `✅ [Card Data] Resolved username ${normalizedUsername} to userId: ${candidate}`,
-  );
+  log.log(`Resolved username ${normalizedUsername} to userId: ${candidate}`);
   return candidate;
 }
 

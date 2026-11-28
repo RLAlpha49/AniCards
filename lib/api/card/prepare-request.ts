@@ -29,6 +29,9 @@ import { generateCacheKey } from "@/lib/server/svg-cache";
 import { buildCardUrlProfile } from "@/lib/server/url-usage";
 import type { CardRequestMetrics } from "@/lib/server/card-metrics";
 import type { StoredCardConfig, UserRecord } from "@/lib/types/records";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card SVG");
 
 /** Whitelist of supported card types the API will render. @source */
 const ALLOWED_CARD_TYPES = new Set<string>(
@@ -125,7 +128,7 @@ export function extractAndValidateParams(
 
   // Must have cardType
   if (!cardType) {
-    console.warn(`⚠️ [Card SVG] Missing parameter: cardType`);
+    log.warn(`Missing parameter: cardType`);
     return {
       error: {
         message: "Client Error: Missing parameter: cardType",
@@ -136,7 +139,7 @@ export function extractAndValidateParams(
 
   // Must have either userId or userName
   if (!userId && !userName) {
-    console.warn(`⚠️ [Card SVG] Missing parameter: userId or userName`);
+    log.warn(`Missing parameter: userId or userName`);
     return {
       error: {
         message: "Client Error: Missing parameter: userId or userName",
@@ -150,7 +153,7 @@ export function extractAndValidateParams(
   if (userId) {
     numericUserId = Number.parseInt(userId);
     if (Number.isNaN(numericUserId)) {
-      console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
+      log.warn(`Invalid user ID format: ${userId}`);
       return {
         error: { message: "Client Error: Invalid user ID", status: 400 },
       };
@@ -159,7 +162,7 @@ export function extractAndValidateParams(
 
   const [baseCardType] = cardType.split("-");
   if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
-    console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
+    log.warn(`Invalid card type: ${cardType}`);
     return {
       error: { message: "Client Error: Invalid card type", status: 400 },
     };
@@ -211,9 +214,7 @@ async function resolveEffectiveUserId(
       return { userId: resolvedUserId };
     }
 
-    console.warn(
-      `⚠️ [Card SVG] User not found for userName: ${params.userName}`,
-    );
+    log.warn(`User not found for userName: ${params.userName}`);
     return { error: { message: "Not Found: User not found", status: 404 } };
   }
 
@@ -262,9 +263,7 @@ export async function resolveCardRequest(
   }
   const userId = userIdResult.userId;
 
-  console.log(
-    `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${userId}`,
-  );
+  log.log(`Request for ${params.cardType} card - User ID: ${userId}`);
 
   // Canonical URL profile for the cards-key removal audit. Built before the
   // cache lookup so cache hits are counted, and written once per request at

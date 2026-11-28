@@ -22,6 +22,7 @@ import {
 import { clampBorderRadius } from "@/lib/card-style";
 import { safeParse } from "@/lib/json";
 import { isValidCardType } from "@/lib/card-data/validation";
+import { logWith } from "@/lib/log";
 
 /**
  * Card types that support pie variation and thus can use showPiePercentages.
@@ -113,16 +114,20 @@ function parseStoredCardsRecord(
             isValidCardType(c.cardName),
         );
         if (filtered.length !== cards.length) {
-          console.warn(
-            `⚠️ [${endpoint}] Removed unsupported card types from stored record for ${cardsKey}`,
+          logWith(
+            "warn",
+            endpoint,
+            `Removed unsupported card types from stored record for ${cardsKey}`,
           );
         }
         return filtered;
       }
     }
   } catch (error) {
-    console.warn(
-      `⚠️ [${endpoint}] Stored card record corrupted for ${cardsKey}: ${
+    logWith(
+      "warn",
+      endpoint,
+      `Stored card record corrupted for ${cardsKey}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );

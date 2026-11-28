@@ -32,6 +32,9 @@ import {
   AnimeGenreSynergyTotalsEntry,
   StudioCollaborationTotalsEntry,
 } from "@/lib/types/records";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("User Data");
 
 export type UserDataPart =
   | "meta"
@@ -150,8 +153,8 @@ export async function listUserMetaKeys(
   if (indexed && !indexed.truncated) return indexed.keys;
 
   if (indexed?.truncated) {
-    console.warn(
-      `[Redis Search] ${USERS_SEARCH_INDEX} returned more than ${SEARCH_REBUILD_KEY_LIMIT} metas; falling back to the scan.`,
+    log.warn(
+      `${USERS_SEARCH_INDEX} returned more than ${SEARCH_REBUILD_KEY_LIMIT} metas; falling back to the scan.`,
     );
   }
 
@@ -912,10 +915,8 @@ async function readStoredUsernameForDeletion(
   try {
     return readStoredUsername(await redisClient.get(metaKey));
   } catch (error) {
-    console.warn(
-      `⚠️ [User Data] Failed to read ${metaKey} during deletion; falling back to the username index: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.warn(
+      `Failed to read ${metaKey} during deletion; falling back to the username index: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }
@@ -1005,10 +1006,8 @@ async function findUsernameIndexKeysOwnedBy(userId: string): Promise<string[]> {
       return owner !== null && owner !== undefined && String(owner) === userId;
     });
   } catch (error) {
-    console.warn(
-      `⚠️ [User Data] Failed to search the username index for user ${userId}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.warn(
+      `Failed to search the username index for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
     );
     return [];
   }
@@ -1355,7 +1354,7 @@ export async function fetchUserDataParts(
       try {
         data[parts[i]] = typeof val === "string" ? JSON.parse(val) : val;
       } catch (e) {
-        console.error(
+        log.error(
           "Failed to parse user data part %s for user %s:",
           parts[i],
           userId,

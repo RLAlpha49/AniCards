@@ -5,6 +5,9 @@ import {
   sweepInactiveUsers,
   type InactiveSweepResult,
 } from "@/lib/server/inactive-users";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /**
  * Caps the invocation. The sweep reads the whole user key space, and an
@@ -67,10 +70,8 @@ async function releaseSweepLease(): Promise<void> {
     await redisClient.del(INACTIVE_SWEEP_LEASE_KEY);
   } catch (error) {
     // The lease expires on its own; nothing to do here.
-    console.warn(
-      `⚠️ [Cron Job] Could not release the inactive sweep lease: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.warn(
+      `Could not release the inactive sweep lease: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -126,10 +127,8 @@ export async function POST(request: Request) {
   try {
     ownsLease = await claimSweepLease();
   } catch (error) {
-    console.error(
-      `🔥 [Cron Job] Could not claim the inactive sweep lease: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `Could not claim the inactive sweep lease: ${error instanceof Error ? error.message : String(error)}`,
     );
     return new Response(
       JSON.stringify({ outcome: "failed", reason: "sweep-lease-unavailable" }),
@@ -139,8 +138,8 @@ export async function POST(request: Request) {
 
   if (!ownsLease) {
     const leaseExpiresInSeconds = await readLeaseTtl();
-    console.log(
-      `[Cron Job] Another invocation holds the inactive sweep lease (expires in ${leaseExpiresInSeconds}s); skipping this run.`,
+    log.log(
+      `Another invocation holds the inactive sweep lease (expires in ${leaseExpiresInSeconds}s); skipping this run.`,
     );
     return new Response(
       JSON.stringify({
@@ -166,9 +165,9 @@ export async function POST(request: Request) {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Cron Job] Inactive sweep failed: ${error.message}`);
+    log.error(`Inactive sweep failed: ${error.message}`);
     if (error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     // Release the lease so the retry can run instead of waiting it out.
     await releaseSweepLease();

@@ -1,3 +1,7 @@
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("json");
+
 /**
  * JSON parsing with a diagnostic on failure.
  * @source
@@ -25,7 +29,7 @@ export function safeParse<T>(data: unknown, context?: string): T {
     const length = data.length;
     const ctxLabel = context ? ` [${context}]` : "";
     if (isProduction) {
-      console.error(
+      log.error(
         `Failed to parse JSON${ctxLabel}: ${message}. Payload length: ${length}`,
       );
       return;
@@ -33,7 +37,7 @@ export function safeParse<T>(data: unknown, context?: string): T {
 
     const snippet = data.slice(0, maxSnippet);
     const truncated = length > maxSnippet ? "..." : "";
-    console.error(
+    log.error(
       `Failed to parse JSON${ctxLabel}: ${message}. Payload snippet (first ${Math.min(
         maxSnippet,
         length,

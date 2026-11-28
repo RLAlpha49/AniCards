@@ -3,6 +3,9 @@ import { colorPresets } from "@/lib/card-catalogue";
 import { StoredCardConfig, CardsRecord, UserRecord } from "@/lib/types/records";
 import { ColorValue } from "@/lib/types/card";
 import { CardDataError, getFavoritesForCardType } from "./validation";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card Data");
 
 /**
  * Parameters that decide whether a card URL carries enough configuration to
@@ -242,7 +245,7 @@ function applyColorOverrides(
       applyUrlColorParams(config, params);
       return;
     }
-    console.warn(`[Card Data] Unknown color preset: ${effectivePreset}`);
+    log.warn(`Unknown color preset: ${effectivePreset}`);
   }
 
   // Apply URL color params if provided (these override database values)

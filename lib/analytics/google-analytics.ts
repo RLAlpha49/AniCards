@@ -1,3 +1,7 @@
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("google-analytics");
+
 /**
  * Configuration shape used by Google Analytics gtag calls.
  * @source
@@ -51,7 +55,7 @@ export const pageview = (url: string): void => {
         page_title: "AniCards",
       });
     } catch {
-      console.error("Google Analytics pageview failed");
+      log.error("Google Analytics pageview failed");
     }
   }
 };
@@ -84,7 +88,7 @@ export const event = ({
         value: value,
       });
     } catch {
-      console.error("Google Analytics event failed");
+      log.error("Google Analytics event failed");
     }
   }
 };
@@ -97,7 +101,7 @@ export const safeTrack = (fn: () => void) => {
   try {
     fn();
   } catch {
-    console.error("Safe analytics tracking call failed");
+    log.error("Safe analytics tracking call failed");
   }
 };
 

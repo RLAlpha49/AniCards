@@ -29,6 +29,9 @@ import {
   errorResponse,
   formatCardDataErrorMessage,
 } from "@/lib/api/card/responses";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Card SVG");
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
     );
   }
 
-  console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
+  log.log(`New request from IP: ${ip} - URL: ${request.url}`);
 
   // One pipeline holds every analytics counter and URL-profile write this
   // request makes.
@@ -204,8 +207,8 @@ async function renderCard(
   userId: number,
   startTime: number,
 ): Promise<TrustedSVG> {
-  console.log(
-    `🎨 [Card SVG] Generating ${cardType} (${inputs.effectiveVariation}) SVG for user ${userId}`,
+  log.log(
+    `Generating ${cardType} (${inputs.effectiveVariation}) SVG for user ${userId}`,
   );
 
   const svgContent = await generateCardSvg(
@@ -217,13 +220,11 @@ async function renderCard(
 
   const duration = Date.now() - startTime;
   if (duration > 1500) {
-    console.warn(
-      `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${userId} (${baseCardType})`,
+    log.warn(
+      `Slow rendering detected: ${duration}ms for user ${userId} (${baseCardType})`,
     );
   }
-  console.log(
-    `✅ [Card SVG] Rendered ${cardType} card for ${userId} in ${duration}ms`,
-  );
+  log.log(`Rendered ${cardType} card for ${userId} in ${duration}ms`);
   return svgContent;
 }
 
@@ -279,9 +280,9 @@ function answerUnexpectedError(
     return errorResponse(request, formatCardDataErrorMessage(err), err.status);
   }
 
-  console.error(`🔥 [Card SVG] Error generating ${baseCardType} card:`, err);
+  log.error(`Error generating ${baseCardType} card:`, err);
   if (err instanceof Error && err.stack) {
-    console.error(`💥 [Card SVG] Stack Trace: ${err.stack}`);
+    log.error(`Stack Trace: ${err.stack}`);
   }
 
   trackUserActionError(

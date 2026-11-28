@@ -38,6 +38,9 @@ import "server-only";
 
 import type { Redis } from "@upstash/redis";
 import { USER_ACTIVITY_KEY_PREFIX } from "@/lib/server/user-activity";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Redis Search");
 
 /** Index over `user:*` documents. @source */
 export const USERS_SEARCH_INDEX = "idx:users";
@@ -215,10 +218,8 @@ function readSearchSurface(
 function reportFailure(name: string, what: string, error: unknown): void {
   if (reportedFailures.has(name)) return;
   reportedFailures.add(name);
-  console.warn(
-    `[Redis Search] ${name} ${what}; using the scan path: ${
-      error instanceof Error ? error.message : String(error)
-    }`,
+  log.warn(
+    `${name} ${what}; using the scan path: ${error instanceof Error ? error.message : String(error)}`,
   );
 }
 

@@ -4,6 +4,9 @@ import { clampBorderRadius, validateBorderRadius } from "@/lib/card-style";
 import type { ColorValue } from "@/lib/types/card";
 import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("useStatCardSubmit");
 
 /**
  * Parameters for creating and storing user stat cards.
@@ -668,7 +671,7 @@ export function useStatCardSubmit() {
 
       return { success: true, userId: userIdData.User.id };
     } catch (err) {
-      console.error("useStatCardSubmit error:", err);
+      log.error("useStatCardSubmit error:", err);
 
       let errorToSet:
         | (Error & {

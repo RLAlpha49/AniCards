@@ -3,6 +3,9 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { createBackwardCompatibleStorage } from "@/lib/client/storage-adapter";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/card-style";
 import type { ColorValue } from "@/lib/types/card";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("card-settings");
 
 /**
  * Saved color configuration shape (custom or from preset).
@@ -182,7 +185,7 @@ export const useCardSettings = create<CardSettingsStore>()(
         storage: customStorage,
         onRehydrateStorage: () => (_state, error) => {
           if (error) {
-            console.error("Error rehydrating card settings:", error);
+            log.error("Error rehydrating card settings:", error);
             return;
           }
           migrateLegacyKeys((partial) => {

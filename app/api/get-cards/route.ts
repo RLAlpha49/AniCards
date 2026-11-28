@@ -8,6 +8,9 @@ import {
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/json";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cards API");
 
 /**
  * Serves cached card configurations for the requested user from Redis.
@@ -34,56 +37,50 @@ export async function GET(request: Request) {
   );
   if (rateLimitResponse) return rateLimitResponse;
 
-  console.log(`🚀 [Cards API] New request from ${ip} for userId: ${userId}`);
+  log.log(`New request from ${ip} for userId: ${userId}`);
 
   if (!userId) {
-    console.warn("⚠️ [Cards API] Missing user ID parameter");
+    log.warn("Missing user ID parameter");
     return jsonWithCors({ error: "Missing user ID parameter" }, request, 400);
   }
 
   const numericUserId = Number.parseInt(userId);
   if (Number.isNaN(numericUserId)) {
-    console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
+    log.warn(`Invalid user ID format: ${userId}`);
     incrementAnalyticsInBackground("analytics:cards_api:failed_requests");
     return jsonWithCors({ error: "Invalid user ID format" }, request, 400);
   }
 
   try {
-    console.log(
-      `🔍 [Cards API] Fetching card configuration from Redis for user ${numericUserId}`,
-    );
+    log.log(`Fetching card configuration from Redis for user ${numericUserId}`);
     const key = `cards:${numericUserId}`;
     const cardDataStr = await redisClient.get(key);
     const duration = Date.now() - startTime;
 
     if (!cardDataStr) {
-      console.warn(
-        `⚠️ [Cards API] Cards for user ${numericUserId} not found [${duration}ms]`,
-      );
+      log.warn(`Cards for user ${numericUserId} not found [${duration}ms]`);
       return jsonWithCors({ error: "Cards not found" }, request, 404);
     }
 
     let cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
 
-    console.log(
-      `✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`,
+    log.log(
+      `Successfully returned card data for user ${numericUserId} [${duration}ms]`,
     );
 
     if (duration > 500) {
-      console.warn(
-        `⏳ [Cards API] Slow response time: ${duration}ms for user ${numericUserId}`,
-      );
+      log.warn(`Slow response time: ${duration}ms for user ${numericUserId}`);
     }
     incrementAnalyticsInBackground("analytics:cards_api:successful_requests");
     return jsonWithCors(cardData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error(
-      `🔥 [Cards API] Error for user ${numericUserId} [${duration}ms]: ${error.message}`,
+    log.error(
+      `Error for user ${numericUserId} [${duration}ms]: ${error.message}`,
     );
     if (error.stack) {
-      console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     incrementAnalyticsInBackground("analytics:cards_api:failed_requests");
     return jsonWithCors({ error: "Failed to fetch cards" }, request, 500);

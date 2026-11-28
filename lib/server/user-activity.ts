@@ -22,6 +22,9 @@
 import "server-only";
 
 import { redisClient } from "@/lib/api-utils";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("User Activity");
 
 /** Days without a card request after which a user is inactive. @source */
 export const ACTIVE_USER_WINDOW_DAYS = 30;
@@ -109,10 +112,7 @@ export async function recordUserCardRequest(
       { ex: USER_ACTIVITY_TTL_SECONDS },
     );
   } catch (error) {
-    console.warn(
-      `[User Activity] Failed to record card request for user ${userId}:`,
-      error,
-    );
+    log.warn(`Failed to record card request for user ${userId}:`, error);
   }
 }
 
@@ -145,10 +145,7 @@ export async function getUserActivity(
       isActive: now.getTime() - lastRequestAt <= ACTIVE_USER_WINDOW_MS,
     };
   } catch (error) {
-    console.warn(
-      `[User Activity] Failed to read activity for user ${userId}:`,
-      error,
-    );
+    log.warn(`Failed to read activity for user ${userId}:`, error);
     return { lastCardRequestAt: null, isActive: false };
   }
 }

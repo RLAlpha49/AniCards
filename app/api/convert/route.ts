@@ -9,6 +9,9 @@ import {
 import { resolveApiBase } from "@/lib/api/base-url";
 import { type ConversionFormat } from "@/lib/export/batch";
 import { optimizeSvgMarkup } from "@/lib/api/convert/css-optimizer";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Convert API");
 
 /**
  * Detects whether the hostname represents an IPv4 or IPv6 address.
@@ -94,7 +97,7 @@ async function fetchSvgContent(
     const svgText = await response.text();
     return { svg: svgText };
   } catch (err: unknown) {
-    console.error("🔴 [Convert API] fetchSvgContent error:", err);
+    log.error("fetchSvgContent error:", err);
     incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
     return {
       errorResponse: jsonWithCors(
@@ -130,13 +133,13 @@ async function convertSvgToDataUrl(
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const ip = getClientIp(request);
-  console.log(`🚀 [Convert API] Request received from ${ip}`);
+  log.log(`Request received from ${ip}`);
 
   try {
     // 1. Parse input and fetch SVG content
     const { svgUrl, format } = await request.json();
     if (!svgUrl) {
-      console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
+      log.warn(`Missing 'svgUrl' parameter from ${ip}`);
       incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
       return jsonWithCors({ error: "Missing svgUrl parameter" }, request, 400);
     }
@@ -145,9 +148,7 @@ export async function POST(request: NextRequest) {
     const normalizedFormat =
       typeof format === "string" ? format.toLowerCase() : "png";
     if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
-      console.warn(
-        `⚠️ [Convert API] Unsupported format '${format}' from ${ip}`,
-      );
+      log.warn(`Unsupported format '${format}' from ${ip}`);
       // Increment analytics for failed requests to keep metrics consistent
       incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
       return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
@@ -164,9 +165,7 @@ export async function POST(request: NextRequest) {
         `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
       parsedUrl = new URL(svgUrl, baseUrl);
     } catch {
-      console.warn(
-        `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
-      );
+      log.warn(`Invalid URL format for 'svgUrl' from ${ip}`);
       return jsonWithCors({ error: "Invalid URL format" }, request, 400);
     }
 
@@ -192,8 +191,8 @@ export async function POST(request: NextRequest) {
 
     // In production, require HTTPS. In development, allow HTTP for localhost
     if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
-      console.warn(
-        `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
+      log.warn(
+        `Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
       );
       return jsonWithCors(
         { error: "Unauthorized or unsafe domain/protocol" },
@@ -207,43 +206,39 @@ export async function POST(request: NextRequest) {
       parsedUrl.hostname = "localhost";
     }
 
-    console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
+    log.log(`Fetching SVG from: ${parsedUrl.href}`);
     const fetched = await fetchSvgContent(parsedUrl, request);
     if (fetched.errorResponse) return fetched.errorResponse;
     let svgContent = fetched.svg || "";
-    console.log(
-      `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
-    );
+    log.log(`Received SVG content (${svgContent.length} characters)`);
 
     // 1. Extract and sanitize CSS style blocks
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
     const { svg: sanitizedSvg } = optimizeSvgMarkup(svgContent);
     svgContent = sanitizedSvg;
-    console.log("🧼 [Convert API] Final SVG cleanup completed.");
+    log.log("Final SVG cleanup completed.");
 
     // 4. Convert the processed SVG to the requested raster format using sharp
-    console.log(
-      `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
+    log.log(
+      `Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
     );
     const pngDataUrl = await convertSvgToDataUrl(
       svgContent,
       requestedFormat as ConversionFormat,
     );
     const conversionDuration = Date.now() - startTime;
-    console.log(
-      `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
+    log.log(
+      `SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
     );
     incrementAnalyticsInBackground("analytics:convert_api:successful_requests");
     return jsonWithCors({ pngDataUrl }, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const errorDuration = Date.now() - startTime;
-    console.error(
-      `🔥 [Convert API] Conversion error after ${errorDuration}ms: ${error.message}`,
-    );
+    log.error(`Conversion error after ${errorDuration}ms: ${error.message}`);
     if (error.stack) {
-      console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     incrementAnalyticsInBackground("analytics:convert_api:failed_requests");
     return jsonWithCors({ error: "Conversion failed" }, request, 500);

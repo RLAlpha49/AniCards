@@ -21,6 +21,9 @@ import { SavedCardClosing, SavedCardGuide } from "./SavedCardGuide";
 import { UserPageState } from "./UserPageState";
 import type { SavedCard } from "@/lib/cards/saved-card";
 import styles from "./user.module.css";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("UserPageClient");
 
 /**
  * Basic user identity returned from the API.
@@ -133,7 +136,7 @@ async function fetchJsonWithValidation<T>(
     setErrorCallback(
       kind === "user" ? "Failed to load user" : "Failed to load cards",
     );
-    console.error("Network error while fetching", url, error_);
+    log.error("Network error while fetching", url, error_);
     return null;
   }
 }
@@ -230,17 +233,17 @@ const parseAndValidateCards = (cardsParam: string): CardData[] => {
 
     return parsedCards.filter((card) => {
       if (typeof card !== "object" || card === null) {
-        console.warn("Invalid card object:", card);
+        log.warn("Invalid card object:", card);
         return false;
       }
       if (typeof card.cardName !== "string" || !card.cardName) {
-        console.warn("Card missing required cardName:", card);
+        log.warn("Card missing required cardName:", card);
         return false;
       }
       return true;
     });
   } catch (error_) {
-    console.error("Failed to parse cards parameter:", error_);
+    log.error("Failed to parse cards parameter:", error_);
     throw error_;
   }
 };
@@ -624,7 +627,7 @@ function UserPageContent({ query }: Readonly<{ query: string }>) {
         setUserData(null);
         setCards([]);
       } catch (error_) {
-        console.error("Data loading error:", error_);
+        log.error("Data loading error:", error_);
         if (!cancelled) setError("The cards could not be loaded.");
       } finally {
         if (!cancelled) setLoading(false);

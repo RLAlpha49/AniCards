@@ -13,6 +13,9 @@ import {
 } from "@/lib/analytics/google-analytics";
 import homeStyles from "@/components/shared/paper.module.css";
 import styles from "./user.module.css";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("UserMasthead");
 
 type UserMastheadProps = Readonly<{
   /** Handle the cards belong to, when the record has one. */
@@ -87,7 +90,7 @@ export function UserMasthead({
       globalThis.setTimeout(() => setCopied(false), 2000);
       safeTrack(() => trackCopyAction("user_page_link"));
     } catch (error) {
-      console.error("Unable to copy the page link", error);
+      log.error("Unable to copy the page link", error);
     }
   }, [userId]);
 

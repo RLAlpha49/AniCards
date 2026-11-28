@@ -1,6 +1,9 @@
 import { apiJsonHeaders } from "@/lib/api-utils";
 import { authorizeCronRequest } from "@/lib/server/cron-auth";
 import { repairRefreshIndex } from "@/lib/server/refresh-index-repair";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /**
  * Caps the invocation. The repair is the only cron job whose cost scales with
@@ -84,10 +87,8 @@ export async function POST(request: Request) {
     const { status, body } = statusForRepairResult(result);
 
     if (status >= 500) {
-      console.error(
-        `🔥 [Cron Job] Index repair failed and will be retried - ${
-          result.status === "failed" ? result.reason : "unknown error"
-        }`,
+      log.error(
+        `Index repair failed and will be retried - ${result.status === "failed" ? result.reason : "unknown error"}`,
       );
     }
 
@@ -97,9 +98,9 @@ export async function POST(request: Request) {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Cron Job] Index repair route failed: ${error.message}`);
+    log.error(`Index repair route failed: ${error.message}`);
     if (error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     return new Response(
       JSON.stringify({

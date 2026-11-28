@@ -8,6 +8,9 @@ import {
   type UserKeyReconciliationResult,
   type UserRefreshIndexRebuildResult,
 } from "@/lib/server/user-data";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /**
  * How long the repair lease suppresses a second concurrent rebuild.
@@ -92,10 +95,8 @@ async function releaseRepairLease(): Promise<void> {
     await redisClient.del(INDEX_REPAIR_LEASE_KEY);
   } catch (error) {
     // The lease expires on its own; nothing to do here.
-    console.warn(
-      `⚠️ [Cron Job] Could not release the index repair lease: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.warn(
+      `Could not release the index repair lease: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -155,15 +156,15 @@ export async function bootstrapRefreshIndexIfEmpty(
     rebuildCounts = await rebuildUserRefreshIndex();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      `🔥 [Cron Job] The refresh index is empty and could not be rebuilt: ${message}`,
+    log.error(
+      `The refresh index is empty and could not be rebuilt: ${message}`,
     );
     throw error;
   }
 
   const totalUsers = await readIndexSize();
-  console.log(
-    `🧭 [Cron Job] The refresh index was empty; rebuilt it from stored meta (indexed ${rebuildCounts.indexedUsers} users, missing meta ${rebuildCounts.missingMetaCount}, unreadable meta ${rebuildCounts.malformedMetaCount}, dropped ${rebuildCounts.droppedStaleMembers} stale entries). It now holds ${totalUsers} users.`,
+  log.log(
+    `The refresh index was empty; rebuilt it from stored meta (indexed ${rebuildCounts.indexedUsers} users, missing meta ${rebuildCounts.missingMetaCount}, unreadable meta ${rebuildCounts.malformedMetaCount}, dropped ${rebuildCounts.droppedStaleMembers} stale entries). It now holds ${totalUsers} users.`,
   );
 
   return { totalUsers, rebuilt: true, rebuildCounts };
@@ -183,13 +184,13 @@ export async function bootstrapRefreshIndexIfEmpty(
 async function reconcileOrphanedUserKeys(): Promise<UserKeyReconciliationResult | null> {
   try {
     const reconciliation = await reconcileUserKeyOrphans();
-    console.log(
-      `🧹 [Cron Job] Key reconciliation: cards ${reconciliation.cardsKeysScanned} scanned, ${reconciliation.deletedCardsKeys} orphaned deleted; usernames ${reconciliation.usernameKeysScanned} scanned, ${reconciliation.deletedUsernameKeys} orphaned deleted.`,
+    log.log(
+      `Key reconciliation: cards ${reconciliation.cardsKeysScanned} scanned, ${reconciliation.deletedCardsKeys} orphaned deleted; usernames ${reconciliation.usernameKeysScanned} scanned, ${reconciliation.deletedUsernameKeys} orphaned deleted.`,
     );
     return reconciliation;
   } catch (error) {
-    console.warn(
-      `⚠️ [Cron Job] Key reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
+    log.warn(
+      `Key reconciliation failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }
@@ -215,18 +216,16 @@ export async function repairRefreshIndex(): Promise<RefreshIndexRepairResult> {
   try {
     ownsLease = await claimRepairLease();
   } catch (error) {
-    console.error(
-      `🔥 [Cron Job] Could not claim the index repair lease: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `Could not claim the index repair lease: ${error instanceof Error ? error.message : String(error)}`,
     );
     return { status: "failed", reason: "repair-lease-unavailable" };
   }
 
   if (!ownsLease) {
     const leaseExpiresInSeconds = await readLeaseTtl();
-    console.log(
-      `[Cron Job] Another invocation holds the index repair lease (expires in ${leaseExpiresInSeconds}s); skipping this run.`,
+    log.log(
+      `Another invocation holds the index repair lease (expires in ${leaseExpiresInSeconds}s); skipping this run.`,
     );
     try {
       return {
@@ -245,8 +244,8 @@ export async function repairRefreshIndex(): Promise<RefreshIndexRepairResult> {
   try {
     const rebuildCounts = await rebuildUserRefreshIndex();
     const totalUsers = await readIndexSize();
-    console.log(
-      `🧭 [Cron Job] Repaired the user index: indexed ${rebuildCounts.indexedUsers} users, missing meta ${rebuildCounts.missingMetaCount}, unreadable meta ${rebuildCounts.malformedMetaCount}, dropped ${rebuildCounts.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
+    log.log(
+      `Repaired the user index: indexed ${rebuildCounts.indexedUsers} users, missing meta ${rebuildCounts.missingMetaCount}, unreadable meta ${rebuildCounts.malformedMetaCount}, dropped ${rebuildCounts.droppedStaleMembers} stale entries. It now holds ${totalUsers} users.`,
     );
 
     const reconciliation = await reconcileOrphanedUserKeys();
@@ -259,10 +258,8 @@ export async function repairRefreshIndex(): Promise<RefreshIndexRepairResult> {
           reason: "key-reconciliation-failed",
         };
   } catch (error) {
-    console.error(
-      `🔥 [Cron Job] Index rebuild failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `Index rebuild failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     outcome = { status: "failed", reason: "index-rebuild-failed" };
   }

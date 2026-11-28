@@ -23,6 +23,9 @@ import {
   REFRESH_COOLDOWN_SECONDS,
 } from "@/lib/server/refresh-cooldown";
 import type { UserStatsData } from "@/lib/types/records";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 const MAX_GRAPHQL_INT = 2_147_483_647;
 const STATS_FETCH_TIMEOUT_MS = 15_000;
@@ -170,7 +173,7 @@ async function fetchUserStats(userId: string): Promise<StatsFetchResult> {
   if (graphqlUserId === null) return { kind: "invalid-id" };
 
   try {
-    console.log(`🔄 [Cron Job] User ${userId}: Fetching AniList data`);
+    log.log(`User ${userId}: Fetching AniList data`);
 
     const statsResponse = await fetch(ANILIST_GRAPHQL_URL, {
       method: "POST",
@@ -216,8 +219,8 @@ async function setRefreshCooldown(userId: string): Promise<void> {
       nx: true,
     });
   } catch (error) {
-    console.error(
-      `[Cron Job] User ${userId}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
+    log.error(
+      `User ${userId}: Failed to set refresh cooldown: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -278,17 +281,15 @@ async function recordAniListNotFound(
   try {
     claimed = await claimFailureWindow(userId);
   } catch (error) {
-    console.error(
-      `🔥 [Cron Job] User ${userId}: could not claim the failure window: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `User ${userId}: could not claim the failure window: ${error instanceof Error ? error.message : String(error)}`,
     );
     return { status: "retryable", reason: "failure-claim-failed" };
   }
 
   if (!claimed) {
-    console.log(
-      `[Cron Job] User ${userId}: 404 inside an active cooldown window; counting it once.`,
+    log.log(
+      `User ${userId}: 404 inside an active cooldown window; counting it once.`,
     );
     return { status: "duplicate" };
   }
@@ -298,16 +299,14 @@ async function recordAniListNotFound(
     const currentFailureCount = (await redisClient.get(failureKey)) || 0;
     const failures = Number(currentFailureCount) + 1;
 
-    console.log(
-      `📋 [Cron Job] User ${userId}: Recording 404 failure (attempt ${failures}/${FAILURES_BEFORE_REMOVAL})`,
+    log.log(
+      `User ${userId}: Recording 404 failure (attempt ${failures}/${FAILURES_BEFORE_REMOVAL})`,
     );
 
     if (failures >= FAILURES_BEFORE_REMOVAL) {
       const { usernameKeyRemoved } = await deleteUserStorage(userId);
-      console.log(
-        `🗑️ [Cron Job] User ${userId}: Removed from database after ${FAILURES_BEFORE_REMOVAL} failed attempts${
-          usernameKeyRemoved ? " (removed the username key)" : ""
-        }`,
+      log.log(
+        `User ${userId}: Removed from database after ${FAILURES_BEFORE_REMOVAL} failed attempts${usernameKeyRemoved ? " (removed the username key)" : ""}`,
       );
       return { status: "removed" };
     }
@@ -318,10 +317,8 @@ async function recordAniListNotFound(
     // The count did not land, so release the claim and let the retry count
     // this 404 instead of dropping it.
     await redisClient.del(buildFailureClaimKey(userId)).catch(() => {});
-    console.error(
-      `🔥 [Cron Job] User ${userId}: could not record the 404: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `User ${userId}: could not record the 404: ${error instanceof Error ? error.message : String(error)}`,
     );
     return { status: "retryable", reason: "failure-record-failed" };
   }
@@ -368,13 +365,13 @@ async function syncRefreshedUsername(
 
   try {
     await syncUsernameIndex(redisClient, previousKey, currentKey, userId);
-    console.log(
-      `🔁 [Cron Job] User ${userId}: Username index moved from ${previousKey ?? "no username"} to ${currentKey ?? "no username"}.`,
+    log.log(
+      `User ${userId}: Username index moved from ${previousKey ?? "no username"} to ${currentKey ?? "no username"}.`,
     );
     return true;
   } catch (error) {
-    console.warn(
-      `⚠️ [Cron Job] User ${userId}: Failed to sync the username index; keeping the stored username so the next refresh retries: ${error instanceof Error ? error.message : String(error)}`,
+    log.warn(
+      `User ${userId}: Failed to sync the username index; keeping the stored username so the next refresh retries: ${error instanceof Error ? error.message : String(error)}`,
     );
     return false;
   }
@@ -399,8 +396,8 @@ async function applyFreshStats(
   });
   if ("error" in normalizationResult) {
     await setRefreshCooldown(user.userId);
-    console.warn(
-      `⚠️ [Cron Job] User ${user.userId}: the refreshed record failed validation: ${normalizationResult.error}`,
+    log.warn(
+      `User ${user.userId}: the refreshed record failed validation: ${normalizationResult.error}`,
     );
     return { status: "rejected", reason: "record-validation-failed" };
   }
@@ -441,7 +438,7 @@ async function applyFreshStats(
   await saveUserRecord(finalUser, partsData);
   await clearRefreshState(user.userId);
 
-  console.log(
+  log.log(
     contentChanged
       ? `✅ [Cron Job] User ${user.userId}: Successfully updated`
       : `✅ [Cron Job] User ${user.userId}: Refreshed, stats unchanged`,
@@ -465,25 +462,21 @@ export async function refreshUser(userId: string): Promise<RefreshUserOutcome> {
   try {
     partsData = await fetchUserDataParts(userId, USER_DATA_PARTS);
   } catch (error) {
-    console.error(
-      `🔥 [Cron Job] User ${userId}: could not read the stored record: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `User ${userId}: could not read the stored record: ${error instanceof Error ? error.message : String(error)}`,
     );
     return { status: "retryable", reason: "redis-read-failed" };
   }
 
   if (!partsData.meta) {
-    console.warn(
-      `[Cron Job] User ${userId}: no stored meta; removing stale refresh index entry.`,
+    log.warn(
+      `User ${userId}: no stored meta; removing stale refresh index entry.`,
     );
     try {
       await redisClient.zrem(USER_REFRESH_INDEX_KEY, userId);
     } catch (error) {
-      console.error(
-        `🔥 [Cron Job] User ${userId}: could not drop the stale index entry: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+      log.error(
+        `User ${userId}: could not drop the stale index entry: ${error instanceof Error ? error.message : String(error)}`,
       );
       return { status: "retryable", reason: "index-entry-removal-failed" };
     }
@@ -491,23 +484,23 @@ export async function refreshUser(userId: string): Promise<RefreshUserOutcome> {
   }
 
   const user = reconstructUserRecord(partsData);
-  console.log(
-    `👤 [Cron Job] User ${user.userId} (${user.username || "no username"}): Starting update`,
+  log.log(
+    `User ${user.userId} (${user.username || "no username"}): Starting update`,
   );
 
   const fetchResult = await fetchUserStats(user.userId);
   switch (fetchResult.kind) {
     case "invalid-id":
       await setRefreshCooldown(userId);
-      console.warn(
-        `⚠️ [Cron Job] User ${userId}: the stored record names an unusable AniList id: ${user.userId || "(empty)"}`,
+      log.warn(
+        `User ${userId}: the stored record names an unusable AniList id: ${user.userId || "(empty)"}`,
       );
       return { status: "rejected", reason: "invalid-stored-user-id" };
     case "not-found":
       return recordAniListNotFound(userId);
     case "retryable":
-      console.error(
-        `🔥 [Cron Job] User ${userId}: AniList request failed: ${fetchResult.reason}`,
+      log.error(
+        `User ${userId}: AniList request failed: ${fetchResult.reason}`,
       );
       await setRefreshCooldown(userId);
       return { status: "retryable", reason: "anilist-unavailable" };
@@ -519,10 +512,8 @@ export async function refreshUser(userId: string): Promise<RefreshUserOutcome> {
     return await applyFreshStats(partsData, fetchResult.statsData);
   } catch (error) {
     await setRefreshCooldown(userId);
-    console.error(
-      `🔥 [Cron Job] User ${userId}: could not save the refreshed record: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    log.error(
+      `User ${userId}: could not save the refreshed record: ${error instanceof Error ? error.message : String(error)}`,
     );
     return { status: "retryable", reason: "record-save-failed" };
   }

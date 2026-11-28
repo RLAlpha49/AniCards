@@ -22,6 +22,7 @@ import {
   buildAnalyticsMetricKey,
   jsonWithCors,
 } from "@/lib/api-utils";
+import { logWith } from "@/lib/log";
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
@@ -41,8 +42,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const data = await request.json();
-    console.log(
-      `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
+    logWith(
+      "log",
+      endpoint,
+      `Processing user ${data.userId} (${data.username || "no username"})`,
     );
 
     // Validate incoming data
@@ -110,8 +113,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     // `saveUserRecord` keeps the later of this version and the stored one, so
     // a save that raced a refresh cannot move the card URL backwards.
 
-    console.log(
-      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
+    logWith(
+      "log",
+      endpoint,
+      `Saving user data to Redis in split format for userId: ${data.userId}`,
     );
 
     await saveUserRecord(finalUserData, partsData);
@@ -121,8 +126,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       finalUserData.username,
     );
     if (currentUsernameIndexKey) {
-      console.log(
-        `📝 [${endpoint}] Updating username index for: ${currentUsernameIndexKey.slice("username:".length)}`,
+      logWith(
+        "log",
+        endpoint,
+        `Updating username index for: ${currentUsernameIndexKey.slice("username:".length)}`,
       );
     }
     await syncUsernameIndex(
