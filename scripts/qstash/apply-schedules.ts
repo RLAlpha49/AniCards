@@ -116,7 +116,7 @@ export function buildSchedules(origin: string): ScheduleDefinition[] {
     {
       scheduleId: "anicards-refresh-dispatch",
       destination: `${origin}/api/cron`,
-      cron: "*/20 * * * *",
+      cron: "*/30 * * * *",
       retries: 3,
     },
     {

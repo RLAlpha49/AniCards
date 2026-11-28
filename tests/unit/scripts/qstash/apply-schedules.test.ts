@@ -30,7 +30,7 @@ describe("QStash schedule definitions", () => {
       {
         scheduleId: "anicards-refresh-dispatch",
         destination: `${ORIGIN}/api/cron`,
-        cron: "*/20 * * * *",
+        cron: "*/30 * * * *",
         retries: 3,
       },
       {

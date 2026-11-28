@@ -422,6 +422,7 @@ paths:
                     failedUserIds: []
                     selection:
                       indexedUsers: 645
+                      batchSize: 5
                       candidates: 2
                       coolingDown: 0
                       eligible: 2
@@ -437,6 +438,7 @@ paths:
                     failedUserIds: []
                     selection:
                       indexedUsers: 645
+                      batchSize: 5
                       candidates: 5
                       coolingDown: 5
                       eligible: 0
@@ -492,6 +494,7 @@ paths:
                     failedUserIds: ["123", "456"]
                     selection:
                       indexedUsers: 645
+                      batchSize: 5
                       candidates: 2
                       coolingDown: 0
                       eligible: 2
@@ -507,6 +510,7 @@ paths:
                     failedUserIds: ["123", "456"]
                     selection:
                       indexedUsers: 645
+                      batchSize: 5
                       candidates: 2
                       coolingDown: 0
                       eligible: 2
@@ -1135,6 +1139,9 @@ components:
           properties:
             indexedUsers:
               type: integer
+            batchSize:
+              type: integer
+              description: "Users this run may publish: a 48th of the index rounded up, clamped to 1..5"
             candidates:
               type: integer
             coolingDown:
@@ -1151,6 +1158,7 @@ components:
           required:
             [
               "indexedUsers",
+              "batchSize",
               "candidates",
               "coolingDown",
               "eligible",

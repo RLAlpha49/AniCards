@@ -20,6 +20,9 @@ import {
   REFRESH_FLOW_CONTROL,
   REFRESH_MESSAGE_RETRIES,
 } from "@/lib/server/qstash";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /** What one publish attempt produced for one user. @source */
 export type PublishResult =
@@ -59,8 +62,8 @@ export function resolveDispatchBaseUrl(): string | null {
   if (url.protocol === "http:" && INSECURE_DISPATCH_HOSTS.has(url.hostname)) {
     return url.origin;
   }
-  console.error(
-    `[Cron Job] Refusing to dispatch to ${url.origin}: the cron secret would travel in cleartext. Use an https origin, or loopback for local development.`,
+  log.error(
+    `Refusing to dispatch to ${url.origin}: the cron secret would travel in cleartext. Use an https origin, or loopback for local development.`,
   );
   return null;
 }
@@ -69,7 +72,7 @@ export function resolveDispatchBaseUrl(): string | null {
  * Marks users as queued so the next dispatch does not publish them again.
  *
  * QStash retries a failed delivery for up to about 32 minutes, and a dispatch
- * runs every 20. Without this marker the second dispatch would publish the
+ * runs every 30. Without this marker the second dispatch would publish the
  * same user again while the first message is still retrying, which doubles the
  * AniList traffic the flow control exists to bound.
  *
@@ -88,10 +91,8 @@ export async function markUsersInFlight(userIds: string[]): Promise<void> {
           ex: REFRESH_IN_FLIGHT_SECONDS,
         })
         .catch((error) => {
-          console.warn(
-            `[Cron Job] User ${userId}: could not mark the message in flight: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+          log.warn(
+            `User ${userId}: could not mark the message in flight: ${error instanceof Error ? error.message : String(error)}`,
           );
         }),
     ),
@@ -140,8 +141,8 @@ export async function publishRefreshMessages(
       return { userId, messageId: result.value.messageId };
     }
     // The detail stays in the server log.
-    console.error(
-      `🔥 [Cron Job] User ${userId}: publish failed - ${
+    log.error(
+      `User ${userId}: publish failed - ${
         result.reason instanceof Error
           ? result.reason.message
           : String(result.reason)

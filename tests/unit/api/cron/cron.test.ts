@@ -255,7 +255,7 @@ describe("Cron dispatch API POST Endpoint", () => {
 
     it("should not rebuild, repair, or reconcile a populated index", async () => {
       // Repair and reconciliation moved to the daily `/api/cron/repair-index`
-      // schedule. A dispatch that re-did them would scan the keyspace every 20
+      // schedule. A dispatch that re-did them would scan the keyspace every 30
       // minutes and would couple a refresh failure to a cleanup failure again.
       mockRefreshIndexFromUserIds(["1", "2"]);
       mockRedisWrites();
@@ -275,9 +275,11 @@ describe("Cron dispatch API POST Endpoint", () => {
       expect(body.indexRebuilt).toBe(false);
     });
 
-    it("should publish only the 5 stalest users when the index holds more", async () => {
+    it("should cap a large index at 5 users per run", async () => {
+      // 500 users would need eleven per run to fit in a day; the cap holds the
+      // run at five so it cannot spend more of the AniList budget.
       mockRefreshIndexFromUserIds(
-        Array.from({ length: 15 }, (_, i) => String(i + 1)),
+        Array.from({ length: 500 }, (_, i) => String(i + 1)),
       );
       mockRedisWrites();
 
@@ -287,10 +289,33 @@ describe("Cron dispatch API POST Endpoint", () => {
       const body = await res.json();
       expect(body.published).toBe(5);
       expect(sharedQstashPublishJSON).toHaveBeenCalledTimes(5);
-      expect(body.selection.indexedUsers).toBe(15);
+      expect(body.selection.indexedUsers).toBe(500);
+      expect(body.selection.batchSize).toBe(5);
     });
 
-    it("should publish users in index order (oldest first)", async () => {
+    it("should size the batch from the index so every user refreshes daily", async () => {
+      // 96 users is two per run at 48 runs a day, which is under the cap.
+      mockRefreshIndex([
+        ...Array.from({ length: 3 }, (_, i) => ({
+          id: String(i + 1),
+          updatedAt: new Date("2024-01-01").getTime() + i,
+        })),
+        ...Array.from({ length: 93 }, (_, i) => ({
+          id: String(i + 4),
+          updatedAt: new Date("2024-06-01").getTime(),
+        })),
+      ]);
+      mockRedisWrites();
+
+      const res = await POST(cronRequest());
+      const body = await res.json();
+
+      expect(body.selection.batchSize).toBe(2);
+      expect(body.published).toBe(2);
+      expect(publishedUserIds()).toEqual(["1", "2"]);
+    });
+
+    it("should always refresh at least one user, however small the index", async () => {
       mockRefreshIndex([
         { id: "2", updatedAt: new Date("2024-01-01").getTime() },
         { id: "3", updatedAt: new Date("2024-06-01").getTime() },
@@ -298,13 +323,16 @@ describe("Cron dispatch API POST Endpoint", () => {
       ]);
       mockRedisWrites();
 
-      await POST(cronRequest());
-      expect(publishedUserIds()).toEqual(["2", "3", "1"]);
+      const res = await POST(cronRequest());
+      const body = await res.json();
+
+      expect(body.selection.batchSize).toBe(1);
+      expect(publishedUserIds()).toEqual(["2"]);
     });
 
-    it("should page past a full window of cooled-down users instead of idling", async () => {
-      // 25 cooled-down users fill the first page exactly; the 26th should still
-      // be selected, which is what a single-page window would fail to do.
+    it("should page past a window of cooled-down users instead of idling", async () => {
+      // A one-user batch reads five entries a page, so 25 cooled-down users fill
+      // five pages; the 26th user should still be selected.
       const cooledDownIds = Array.from({ length: 25 }, (_, i) => String(i + 1));
       const healthyId = "26";
       const indexEntries = [
@@ -355,13 +383,13 @@ describe("Cron dispatch API POST Endpoint", () => {
     });
 
     it("should skip candidates in cooldown and fill the batch from the rest of the window", async () => {
-      mockRefreshIndex([
-        { id: "10", updatedAt: 1_000 },
-        { id: "11", updatedAt: 2_000 },
-        { id: "12", updatedAt: 3_000 },
+      mockRefreshIndexFromUserIds([
+        "1",
+        ...Array.from({ length: 49 }, (_, i) => String(i + 2)),
       ]);
+      // The stalest user, which the batch would otherwise start with.
       sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
-        keys.map((key) => (key === "cron:refresh-cooldown:10" ? 1 : null)),
+        keys.map((key) => (key === "cron:refresh-cooldown:50" ? 1 : null)),
       );
       mockRedisWrites();
 
@@ -406,7 +434,9 @@ describe("Cron dispatch API POST Endpoint", () => {
 
   describe("Publishing", () => {
     it("should publish one message per selected user to the consumer route", async () => {
-      mockRefreshIndexFromUserIds(["1", "2"]);
+      mockRefreshIndexFromUserIds(
+        Array.from({ length: 50 }, (_, i) => String(i + 1)),
+      );
       mockRedisWrites();
 
       await POST(cronRequest());
@@ -422,7 +452,7 @@ describe("Cron dispatch API POST Endpoint", () => {
       };
 
       expect(request.url).toBe(CONSUMER_URL);
-      expect(request.body.userId).toBe("2");
+      expect(request.body.userId).toBe("50");
       expect(request.headers["x-cron-secret"]).toBe(CRON_SECRET);
       expect(request.retries).toBe(3);
       expect(request.flowControl).toEqual({
@@ -445,7 +475,9 @@ describe("Cron dispatch API POST Endpoint", () => {
     });
 
     it("should report a failed publish without failing the whole run", async () => {
-      mockRefreshIndexFromUserIds(["1", "2"]);
+      mockRefreshIndexFromUserIds(
+        Array.from({ length: 50 }, (_, i) => String(i + 1)),
+      );
       mockRedisWrites();
 
       let call = 0;
@@ -478,7 +510,7 @@ describe("Cron dispatch API POST Endpoint", () => {
     });
 
     it("should mark published users in flight for longer than the retry window", async () => {
-      // QStash retries for about 32 minutes while the dispatch runs every 20.
+      // QStash retries for about 32 minutes while the dispatch runs every 30.
       // Without the marker the next run would queue the same user again.
       mockRefreshIndexFromUserIds(["1"]);
       mockRedisWrites();
@@ -509,7 +541,9 @@ describe("Cron dispatch API POST Endpoint", () => {
     });
 
     it("should answer 500 when every publish fails", async () => {
-      mockRefreshIndexFromUserIds(["1", "2"]);
+      mockRefreshIndexFromUserIds(
+        Array.from({ length: 50 }, (_, i) => String(i + 1)),
+      );
       mockRedisWrites();
       sharedQstashPublishJSON.mockImplementation(async () => {
         throw new Error("QStash is down");

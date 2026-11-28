@@ -5,6 +5,11 @@
  * stats were last written. A dispatch walks it from the stalest score upward
  * and keeps the first batch of users who are not cooling down.
  *
+ * The batch is sized from the index rather than fixed. The schedule runs every
+ * 30 minutes, so a run has to cover a 48th of the index for every user to be
+ * refreshed once a day. A small index still refreshes one user per run, and a
+ * large one stops at five.
+ *
  * A single page is not enough to fill a batch: cooled-down and stale entries
  * stay in the index until the job reaches them, so they can fill a page on
  * their own and would otherwise stall every later user behind them. Paging is
@@ -27,10 +32,11 @@ import {
 } from "@/lib/server/user-data";
 
 /** One user in the refresh index, with the score that ordered them. @source */
-export type UserRefreshCandidate = { id: string; updatedAt: number };
+type UserRefreshCandidate = { id: string; updatedAt: number };
 
 /** Everything the dispatch reports about how the batch was chosen. @source */
 export type UserRefreshIndexSelection = {
+  batchSize: number;
   cooldownResults: (string | number | null)[];
   fetchedCandidateIds: string[];
   candidates: UserRefreshCandidate[];
@@ -47,30 +53,70 @@ type UserRefreshIndexPage = {
   cooldowns: (string | number | null)[];
 };
 
-/** Users published per run. @source */
-export const BATCH_SIZE = 5;
+/** Minutes between two dispatches. The QStash schedule fires every 30. @source */
+export const DISPATCH_INTERVAL_MINUTES = 30;
+
 /**
- * Index entries read per page. Five batches wide, so a page can lose users to
+ * Runs the dispatch performs in 24 hours, which is what the batch size divides
+ * the index by.
+ * @source
+ */
+export const DISPATCH_RUNS_PER_DAY = (24 * 60) / DISPATCH_INTERVAL_MINUTES;
+
+/** Fewest users one run publishes, even when the index holds a handful. @source */
+export const MIN_REFRESH_BATCH_SIZE = 1;
+
+/** Most users one run publishes, which bounds the AniList traffic per run. @source */
+export const MAX_REFRESH_BATCH_SIZE = 5;
+
+/**
+ * Index entries read per batch slot. A page five batches wide can lose users to
  * cooldown and still fill the batch from the rest of the page.
  * @source
  */
-const INDEX_WINDOW_PAGE_SIZE = BATCH_SIZE * 5;
+const INDEX_WINDOW_BATCHES_PER_PAGE = 5;
+
 /**
  * Maximum index pages read per run. Reasons to page: skipped cooldown entries
  * and index entries whose record is gone. The cap bounds selection to ten
- * ZRANGE and ten MGET commands no matter how far the queue has drifted.
+ * ZRANGE and ten MGET commands no matter how far the queue has drifted or how
+ * small the batch is.
  * @source
  */
 const INDEX_WINDOW_PAGE_LIMIT = 10;
 
+/**
+ * Sizes one run so every indexed user is refreshed within 24 hours.
+ *
+ * Every user has to be visited once a day and the dispatch runs every 30
+ * minutes, so one run covers a 48th of the index. The result is clamped: a
+ * small index still refreshes one user per run, and a large one stops at five
+ * so a run cannot spend more of the AniList budget than the schedule can
+ * absorb. The cap also caps daily coverage at 240 users; past that point the
+ * slowest refresh cycle is longer than a day.
+ *
+ * @param totalUsers - Number of users in the refresh index.
+ * @returns Users to publish this run, or 0 when the index is empty.
+ * @source
+ */
+export function calculateRefreshBatchSize(totalUsers: number): number {
+  if (!Number.isFinite(totalUsers) || totalUsers <= 0) return 0;
+  const perRun = Math.ceil(totalUsers / DISPATCH_RUNS_PER_DAY);
+  return Math.min(
+    MAX_REFRESH_BATCH_SIZE,
+    Math.max(MIN_REFRESH_BATCH_SIZE, perRun),
+  );
+}
+
 async function readRefreshIndexPage(
   start: number,
+  pageSize: number,
   seenUserIds: Set<string>,
 ): Promise<UserRefreshIndexPage | null> {
   const indexEntries = await redisClient.zrange<(number | string)[]>(
     USER_REFRESH_INDEX_KEY,
     start,
-    start + INDEX_WINDOW_PAGE_SIZE - 1,
+    start + pageSize - 1,
     { withScores: true },
   );
 
@@ -100,6 +146,7 @@ async function readRefreshIndexPage(
 function collectEligibleRefreshCandidates(
   page: UserRefreshIndexPage,
   selection: UserRefreshIndexSelection,
+  batchSize: number,
 ): void {
   for (let i = 0; i < page.candidateIds.length; i++) {
     if (page.cooldowns[i]) {
@@ -107,7 +154,7 @@ function collectEligibleRefreshCandidates(
       continue;
     }
     selection.candidates.push(page.candidates[i]);
-    if (selection.eligibleUsers.length < BATCH_SIZE) {
+    if (selection.eligibleUsers.length < batchSize) {
       selection.eligibleUsers.push(page.candidates[i]);
     }
   }
@@ -116,7 +163,10 @@ function collectEligibleRefreshCandidates(
 export async function selectRefreshIndexUsers(
   totalUsers: number,
 ): Promise<UserRefreshIndexSelection> {
+  const batchSize = calculateRefreshBatchSize(totalUsers);
+  const pageSize = batchSize * INDEX_WINDOW_BATCHES_PER_PAGE;
   const selection: UserRefreshIndexSelection = {
+    batchSize,
     cooldownResults: [],
     fetchedCandidateIds: [],
     candidates: [],
@@ -130,24 +180,24 @@ export async function selectRefreshIndexUsers(
   for (
     let pageNumber = 0;
     pageNumber < INDEX_WINDOW_PAGE_LIMIT &&
-    selection.eligibleUsers.length < BATCH_SIZE;
+    selection.eligibleUsers.length < batchSize;
     pageNumber++
   ) {
-    const start = pageNumber * INDEX_WINDOW_PAGE_SIZE;
+    const start = pageNumber * pageSize;
     if (start >= totalUsers) {
       selection.indexExhausted = true;
       break;
     }
 
     selection.indexPagesRead++;
-    selection.indexExhausted = start + INDEX_WINDOW_PAGE_SIZE >= totalUsers;
+    selection.indexExhausted = start + pageSize >= totalUsers;
 
-    const page = await readRefreshIndexPage(start, seenUserIds);
+    const page = await readRefreshIndexPage(start, pageSize, seenUserIds);
     if (!page) continue;
 
     selection.fetchedCandidateIds.push(...page.candidateIds);
     selection.cooldownResults.push(...page.cooldowns);
-    collectEligibleRefreshCandidates(page, selection);
+    collectEligibleRefreshCandidates(page, selection, batchSize);
   }
 
   return selection;

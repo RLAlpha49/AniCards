@@ -24,7 +24,7 @@ export const REFRESH_COOLDOWN_SECONDS = 15 * 60;
  *
  * QStash retries a failed delivery after roughly 12 seconds, 2.5 minutes, then
  * 30 minutes. This window is longer than that last retry, so a dispatch that
- * runs every 20 minutes cannot queue a second message for the same user while
+ * runs every 30 minutes cannot queue a second message for the same user while
  * the first is still being retried.
  * @source
  */

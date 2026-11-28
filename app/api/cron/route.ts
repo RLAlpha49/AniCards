@@ -19,6 +19,9 @@ import {
   resolveDispatchBaseUrl,
   type PublishResult,
 } from "@/lib/server/cron/dispatch";
+import { createLogger } from "@/lib/log";
+
+const log = createLogger("Cron Job");
 
 /**
  * Counts the Redis commands a selection took.
@@ -42,6 +45,7 @@ function buildSelectionSummary(
 ) {
   return {
     indexedUsers: totalUsers,
+    batchSize: selection.batchSize,
     candidates: selection.fetchedCandidateIds.length,
     coolingDown: selection.cooledDownUserIds.size,
     eligible: selection.eligibleUsers.length,
@@ -70,8 +74,8 @@ export async function POST(request: Request) {
 
   const baseUrl = resolveDispatchBaseUrl();
   if (!baseUrl) {
-    console.error(
-      "[Cron Job] Neither NEXT_PUBLIC_APP_URL nor NEXT_PUBLIC_SITE_URL is set; cannot address the consumer route.",
+    log.error(
+      "Neither NEXT_PUBLIC_APP_URL nor NEXT_PUBLIC_SITE_URL is set; cannot address the consumer route.",
     );
     return new Response(
       JSON.stringify({
@@ -82,7 +86,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    console.log("🛠️ [Cron Job] Authorized, starting refresh dispatch...");
+    log.log("Authorized, starting refresh dispatch...");
 
     const selectionStartedAt = Date.now();
     // The dispatch cannot select from an empty index, so it rebuilds one when
@@ -94,10 +98,11 @@ export async function POST(request: Request) {
       );
 
     // Walk the index from the stalest score upward, one page at a time, and
-    // keep the first batch that is not cooling down. A single page is not
-    // enough: cooled-down and stale entries stay in the index until the job
-    // reaches them, so they can fill a page on their own and would otherwise
-    // stall every later user behind them.
+    // keep the first batch that is not cooling down. The batch is a 48th of
+    // the index, clamped to 1..5, so every user is refreshed once a day. A
+    // single page is not enough: cooled-down and stale entries stay in the
+    // index until the job reaches them, so they can fill a page on their own
+    // and would otherwise stall every later user behind them.
     // Cooldown reads return a parsed number rather than a string, so the type
     // mirrors what the client actually hands back.
     const selection = await selectRefreshIndexUsers(totalUsers);
@@ -115,7 +120,7 @@ export async function POST(request: Request) {
     const selectionDurationMs = Date.now() - selectionStartedAt;
     const selectionRedisCommandCount = countSelectionCommands(indexPagesRead);
 
-    console.log("[Cron Job] User selection metrics:", {
+    log.log("User selection metrics:", {
       indexCommands: selectionRedisCommandCount,
       indexedUsers: totalUsers,
       indexRebuilt,
@@ -134,16 +139,16 @@ export async function POST(request: Request) {
     const oldestStaleAge = formatOldestStaleAge(candidates[0]?.updatedAt);
 
     if (batch.length === 0 && totalUsers > 0) {
-      console.warn(
-        `⚠️ [Cron Job] No user in the selection window was eligible (${candidateIds.length} checked, ${cooledDownUserIds.size} cooling down, index ${indexExhausted ? "exhausted" : "window limit reached"}).`,
+      log.warn(
+        `No user in the selection window was eligible (${candidateIds.length} checked, ${cooledDownUserIds.size} cooling down, index ${indexExhausted ? "exhausted" : "window limit reached"}).`,
       );
       await incrementAnalytics(
         buildAnalyticsMetricKey("cron", "ineligible_selection_windows"),
       ).catch(() => {});
     }
 
-    console.log(
-      `🚀 [Cron Job] Publishing ${batch.length} refresh messages (${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
+    log.log(
+      `Publishing ${batch.length} refresh messages (batch of ${selection.batchSize}, ${eligibleUsers.length} eligible, ${cooledDownUserIds.size} cooling down, ${candidateIds.length} candidates over ${indexPagesRead} pages, ${totalUsers} indexed).`,
     );
 
     let publishResults: PublishResult[];
@@ -156,10 +161,8 @@ export async function POST(request: Request) {
       // `getQstashClient` throws before any publish when the token is missing.
       // That is a configuration failure for the whole run, so report it in the
       // same dispatch shape instead of the generic error body.
-      console.error(
-        `🔥 [Cron Job] Could not publish: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+      log.error(
+        `Could not publish: ${error instanceof Error ? error.message : String(error)}`,
       );
       return new Response(
         JSON.stringify({
@@ -188,9 +191,7 @@ export async function POST(request: Request) {
     );
 
     for (const result of published) {
-      console.log(
-        `📨 [Cron Job] User ${result.userId}: queued as ${result.messageId}`,
-      );
+      log.log(`User ${result.userId}: queued as ${result.messageId}`);
     }
 
     // Only the users QStash accepted get the in-flight marker. A user whose
@@ -217,8 +218,8 @@ export async function POST(request: Request) {
     // nothing (empty index, all cooling down) is healthy and answers 200.
     const status = published.length === 0 && failed.length > 0 ? 500 : 200;
 
-    console.log(
-      `🎉 [Cron Job] Dispatch complete: ${published.length} published, ${failed.length} failed. Oldest stale record: ${oldestStaleAge}.`,
+    log.log(
+      `Dispatch complete: ${published.length} published, ${failed.length} failed. Oldest stale record: ${oldestStaleAge}.`,
     );
 
     return new Response(JSON.stringify(payload), {
@@ -227,9 +228,9 @@ export async function POST(request: Request) {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);
+    log.error(`Cron job failed: ${error.message}`);
     if (error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+      log.error(`Stack Trace: ${error.stack}`);
     }
     return new Response(JSON.stringify({ error: "Cron job failed" }), {
       status: 500,
