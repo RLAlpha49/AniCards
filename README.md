@@ -311,18 +311,20 @@ bun run test:e2e:docker
 ### Project layout
 
 ```text
-app/                  Routes and API handlers
-  api/card/           Card SVG rendering
-  api/convert/        SVG to PNG and WebP conversion
-  api/cron/           Scheduled refresh endpoints
-  generator/          Card generator page
-  examples/           Every card type with live previews
-  user/               Saved card set for one profile
-components/           React components, grouped by page
-lib/                  Card generation, storage, and shared helpers
-  card-data/          Reading and validating stored profiles
-  svg-templates/      One template per card family
-  stores/             Storage adapters and in-memory caches
+src/
+  app/                Routes and API handlers
+    api/card/         Card SVG rendering
+    api/convert/      SVG to PNG and WebP conversion
+    api/cron/         Scheduled refresh endpoints
+    generator/        Card generator page
+    examples/         Every card type with live previews
+    user/             Saved card set for one profile
+  components/         React components, grouped by page
+  hooks/              React hooks
+  lib/                Card generation, storage, and shared helpers
+    card-data/        Reading and validating stored profiles
+    svg-templates/    One template per card family
+  proxy.ts            Content Security Policy headers
 scripts/              Database, QStash, and Redis maintenance scripts
 tests/                Unit tests and Playwright end-to-end tests
 ```
