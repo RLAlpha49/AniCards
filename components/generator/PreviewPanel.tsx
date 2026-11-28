@@ -14,7 +14,7 @@ import {
   buildCardPreviewUrl,
   type PreviewOptions,
 } from "@/lib/cards/generator-options";
-import styles from "./generator.module.css";
+import styles from "./preview-panel.module.css";
 
 type PreviewPanelProps = Readonly<{
   /** Card shown in the preview, or an empty string when nothing is selected. */

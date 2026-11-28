@@ -1,0 +1,549 @@
+/* Cards step: search, grouping, and the card row list. */
+
+.linkAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  padding: 0 0 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    gap 180ms ease;
+}
+
+.linkAction:hover {
+  border-color: var(--vermillion);
+  gap: 0.5rem;
+}
+
+.linkAction svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+/* ── cards step ──────────────────────────────────────────────── */
+.cardToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.cardSearch {
+  flex: 1 1 12rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0 0.6rem;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.cardSearch:focus-within {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--vermillion-wash);
+}
+
+.cardSearch svg {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--ink-faint);
+}
+
+.cardSearchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.55rem 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.cardSearchInput::placeholder {
+  color: var(--ink-faint);
+}
+
+.cardClear {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0.2rem;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.cardClear svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.cardClear:hover {
+  color: var(--vermillion);
+}
+
+.toolbarButton {
+  flex: none;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.toolbarButton:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.toolbarButtonActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.toolbarButtonActive:hover {
+  color: var(--paper);
+}
+
+.groupStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.9rem;
+}
+
+.groupChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.groupChip:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.groupChipActive {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.groupChipCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.groupChipActive .groupChipCount {
+  color: var(--vermillion);
+}
+
+.cardGroup + .cardGroup {
+  margin-top: 1.5rem;
+}
+
+.cardGroupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.4rem;
+}
+
+.cardGroupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.cardGroupNumeral {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  color: var(--vermillion);
+}
+
+.cardGroupTitle h3 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.cardGroupActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cardGroupCount {
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.cardList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A card row: tick, name, variations, favourites. Rows rather than tiles,
+   because a visitor is picking from a catalogue, not browsing artwork.
+
+   A chosen row has to be obvious at a glance down a list of 54, so it gets four
+   cues at once: a vermillion rule on the left, a tinted ground, a filled tick,
+   and a slightly raised paper shadow. Colour alone would not survive a
+   greyscale screenshot or a colour-blind reader. */
+.cardRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0.2rem 0.55rem 0.55rem;
+  transition:
+    background-color 200ms ease,
+    padding-inline 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 220ms ease;
+}
+
+/* The left rule is drawn on a pseudo-element so it can grow from the middle
+   rather than appearing all at once. */
+.cardRow::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.35rem;
+  left: 0;
+  width: 2px;
+  background: var(--vermillion);
+  scale: 1 0;
+  transform-origin: center;
+  transition: scale 240ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cardList li:last-child .cardRow {
+  border-bottom: 0;
+}
+
+.cardRow:hover {
+  background: var(--vermillion-wash);
+  padding-inline: 0.75rem 0.35rem;
+}
+
+.cardRowActive {
+  background: linear-gradient(
+    90deg,
+    var(--vermillion-wash),
+    rgba(184, 58, 36, 0.04) 60%,
+    transparent
+  );
+  box-shadow: inset 0 0 0 1px var(--vermillion-wash);
+  padding-inline: 0.75rem 0.35rem;
+}
+
+.cardRowActive::before {
+  scale: 1 1;
+}
+
+.cardTick {
+  display: grid;
+  width: 1.3rem;
+  height: 1.3rem;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease,
+    scale 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cardTick svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  scale: 0.6;
+  opacity: 0;
+  transition:
+    scale 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 160ms ease;
+}
+
+.cardTick:hover {
+  border-color: var(--ink);
+}
+
+.cardTick:active {
+  scale: 0.9;
+}
+
+/* The tick lands with a small overshoot, so a click feels registered. */
+.cardTickOn {
+  border-color: var(--vermillion);
+  background: var(--vermillion);
+  color: #fbf3e2;
+}
+
+.cardTickOn svg {
+  scale: 1;
+  opacity: 1;
+}
+
+.cardName {
+  min-width: 0;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+  transition: color 200ms ease;
+}
+
+.cardTitle svg {
+  flex: none;
+  width: 0.82rem;
+  height: 0.82rem;
+  color: var(--ink-faint);
+  transform: translateY(0.1rem);
+  transition:
+    color 200ms ease,
+    rotate 320ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.cardRowActive .cardTitle {
+  font-weight: 600;
+}
+
+.cardRowActive .cardTitle svg {
+  color: var(--vermillion);
+  rotate: -8deg;
+}
+
+.cardNote {
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.cardControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+/* Variations stay visible on a selected row, so the shape can be changed
+   without reopening anything. */
+.variationPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.variationChip {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0.16rem 0.4rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.variationChip:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.variationChipActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.variationChipActive:hover {
+  color: var(--paper);
+}
+
+.favouriteToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0.16rem 0.4rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.favouriteToggle svg {
+  width: 0.6rem;
+  height: 0.6rem;
+}
+
+.favouriteToggle:hover {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.favouriteToggleOn {
+  border-color: var(--vermillion);
+  background: var(--vermillion-wash);
+  color: var(--vermillion);
+}
+
+.cardEmpty {
+  border: 1px dashed var(--line-strong);
+  padding: 2rem 1.2rem;
+  text-align: center;
+}
+
+.cardEmpty h3 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.cardEmpty p {
+  margin: 0.4rem auto 0;
+  max-width: 24rem;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.cardEmpty button {
+  margin-top: 0.9rem;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.cardTick:focus-visible,
+.favouriteToggle:focus-visible,
+.groupChip:focus-visible,
+.cardClear:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.variationChip:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.toolbarButton:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.linkAction:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+@media (max-width: 620px) {
+  .cardRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cardControls {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardRow,
+  .cardRow::before,
+  .cardTick,
+  .cardTick svg,
+  .cardTitle svg,
+  .favouriteToggle,
+  .groupChip,
+  .cardSearch {
+    transition: none;
+  }
+
+  .variationChip {
+    transition: none;
+  }
+
+  .toolbarButton {
+    transition: none;
+  }
+
+  .linkAction {
+    transition: none;
+  }
+
+  .cardRow:hover,
+  .cardTickOn svg,
+  .cardRowActive::before,
+  .cardRowActive .cardTitle svg {
+    transform: none;
+    scale: 1 1;
+    rotate: none;
+  }
+}

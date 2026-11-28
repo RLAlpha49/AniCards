@@ -1,0 +1,156 @@
+/* Username step: the single input and its cache notice. */
+
+/* ── fields ──────────────────────────────────────────────────── */
+.field {
+  display: block;
+}
+
+.fieldLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.fieldHint {
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+}
+
+.inputRow {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.inputRow:focus-within {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--vermillion-wash);
+}
+
+.inputIcon {
+  display: grid;
+  width: 2.8rem;
+  place-items: center;
+  border-right: 1px solid var(--line);
+  color: var(--ink-faint);
+}
+
+.inputIcon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.85rem 0.9rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.inputAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  padding: 0 0.9rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+}
+
+.inputAction svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+/* ── username step ───────────────────────────────────────────── */
+.usernameGrid {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.usernameFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.4rem;
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+}
+
+.usernameFact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.usernameFact svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--vermillion);
+}
+
+/* Cache notice, rewritten as a footnote rather than a callout card. */
+.cacheNote {
+  margin-top: 1rem;
+  border-left: 2px solid var(--gold);
+  padding-left: 0.8rem;
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+.cacheNote strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cacheNote kbd {
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0.05rem 0.3rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.64rem;
+  color: var(--ink);
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.inputAction:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inputRow {
+    transition: none;
+  }
+}

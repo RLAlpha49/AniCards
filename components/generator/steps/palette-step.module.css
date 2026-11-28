@@ -1,0 +1,634 @@
+/* Palette step: preset tiles, colour fields, and the gradient editor. */
+
+.fieldLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── palette step ────────────────────────────────────────────── */
+.paletteBlock + .paletteBlock {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.3rem;
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.blockHead h3 {
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.blockHead p {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.presetFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+
+.presetFilterButton {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.presetFilterButton:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.presetFilterActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.presetFilterActive:hover {
+  color: var(--paper);
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presetTile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--paper-raise);
+  padding: 0.4rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    transform 200ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    box-shadow 200ms ease;
+}
+
+.presetTile:hover {
+  border-color: var(--ink-faint);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px -16px var(--shadow);
+}
+
+.presetTileActive {
+  border-color: var(--vermillion);
+  box-shadow: 0 0 0 2px var(--vermillion-wash);
+}
+
+/* Each tile draws a tiny copy of a card, so the swatch answers the question the
+   visitor is actually asking: what will my card look like in this palette? */
+.presetSwatch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  height: 2.75rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  padding: 0.28rem;
+}
+
+/* Gradients get a fine diagonal hatch so they are recognisable as gradients
+   rather than as flat colours that happen to blend. */
+.presetSwatchGradient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0 2px,
+    transparent 2px 7px
+  );
+  pointer-events: none;
+}
+
+/* A title bar, then two text lines, then an accent dot. The shapes are what the
+   card templates draw, so the preview is honest about the palette's roles. */
+.swatchTitle {
+  height: 0.2rem;
+  width: 52%;
+}
+
+.swatchLine {
+  height: 0.12rem;
+  width: 68%;
+  opacity: 0.75;
+}
+
+.swatchLineShort {
+  width: 44%;
+}
+
+.swatchAccent {
+  position: absolute;
+  right: 0.28rem;
+  bottom: 0.28rem;
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+}
+
+.presetName {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  font-size: 0.62rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.presetTileActive .presetName {
+  color: var(--ink);
+}
+
+.presetName svg {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  color: var(--vermillion);
+}
+
+.presetEmpty {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--line-strong);
+  padding: 1.2rem;
+  font-size: 0.76rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+/* Four colour fields, two to a row. A gradient field spans the full row, so a
+   stop list always has the width to lay out its controls on one line. */
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+@media (max-width: 720px) {
+  .colorGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.colorField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  background: var(--paper-raise);
+  padding: 0.55rem;
+}
+
+.colorFieldLabel {
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.colorFieldRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* The native colour well is the picker. It sits in a hairline frame so it
+   matches the other fields instead of looking like a browser control. */
+.colorWell {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.15rem;
+  cursor: pointer;
+}
+
+.colorWell::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colorWell::-webkit-color-swatch {
+  border: 0;
+}
+
+.colorWell::-moz-color-swatch {
+  border: 0;
+}
+
+.colorHex {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  padding: 0.25rem 0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--ink);
+  outline: none;
+}
+
+.colorHex:focus {
+  border-color: var(--vermillion);
+}
+
+.colorGradientTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--indigo);
+}
+
+.colorGradientTag svg {
+  width: 0.68rem;
+  height: 0.68rem;
+}
+
+/* A gradient slot spans two columns: it has a stop list, which needs the room a
+   single solid-colour field does not. */
+.colorFieldGradient {
+  grid-column: span 2;
+}
+
+.gradientPreview {
+  display: block;
+  height: 2.4rem;
+  border: 1px solid var(--line-strong);
+}
+
+.gradientRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.gradientToggle {
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0 0 0.1rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.gradientToggle:hover {
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.gradientEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--line);
+  margin-top: 0.15rem;
+  padding-top: 0.6rem;
+  animation: gradientOpen 240ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+@keyframes gradientOpen {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.gradientTypeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.gradientTypeButton {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.gradientTypeButton:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.gradientTypeActive {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.gradientTypeActive:hover {
+  color: var(--paper);
+}
+
+.gradientAngle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.gradientAngle input[type="range"] {
+  width: 4.5rem;
+  accent-color: var(--vermillion);
+}
+
+.gradientStops {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gradientStop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 4.5rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.gradientStop .colorWell {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.gradientOffset {
+  width: 100%;
+  accent-color: var(--vermillion);
+}
+
+.gradientActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+
+.colorActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.7rem;
+}
+
+.linkAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  padding: 0 0 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    gap 180ms ease;
+}
+
+.linkAction:hover {
+  border-color: var(--vermillion);
+  gap: 0.5rem;
+}
+
+.linkAction svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.mutedAction {
+  color: var(--ink-soft);
+}
+
+.mutedAction:hover {
+  border-color: var(--ink);
+}
+
+/* Frame controls. */
+.frameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1.2rem;
+}
+
+.frameSwitch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.frameSwitchLabel {
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+/* The checkbox is the switch. `appearance: none` drops the native control and
+   leaves a real 2.4rem hit target, so the whole toggle is clickable instead of
+   relying on a decorative span to forward clicks. */
+.frameSwitchInput {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 2.4rem;
+  height: 1.25rem;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-deep);
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.frameSwitchInput::after {
+  content: "";
+  position: absolute;
+  top: 0.14rem;
+  left: 0.14rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  background: var(--ink-soft);
+  transition:
+    transform 220ms cubic-bezier(0.22, 0.8, 0.3, 1),
+    background-color 200ms ease;
+}
+
+.frameSwitchInput:checked {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.frameSwitchInput:checked::after {
+  background: var(--paper);
+  transform: translateX(1.12rem);
+}
+
+.frameSwitchInput:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 2px;
+}
+
+.radiusControl {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.radiusControl input[type="range"] {
+  width: 7rem;
+  accent-color: var(--vermillion);
+}
+
+.radiusValue {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.optionRow > .frameSwitchInput {
+  margin-top: 0.1rem;
+}
+
+.optionRow .frameSwitch {
+  flex: none;
+}
+
+.favouritesBlock .blockHead h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.favouritesBlock .blockHead h3 svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--vermillion);
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.presetTile:focus-visible,
+.colorWell:focus-visible,
+.presetFilterButton:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.linkAction:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+@media (max-width: 620px) {
+  .optionRow > .frameSwitchInput {
+    margin-top: 0.7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presetTile,
+  .presetFilterButton,
+  .colorHex,
+  .gradientToggle,
+  .gradientTypeButton {
+    transition: none;
+  }
+
+  .linkAction {
+    transition: none;
+  }
+
+  .frameSwitchInput,
+  .frameSwitchInput::after {
+    transition: none;
+  }
+
+  /* Every entrance becomes an instant appearance. The elements still reach
+     their final state, they just do not travel to it. */
+  .gradientEditor {
+    animation: none;
+  }
+
+  .presetTile:hover {
+    transform: none;
+    scale: 1 1;
+    rotate: none;
+  }
+}

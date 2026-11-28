@@ -1,0 +1,269 @@
+/* Step rail: the four steps, their counts, and the progress strip. */
+
+/* Rail numerals ink in from the left when the page loads. */
+@keyframes numeralIn {
+  from {
+    opacity: 0;
+    letter-spacing: 0.4em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0;
+  }
+}
+
+/* ── step rail ───────────────────────────────────────────────── */
+.rail {
+  position: sticky;
+  top: 5rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(158deg, var(--paper-raise), var(--paper-deep));
+  box-shadow: 0 24px 44px -38px var(--shadow);
+  animation: riseIn 760ms cubic-bezier(0.22, 0.8, 0.3, 1) 220ms backwards;
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.8rem 0.9rem 0.7rem;
+  font-size: 0.54rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.railHeadRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.railList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.railItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.7rem;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease,
+    padding-inline 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.railItem::before {
+  content: "";
+  position: absolute;
+  inset: 0.6rem auto 0.6rem 0;
+  width: 3px;
+  background: var(--vermillion);
+  scale: 1 0;
+  transform-origin: top;
+  transition: scale 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.railList li:last-child .railItem {
+  border-bottom: 0;
+}
+
+.railItem:hover {
+  background: var(--vermillion-wash);
+  padding-inline: 1.1rem;
+}
+
+.railItemActive {
+  background: var(--vermillion-wash);
+}
+
+.railItemActive::before {
+  scale: 1 1;
+}
+
+.railNumeral {
+  display: inline-block;
+  grid-row: span 2;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--vermillion);
+  animation: numeralIn 620ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+/* Each numeral inks in a beat after the one above it. The selector has to walk
+   from the list item: every rail button is the first child of its own `li`, so
+   `.railItem:nth-child(n)` would match all four equally. */
+.railList li:nth-child(1) .railNumeral {
+  animation-delay: 320ms;
+}
+
+.railList li:nth-child(2) .railNumeral {
+  animation-delay: 400ms;
+}
+
+.railList li:nth-child(3) .railNumeral {
+  animation-delay: 480ms;
+}
+
+.railList li:nth-child(4) .railNumeral {
+  animation-delay: 560ms;
+}
+
+.railLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.railCount {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+.railCountSet {
+  color: var(--vermillion);
+}
+
+.railNote {
+  margin-top: 0.2rem;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.railDone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--vermillion);
+}
+
+.railDone svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+/* The rail close action is only needed on narrow screens, where the rail
+   becomes a drawer. */
+.railClose {
+  display: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+/* Progress strip under the rail list. */
+.railFoot {
+  border-top: 1px solid var(--line);
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+.railMeter {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.55rem;
+}
+
+.railMeterStep {
+  flex: 1;
+  height: 3px;
+  background: var(--line);
+  transition: background-color 260ms ease;
+}
+
+.railMeterStepDone {
+  background: var(--vermillion);
+}
+
+.railFoot p {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.railBackdrop {
+  display: none;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.railItem:focus-visible,
+.railClose:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+@media (max-width: 960px) {
+  /* The rail becomes a drawer. It starts below the fixed masthead rather than at
+     the viewport top, so its own heading is not hidden behind the header. */
+  .rail {
+    position: fixed;
+    inset: 61px auto 0 0;
+    z-index: 60;
+    width: min(19rem, 86vw);
+    overflow-y: auto;
+    border-left: 0;
+    border-top: 0;
+    visibility: hidden;
+    transform: translateX(-102%);
+    transition: transform 280ms cubic-bezier(0.22, 0.8, 0.3, 1);
+  }
+
+  .railOpen {
+    visibility: visible;
+    transform: none;
+  }
+
+  .railClose {
+    display: inline-flex;
+  }
+
+  .railBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    display: block;
+    border: 0;
+    background: rgba(25, 21, 18, 0.5);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .railItem,
+  .railItem::before {
+    transition: none;
+  }
+
+  /* Every entrance becomes an instant appearance. The elements still reach
+     their final state, they just do not travel to it. */
+  .rail,
+  .railNumeral {
+    animation: none;
+  }
+}

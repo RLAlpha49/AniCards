@@ -8,7 +8,7 @@ import {
   buildCardPreviewUrl,
   type PreviewOptions,
 } from "@/lib/cards/generator-options";
-import styles from "./generator.module.css";
+import styles from "./option-demo.module.css";
 
 /** One side of a demo: a card rendered with a specific setting. @source */
 type DemoSide = Readonly<{

@@ -12,7 +12,7 @@ import {
   type CardCatalogEntry,
   type GroupName,
 } from "@/lib/cards/catalogue";
-import styles from "../generator.module.css";
+import styles from "./cards-step.module.css";
 
 type CardsStepProps = Readonly<{
   selections: Record<string, CardSelection>;

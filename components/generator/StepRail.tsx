@@ -2,7 +2,7 @@
 
 import { Check, List, X } from "@/lib/icons";
 import { cn } from "@/lib/cn";
-import styles from "./generator.module.css";
+import styles from "./step-rail.module.css";
 
 /** One step the generator walks through. @source */
 export type Step = Readonly<{

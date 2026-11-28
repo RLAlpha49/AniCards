@@ -14,7 +14,7 @@ import {
   paletteLabel,
   type PalettePreset,
 } from "@/lib/cards/generator-options";
-import styles from "../generator.module.css";
+import styles from "./palette-step.module.css";
 
 /** Palette filters. 56 presets need a way to narrow the list. @source */
 const FILTERS = [

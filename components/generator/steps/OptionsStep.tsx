@@ -17,7 +17,7 @@ import {
 } from "@/lib/cards/catalogue";
 import type { PreviewOptions } from "@/lib/cards/generator-options";
 import { OptionDemoPair } from "../OptionDemo";
-import styles from "../generator.module.css";
+import styles from "./options-step.module.css";
 
 type OptionsStepProps = Readonly<{
   selections: Record<string, CardSelection>;

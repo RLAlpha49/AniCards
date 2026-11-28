@@ -1,0 +1,426 @@
+/* Page frame for the card generator: the masthead, the work/preview grid,
+   the actions, the footer strip, and the mobile trigger. */
+
+.sheet {
+  width: 100%;
+  max-width: 1560px;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 3vw, 3.5rem);
+}
+
+/* Page entrance: the masthead settles first, then the work area, then the rail
+   and preview cascade. Opacity and blur only, so the hover animations own
+   transform and translate. */
+@keyframes settleIn {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    translate: 0 -6px;
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    translate: 0 0;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+/* A step swap fades and nudges rather than cutting, so the work area reads as
+   one place changing rather than a new page. */
+@keyframes stepIn {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+
+/* ── masthead ────────────────────────────────────────────────── */
+.masthead {
+  padding-top: 0.95rem;
+  animation: settleIn 700ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.edition {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding-bottom: 0.8rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.editionRule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.mastheadRule {
+  border-top: 2px solid var(--ink);
+}
+
+.mastheadBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.2rem 2rem;
+  padding: 1.5rem 0 1.4rem;
+}
+
+.mastheadTitle {
+  min-width: 0;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--vermillion);
+}
+
+.kickerRule {
+  width: 2.2rem;
+  height: 1px;
+  background: var(--vermillion);
+}
+
+.mastheadTitle h1 {
+  margin-top: 0.6rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.7rem, 2.6vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.mastheadTitle h1 em {
+  font-style: italic;
+  font-weight: 600;
+  color: var(--vermillion);
+}
+
+.mastheadNote {
+  margin-top: 0.55rem;
+  max-width: 40rem;
+  font-size: 0.86rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
+/* ── work area layout ────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 15.5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(1.2rem, 2.4vw, 2.6rem);
+  padding: 1.4rem 0 clamp(2.5rem, 5vw, 4rem);
+  /* 140ms puts the work area just after the masthead has started settling. */
+  animation: riseIn 760ms cubic-bezier(0.22, 0.8, 0.3, 1) 140ms backwards;
+}
+
+.railCount {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+/* ── work column ─────────────────────────────────────────────── */
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  align-items: start;
+  gap: clamp(1.2rem, 2.4vw, 2.2rem);
+}
+
+.step {
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  background: rgba(251, 245, 231, 0.4);
+  padding: clamp(1.1rem, 2vw, 1.75rem);
+}
+
+:global(.dark) .step {
+  background: rgba(34, 28, 23, 0.42);
+}
+
+.stepHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 0.9rem;
+}
+
+.stepHead h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-family: var(--font-display), "Yu Mincho", serif;
+  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.stepNumeral {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  color: var(--vermillion);
+}
+
+.stepNote {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.stepMeta {
+  flex: none;
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.stepBody {
+  padding-top: 1.2rem;
+  /* Keyed by step in the shell, so this replay is the step swap. */
+  animation: stepIn 420ms cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+/* ── actions ─────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 1.1rem;
+  margin-top: 1.4rem;
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.85rem 1.7rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--vermillion);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+.primaryAction:hover:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--vermillion);
+}
+
+.primaryAction:disabled {
+  opacity: 0.45;
+  box-shadow: 5px 5px 0 var(--line-strong);
+  cursor: not-allowed;
+}
+
+.primaryAction svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.primaryCount {
+  display: inline-grid;
+  min-width: 1.3rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  padding: 0 0.25rem;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  padding: 0 0 0.25rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    gap 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.secondaryAction:hover {
+  gap: 0.7rem;
+  border-color: var(--vermillion);
+  color: var(--vermillion);
+}
+
+.secondaryAction svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.actionNote {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 0.66rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* ── footer strip ────────────────────────────────────────────── */
+.footStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.4rem;
+  border-top: 1px solid var(--line);
+  padding: 1.2rem 0 2.5rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.footStrip a {
+  border-bottom: 1px solid var(--vermillion);
+  color: var(--vermillion);
+}
+
+/* ── mobile rail trigger ─────────────────────────────────────── */
+.railTrigger {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-raise);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.railTrigger svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* ── focus ───────────────────────────────────────────────────── */
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible,
+.railTrigger:focus-visible {
+  outline: 2px solid var(--vermillion);
+  outline-offset: 3px;
+}
+
+/* ── responsive ──────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .railTrigger {
+    display: inline-flex;
+  }
+
+  .mastheadBody {
+    padding-top: 1.1rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .edition {
+    gap: 0.5rem;
+    letter-spacing: 0.16em;
+  }
+
+  .stepHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primaryAction {
+    justify-content: center;
+  }
+
+  .actionNote {
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryAction,
+  .secondaryAction {
+    transition: none;
+  }
+
+  /* Every entrance becomes an instant appearance. The elements still reach
+     their final state, they just do not travel to it. */
+  .masthead,
+  .layout,
+  .stepBody {
+    animation: none;
+  }
+
+  .primaryAction:hover:not(:disabled) {
+    transform: none;
+    scale: 1 1;
+    rotate: none;
+  }
+}

@@ -23,7 +23,7 @@ import { UsernameStep } from "./steps/UsernameStep";
 import { PaletteStep } from "./steps/PaletteStep";
 import { CardsStep } from "./steps/CardsStep";
 import { OptionsStep } from "./steps/OptionsStep";
-import styles from "./generator.module.css";
+import styles from "./generator-shell.module.css";
 
 /** Step identifiers, in the order the rail lists them. @source */
 const STEP_IDS = ["username", "palette", "cards", "finish"] as const;

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import styles from "./generator.module.css";
+import styles from "./generating-overlay.module.css";
 
 type GeneratingOverlayProps = Readonly<{
   /** How many cards this run will make. Quoted in the heading and edition line. */

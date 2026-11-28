@@ -2,7 +2,7 @@
 
 import { useId, useRef } from "react";
 import { AtSign, ExternalLink, Shield, Zap } from "@/lib/icons";
-import styles from "../generator.module.css";
+import styles from "./username-step.module.css";
 
 /** The three promises the generator makes, stated once. @source */
 const FACTS = [
